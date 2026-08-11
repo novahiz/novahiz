@@ -207,17 +207,11 @@ export default function LandingPage() {
               href="https://github.com/novahiz/novahiz"
               target="_blank"
               rel="noreferrer"
-              className="p-2.5 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 text-slate-300 transition-all"
+              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-slate-200 text-sm font-medium transition-all"
             >
               <GitBranch className="h-4 w-4" />
+              <span>GitHub</span>
             </a>
-            <Link
-              href="/dashboard"
-              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-cyan-500 to-indigo-600 text-white text-sm font-semibold shadow-lg shadow-cyan-500/20 hover:brightness-110 transition-all"
-            >
-              <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
-              Console Live
-            </Link>
           </div>
         </div>
       </header>
@@ -610,12 +604,15 @@ export default function LandingPage() {
               <span>Installer Novahiz Maintenant</span>
               <ArrowRight className="h-4 w-4" />
             </a>
-            <Link
-              href="/dashboard"
-              className="px-6 py-3.5 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 text-slate-200 font-semibold text-sm transition-all"
+            <a
+              href="https://github.com/novahiz/novahiz"
+              target="_blank"
+              rel="noreferrer"
+              className="px-6 py-3.5 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 text-slate-200 font-semibold text-sm transition-all flex items-center gap-2"
             >
-              Voir la Console en Direct
-            </Link>
+              <GitBranch className="h-4 w-4" />
+              <span>Voir sur GitHub</span>
+            </a>
           </div>
         </div>
       </section>
@@ -633,12 +630,6 @@ export default function LandingPage() {
             >
               GitHub Repository
             </a>
-            <Link
-              href="/dashboard"
-              className="hover:text-cyan-400 transition-colors"
-            >
-              Live Telemetry Dashboard
-            </Link>
             <span>Licence MIT</span>
           </div>
         </div>
