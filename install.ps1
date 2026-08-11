@@ -22,8 +22,8 @@ Print-Banner
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 if (-not $ScriptDir) { $ScriptDir = Get-Location }
 
-# 1. Détection de l'Environnement et des IA installées
-Write-Host "`n🔍 Détection automatique de vos environnements IA..." -ForegroundColor Yellow
+# 1. Détection des Assistants IA installés
+Write-Host "`n🔍 [1/3] Détection automatique de vos environnements IA..." -ForegroundColor Yellow
 
 $Harnesses = @()
 
@@ -55,7 +55,7 @@ $Harnesses += [PSCustomObject]@{
     Id = "4"; Name = "Cursor IDE (.cursorrules)"; Path = (Get-Location); Detected = $CursorDetected; Adapter = "cursor"
 }
 
-# Menu Interactif
+# Menu de Sélection de l'IA
 Write-Host "`n🎯 Veuillez choisir l'assistant IA dans lequel installer Novahiz :`n" -ForegroundColor Green
 
 foreach ($h in $Harnesses) {
@@ -67,7 +67,7 @@ Write-Host "  [5] 🌟 Installer dans TOUS les environnements détectés" -Foreg
 Write-Host "  [6] 📁 Choisir un répertoire personnalisé" -ForegroundColor DarkYellow
 Write-Host "  [0] ❌ Quitter`n" -ForegroundColor Red
 
-$Choice = Read-Host "Entrez votre choix (1-6)"
+$Choice = Read-Host "Entrez votre choix pour l'IA (1-6)"
 
 if ($Choice -eq "0" -or [string]::IsNullOrWhiteSpace($Choice)) {
     Write-Host "Installation annulée." -ForegroundColor Yellow
@@ -78,9 +78,7 @@ $SelectedTargets = @()
 
 if ($Choice -eq "5") {
     $SelectedTargets = $Harnesses | Where-Object { $_.Detected }
-    if ($SelectedTargets.Count -eq 0) {
-        $SelectedTargets = $Harnesses
-    }
+    if ($SelectedTargets.Count -eq 0) { $SelectedTargets = $Harnesses }
 } elseif ($Choice -eq "6") {
     $CustomPath = Read-Host "Entrez le chemin complet du répertoire cible"
     if (Test-Path $CustomPath) {
@@ -101,31 +99,129 @@ if ($Choice -eq "5") {
     }
 }
 
-# 2. Exécution de l'Installation
+# 2. Détection Automatique d'Obsidian et des Coffres (Vaults)
+Write-Host "`n🔍 [2/3] Détection d'Obsidian et de vos coffres de notes..." -ForegroundColor Yellow
+
+$ObsidianConfigFile = Join-Path $env:APPDATA "obsidian\obsidian.json"
+$DiscoveredVaults = @()
+
+if (Test-Path $ObsidianConfigFile) {
+    try {
+        $obsJson = Get-Content $ObsidianConfigFile -Raw -Encoding UTF8 | ConvertFrom-Json
+        if ($obsJson.vaults) {
+            foreach ($prop in $obsJson.vaults.PSObject.Properties) {
+                $vPath = $prop.Value.path
+                if ($vPath -and (Test-Path $vPath)) {
+                    $DiscoveredVaults += $vPath
+                }
+            }
+        }
+    } catch {}
+}
+
+$SelectedVaultPath = ""
+
+if ($DiscoveredVaults.Count -gt 0) {
+    Write-Host "✨ Obsidian est installé sur votre système ! Coffres découverts :" -ForegroundColor Cyan
+    for ($i = 0; $i -lt $DiscoveredVaults.Count; $i++) {
+        Write-Host "  [$($i+1)] $($DiscoveredVaults[$i])" -ForegroundColor White
+    }
+    Write-Host "  [C] Entrer un autre chemin ou créer un nouveau coffre" -ForegroundColor DarkYellow
+    
+    $vChoice = Read-Host "`nChoisissez votre coffre pour la mémoire Novahiz (1-$($DiscoveredVaults.Count) ou C)"
+    if ($vChoice -match "^\d+$" -and [int]$vChoice -ge 1 -and [int]$vChoice -le $DiscoveredVaults.Count) {
+        $SelectedVaultPath = $DiscoveredVaults[[int]$vChoice - 1]
+    }
+}
+
+if ([string]::IsNullOrWhiteSpace($SelectedVaultPath)) {
+    $DefaultVault = Join-Path $HOME "Documents\novahiz"
+    $userVaultInput = Read-Host "Entrez le chemin complet de votre coffre Obsidian [Défaut: $DefaultVault]"
+    if ([string]::IsNullOrWhiteSpace($userVaultInput)) {
+        $SelectedVaultPath = $DefaultVault
+    } else {
+        $SelectedVaultPath = $userVaultInput
+    }
+}
+
+# Création du dossier du vault s'il n'existe pas
+if (-not (Test-Path $SelectedVaultPath)) {
+    New-Item -Path $SelectedVaultPath -ItemType Directory -Force | Out-Null
+    Write-Host "  📁 Création du nouveau coffre : $SelectedVaultPath" -ForegroundColor DarkGray
+}
+
+$SessionsSubfolder = Join-Path $SelectedVaultPath "Novahiz-Sessions"
+if (-not (Test-Path $SessionsSubfolder)) {
+    New-Item -Path $SessionsSubfolder -ItemType Directory -Force | Out-Null
+}
+
+Write-Host "  📌 Coffre Obsidian configuré : $SelectedVaultPath" -ForegroundColor Green
+
+# 3. Déploiement et Configuration dans chaque IA Cible
+Write-Host "`n🚀 [3/3] Déploiement des composants Novahiz..." -ForegroundColor Yellow
+
 foreach ($target in $SelectedTargets) {
-    Write-Host "`n🚀 Installation de Novahiz dans : $($target.Name) -> $($target.Path)" -ForegroundColor Cyan
+    Write-Host "`n📦 Configuration pour : $($target.Name) ($($target.Path))" -ForegroundColor Cyan
     
     $TargetDir = $target.Path
     New-Item -Path $TargetDir -ItemType Directory -Force | Out-Null
     
-    # 2.1 Copie des Skills
+    # 3.1 Copie des Skills et de l'Inventaire
     $SkillsTarget = Join-Path $TargetDir "skills"
-    Write-Host "  📦 Déploiement des 153 skills..." -ForegroundColor DarkGray
     Copy-Item -Path (Join-Path $ScriptDir "skills\*") -Destination $SkillsTarget -Recurse -Force | Out-Null
     
-    # 2.2 Copie de l'inventaire
     $InvTarget = Join-Path $TargetDir "skills_inventory"
     Copy-Item -Path (Join-Path $ScriptDir "skills_inventory\*") -Destination $InvTarget -Recurse -Force | Out-Null
     Copy-Item -Path (Join-Path $ScriptDir "skills_inventory.md") -Destination $TargetDir -Force | Out-Null
     
-    # 2.3 Copie des MCPs
+    # 3.2 Configuration MCP avec le Vault Obsidian dynamique
     $McpTarget = Join-Path $TargetDir "mcp"
     New-Item -Path $McpTarget -ItemType Directory -Force | Out-Null
     Copy-Item -Path (Join-Path $ScriptDir "mcp\servers\*") -Destination (Join-Path $McpTarget "servers") -Recurse -Force | Out-Null
-    Copy-Item -Path (Join-Path $ScriptDir "mcp\mcp_config.example.json") -Destination (Join-Path $TargetDir "mcp_config.json") -Force | Out-Null
     
-    # 2.4 Application de l'Adaptateur
-    Write-Host "  ⚙️ Application de l'adaptateur $($target.Adapter)..." -ForegroundColor DarkGray
+    # Création du mcp_config.json avec le bon chemin de vault
+    $EscapedVault = $SelectedVaultPath -replace '\\', '\\'
+    $NovahizToolsPath = (Join-Path $TargetDir "mcp\servers\novahiz-tools\index.js") -replace '\\', '\\'
+    
+    $McpJson = @"
+{
+  "mcpServers": {
+    "chrome-devtools": {
+      "command": "npx",
+      "args": ["-y", "chrome-devtools-mcp@latest", "--browserUrl=http://127.0.0.1:9222", "--no-usage-statistics", "--no-performance-crux", "--screenshotFormat=png"]
+    },
+    "cron": {
+      "command": "npx",
+      "args": ["-y", "mcp-cron"]
+    },
+    "git": {
+      "command": "npx",
+      "args": ["-y", "git-mcp-server"]
+    },
+    "obsidian": {
+      "command": "npx",
+      "args": ["-y", "mcpvault", "$EscapedVault"]
+    },
+    "novahiz-tools": {
+      "command": "node",
+      "args": ["$NovahizToolsPath"]
+    }
+  }
+}
+"@
+    Set-Content -Path (Join-Path $TargetDir "mcp_config.json") -Value $McpJson -Encoding UTF8
+    
+    # 3.3 Sauvegarde du config.json global avec le chemin du Vault
+    $ConfigJson = @"
+{
+  "obsidianVaultPath": "$EscapedVault",
+  "version": "1.0.0",
+  "installedAt": "$(Get-Date -Format 'yyyy-MM-ddTHH:mm:ssZ')"
+}
+"@
+    Set-Content -Path (Join-Path $TargetDir "config.json") -Value $ConfigJson -Encoding UTF8
+    
+    # 3.4 Application de l'Adaptateur
     if ($target.Adapter -eq "antigravity") {
         $PluginsTarget = Join-Path $TargetDir "plugins\novahiz"
         New-Item -Path $PluginsTarget -ItemType Directory -Force | Out-Null
@@ -138,18 +234,17 @@ foreach ($target in $SelectedTargets) {
         Copy-Item -Path (Join-Path $ScriptDir "adapters\opencode\opencode.json") -Destination (Join-Path $TargetDir "opencode.json") -Force | Out-Null
     }
     
-    # 2.5 Initialisation SQLite WAL
-    Write-Host "  🗄️ Initialisation de la base SQLite WAL..." -ForegroundColor DarkGray
-    $DbPath = Join-Path $TargetDir "novahiz.db"
+    # 3.5 Initialisation SQLite WAL
     $MigrateScript = Join-Path $ScriptDir "reference_scripts\novahiz_migrate.py"
     if (Test-Path $MigrateScript) {
         python $MigrateScript
     }
     
-    Write-Host "  ✅ Installation terminée pour $($target.Name) !" -ForegroundColor Green
+    Write-Host "  ✅ Installation réussie pour $($target.Name) !" -ForegroundColor Green
 }
 
 Write-Host "`n==============================================================================" -ForegroundColor DarkCyan
-Write-Host "🎉 NOVAHIZ EST MAINTENANT OPÉRATIONNEL !" -ForegroundColor Green
-Write-Host "Votre assistant appliquera désormais automatiquement le Gate, le Sweeper et la Mémoire Dual-Write." -ForegroundColor White
+Write-Host "🎉 NOVAHIZ EST MAINTENANT CONFIGURÉ AVEC SUCCÈS !" -ForegroundColor Green
+Write-Host "  - Environnements : $($SelectedTargets.Name -join ', ')" -ForegroundColor White
+Write-Host "  - Coffre Obsidian: $SelectedVaultPath" -ForegroundColor White
 Write-Host "==============================================================================" -ForegroundColor DarkCyan

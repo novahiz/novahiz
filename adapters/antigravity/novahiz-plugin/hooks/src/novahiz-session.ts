@@ -6,9 +6,23 @@ import { exec, spawn } from "child_process";
 
 const configDir = path.join(os.homedir(), ".gemini", "config");
 const sessionStatePath = path.join(configDir, "novahiz-session-state.json");
-const obsidianVaultDir = path.join(os.homedir(), "Documents", "novahiz");
-const obsidianSessionsDir = path.join(obsidianVaultDir, "Novahiz-Sessions");
 const dashboardDir = path.join(os.homedir(), ".gemini", "dashboard");
+
+function getObsidianVaultDir(): string {
+  if (process.env.NOVAHIZ_OBSIDIAN_VAULT) {
+    return process.env.NOVAHIZ_OBSIDIAN_VAULT;
+  }
+  const configPath = path.join(configDir, "config.json");
+  if (fs.existsSync(configPath)) {
+    try {
+      const cfg = JSON.parse(fs.readFileSync(configPath, "utf-8"));
+      if (cfg.obsidianVaultPath && typeof cfg.obsidianVaultPath === "string") {
+        return cfg.obsidianVaultPath;
+      }
+    } catch (e) {}
+  }
+  return path.join(os.homedir(), "Documents", "novahiz");
+}
 
 function ensureDashboardRunning() {
   const socket = new net.Socket();
@@ -95,20 +109,22 @@ async function main() {
       exec(`python "${migrateScript}"`, () => {});
     }
 
-    // 2. Automated Obsidian session note sync
+    // 2. Automated Obsidian session note sync (Dynamic Vault Path)
     try {
-      if (fs.existsSync(obsidianVaultDir)) {
-        if (!fs.existsSync(obsidianSessionsDir)) {
-          fs.mkdirSync(obsidianSessionsDir, { recursive: true });
-        }
+      const vaultDir = getObsidianVaultDir();
+      const sessionsDir = path.join(vaultDir, "Novahiz-Sessions");
 
-        const sessionData = state[sessionId] || {};
-        const now = new Date();
-        const dateStr = now.toISOString().split("T")[0];
-        const noteFilename = `Session-${dateStr}-${sessionId.slice(0, 8)}.md`;
-        const notePath = path.join(obsidianSessionsDir, noteFilename);
+      if (!fs.existsSync(sessionsDir)) {
+        fs.mkdirSync(sessionsDir, { recursive: true });
+      }
 
-        const noteContent = `---
+      const sessionData = state[sessionId] || {};
+      const now = new Date();
+      const dateStr = now.toISOString().split("T")[0];
+      const noteFilename = `Session-${dateStr}-${sessionId.slice(0, 8)}.md`;
+      const notePath = path.join(sessionsDir, noteFilename);
+
+      const noteContent = `---
 type: session-log
 session_id: "${sessionId}"
 date: "${dateStr}"
@@ -140,8 +156,7 @@ tags:
 *Généré automatiquement par le Hook de Clôture Novahiz.*
 `;
 
-        fs.writeFileSync(notePath, noteContent, "utf-8");
-      }
+      fs.writeFileSync(notePath, noteContent, "utf-8");
     } catch (obsidianErr) {
       // Non-blocking error
     }
