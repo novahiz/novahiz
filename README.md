@@ -17,13 +17,13 @@ The installer automatically detects your operating system, identifies installed 
 ### 🍏 macOS & 🐧 Linux
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/<YOUR-USERNAME>/novahiz/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/theghostnevercry/novahiz/main/install.sh | bash
 ```
 
 ### 🪟 Windows (PowerShell)
 
 ```powershell
-irm https://raw.githubusercontent.com/<YOUR-USERNAME>/novahiz/main/install.ps1 | iex
+irm https://raw.githubusercontent.com/theghostnevercry/novahiz/main/install.ps1 | iex
 ```
 
 ### 🎯 Interactive Installer Preview:
@@ -115,7 +115,7 @@ flowchart TD
 3. **Link and Push**:
    ```bash
    git branch -M main
-   git remote add origin https://github.com/<your-username>/novahiz.git
+   git remote add origin https://github.com/theghostnevercry/novahiz.git
    git push -u origin main
    ```
 
