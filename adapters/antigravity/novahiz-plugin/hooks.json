@@ -1,0 +1,79 @@
+{
+  "novahiz-sweeper": {
+    "PreToolUse": [
+      {
+        "matcher": "write_to_file|replace_file_content|multi_replace_file_content|run_command",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node ./hooks/dist/novahiz-sweeper.js",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  },
+  "novahiz-enforcer": {
+    "PreToolUse": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node ./hooks/dist/novahiz-enforcer.js",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  },
+  "novahiz-auto-fix": {
+    "PostToolUse": [
+      {
+        "matcher": "write_to_file|replace_file_content|multi_replace_file_content|run_command",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node ./hooks/dist/novahiz-auto-fix.js",
+            "timeout": 30
+          }
+        ]
+      }
+    ]
+  },
+  "novahiz-session": {
+    "PreInvocation": [
+      {
+        "type": "command",
+        "command": "node ./hooks/dist/novahiz-session.js",
+        "timeout": 10
+      },
+      {
+        "type": "command",
+        "command": "node ./hooks/dist/novahiz-design.js",
+        "timeout": 10
+      }
+    ],
+    "Stop": [
+      {
+        "type": "command",
+        "command": "node ./hooks/dist/novahiz-session.js",
+        "timeout": 10
+      }
+    ]
+  },
+  "novahiz-orchestrator": {
+    "PreToolUse": [
+      {
+        "matcher": "invoke_subagent",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node ./hooks/dist/novahiz-orchestrator.js",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}

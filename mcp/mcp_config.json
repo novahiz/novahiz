@@ -1,0 +1,42 @@
+{
+  "mcpServers": {
+    "chrome-devtools": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "chrome-devtools-mcp@latest",
+        "--browserUrl=http://127.0.0.1:9222",
+        "--no-usage-statistics",
+        "--no-performance-crux",
+        "--experimentalPageIdRouting",
+        "--experimentalDevtools",
+        "--experimentalVision",
+        "--memoryDebugging",
+        "--experimentalStructuredContent",
+        "--screenshotFormat=png"
+      ]
+    },
+    "cron": {
+      "args": [
+        "--transport",
+        "stdio"
+      ],
+      "command": "C:\\Users\\tawhi\\.config\\opencode\\mcp\\node_modules\\.bin\\mcp-cron.cmd"
+    },
+    "git": {
+      "command": "C:\\Users\\tawhi\\.config\\opencode\\mcp\\node_modules\\.bin\\git-mcp-server.cmd"
+    },
+    "obsidian": {
+      "args": [
+        "C:\\Users\\tawhi\\Documents\\novahiz"
+      ],
+      "command": "C:\\Users\\tawhi\\.config\\opencode\\mcp\\node_modules\\.bin\\mcpvault.cmd"
+    },
+    "novahiz-tools": {
+      "command": "node",
+      "args": [
+        "C:\\Users\\tawhi\\.gemini\\config\\mcp\\novahiz-tools\\index.js"
+      ]
+    }
+  }
+}

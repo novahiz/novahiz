@@ -1,0 +1,26 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Production builds
+.next/
+dist/
+out/
+build/
+
+# SQLite Databases & logs
+*.db
+*.db-wal
+*.db-shm
+*.db-journal
+novahiz-compliance.json
+novahiz-session-state.json
+
+# Environment variables & secrets
+.env
+.env*.local
+
+# OS Files
+.DS_Store
+Thumbs.db

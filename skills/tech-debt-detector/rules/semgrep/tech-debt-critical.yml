@@ -1,0 +1,300 @@
+# Tech Debt Detector — Critical Pattern Rules (Semgrep)
+#
+# Validated against tech-debt-test-project on 2026-07-20 (semgrep 1.170.0).
+# Rules are split by language so patterns only parse against compatible syntax.
+# All rules parse cleanly with zero errors.
+
+rules:
+  # ─────────────────────────────────────────────────────────────
+  # SECURITY DEBT (Critical)
+  # ─────────────────────────────────────────────────────────────
+
+  - id: td-hardcoded-secret-c-style
+    severity: ERROR
+    languages: [javascript, typescript, python]
+    message: >
+      Hardcoded credential or secret detected. This is critical security debt.
+      Move to environment variables or a secret manager.
+    metadata:
+      category: security-debt
+      cwe: "CWE-798: Use of Hard-coded Credentials"
+      confidence: HIGH
+    patterns:
+      - pattern-either:
+          - pattern: |
+              $X = "$Y"
+          - pattern: |
+              $X = '$Y'
+          - pattern: |
+              $X = "$Y";
+      - metavariable-regex:
+          metavariable: $X
+          regex: (?i)(password|passwd|pwd|secret|api[_-]?key|secret[_-]?key|access[_-]?key|private[_-]?key|client[_-]?secret|auth[_-]?token|refresh[_-]?token)
+      - metavariable-regex:
+          metavariable: $Y
+          regex: ^[A-Za-z0-9+/=_\-]{6,}$
+
+  - id: td-hardcoded-secret-jvm
+    severity: ERROR
+    languages: [java, kotlin, swift]
+    message: >
+      Hardcoded credential or secret detected. This is critical security debt.
+      Move to environment variables or a secret manager.
+    metadata:
+      category: security-debt
+      cwe: "CWE-798: Use of Hard-coded Credentials"
+      confidence: HIGH
+    patterns:
+      - pattern: |
+          $X = "$Y"
+      - metavariable-regex:
+          metavariable: $X
+          regex: (?i)(password|passwd|pwd|secret|api[_-]?key|token|access[_-]?key|private[_-]?key|client[_-]?secret)
+      - metavariable-regex:
+          metavariable: $Y
+          regex: ^[A-Za-z0-9+/=_\-]{6,}$
+
+  - id: td-sql-injection-ts
+    severity: ERROR
+    languages: [javascript, typescript]
+    message: >
+      SQL query built via template literal interpolation. Critical injection
+      vulnerability. Use parameterized queries / prepared statements.
+    metadata:
+      category: security-debt
+      cwe: "CWE-89: SQL Injection"
+      confidence: HIGH
+    patterns:
+      - pattern-regex: (?i)(SELECT|INSERT|UPDATE|DELETE|DROP)\s+.*\$\{
+      - pattern-not-regex: \?
+
+  - id: td-sql-injection-py
+    severity: ERROR
+    languages: [python]
+    message: >
+      SQL query built via f-string or % formatting. Critical injection
+      vulnerability. Use parameterized queries / prepared statements.
+    metadata:
+      category: security-debt
+      cwe: "CWE-89: SQL Injection"
+      confidence: HIGH
+    patterns:
+      - pattern-either:
+          - pattern: |
+              f"... { $VAR } ..."
+          - pattern: |
+              "... %s ..." % $VAR
+          - pattern: |
+              "... {}. ...".format($VAR)
+      - pattern-not: |
+          "... ? ..."
+
+  - id: td-sql-injection-jvm
+    severity: ERROR
+    languages: [java, kotlin]
+    message: >
+      SQL query built via string concatenation or String.format. Critical
+      injection vulnerability. Use PreparedStatement with bind parameters.
+    metadata:
+      category: security-debt
+      cwe: "CWE-89: SQL Injection"
+      confidence: HIGH
+    patterns:
+      - pattern-either:
+          - pattern: |
+              "... " + $VAR + " ..."
+          - pattern: |
+              String.format("... %s ...", $VAR)
+      - pattern-not: |
+          "... ? ..."
+
+  - id: td-weak-hash
+    severity: WARNING
+    languages: [javascript, typescript, python, java]
+    message: >
+      Weak hash function (MD5/SHA1) used for password or security purposes.
+      Use bcrypt, argon2, or scrypt instead.
+    metadata:
+      category: security-debt
+      cwe: "CWE-327: Use of a Broken or Risky Cryptographic Algorithm"
+      confidence: HIGH
+    patterns:
+      - pattern-either:
+          - pattern: |
+              crypto.createHash("md5")
+          - pattern: |
+              crypto.createHash("sha1")
+          - pattern: |
+              hashlib.md5(...)
+          - pattern: |
+              hashlib.sha1(...)
+          - pattern: |
+              MessageDigest.getInstance("MD5")
+
+  - id: td-insecure-random
+    severity: WARNING
+    languages: [javascript, typescript, python, java]
+    message: >
+      Cryptographically insecure random source (Math.random / random.random)
+      used for security-sensitive value. Use crypto.randomBytes / secrets.token.
+    metadata:
+      category: security-debt
+      cwe: "CWE-330: Use of Insufficiently Random Values"
+      confidence: MEDIUM
+    patterns:
+      - pattern-either:
+          - pattern: |
+              Math.random()
+          - pattern: |
+              random.random()
+          - pattern: |
+              new Random()
+
+  - id: td-no-rate-limit
+    severity: WARNING
+    languages: [javascript, typescript, python]
+    message: >
+      Authentication or sensitive endpoint without rate limiting.
+      Add rate limiting middleware to prevent brute-force / abuse.
+    metadata:
+      category: security-debt
+      confidence: LOW
+    patterns:
+      - pattern-either:
+          - pattern: |
+              app.post("/login", $HANDLER)
+          - pattern: |
+              @app.route("/login", methods=["POST"])
+      - pattern-not-inside: |
+              $X.use(rateLimit(...))
+      - pattern-not-inside: |
+              @limiter.limit(...)
+
+  # ─────────────────────────────────────────────────────────────
+  # CODE DEBT (High)
+  # ─────────────────────────────────────────────────────────────
+
+  - id: td-explicit-any
+    severity: WARNING
+    languages: [typescript]
+    message: >
+      Explicit `any` type in public API signature. Weak abstraction debt.
+      Define a proper type or use unknown + type guard.
+    metadata:
+      category: design-debt
+      confidence: HIGH
+    patterns:
+      - pattern-either:
+          - pattern: |
+              $FN($X: any): $RET
+          - pattern: |
+              ($X: any): $RET => { ... }
+      - pattern-not-inside: |
+              // eslint-disable
+
+  - id: td-magic-number
+    severity: INFO
+    languages: [javascript, typescript, python, kotlin, swift]
+    message: >
+      Magic number used without named constant. Code debt — extract to a
+      well-named constant with a comment explaining the value.
+    metadata:
+      category: code-debt
+      confidence: MEDIUM
+    patterns:
+      - pattern-either:
+          - pattern: |
+              if ($X > $NUM) { ... }
+          - pattern: |
+              if ($X < $NUM) { ... }
+          - pattern: |
+              return $NUM
+      - metavariable-comparison:
+          metavariable: $NUM
+          comparison: $NUM > 10
+      - pattern-not: |
+              const $CONST = $NUM
+      - pattern-not: |
+              $CONST = $NUM
+
+  - id: td-console-log-prod
+    severity: INFO
+    languages: [javascript, typescript, python]
+    message: >
+      console.log/error used in source — likely debug leftover or missing
+      structured logging. Use a logger with levels.
+    metadata:
+      category: code-debt
+      confidence: MEDIUM
+    patterns:
+      - pattern-either:
+          - pattern: |
+              console.log(...)
+          - pattern: |
+              console.error(...)
+          - pattern: |
+              print(...)
+
+  - id: td-todo-fixme-c-style
+    severity: INFO
+    languages: [javascript, typescript, java, kotlin, swift, go]
+    message: >
+      TODO/FIXME/HACK/WORKAROUND comment found. Track as debt item with a ticket.
+    metadata:
+      category: code-debt
+      confidence: HIGH
+    patterns:
+      - pattern-regex: (?i)(//|/\*)\s*(TODO|FIXME|HACK|WORKAROUND)\b
+
+  - id: td-todo-fixme-python
+    severity: INFO
+    languages: [python]
+    message: >
+      TODO/FIXME/HACK comment found. Track as debt item with a ticket.
+    metadata:
+      category: code-debt
+      confidence: HIGH
+    patterns:
+      - pattern-regex: (?i)#\s*(TODO|FIXME|HACK|WORKAROUND)\b
+
+  # ─────────────────────────────────────────────────────────────
+  # INFRASTRUCTURE DEBT (High)
+  # ─────────────────────────────────────────────────────────────
+
+  - id: td-no-health-check
+    severity: WARNING
+    languages: [javascript, typescript, python, go]
+    message: >
+      HTTP server without /health endpoint. Infrastructure debt — orchestrators
+      cannot detect readiness/liveness.
+    metadata:
+      category: infrastructure-debt
+      confidence: MEDIUM
+    patterns:
+      - pattern-either:
+          - pattern: |
+              app.listen($PORT, ...)
+          - pattern: |
+              server.listen($PORT, ...)
+      - pattern-not-inside: |
+              app.get("/health", ...)
+
+  - id: td-no-graceful-shutdown
+    severity: WARNING
+    languages: [javascript, typescript, python, go]
+    message: >
+      Server starts without SIGTERM/SIGINT handler for graceful shutdown.
+      Infrastructure debt — in-flight requests may be dropped on deploy.
+    metadata:
+      category: infrastructure-debt
+      confidence: MEDIUM
+    patterns:
+      - pattern-either:
+          - pattern: |
+              app.listen($PORT)
+          - pattern: |
+              server.listen($PORT)
+      - pattern-not: |
+              process.on("SIGTERM", ...)
+      - pattern-not: |
+              signal.signal(signal.SIGTERM, ...)

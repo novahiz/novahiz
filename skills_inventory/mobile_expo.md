@@ -1,0 +1,26 @@
+# 📱 Mobile, Expo & React Native
+
+- **android-cli** : CLI Android, SDK, émulateurs et troubleshooting.
+- **eas-app-stores** : Publication TestFlight et Play Store via EAS.
+- **eas-hosting** : Hébergement de sites web statiques ou serveurs avec EAS.
+- **eas-observe** : Intégration de télémétrie et logs avec EAS.
+- **eas-simulator** : Tests sur simulateur iOS et Android avec EAS.
+- **eas-update-insights** : Santé et télémétrie des déploiements OTA (EAS Update).
+- **eas-workflows** : Création et debug des pipelines CI/CD YAML pour EAS.
+- **expo-app-clip** : Création d'App Clips iOS via Expo.
+- **expo-brownfield** : Intégration d'Expo dans des apps natives (Kotlin/Swift) existantes.
+- **expo-data-fetching** : Appels API, requêtes réseau, React Query, SWR, offline.
+- **expo-dev-client** : Distribution locale / TestFlight de clients de développement.
+- **expo-dom** : Exécution de composants web dans une webview native.
+- **expo-examples** : Templates et exemples canoniques (Stripe, Supabase, Skia, etc.).
+- **expo-migrate-module** : Migration de modules Swift (API v1 -> v2) pour Expo.
+- **expo-module** : Création de modules natifs Expo (Swift, Kotlin).
+- **expo-native-ui** : UI native, Apple HIG, couleurs sémantiques, effets.
+- **expo-project-structure** : Scaffolding d'arborescence pour nouveaux projets Expo.
+- **expo-router** : Routage file-based, onglets, liens, modales pour Expo.
+- **expo-skill-eval** : Évaluation e2e de skills sur des simulateurs.
+- **expo-skill-feedback** : Boucle de feedback pour l'amélioration continue des skills Expo.
+- **expo-tailwind-setup** : Configuration de Tailwind CSS v4 / NativeWind v5.
+- **expo-ui** : Documentation approfondie des composants UI propres à Expo.
+- **expo-upgrade** : Upgrade de SDK Expo et résolution de dépendances.
+- **expo-web-to-native** : Migration de React Web vers React Native (Expo).

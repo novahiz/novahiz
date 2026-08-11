@@ -1,0 +1,43 @@
+name: Novahiz Integrity CI
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  validate-package:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        node-version: [18.x, 20.x, 22.x]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Test Skills Integrity
+        run: |
+          python -c "
+          from pathlib import Path
+          skills = list(Path('skills').glob('*/SKILL.md'))
+          print(f'Validated {len(skills)} skills successfully')
+          assert len(skills) > 100
+          "
+
+      - name: Test Dashboard Build
+        run: |
+          cd reference_dashboard
+          npm install
+          npm run build

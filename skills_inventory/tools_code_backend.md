@@ -1,0 +1,33 @@
+# 🛠️ Outils Antigravity, Code Quality & Backend
+
+- **adversarial-reviewer** : Revue de code ultra-critique pour casser la monoculture.
+- **agy-customizations** : Guide du système de plugins/règles d'Antigravity.
+- **antigravity-guide** : Manuel central d'AGY (CLI, IDE, Config).
+- **code-reviewer** : Analyse PR (qualité, SOLID, complexité).
+- **code-tour** : Génération de visites guidées du code.
+- **code-to-prd** : Retro-ingénierie du code en spécifications produit.
+- **codebase-onboarding** : Documentation rapide d'une codebase inconnue.
+- **deep-work** : Planification de session de "deep work" / timeblocking.
+- **demo-video** : Génération automatisée de tutoriels/vidéos via Playwright+FFMPEG.
+- **dependency-auditor** : Vérification des licences et packages transitifs (NPM, etc.).
+- **engineering-advanced-skills** : Index des skills d'ingénierie experts.
+- **engineering-skills** : Index des skills de développement standard.
+- **git-worktree-manager** : Gestion de projets massifs avec Git Worktrees.
+- **google-antigravity-sdk** : Orchestration Python de l'agent Antigravity.
+- **impeccable** : Application extrême du clean code.
+- **karpathy-coder** : Principes de codage puristes (Keep it simple, pas de sur-ingénierie).
+- **mcp-server-builder** : Génération de serveurs MCP.
+- **monorepo-navigator** : Gestion Nx, Lerna, Turborepo.
+- **performance-profiler** : Flamegraphs et optimisation (Node/Go/Python).
+- **pr-review-expert** : Audits experts de requêtes de tirage (Pull Requests).
+- **prompt-engineer-toolkit** : Optimisation d'ingénierie de prompt pour LLMs.
+- **senior-backend** : Lead dev serveurs (Node, Go, Python, Rust).
+- **snowflake-development** : Pipelines de données et requêtes Snowflake.
+- **sql-database-assistant** : Optimisation requêtes (Postgres, Drizzle, Prisma, etc.).
+- **tc-tracker** : Suivi rigoureux des changements techniques (TCs).
+- **tech-debt-tracker** : Scoring et priorisation de la dette technique.
+- **uv** : Outils pour le gestionnaire de paquets python `uv`.
+- **workflow-builder** : Scaffolding de workflows (scripts) déterministes.
+- **workflow-skill-creator** : Packaging automatisé de scripts vers un nouveau skill.
+- **write-a-skill** : Guide de création structurée de skills agents.
+- **zero-hallucination-coder** : Style de codage ultra-fiable et sourcé.

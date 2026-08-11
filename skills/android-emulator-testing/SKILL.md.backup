@@ -1,0 +1,177 @@
+# Skill: android-emulator-testing
+
+# Android Emulator Testing — Open App + Validate Rendering
+
+Vous êtes le spécialiste de l'ouverture d'une application Expo/React Native sur l'émulateur Android et de la validation du rendu. Ce skill documente le processus FIABLE, testé et reproduisible à chaque session.
+
+## Quand utiliser
+
+- L'utilisateur demande d'ouvrir le projet dans l'émulateur Android
+- Test du rendu d'une app mobile sur Android
+- Vérification visuelle après une modification UI
+- Diagnostic d'un écran blanc / erreur sur Android
+
+## Règles d'or
+
+1. **JAMAIS** `expo run:android` / `expo run:ios` / `eas build` sans confirmation explicite (AGENTS.md §Expo Build Rules)
+2. **TOUJOURS** `npx expo start` pour le développement (pas de build natif)
+3. **TOUJOURS** vérifier l'émulateur AVANT de lancer Metro
+4. **TOUJOURS** valider le rendu par screenshot + état d'activité (pas juste "l'app s'ouvre")
+5. Sur Windows: `pwsh` (PowerShell 7), jamais cmd/bash/WSL
+6. **JAMAIS** utiliser le hostname dans le deep link Expo — l'émulateur ne résout pas les noms d'hôtes locaux. Toujours l'**IP locale**.
+7. **TOUJOURS** démarrer l'émulateur en **cold boot** (`-no-snapshot-load`) — jamais de quick boot. Un snapshot peut contenir des états stale (apps crashées, cache corrompu, sessions expirées) qui faussent les tests.
+
+## Workflow complet
+
+### Étape 1 — Vérifier l'état existant
+
+```powershell
+# Emulateur connecté ?
+adb devices
+
+# Metro actif ?
+Get-NetTCPConnection -LocalPort 8081 -State Listen -ErrorAction SilentlyContinue
+```
+
+| Émulateur | Metro | Action |
+|-----------|-------|--------|
+| `device` | Port 8081 actif | → Étape 4 (direct deep link) |
+| `device` | Port 8081 libre | → Étape 3 (lancer Metro) |
+| vide | — | → Étape 2 (démarrer émulateur) |
+| `offline` | — | Attendre `sys.boot_completed=1` |
+
+### Étape 2 — Démarrer l'émulateur (si nécessaire)
+
+```powershell
+# Lister les AVDs disponibles
+emulator -list-avds
+
+# Démarrage en arrière-plan — COLD BOOT (-no-snapshot-load)
+# Jamais de quick boot : un snapshot peut contenir des états stale
+Start-Process -FilePath "emulator" -ArgumentList "-avd", "Pixel_9", "-no-snapshot-load"
+
+# Attendre que le device apparaisse et que le boot soit terminé
+adb wait-for-device
+adb shell getprop sys.boot_completed   # attendre "1"
+```
+
+**Pourquoi cold boot ?** Le quick boot restaure un état sauvegardé (snapshot). Cet état peut contenir :
+- Apps crashées ou en état d'erreur
+- Cache corrompu ou expiré
+- Sessions authentification stale
+- Variables d'environnement obsolètes
+
+Un cold boot repart de zéro — c'est plus lent (~30s de plus) mais fiable.
+
+### Étape 3 — Lancer Metro (si pas déjà actif)
+
+**Méthode FIABLE** — `Start-Process pwsh` avec redirection de logs:
+
+```powershell
+$log = "C:\Users\tawhi\AppData\Local\Temp\opencode\expo-start.log"
+Start-Process pwsh -ArgumentList "-NoExit", "-Command", "cd '<CHEMIN_PROJET>'; npx expo start --android *> '$log'" -WindowStyle Hidden
+Start-Sleep -Seconds 20
+Get-Content $log -Tail 20
+```
+
+**Points critiques** :
+- Utiliser `pwsh` (PowerShell 7), PAS `powershell` (5.1)
+- Rediriger les logs vers un fichier
+- Si le port 8081 est déjà utilisé → Metro tourne déjà, passer à l'étape 4
+- **Toujours** `Start-Process` en background (timeout 60s tue Metro au premier plan)
+
+### Étape 4 — Obtenir l'IP locale (CRITIQUE)
+
+```powershell
+$ip = (Get-NetIPAddress -AddressFamily IPv4 | Where-Object { $_.IPAddress -ne '127.0.0.1' } | Select-Object -First 1).IPAddress
+Write-Host "IP: $ip"
+```
+
+**⚠️ Piège fréquent** : `hostname` (ex: `novahiz`) ne résout PAS dans l'émulateur Android. L'émulateur est un device réseau séparé — il a besoin de l'**adresse IP** de la machine hôte. Utiliser `exp://<IP>:8081`, JAMAIS `exp://<hostname>:8081`.
+
+### Étape 5 — Ouvrir l'app via deep link
+
+```powershell
+# Si l'app est déjà ouverte, la recharger
+adb shell "am force-stop host.exp.exponent"
+Start-Sleep -Seconds 2
+
+# Ouvrir via deep link (avec l'IP, PAS le hostname)
+adb shell "am start -a android.intent.action.VIEW -d exp://${ip}:8081 host.exp.exponent"
+```
+
+### Étape 6 — Vérifier que l'app est au premier plan
+
+```powershell
+adb shell "dumpsys window | grep mCurrentFocus"
+```
+
+| Résultat | Signification | Action |
+|----------|---------------|--------|
+| `ExperienceActivity` | App ouverte ✅ | → Étape 7 |
+| `ErrorActivity` | Erreur d'affichage | Vérifier logs Metro (Étape 8) |
+| `nexuslauncher` | App pas ouverte | Réessayer deep link |
+
+### Étape 7 — Vérifier les logs Metro (erreurs runtime)
+
+```powershell
+Get-Content <fichier-log> -Tail 20
+```
+
+**Indicateurs de succès** :
+- `Android Bundled XXXXms ... (N modules)` → bundle OK
+- `LOG [RootLayout] ready=true user=true ...` → session chargée
+- Absence de `ERROR` / `WARN` rouges
+
+### Étape 8 — Valider le rendu (screenshot)
+
+```powershell
+adb shell screencap -p /sdcard/screen.png
+adb pull /sdcard/screen.png "<PROJET>\screen\mon-capture.png"
+```
+
+**Règles screenshots** (global-rules.md §7) :
+- Toujours dans `screen/` à la racine du projet
+- Nom descriptif kebab-case
+
+## Diagnostique rapide
+
+| Symptôme | Cause probable | Fix |
+|----------|---------------|-----|
+| `adb devices` vide | Émulateur pas démarré | `Start-Process emulator -avd Pixel_9` |
+| `offline` | Boot en cours | Attendre `sys.boot_completed=1` |
+| Port 8081 non actif | Metro pas lancé | Relancer `Start-Process pwsh` |
+| `ErrorActivity` | Deep link avec hostname | Utiliser l'**IP locale** (Étape 4) |
+| `Something went wrong` dans Expo Go | Bundle crash | `npx expo start --clear` |
+| Écran blanc | CSS/Metro compile error | `npx expo start --clear` |
+| Notification jaune en bas | Dev indicator Expo | `app.json` → `"development": { "indicator": false }` |
+| Metro killed par timeout | Commande au premier plan | Toujours `Start-Process` + logs |
+
+## Notes projet (Fortunica Mobile)
+
+- AVD: `Pixel_9`
+- Bundle ID: `com.fortunica.mobile`
+- Metro: port `8081`
+- L'app route vers `/(tabs)` (client) ou `/(admin)` selon `profiles.is_admin`
+- Logs: `segment=(tabs) pathname=/` = OK
+
+## Expo MCP (si disponible)
+
+Le MCP Expo remote (`https://mcp.expo.dev/mcp`) donne des tools natifs pour :
+- `automation_take_screenshot` — screenshot natif sans adb
+- `automation_tap` — tap sur des coordonnées
+- `automation_find_view` — trouver des vues par accessibility label
+- `open_devtools` — ouvrir les devtools React Native
+
+Pour activer les capacités locales : `EXPO_UNSTABLE_MCP_SERVER=1 npx expo start`
+
+## Anti-patterns
+
+- ❌ `npx expo start` au premier plan (timeout 60s tue Metro)
+- ❌ `powershell` 5.1 au lieu de `pwsh` (échoue silencieusement)
+- ❌ Utiliser `hostname` dans le deep link Expo (l'émulateur ne résout pas)
+- ❌ Quick boot sans `-no-snapshot-load` (états stale, erreurs fantômes)
+- ❌ Confirmer le rendu sans screenshot ni état d'activité
+- ❌ `expo run:android` sans confirmation utilisateur
+- ❌ Ne pas nettoyer les anciens logs avant relance
+- ❌ Oublier de reconnecter le MCP après `expo start`/`expo stop`

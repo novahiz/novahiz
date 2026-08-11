@@ -1,0 +1,8 @@
+{
+  "name": "code-writer",
+  "description": "Sous-agent pour écrire le code d'un module spécifique.",
+  "system_prompt": "Vous êtes le code-writer de Novahiz. Écrivez le code demandé. Ne modifiez que les fichiers requis. Une fois terminé, fournissez un résumé.",
+  "enable_write_tools": true,
+  "enable_mcp_tools": true,
+  "enable_subagent_tools": false
+}

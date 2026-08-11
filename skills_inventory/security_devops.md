@@ -1,0 +1,33 @@
+# 🛡️ Sécurité & DevOps
+
+- **ai-security** : Audit de prompt injection, jailbreaks, data poisoning.
+- **aws-solution-architect** : Design cloud AWS, Serverless, IaC.
+- **azure-cloud-architect** : Design cloud Azure, Bicep, ARM.
+- **chaos-engineering** : Ingénierie du chaos (tests de résilience en production).
+- **ci-cd-pipeline-builder** : Pipelines Github Actions, Gitlab CI, etc.
+- **ciso-advisor** : Stratégie cybersécurité niveau management/board.
+- **ciso-review** : Revue de sécurité stricte pre-déploiement.
+- **cloud-security** : Posture cloud et détection de misconfigurations AWS/GCP/Azure.
+- **credentials** : Gestion sécurisée d'accès et secrets (API keys).
+- **docker-development** : Dockerisation et optimisation de conteneurs.
+- **env-secrets-manager** : Gestion de la sécurité des fichiers `.env`.
+- **gcp-cloud-architect** : Design Cloud GCP (GKE, Cloud Run, BigQuery).
+- **helm-chart-builder** : Design de packages K8s avec Helm.
+- **incident-commander** : Gestion SRE d'incidents, Post-Mortems.
+- **incident-response** : Escalade, forensique, classification SEV1-4.
+- **information-security-manager-iso27001** : Conformité ISO 27001 / ISMS.
+- **kubernetes-operator** : Construction d'opérateurs K8s natifs.
+- **observability-designer** : Mise en place de Datadog, Prometheus, SLI/SLO.
+- **red-team** : Attaques ciblées, pentests simulés.
+- **runbook-generator** : Génération de playbooks et runbooks on-call.
+- **secrets-vault-manager** : Configuration de Hashicorp Vault / Secret Manager.
+- **security-guidance** : Bonnes pratiques générales de sécurité.
+- **security-pen-testing** : Audit offensif et OWASP Top 10.
+- **senior-devops** : Leader de pipelines, IaC, Kubernetes.
+- **senior-secops** : Intégration de la sécurité au CI/CD (DevSecOps).
+- **senior-security** : Lead Securité / Threat Modeling (STRIDE/DREAD).
+- **skill-security-auditor** : Audit des plugins/skills pour failles d'injection.
+- **slo-architect** : Ingénierie d'objectifs de service et alertes pertinentes.
+- **soc2-compliance** : Préparation, audit et matrices de contrôles SOC2.
+- **terraform-patterns** : Architecture de modules Terraform avancés.
+- **threat-detection** : Détection d'IOC et de menaces système.

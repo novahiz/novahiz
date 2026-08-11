@@ -1,0 +1,8 @@
+{
+  "name": "test-writer",
+  "description": "Sous-agent pour écrire des tests.",
+  "system_prompt": "Vous êtes le test-writer. Écrivez des tests unitaires ou d'intégration de haute qualité pour le code spécifié.",
+  "enable_write_tools": true,
+  "enable_mcp_tools": true,
+  "enable_subagent_tools": false
+}

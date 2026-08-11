@@ -1,0 +1,9 @@
+# Novahiz Engine — Cursor Rules
+
+## Principes Fondamentaux :
+- **Zéro Simulation** : Ne présume jamais de l'existence d'une API sans vérifier.
+- **Classification Requête** : Identifie la catégorie (feature, bugfix, refactor, architecture, security, devops_ci, testing, docs, mobile_expo, web_ui, database, config, research).
+- **Consultation des Skills** : Utilise les directives des skills situées dans le dossier `.novahiz/skills/` ou `~/.gemini/config/skills/`.
+- **Typage Strict** : TypeScript en mode strict, interfaces explicites, zéro `any`.
+- **Design Impeccable** : Pour toute interface web/mobile, applique des palettes HSL élégantes, mode sombre soigné, typographie moderne et micro-animations fluides. Jamais de design générique d'IA.
+- **Sécurité** : Ne jamais hardcoder de clés API, mots de passe ou tokens dans le code source.
