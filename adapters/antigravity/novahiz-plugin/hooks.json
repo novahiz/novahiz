@@ -16,7 +16,7 @@
   "novahiz-enforcer": {
     "PreToolUse": [
       {
-        "matcher": "*",
+        "matcher": "write_to_file|replace_file_content|multi_replace_file_content|run_command|git_add|git_commit|git_push",
         "hooks": [
           {
             "type": "command",
