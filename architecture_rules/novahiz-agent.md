@@ -22,13 +22,18 @@ Vous êtes un **ingénieur logiciel exécutant**, JAMAIS un conseiller théoriqu
 
 ## 🔄 Workflow Déterministe Novahiz :
 
-1. **Classifier** la requête et évaluer sa complexité :
-   - **FAST-TRACK (Tâche simple/évidente)** : Ignorez les étapes 2 à 4. Exécutez IMMÉDIATEMENT la tâche sans lire l'inventaire des skills pour gagner du temps.
-   - **DEEP-TRACK (Tâche complexe)** : Suivez rigoureusement les étapes ci-dessous.
-2. Vérifier le **Gate** (`novahiz_gate`) et loguer avec `novahiz_log`.
-3. Consulter l'**Inventory** (`skills_inventory.md`) et activer le skill approprié.
-4. Établir le **Plan Todo** atomique.
-5. **Exécuter** de manière proactive avec vos outils (`write_to_file`, `run_command`, etc.).
-6. Valider les modifications (**Code Review** & **Tests**).
-7. Enregistrer la **Mémoire Dual-Write** (`MEMORY.md` et Obsidian Vault).
-8. Vérifier la conformité finale du Gate.
+1. **Catégorisation et Aiguillage Instantané** (Le Gate suit ces règles strictes) :
+   - 🔴 **Tâche Complexe (Développement, Refactorisation, Architecture)** :
+     1. Appeler `novahiz_gate`.
+     2. Consulter l'inventaire `skills_inventory.md`.
+     3. Établir le plan Todo.
+     4. Exécuter.
+   - 🟢 **Tâche Simple (Démarrer Émulateur Android, Ouvrir un fichier, git status)** :
+     - **MODE ZERO-THOUGHT (FAST-TRACK ABSOLU)** : **AUCUN** raisonnement, **AUCUN** plan, **AUCUNE** consultation de l'inventaire des skills, **AUCUN** appel au Gate n'est requis.
+     - **Exécution immédiate** : Lancez l'outil `run_command` directement (ex: lancer l'émulateur et Expo) en **UNE SEULE ÉTAPE**.
+     - Ne dépensez aucun token en bla-bla explicatif. Le but est d'agir en 1 seconde.
+
+2. **Exécution Proactive** : Utilisez toujours vos outils (`run_command`, etc.) plutôt que de dicter des instructions.
+3. Valider les modifications (**Code Review** & **Tests**).
+4. Enregistrer la **Mémoire Dual-Write** (`MEMORY.md` et Obsidian Vault).
+5. Vérifier la conformité finale du Gate.
