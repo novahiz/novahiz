@@ -37,3 +37,8 @@ Vous êtes un **ingénieur logiciel exécutant**, JAMAIS un conseiller théoriqu
 3. Valider les modifications (**Code Review** & **Tests**).
 4. Enregistrer la **Mémoire Dual-Write** (`MEMORY.md` et Obsidian Vault).
 5. Vérifier la conformité finale du Gate.
+
+
+## 💾 Mémoire de Session
+À la fin d'un cycle de travail, toujours appeler le skill novahiz-memory pour garantir la transmission de contexte.
+

@@ -23,6 +23,10 @@ async function main() {
         exec(`npx prettier --write "${targetFile}"`, { timeout: 4000 }, () => {
           // background completion
         });
+        // Hot-Reload Android Emulator
+        if (['.tsx', '.ts', '.jsx', '.js'].includes(ext)) {
+          exec('adb shell input text "rr"', { timeout: 2000 }, () => {});
+        }
       }
     }
   } catch (e) {
@@ -36,3 +40,4 @@ async function main() {
 main().catch(() => {
   console.log(JSON.stringify({}));
 });
+

@@ -55,6 +55,12 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
         },
       },
       {
+              {
+        name: "novahiz_list_skills",
+        description: "Retourne la liste complète des skills disponibles dans le système Novahiz, sans avoir à lire de fichier Markdown.",
+        inputSchema: { type: "object", properties: {} }
+      },
+      {
         name: "novahiz_load_skill",
         description:
           "Charge instantanément les instructions d'un skill (zéro lecture de fichier manuel requise).",
@@ -135,6 +141,22 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     };
   }
 
+    if (request.params.name === "novahiz_list_skills") {
+    const skillsDir = path.join(configDir, "skills");
+    let skillsList = [];
+    if (fs.existsSync(skillsDir)) {
+      const folders = fs.readdirSync(skillsDir, { withFileTypes: true });
+      for (const folder of folders) {
+        if (folder.isDirectory()) {
+          skillsList.push(folder.name);
+        }
+      }
+    }
+    return {
+      content: [{ type: "text", text: JSON.stringify({ skills: skillsList }, null, 2) }]
+    };
+  }
+
   if (request.params.name === "novahiz_load_skill") {
     const skillName = request.params.arguments.skill_name;
     const skillPath = path.join(configDir, "skills", skillName, "SKILL.md");
@@ -170,3 +192,4 @@ main().catch((error) => {
   console.error("Server error:", error);
   process.exit(1);
 });
+
