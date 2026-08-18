@@ -10,6 +10,14 @@
 
 ---
 
+## 🌟 Nouvelle Architecture v2
+
+Nous avons repensé le moteur pour le rendre encore plus rapide et autonome :
+- **Fast-Track & Zero-Markdown** : Abandon de la lecture lente des fichiers `.md` pour l'inventaire. L'agent utilise désormais un serveur MCP natif (`novahiz_list_skills`) pour instantanément connaître toutes ses capacités.
+- **Contrôle Full ADB (Android)** : Refus des serveurs MCP lents pour l'émulateur. L'agent utilise `adb shell` et `exec-out` pour faire des clics instantanés, du swipe et extraire l'arbre UI (XML) en quelques millisecondes, sans recours à l'analyse d'image.
+- **Auto Hot-Reloading** : Désormais, chaque modification d'un fichier React Native/Expo déclenche un `adb shell input text "rr"` automatique. Le code se rafraîchit en temps réel sur l'émulateur sans aucune action requise.
+- **Mémoire de Projet (Project Brain)** : Finie la perte de contexte ! À la fin de chaque tâche complexe, le système rédige et lit un fichier `MEMORY.md` synchronisé avec Obsidian pour reprendre l'état d'esprit exact du projet d'une session à l'autre.
+
 ## 🚀 Quickstart: 1-Click Interactive Installer
 
 The installer automatically detects your operating system, identifies installed AI coding environments, and prompts you to select where you want Novahiz installed:
@@ -124,3 +132,4 @@ flowchart TD
 ## 📄 License
 
 Released under the [MIT License](LICENSE).
+

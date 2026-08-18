@@ -249,3 +249,4 @@ echo "==========================================================================
 echo -e "${GREEN}🎉 NOVAHIZ EST MAINTENANT CONFIGURÉ AVEC SUCCÈS !${NC}"
 echo "  - Coffre Obsidian: $SELECTED_VAULT"
 echo "=============================================================================="
+

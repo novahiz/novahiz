@@ -225,7 +225,20 @@ foreach ($target in $SelectedTargets) {
     if ($target.Adapter -eq "antigravity") {
         $PluginsTarget = Join-Path $TargetDir "plugins\novahiz"
         New-Item -Path $PluginsTarget -ItemType Directory -Force | Out-Null
+                # --- Installation Antigravity Spécifique ---
+        Write-Host "  > Déploiement des plugins et règles Antigravity..." -ForegroundColor Gray
+        $PluginsTarget = Join-Path $TargetDir "plugins\novahiz"
+        $AgentsTarget = Join-Path $TargetDir "agents"
+        $RulesTarget = Join-Path $TargetDir "rules"
+        
+        if (-not (Test-Path $PluginsTarget)) { New-Item -ItemType Directory -Path $PluginsTarget -Force | Out-Null }
+        if (-not (Test-Path $AgentsTarget)) { New-Item -ItemType Directory -Path $AgentsTarget -Force | Out-Null }
+        if (-not (Test-Path $RulesTarget)) { New-Item -ItemType Directory -Path $RulesTarget -Force | Out-Null }
+
         Copy-Item -Path (Join-Path $ScriptDir "adapters\antigravity\novahiz-plugin\*") -Destination $PluginsTarget -Recurse -Force | Out-Null
+        Copy-Item -Path (Join-Path $ScriptDir "architecture_rules\novahiz-agent.md") -Destination $AgentsTarget -Force | Out-Null
+        Copy-Item -Path (Join-Path $ScriptDir "architecture_rules\android_emulator_headed.md") -Destination $RulesTarget -Force | Out-Null
+        Copy-Item -Path (Join-Path $ScriptDir "architecture_rules\autonomous_terminal_execution.md") -Destination $RulesTarget -Force | Out-Null
     } elseif ($target.Adapter -eq "claude-code") {
         Copy-Item -Path (Join-Path $ScriptDir "adapters\claude-code\CLAUDE.md") -Destination $TargetDir -Force | Out-Null
     } elseif ($target.Adapter -eq "cursor") {
@@ -248,3 +261,4 @@ Write-Host "🎉 NOVAHIZ EST MAINTENANT CONFIGURÉ AVEC SUCCÈS !" -ForegroundCo
 Write-Host "  - Environnements : $($SelectedTargets.Name -join ', ')" -ForegroundColor White
 Write-Host "  - Coffre Obsidian: $SelectedVaultPath" -ForegroundColor White
 Write-Host "==============================================================================" -ForegroundColor DarkCyan
+
