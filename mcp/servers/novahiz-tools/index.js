@@ -55,7 +55,6 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
         },
       },
       {
-              {
         name: "novahiz_list_skills",
         description: "Retourne la liste complète des skills disponibles dans le système Novahiz, sans avoir à lire de fichier Markdown.",
         inputSchema: { type: "object", properties: {} }
@@ -192,4 +191,5 @@ main().catch((error) => {
   console.error("Server error:", error);
   process.exit(1);
 });
+
 
