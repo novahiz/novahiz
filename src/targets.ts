@@ -178,8 +178,10 @@ export function extractTargetPaths(tool: string, args: unknown): string[] {
   };
   const record = (args && typeof args === "object" ? args : {}) as Record<string, unknown>;
   push(record.filePath);
+  push(record.file_path);
   push(record.path);
   push(record.file);
+  push(record.notebook_path);
 
   const patchText =
     typeof record.patchText === "string"

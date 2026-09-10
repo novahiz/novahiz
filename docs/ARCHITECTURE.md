@@ -37,6 +37,10 @@ Three versioned JSON files under `catalog/`:
 
 `adapters/opencode/novahiz.ts` is a plugin. It runs the CLI for classification and gating, tracks loaded skills per session in memory, and injects enforcement text through `experimental.chat.system.transform`. The gate call runs in `tool.execute.before`, which can throw and cancel the tool call.
 
+### harness hook adapters
+
+`src/hook.ts` maps a harness hook payload to the same gate. `novahiz hook --harness claude|codex` reads the payload on stdin, normalizes the tool name, tracks skill loads by session, and returns a decision. Claude Code uses a blocking `PreToolUse` hook; Codex uses advisory `PostToolUse` and `Stop` hooks. `install/hooks.mjs` writes the manifests.
+
 ## Data flow
 
 1. The user sends a message. `chat.message` classifies it and stores the categories and required skills for the session.
@@ -63,6 +67,7 @@ The core runs on Node with no dependencies. A new harness adapter needs two thin
 
 ## Next
 
-- Claude Code and Codex hook adapters.
+- A `Novahiz-Agent` primary agent that orchestrates classify, skill loading, execution, and the gate.
 - A curated scoring pass that fills `power` and `stars` beyond the defaults.
 - Optional embedding tie-break for the classifier.
+- A `novahiz report` command over the enforcement log.

@@ -72,10 +72,30 @@ The uninstaller restores the files it backed up, deletes the files it created (b
 
 ## Other harnesses
 
-The MCP server works with any harness that supports stdio MCP servers. Point it at:
+### Claude Code
+
+Install a blocking `PreToolUse` hook into `~/.claude/settings.json`:
+
+```
+node ~/.config/novahiz/install/hooks.mjs --harness claude
+```
+
+The installer backs up the existing file and merges its hook group. Restart Claude Code to load it. Edits and shell writes then pass through `novahiz hook --harness claude` and are denied when a required skill is missing.
+
+### Codex
+
+```
+node ~/.config/novahiz/install/hooks.mjs --harness codex
+```
+
+This writes `~/.codex/hooks.json`. Codex hooks fire after the edit (`PostToolUse`) and on `Stop`, so the verdict is advisory, not a block.
+
+### MCP only
+
+Any harness with a stdio MCP client can use the server for `classify`, `list_skills`, and `gate`:
 
 ```
 node ~/.config/novahiz/mcp/novahiz-tools/index.mjs
 ```
 
-Dedicated adapters for Claude Code, Codex, and Cursor are planned. Until then those harnesses get the classifier and the MCP tools, without the blocking gate.
+See [adapters/README.md](../adapters/README.md) for the full picture.
