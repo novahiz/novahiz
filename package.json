@@ -32,6 +32,8 @@
     "docs",
     "README.md",
     "NOTICE.md",
+    "novahiz.config.example.json",
+    "tsconfig.json",
     "LICENSE"
   ]
 }

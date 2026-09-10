@@ -73,6 +73,21 @@ const CLASS_BY_EXTENSION: Record<string, FileClass> = {
 export function fileClass(filePath: string): FileClass {
   const normalized = filePath.replace(/\\/g, "/");
   const base = normalized.slice(normalized.lastIndexOf("/") + 1);
+  if (base.length === 0) return "other";
+
+  if (base.startsWith(".")) {
+    const rest = base.replace(/^\.+/, "").toLowerCase();
+    if (rest.length === 0) return "other";
+    const direct = CLASS_BY_EXTENSION[rest];
+    if (direct) return direct;
+    const lastDot = rest.lastIndexOf(".");
+    if (lastDot !== -1) {
+      const ext = rest.slice(lastDot + 1);
+      return CLASS_BY_EXTENSION[ext] ?? "config";
+    }
+    return "config";
+  }
+
   const dot = base.lastIndexOf(".");
   if (dot <= 0) return "other";
   const ext = base.slice(dot + 1).toLowerCase();
@@ -113,6 +128,7 @@ export type GateInput = {
   categories?: string[];
   loadedSkills?: string[];
   installedSkills?: ReadonlySet<string> | null;
+  installedIndexAvailable?: boolean;
   spec: Spec;
 };
 
@@ -123,6 +139,7 @@ export type GateResult = {
   missingSkills: string[];
   unmatchedRequired: string[];
   matchedRules: string[];
+  indexMissing: boolean;
 };
 
 export function evaluateGate(input: GateInput): GateResult {
@@ -143,11 +160,20 @@ export function evaluateGate(input: GateInput): GateResult {
     }
   }
 
+  for (const id of categories) {
+    const category = input.spec.categories.find((entry) => entry.id === id);
+    if (!category) continue;
+    for (const skill of category.defaultSkills) {
+      if (!requiredSkills.includes(skill)) requiredSkills.push(skill);
+    }
+  }
+
   const installed = input.installedSkills ?? null;
+  const indexAvailable = input.installedIndexAvailable !== false;
   const effective: string[] = [];
   const unmatchedRequired: string[] = [];
   for (const skill of requiredSkills) {
-    if (installed && !installed.has(skill)) unmatchedRequired.push(skill);
+    if (indexAvailable && installed && !installed.has(skill)) unmatchedRequired.push(skill);
     else effective.push(skill);
   }
 
@@ -160,6 +186,7 @@ export function evaluateGate(input: GateInput): GateResult {
     requiredSkills: effective,
     missingSkills,
     unmatchedRequired,
-    matchedRules
+    matchedRules,
+    indexMissing: input.installedIndexAvailable === false
   };
 }

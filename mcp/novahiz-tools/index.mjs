@@ -1,11 +1,13 @@
 #!/usr/bin/env node
 import { createInterface } from "node:readline";
+import { pathToFileURL } from "node:url";
 import { classify } from "../../src/classify.ts";
 import { evaluateGate } from "../../src/gate.ts";
 import { loadSpec } from "../../src/spec.ts";
-import { readInstalledSkills } from "../../src/catalog.ts";
+import { loadInstalledSkills } from "../../src/catalog.ts";
 
-const PROTOCOL_VERSION = "2024-11-05";
+const SUPPORTED_PROTOCOLS = ["2024-11-05", "2025-06-18"];
+const DEFAULT_PROTOCOL = "2024-11-05";
 const SERVER_INFO = { name: "novahiz-tools", version: "0.1.0" };
 
 const TOOLS = [
@@ -42,6 +44,10 @@ const TOOLS = [
   }
 ];
 
+export function negotiateProtocol(requested) {
+  return SUPPORTED_PROTOCOLS.includes(requested) ? requested : DEFAULT_PROTOCOL;
+}
+
 function toolResult(value, isError = false) {
   const text = typeof value === "string" ? value : JSON.stringify(value, null, 2);
   return { content: [{ type: "text", text }], isError };
@@ -54,23 +60,29 @@ function callTool(name, args) {
     return toolResult({ prompt, ...classify(spec, prompt) });
   }
   if (name === "novahiz_list_skills") {
-    const installed = readInstalledSkills(spec);
+    const index = loadInstalledSkills(spec);
     const category = args?.category ? String(args.category) : null;
-    const entries = [...installed]
+    const fromCategories = category
+      ? new Set((spec.categories.find((entry) => entry.id === category)?.defaultSkills ?? []))
+      : null;
+    const entries = [...index.skills]
       .sort()
       .filter((id) => {
         if (!category) return true;
+        if (fromCategories.has(id)) return true;
         return (spec.overrides.skills?.[id]?.categories ?? []).includes(category);
       });
     return toolResult({ count: entries.length, skills: entries });
   }
   if (name === "novahiz_gate") {
+    const index = loadInstalledSkills(spec);
     const result = evaluateGate({
       tool: String(args?.tool ?? "edit"),
       filePath: String(args?.file ?? ""),
       categories: Array.isArray(args?.categories) ? args.categories.map(String) : [],
       loadedSkills: Array.isArray(args?.loaded) ? args.loaded.map(String) : [],
-      installedSkills: readInstalledSkills(spec),
+      installedSkills: index.skills,
+      installedIndexAvailable: index.available,
       spec
     });
     return toolResult(result, !result.allow);
@@ -87,7 +99,7 @@ function handle(message) {
       jsonrpc: "2.0",
       id,
       result: {
-        protocolVersion: params.protocolVersion ?? PROTOCOL_VERSION,
+        protocolVersion: negotiateProtocol(params.protocolVersion),
         capabilities: { tools: {} },
         serverInfo: SERVER_INFO
       }
@@ -106,16 +118,24 @@ function handle(message) {
   return { jsonrpc: "2.0", id, error: { code: -32601, message: `Method not found: ${method}` } };
 }
 
-const reader = createInterface({ input: process.stdin });
-reader.on("line", (line) => {
-  const trimmed = line.trim();
-  if (trimmed.length === 0) return;
-  let message;
-  try {
-    message = JSON.parse(trimmed);
-  } catch {
-    return;
-  }
-  const response = handle(message);
-  if (response) process.stdout.write(`${JSON.stringify(response)}\n`);
-});
+export function handleLine(line) {
+  return handle(line);
+}
+
+const isMain = process.argv[1] ? import.meta.url === pathToFileURL(process.argv[1]).href : false;
+if (isMain) {
+  const reader = createInterface({ input: process.stdin });
+  reader.on("line", (line) => {
+    const trimmed = line.trim();
+    if (trimmed.length === 0) return;
+    let message;
+    try {
+      message = JSON.parse(trimmed);
+    } catch {
+      process.stdout.write(`${JSON.stringify({ jsonrpc: "2.0", id: null, error: { code: -32700, message: "Parse error" } })}\n`);
+      return;
+    }
+    const response = handle(message);
+    if (response) process.stdout.write(`${JSON.stringify(response)}\n`);
+  });
+}

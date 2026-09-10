@@ -53,8 +53,16 @@ The only inputs to a gate decision are the spec files, the file path, the prompt
 
 The core runs on Node with no dependencies. A new harness adapter needs two things: a way to run `novahiz classify` and `novahiz gate`, and a pre-tool hook that can abort a call. When the harness has no such hook, the classifier and the system-prompt injection still work, but the gate cannot block.
 
+## Installer
+
+`install/install.mjs` copies the core, the bundled skills, and the plugin into place. It backs up any user file it overwrites (`*.novahiz-bak`) and records what it created in `.novahiz-install.json`, so `install/uninstall.mjs` can restore and reverse.
+
+## MCP server
+
+`mcp/novahiz-tools/index.mjs` exposes `novahiz_classify`, `novahiz_list_skills`, and `novahiz_gate` over stdio using newline-delimited JSON-RPC. It has no dependencies and reuses the core modules directly. The opencode plugin registers it through the plugin `config` hook.
+
 ## Next
 
-- MCP server exposing `classify`, `skills`, and `gate` as tools.
 - Claude Code and Codex hook adapters.
 - A curated scoring pass that fills `power` and `stars` beyond the defaults.
+- Optional embedding tie-break for the classifier.

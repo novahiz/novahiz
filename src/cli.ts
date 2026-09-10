@@ -1,9 +1,11 @@
+import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { classify } from "./classify.ts";
-import { evaluateGate, type FileClass } from "./gate.ts";
+import { evaluateGate } from "./gate.ts";
+import { extractTargetPaths } from "./targets.ts";
 import { loadSpec, novahizHome } from "./spec.ts";
 import { openDb, setMeta, getMeta } from "./db.ts";
-import { persistCatalog, readInstalledSkills, scanSkills, writeSkillIndex } from "./catalog.ts";
+import { loadInstalledSkills, persistCatalog, scanSkills, writeSkillIndex } from "./catalog.ts";
 
 type Parsed = {
   positionals: string[];
@@ -56,16 +58,25 @@ function dbPathFor(root: string, spec: ReturnType<typeof loadSpec>): string {
   return resolve(root, configured);
 }
 
+function readStdin(): string {
+  try {
+    return readFileSync(0, "utf8");
+  } catch {
+    return "";
+  }
+}
+
 function commandCheck(): void {
   const root = novahizHome();
   const spec = loadSpec(root);
-  const installed = readInstalledSkills(spec);
+  const index = loadInstalledSkills(spec);
   print({
     home: root,
     categories: spec.categories.length,
     rules: spec.rules.length,
     skillRoots: spec.config.skillRoots.length,
-    installedSkills: installed.size,
+    installedSkills: index.skills.size,
+    indexAvailable: index.available,
     gate: spec.config.gate,
     classify: spec.config.classify
   });
@@ -81,12 +92,7 @@ function commandSync(): void {
   const lastSync = new Date().toISOString();
   setMeta(db, "last_sync", lastSync);
   db.close();
-  print({
-    root,
-    scanned: skills.length,
-    index: indexFile,
-    lastSync
-  });
+  print({ root, scanned: skills.length, index: indexFile, lastSync });
 }
 
 function commandClassify(parsed: Parsed): void {
@@ -103,7 +109,7 @@ function commandClassify(parsed: Parsed): void {
 function commandGate(parsed: Parsed): void {
   const root = novahizHome();
   const spec = loadSpec(root);
-  const filePath = asString(parsed.flags.file);
+  const gateConfig = spec.config.gate;
   const tool = asString(parsed.flags.tool) || "edit";
   const categories = splitList(parsed.flags.categories);
   let loaded = splitList(parsed.flags.loaded);
@@ -115,14 +121,67 @@ function commandGate(parsed: Parsed): void {
     loaded = rows.map((row) => row.skill);
   }
 
-  const result = evaluateGate({
-    tool,
-    filePath,
-    categories,
-    loadedSkills: loaded,
-    installedSkills: readInstalledSkills(spec),
-    spec
-  });
+  if (gateConfig.enabled === false) {
+    print({ allow: true, disabled: true, tool });
+    return;
+  }
+
+  const single = asString(parsed.flags.file);
+  let paths: string[];
+  if (single.length > 0) {
+    paths = [single];
+  } else if (parsed.flags["args-stdin"]) {
+    let args: unknown = {};
+    const raw = readStdin().trim();
+    if (raw.length > 0) {
+      try {
+        args = JSON.parse(raw);
+      } catch {
+        process.stderr.write("Novahiz: invalid JSON on stdin for --args-stdin\n");
+        process.exitCode = 1;
+        return;
+      }
+    }
+    paths = extractTargetPaths(tool, args);
+  } else {
+    process.stderr.write("Novahiz: gate requires --file <path> or --args-stdin\n");
+    process.exitCode = 1;
+    return;
+  }
+
+  const gated = gateConfig.tools.includes(tool);
+  if (paths.length === 0) {
+    const result = {
+      allow: !gated,
+      tool,
+      targets: [],
+      requiredSkills: [],
+      missingSkills: [],
+      reason: gated ? "no target path could be derived for a gated tool" : "tool is not gated"
+    };
+    print(result);
+    if (gated && gateConfig.mode === "block") process.exitCode = 2;
+    return;
+  }
+
+  const index = loadInstalledSkills(spec);
+  const results = paths.map((filePath) => ({
+    path: filePath,
+    ...evaluateGate({
+      tool,
+      filePath,
+      categories,
+      loadedSkills: loaded,
+      installedSkills: index.skills,
+      installedIndexAvailable: index.available,
+      spec
+    })
+  }));
+
+  const allow = results.every((entry) => entry.allow);
+  const requiredSkills = [...new Set(results.flatMap((entry) => entry.requiredSkills))];
+  const missingSkills = [...new Set(results.flatMap((entry) => entry.missingSkills))];
+  const indexMissing = results.some((entry) => entry.indexMissing);
 
   if (session.length > 0) {
     const db = openDb(dbPathFor(root, spec));
@@ -131,18 +190,33 @@ function commandGate(parsed: Parsed): void {
     ).run(
       session,
       tool,
-      filePath,
-      result.fileClass as FileClass,
-      result.allow ? "allow" : "block",
-      JSON.stringify(result.missingSkills),
-      JSON.stringify(result.matchedRules),
+      paths.join(","),
+      results[0]?.fileClass ?? "other",
+      allow ? "allow" : gateConfig.mode === "block" ? "block" : gateConfig.mode,
+      JSON.stringify(missingSkills),
+      JSON.stringify(results.flatMap((entry) => entry.matchedRules)),
       new Date().toISOString()
     );
     db.close();
   }
 
-  print(result);
-  if (!result.allow) process.exitCode = 2;
+  print({
+    allow,
+    tool,
+    mode: gateConfig.mode,
+    indexMissing,
+    requiredSkills,
+    missingSkills,
+    targets: results.map((entry) => ({
+      path: entry.path,
+      fileClass: entry.fileClass,
+      requiredSkills: entry.requiredSkills,
+      missingSkills: entry.missingSkills,
+      matchedRules: entry.matchedRules
+    }))
+  });
+
+  if (!allow && gateConfig.mode === "block") process.exitCode = 2;
 }
 
 function commandSkills(parsed: Parsed): void {
@@ -173,13 +247,11 @@ function commandSkills(parsed: Parsed): void {
 }
 
 function commandCategories(): void {
-  const spec = loadSpec();
-  print(spec.categories);
+  print(loadSpec().categories);
 }
 
 function commandRules(): void {
-  const spec = loadSpec();
-  print(spec.rules);
+  print(loadSpec().rules);
 }
 
 function commandSessionLoad(parsed: Parsed): void {
@@ -224,7 +296,7 @@ function usage(): void {
       "check",
       "sync",
       "classify <text> [--min-score N] [--max-categories N]",
-      "gate --file <path> --tool <tool> [--categories a,b] [--loaded a,b] [--session id]",
+      "gate --tools <tool> (--file <path> | --args-stdin) [--categories a,b] [--loaded a,b] [--session id]",
       "skills [--category id]",
       "categories",
       "rules",

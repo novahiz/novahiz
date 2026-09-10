@@ -33,8 +33,12 @@ Restart opencode afterward. The plugin registers the Novahiz MCP server automati
 - `--scope project` targets `./.opencode` instead of the global config.
 - `--dry-run` prints the actions and writes nothing.
 - `--no-skills` skips the bundled skills.
-- `--force` rewrites `novahiz.config.json`.
-- `--yes` runs without prompts (the default).
+- `--force` rewrites `novahiz.config.json` (the previous file is backed up as `novahiz.config.json.novahiz-bak`).
+- `--yes` runs without prompts. This is the default; the flag is accepted for scripts.
+
+## What it touches
+
+The installer merges `skills/` into your opencode skills directory and writes the plugin. Any file it overwrites is copied first to `<file>.novahiz-bak`, and the list is stored in `.novahiz-install.json`. It never deletes a file it did not create.
 
 ## Verify
 
@@ -60,7 +64,11 @@ node install/install.mjs
 node ~/.config/novahiz/install/uninstall.mjs
 ```
 
-The uninstaller removes only the files it created, based on `.novahiz-install.json`. Add `--keep-config` to keep `novahiz.config.json`.
+The uninstaller restores the files it backed up, deletes the files it created (based on `.novahiz-install.json`), and prunes the directories it emptied. Options:
+
+- `--keep-config` keeps `novahiz.config.json`.
+- `--purge` also removes the Novahiz home directory when the installer created it.
+- `--dry-run` prints the actions and removes nothing.
 
 ## Other harnesses
 

@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 
@@ -94,14 +94,27 @@ function readJson<T>(path: string): T {
   return JSON.parse(readFileSync(path, "utf8")) as T;
 }
 
+export function mergeConfig(raw: Partial<NovahizConfig> | null | undefined): NovahizConfig {
+  const source = raw ?? {};
+  return {
+    dbPath: typeof source.dbPath === "string" ? source.dbPath : DEFAULT_CONFIG.dbPath,
+    skillRoots: Array.isArray(source.skillRoots) ? source.skillRoots : DEFAULT_CONFIG.skillRoots,
+    gate: { ...DEFAULT_CONFIG.gate, ...(source.gate ?? {}) },
+    classify: { ...DEFAULT_CONFIG.classify, ...(source.classify ?? {}) }
+  };
+}
+
 export function loadConfig(root: string = novahizHome()): NovahizConfig {
-  for (const candidate of [join(root, "novahiz.config.json"), join(root, "novahiz.config.example.json")]) {
+  const userPath = join(root, "novahiz.config.json");
+  if (existsSync(userPath)) {
     try {
-      return readJson<NovahizConfig>(candidate);
-    } catch {
-      continue;
+      return mergeConfig(JSON.parse(readFileSync(userPath, "utf8")) as Partial<NovahizConfig>);
+    } catch (error) {
+      throw new Error(`Invalid JSON in ${userPath}: ${(error as Error).message}`);
     }
   }
+  const examplePath = join(root, "novahiz.config.example.json");
+  if (existsSync(examplePath)) return mergeConfig(readJson<Partial<NovahizConfig>>(examplePath));
   return DEFAULT_CONFIG;
 }
 

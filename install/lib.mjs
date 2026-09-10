@@ -24,6 +24,13 @@ export function parseArgs(argv) {
   return flags;
 }
 
+export function expandHome(value) {
+  if (typeof value !== "string") return value;
+  if (value === "~") return homedir();
+  if (value.startsWith("~/") || value.startsWith("~\\")) return join(homedir(), value.slice(2));
+  return value;
+}
+
 export function repoRoot(metaUrl) {
   return resolve(dirname(fileURLToPath(metaUrl)), "..");
 }
@@ -35,7 +42,7 @@ export function opencodeConfigDir(env = process.env) {
 }
 
 export function novahizHome(flags = {}, env = process.env) {
-  if (typeof flags.home === "string") return resolve(flags.home);
+  if (typeof flags.home === "string") return resolve(expandHome(flags.home));
   if (env.NOVAHIZ_HOME) return resolve(env.NOVAHIZ_HOME);
   return join(homedir(), ".config", "novahiz");
 }
@@ -56,15 +63,40 @@ export function listFiles(root) {
   return out;
 }
 
-export function copyInto(srcDir, destDir) {
+function sameContent(a, b) {
+  try {
+    return readFileSync(a, "utf8") === readFileSync(b, "utf8");
+  } catch {
+    return false;
+  }
+}
+
+export function copyFileWithBackup(srcPath, destPath, useBackup = true) {
+  mkdirSync(dirname(destPath), { recursive: true });
+  if (!existsSync(destPath)) {
+    cpSync(srcPath, destPath);
+    return { created: destPath, backup: null };
+  }
+  if (sameContent(srcPath, destPath)) return { created: null, backup: null };
+  let backup = null;
+  if (useBackup) {
+    backup = `${destPath}.novahiz-bak`;
+    if (!existsSync(backup)) cpSync(destPath, backup);
+  }
+  cpSync(srcPath, destPath);
+  return { created: null, backup: backup ? { path: destPath, backup } : null };
+}
+
+export function copyInto(srcDir, destDir, useBackup = true) {
   const created = [];
-  if (!existsSync(srcDir)) return { created, total: 0 };
+  const backups = [];
+  if (!existsSync(srcDir)) return { created, backups, total: 0 };
   mkdirSync(destDir, { recursive: true });
   const stack = [""];
   while (stack.length > 0) {
     const rel = stack.pop();
     const src = rel ? join(srcDir, rel) : srcDir;
-    for (const entry of readdirSync(src, { withFileTypes: true })) {
+    for (const entry of readdirSync(src, { withFileTypes: true }).sort((a, b) => (a.name < b.name ? -1 : 1))) {
       const childRel = rel ? join(rel, entry.name) : entry.name;
       const srcPath = join(srcDir, childRel);
       const destPath = join(destDir, childRel);
@@ -72,13 +104,13 @@ export function copyInto(srcDir, destDir) {
         mkdirSync(destPath, { recursive: true });
         stack.push(childRel);
       } else {
-        const existed = existsSync(destPath);
-        cpSync(srcPath, destPath);
-        if (!existed) created.push(destPath);
+        const result = copyFileWithBackup(srcPath, destPath, useBackup);
+        if (result.created) created.push(result.created);
+        if (result.backup) backups.push(result.backup);
       }
     }
   }
-  return { created, total: listFiles(srcDir).length };
+  return { created, backups, total: listFiles(srcDir).length };
 }
 
 export function readJson(path, fallback = null) {
@@ -95,7 +127,7 @@ export function writeJson(path, value) {
 }
 
 export function loadManifest(home) {
-  return readJson(join(home, ".novahiz-install.json"), { created: [] });
+  return readJson(join(home, ".novahiz-install.json"), { created: [], backups: [] });
 }
 
 export function saveManifest(home, manifest) {
@@ -108,19 +140,27 @@ export function mergeCreated(previous = [], next = []) {
   return [...set].filter((item) => existsSync(item)).sort();
 }
 
-export function pruneEmptyDirs(paths) {
-  const roots = new Set();
-  for (const item of paths) roots.add(dirname(item));
-  for (const root of [...roots].sort((a, b) => b.length - a.length)) {
-    let current = root;
-    while (current && existsSync(current)) {
+export function mergeBackups(previous = [], next = []) {
+  const map = new Map();
+  for (const entry of [...previous, ...next]) {
+    if (entry && entry.path && entry.backup) map.set(entry.path, entry);
+  }
+  return [...map.values()].sort((a, b) => (a.path < b.path ? -1 : 1));
+}
+
+export function pruneEmptyDirs(paths, stops = []) {
+  const stopSet = new Set(stops.map((value) => resolve(value)));
+  const candidates = new Set();
+  for (const item of paths) candidates.add(dirname(item));
+  for (const start of [...candidates].sort((a, b) => b.length - a.length)) {
+    let current = start;
+    while (current && existsSync(current) && !stopSet.has(resolve(current))) {
       try {
-        if (readdirSync(current).length === 0) {
-          rmSync(current, { recursive: false });
-          current = dirname(current);
-        } else {
-          break;
-        }
+        if (readdirSync(current).length !== 0) break;
+        rmSync(current, { recursive: false });
+        const parent = dirname(current);
+        if (parent === current) break;
+        current = parent;
       } catch {
         break;
       }

@@ -8,6 +8,8 @@ export function openDb(dbPath: string): DatabaseSync {
   const absolute = resolve(dbPath);
   mkdirSync(dirname(absolute), { recursive: true });
   const db = new DatabaseSync(absolute);
+  db.exec("PRAGMA journal_mode = WAL;");
+  db.exec("PRAGMA busy_timeout = 5000;");
   db.exec(`
     CREATE TABLE IF NOT EXISTS meta (
       key TEXT PRIMARY KEY,

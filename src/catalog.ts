@@ -1,4 +1,4 @@
-import { mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { mkdirSync, readdirSync, readFileSync, realpathSync, statSync, writeFileSync } from "node:fs";
 import { basename, isAbsolute, join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { expandHome, type Spec } from "./spec.ts";
@@ -25,12 +25,20 @@ function stripQuotes(value: string): string {
 
 export function parseFrontmatter(content: string): Record<string, string> {
   const result: Record<string, string> = {};
-  if (!content.startsWith("---")) return result;
-  const end = content.indexOf("\n---", 3);
+  const lines = content.split(/\r?\n/);
+  if (lines[0]?.trim() !== "---") return result;
+  let end = -1;
+  for (let index = 1; index < lines.length; index += 1) {
+    if (lines[index].trim() === "---") {
+      end = index;
+      break;
+    }
+  }
   if (end === -1) return result;
-  const lines = content.slice(3, end).split(/\r?\n/);
-  for (let index = 0; index < lines.length; index += 1) {
-    const line = lines[index];
+
+  const block = lines.slice(1, end);
+  for (let index = 0; index < block.length; index += 1) {
+    const line = block[index];
     const separator = line.indexOf(":");
     if (separator === -1) continue;
     const key = line.slice(0, separator).trim();
@@ -40,8 +48,8 @@ export function parseFrontmatter(content: string): Record<string, string> {
     if (isBlock) {
       const folded = raw.startsWith(">");
       const parts: string[] = [];
-      while (index + 1 < lines.length) {
-        const next = lines[index + 1];
+      while (index + 1 < block.length) {
+        const next = block[index + 1];
         if (next.trim() === "" || /^\s/.test(next)) {
           index += 1;
           parts.push(next.replace(/^\s+/, ""));
@@ -57,10 +65,19 @@ export function parseFrontmatter(content: string): Record<string, string> {
   return result;
 }
 
-function walkForSkillFiles(root: string, found: string[]): void {
+function walkForSkillFiles(root: string, found: string[], visited: Set<string>): void {
+  let real: string;
+  try {
+    real = realpathSync(root);
+  } catch {
+    return;
+  }
+  if (visited.has(real)) return;
+  visited.add(real);
+
   let entries: string[];
   try {
-    entries = readdirSync(root);
+    entries = readdirSync(root).sort();
   } catch {
     return;
   }
@@ -74,7 +91,7 @@ function walkForSkillFiles(root: string, found: string[]): void {
       continue;
     }
     if (stats.isDirectory()) {
-      walkForSkillFiles(full, found);
+      walkForSkillFiles(full, found, visited);
     } else if (entry === "SKILL.md") {
       found.push(full);
     }
@@ -83,10 +100,12 @@ function walkForSkillFiles(root: string, found: string[]): void {
 
 export function scanSkills(spec: Spec): SkillRecord[] {
   const files: string[] = [];
+  const visited = new Set<string>();
   for (const root of spec.config.skillRoots) {
     const expanded = expandHome(root);
-    walkForSkillFiles(isAbsolute(expanded) ? expanded : join(spec.root, expanded), files);
+    walkForSkillFiles(isAbsolute(expanded) ? expanded : join(spec.root, expanded), files, visited);
   }
+  files.sort();
 
   const byId = new Map<string, SkillRecord>();
   for (const file of files) {
@@ -112,10 +131,14 @@ export function scanSkills(spec: Spec): SkillRecord[] {
       categories: override?.categories ?? []
     };
     const existing = byId.get(id);
-    if (!existing || record.power >= existing.power) byId.set(id, record);
+    const better =
+      !existing ||
+      record.power > existing.power ||
+      (record.power === existing.power && record.sourcePath < existing.sourcePath);
+    if (better) byId.set(id, record);
   }
 
-  return [...byId.values()].sort((a, b) => a.id.localeCompare(b.id));
+  return [...byId.values()].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
 }
 
 export function writeSkillIndex(spec: Spec, skills: SkillRecord[]): string {
@@ -127,12 +150,24 @@ export function writeSkillIndex(spec: Spec, skills: SkillRecord[]): string {
   return target;
 }
 
-export function readInstalledSkills(spec: Spec): Set<string> {
+export type InstalledIndex = {
+  available: boolean;
+  skills: Set<string>;
+};
+
+export function loadInstalledSkills(spec: Spec): InstalledIndex {
+  let raw: string;
   try {
-    const raw = readFileSync(join(spec.root, "build", "installed-skills.json"), "utf8");
-    return new Set(JSON.parse(raw) as string[]);
+    raw = readFileSync(join(spec.root, "build", "installed-skills.json"), "utf8");
   } catch {
-    return new Set();
+    return { available: false, skills: new Set() };
+  }
+  try {
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return { available: false, skills: new Set() };
+    return { available: true, skills: new Set(parsed.map((value) => String(value))) };
+  } catch {
+    return { available: false, skills: new Set() };
   }
 }
 

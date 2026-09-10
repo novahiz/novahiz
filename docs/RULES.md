@@ -7,7 +7,7 @@ A rule describes a condition and the skills that condition requires before a fil
 ```json
 {
   "id": "R2",
-  "description": "Charge impeccable avant toute modification de design.",
+  "description": "Charger impeccable avant toute modification de design.",
   "when": {
     "fileClasses": ["design"]
   },
@@ -28,13 +28,32 @@ The default set mirrors the global instructions:
 
 | Id | Condition | Requires |
 | --- | --- | --- |
-| R1 | any code or text file | `humanizer` |
-| R2 | any design file | `impeccable` |
+| R1 | code, text, design, data or config file | `humanizer` |
+| R2 | design file | `impeccable` |
 | R3 | a Supabase path or a Supabase prompt | `supabase`, `supabase-postgres-best-practices` |
 
 ## Resolution
 
-For a given edit, the gate collects the skills from every matching rule, removes duplicates, and drops skills that are not installed. A missing installed skill blocks the call. The gate reports skipped skills separately so a missing installation never makes the workspace unusable.
+For a given edit, the gate collects skills from two sources:
+
+1. Every matching rule in `rules.json`.
+2. The `defaultSkills` of every category the classifier selected for the current message.
+
+Duplicates collapse. The result is then filtered against the installed skills index:
+
+- When the index is available, a required skill that is not installed is reported separately and does not block. A missing installation never makes the workspace unusable.
+- When the index is missing or unreadable, the gate fails closed: every required skill is enforced. This protects the guarantee instead of silently disabling it. Run `novahiz sync` to rebuild the index.
+
+A required skill that is installed but not loaded in the session blocks the call. In `block` mode the gate exits with code 2. In `warn` and `audit` modes it reports the missing skills and exits 0.
+
+## Modes and configuration
+
+The `gate` block in `novahiz.config.json` controls behavior:
+
+- `enabled`: set to `false` to disable the gate entirely.
+- `mode`: `block`, `warn`, or `audit`. Only `block` stops the edit.
+- `envEscape`: the environment variable that disables the gate for one session. Defaults to `NOVAHIZ_GATE`. Values `off`, `0`, `false`, `no`, and `disabled` disable it.
+- `tools`: the tool names the gate intercepts.
 
 ## Categories
 

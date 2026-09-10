@@ -59,7 +59,7 @@
     "id": "database-supabase",
     "label": "Database / Supabase",
     "priority": 57,
-    "keywords": ["supabase", "postgres", "postgresql", "sql", "requete sql", "query", "rls", "row level security", "migration", "migrations", "edge function", "edge functions", "storage", "realtime", "bucket", "table", "schema", "policy", "policies", "trigger", "pgvector", "index"],
+    "keywords": ["supabase", "postgres", "postgresql", "sql", "requete sql", "rls", "row level security", "migration", "migrations", "edge function", "edge functions", "storage", "realtime", "bucket", "pgvector", "trigger", "base de donnees", "database"],
     "defaultSkills": ["supabase", "supabase-postgres-best-practices"]
   },
   {
@@ -80,7 +80,7 @@
     "id": "devops",
     "label": "DevOps",
     "priority": 46,
-    "keywords": ["docker", "dockerfile", "kubernetes", "k8s", "ci", "cd", "pipeline", "deploy", "deploiement", "github action", "github actions", "terraform", "ansible", "nix", "systemd", "nginx", "infra", "infrastructure", "monitoring"],
+    "keywords": ["docker", "dockerfile", "kubernetes", "k8s", "ci pipeline", "cd pipeline", "continuous integration", "continuous deployment", "pipeline ci", "pipeline cd", "pipeline", "deploy", "deploiement", "github action", "github actions", "terraform", "ansible", "nix", "systemd", "nginx", "infra", "infrastructure", "monitoring"],
     "defaultSkills": []
   },
   {

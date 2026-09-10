@@ -2,14 +2,15 @@ import { cpSync, existsSync, mkdirSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
 import {
+  copyFileWithBackup,
   copyInto,
   loadManifest,
+  mergeBackups,
   mergeCreated,
   nodeVersionOk,
   novahizHome,
   opencodeConfigDir,
   parseArgs,
-  readJson,
   repoRoot,
   saveManifest,
   writeJson
@@ -40,7 +41,7 @@ function defaultConfig(skillsDir) {
       enabled: true,
       mode: "block",
       envEscape: "NOVAHIZ_GATE",
-      tools: ["edit", "write", "patch"]
+      tools: ["edit", "write", "patch", "apply_patch"]
     },
     classify: {
       minScore: 1,
@@ -61,11 +62,7 @@ function main() {
   const skillsDir = join(configDir, "skills");
   const pluginsDir = join(configDir, "plugins");
 
-  const actions = [];
-  const note = (message) => {
-    actions.push(message);
-    process.stdout.write(`${dryRun ? "[dry-run] " : ""}${message}\n`);
-  };
+  const note = (message) => process.stdout.write(`${dryRun ? "[dry-run] " : ""}${message}\n`);
 
   note(`Novahiz home: ${home}`);
   note(`opencode config: ${configDir}`);
@@ -76,8 +73,12 @@ function main() {
   }
 
   const created = [];
+  const backups = [];
+  let coreCopied = false;
+  let configCreated = false;
 
-  if (resolve(root) !== resolve(home)) {
+  const sameRoot = resolve(root) === resolve(home);
+  if (!sameRoot) {
     note(`Copie du core vers ${home}`);
     if (!dryRun) mkdirSync(home, { recursive: true });
     for (const item of CORE_ITEMS) {
@@ -87,9 +88,9 @@ function main() {
         note(`  + ${item}`);
         continue;
       }
-      const target = join(home, item);
-      cpSync(source, target, { recursive: true, force: true });
+      cpSync(source, join(home, item), { recursive: true, force: true });
     }
+    coreCopied = true;
   }
 
   if (withSkills) {
@@ -97,9 +98,10 @@ function main() {
     if (existsSync(skillsSource)) {
       note(`Installation des skills dans ${skillsDir}`);
       if (!dryRun) {
-        const result = copyInto(skillsSource, skillsDir);
+        const result = copyInto(skillsSource, skillsDir, true);
         created.push(...result.created);
-        note(`  ${result.total} fichiers, ${result.created.length} nouveaux`);
+        backups.push(...result.backups);
+        note(`  ${result.total} fichiers, ${result.created.length} nouveaux, ${result.backups.length} sauvegardes`);
       }
     } else {
       note(`Aucun dossier skills trouve a ${skillsSource}`);
@@ -111,38 +113,48 @@ function main() {
   if (existsSync(pluginSource)) {
     note(`Installation du plugin opencode dans ${pluginTarget}`);
     if (!dryRun) {
-      mkdirSync(pluginsDir, { recursive: true });
-      const existed = existsSync(pluginTarget);
-      cpSync(pluginSource, pluginTarget);
-      if (!existed) created.push(pluginTarget);
+      const result = copyFileWithBackup(pluginSource, pluginTarget, true);
+      if (result.created) created.push(result.created);
+      if (result.backup) backups.push(result.backup);
     }
   }
 
   const configPath = join(home, "novahiz.config.json");
   if (force || !existsSync(configPath)) {
     note(`Ecriture de ${configPath}`);
-    if (!dryRun) writeJson(configPath, defaultConfig(skillsDir));
+    if (!dryRun) {
+      const existedBefore = existsSync(configPath);
+      if (existedBefore) {
+        const backup = `${configPath}.novahiz-bak`;
+        if (!existsSync(backup)) cpSync(configPath, backup);
+        backups.push({ path: configPath, backup });
+      }
+      writeJson(configPath, defaultConfig(skillsDir));
+      configCreated = !existedBefore;
+    }
   } else {
     note(`Config existante conservee: ${configPath}`);
   }
 
   if (!dryRun) {
-    const previous = loadManifest(home).created ?? [];
-    const manifest = {
+    const previous = loadManifest(home);
+    saveManifest(home, {
       version: "0.1.0",
       installedAt: new Date().toISOString(),
       harness: "opencode",
       configDir,
       home,
-      created: mergeCreated(previous, created)
-    };
-    saveManifest(home, manifest);
+      coreCopied: previous.coreCopied || coreCopied,
+      configCreated: previous.configCreated || configCreated,
+      created: mergeCreated(previous.created, created),
+      backups: mergeBackups(previous.backups, backups)
+    });
   }
 
   if (!dryRun) {
     const cli = join(home, "src", "cli.ts");
     if (existsSync(cli)) {
-      note(`Construction du catalogue (sync)`);
+      note("Construction du catalogue (sync)");
       const result = spawnSync(process.execPath, [cli, "sync"], {
         encoding: "utf8",
         env: { ...process.env, NOVAHIZ_HOME: home }
@@ -154,10 +166,10 @@ function main() {
 
   if (!dryRun) {
     process.stdout.write(`\nNovahiz installe dans ${home}.\n`);
-    process.stdout.write(`Redemarre opencode pour activer le plugin et le serveur MCP.\n`);
-    process.stdout.write(`Gate desactivable a chaud avec NOVAHIZ_GATE=off.\n`);
+    process.stdout.write("Redemarre opencode pour activer le plugin et le serveur MCP.\n");
+    process.stdout.write("Gate desactivable avec la variable d'environnement NOVAHIZ_GATE=off.\n");
   } else {
-    process.stdout.write(`\nDry-run termine, aucune modification ecrite.\n`);
+    process.stdout.write("\nDry-run termine, aucune modification ecrite.\n");
   }
 }
 
