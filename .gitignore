@@ -1,26 +1,9 @@
-# Dependencies
 node_modules/
-.pnp
-.pnp.js
-
-# Production builds
-.next/
-dist/
-out/
+novahiz.config.json
+novahiz.sqlite
+novahiz.sqlite-*
 build/
-
-# SQLite Databases & logs
-*.db
-*.db-wal
-*.db-shm
-*.db-journal
-novahiz-compliance.json
-novahiz-session-state.json
-
-# Environment variables & secrets
+*.log
 .env
-.env*.local
-
-# OS Files
 .DS_Store
 Thumbs.db

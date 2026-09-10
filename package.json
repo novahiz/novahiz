@@ -1,0 +1,28 @@
+{
+  "name": "novahiz",
+  "version": "0.1.0",
+  "description": "Deterministic agentic layer for coding harnesses: skill catalog, prompt classifier, and a pre-edit enforcement gate.",
+  "type": "module",
+  "license": "Apache-2.0",
+  "bin": {
+    "novahiz": "./bin/novahiz.mjs"
+  },
+  "engines": {
+    "node": ">=22.18.0"
+  },
+  "scripts": {
+    "check": "node src/cli.ts check",
+    "sync": "node src/cli.ts sync",
+    "classify": "node src/cli.ts classify",
+    "test": "node --test"
+  },
+  "files": [
+    "src",
+    "catalog",
+    "adapters",
+    "bin",
+    "docs",
+    "README.md",
+    "LICENSE"
+  ]
+}

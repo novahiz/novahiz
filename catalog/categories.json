@@ -1,0 +1,100 @@
+[
+  {
+    "id": "code",
+    "label": "Code",
+    "priority": 60,
+    "keywords": ["code", "coder", "fonction", "function", "methode", "method", "classe", "class", "module", "composant", "component", "api", "endpoint", "script", "implemente", "implement", "feature", "fonctionnalite", "refactor", "refactoring", "refactorise", "typescript", "javascript", "python", "rust", "golang", "java", "kotlin", "swift", "php", "dart", "flutter", "react", "vue", "angular", "svelte", "node", "backend", "frontend"],
+    "defaultSkills": []
+  },
+  {
+    "id": "debug",
+    "label": "Debug",
+    "priority": 58,
+    "keywords": ["bug", "erreur", "error", "crash", "exception", "stacktrace", "stack trace", "trace", "debug", "debogue", "debugger", "panic", "fails", "echoue", "ne marche pas", "broken", "casse", "regression", "corrige", "corriger", "fix", "reparer", "reproduce"],
+    "defaultSkills": []
+  },
+  {
+    "id": "review",
+    "label": "Review",
+    "priority": 55,
+    "keywords": ["review", "revue", "relis", "relire", "relecture", "code review", "pull request", "pull-request", "pr ", "diff", "feedback", "critique de code", "audit de code"],
+    "defaultSkills": ["review-changes", "code-understand"]
+  },
+  {
+    "id": "audit",
+    "label": "Audit",
+    "priority": 54,
+    "keywords": ["audit", "audite", "scan", "analyse statique", "static analysis", "qualite", "quality", "lint", "conformite", "compliance", "cwe", "owasp", "vulnerabilite", "vulnerability", "sécurité", "securite", "security", "injection", "xss", "csrf", "secret", "secrets", "fuite de donnees"],
+    "defaultSkills": []
+  },
+  {
+    "id": "test",
+    "label": "Test",
+    "priority": 53,
+    "keywords": ["test", "tests", "unitaire", "unit", "integration", "e2e", "end to end", "coverage", "couverture", "tdd", "mock", "mocks", "jest", "vitest", "pytest", "playwright test", "assertion"],
+    "defaultSkills": []
+  },
+  {
+    "id": "research",
+    "label": "Research",
+    "priority": 50,
+    "keywords": ["recherche", "research", "rechercher", "investigue", "investigate", "documentation", "docs", "doc", "comment fonctionne", "how does", "comparaison", "compare", "benchmark", "bonne pratique", "best practice", "etat de l'art", "veille", "ressources"],
+    "defaultSkills": ["defuddle"]
+  },
+  {
+    "id": "browser",
+    "label": "Browser",
+    "priority": 48,
+    "keywords": ["browser", "navigateur", "playwright", "scrape", "scraping", "screenshot", "capture d ecran", "page web", "webpage", "url", "site web", "website", "dom", "selenium", "puppeteer", "clic", "click", "formulaire web"],
+    "defaultSkills": []
+  },
+  {
+    "id": "design-ui",
+    "label": "Design UI",
+    "priority": 52,
+    "keywords": ["design", "ui", "ux", "interface", "landing", "landing page", "maquette", "mockup", "wireframe", "layout", "css", "scss", "tailwind", "style", "styling", "typographie", "typography", "font", "police", "couleur", "color", "palette", "animation", "motion", "composant visuel", "responsive", "accessibilite", "accessibility", "a11y", "dashboard", "formulaire", "onboarding"],
+    "defaultSkills": ["impeccable"]
+  },
+  {
+    "id": "database-supabase",
+    "label": "Database / Supabase",
+    "priority": 57,
+    "keywords": ["supabase", "postgres", "postgresql", "sql", "requete sql", "query", "rls", "row level security", "migration", "migrations", "edge function", "edge functions", "storage", "realtime", "bucket", "table", "schema", "policy", "policies", "trigger", "pgvector", "index"],
+    "defaultSkills": ["supabase", "supabase-postgres-best-practices"]
+  },
+  {
+    "id": "docs-writing",
+    "label": "Docs & Writing",
+    "priority": 49,
+    "keywords": ["redige", "redaction", "redactionnel", "write", "writing", "texte", "article", "blog", "copywriting", "copy", "email", "newsletter", "seo", "marketing", "note", "memoire", "readme", "changelog", "reformule", "rewrite", "vulgarise"],
+    "defaultSkills": ["humanizer"]
+  },
+  {
+    "id": "planning",
+    "label": "Planning",
+    "priority": 47,
+    "keywords": ["plan", "planifie", "planning", "architecture", "roadmap", "strategie", "strategy", "backlog", "spec", "specification", "prd", "user story", "decoupage", "estimation", "priorisation"],
+    "defaultSkills": []
+  },
+  {
+    "id": "devops",
+    "label": "DevOps",
+    "priority": 46,
+    "keywords": ["docker", "dockerfile", "kubernetes", "k8s", "ci", "cd", "pipeline", "deploy", "deploiement", "github action", "github actions", "terraform", "ansible", "nix", "systemd", "nginx", "infra", "infrastructure", "monitoring"],
+    "defaultSkills": []
+  },
+  {
+    "id": "data",
+    "label": "Data",
+    "priority": 45,
+    "keywords": ["dataset", "csv", "pandas", "numpy", "etl", "analytics", "analyse de donnees", "data analysis", "dataframe", "statistiques", "statistics", "visualisation de donnees", "power bi", "grafana"],
+    "defaultSkills": []
+  },
+  {
+    "id": "general",
+    "label": "General",
+    "priority": 0,
+    "keywords": [],
+    "defaultSkills": []
+  }
+]
