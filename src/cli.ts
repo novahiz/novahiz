@@ -347,6 +347,60 @@ function commandHook(parsed: Parsed): void {
   if (decision.block) process.stdout.write(`Novahiz advisory: ${missingMessage(decision)}\n`);
 }
 
+function commandReport(parsed: Parsed): void {
+  const root = novahizHome();
+  const spec = loadSpec(root);
+  const db = openDb(dbPathFor(root, spec));
+  const total = (db.prepare("SELECT COUNT(*) AS n FROM enforcement_log").get() as { n: number }).n;
+  const decisions = db.prepare("SELECT decision, COUNT(*) AS n FROM enforcement_log GROUP BY decision").all();
+  const byTool = db.prepare("SELECT tool, COUNT(*) AS n FROM enforcement_log GROUP BY tool ORDER BY n DESC").all();
+  const byClass = db.prepare("SELECT file_class, COUNT(*) AS n FROM enforcement_log GROUP BY file_class ORDER BY n DESC").all();
+  const missingRows = db.prepare("SELECT missing FROM enforcement_log").all() as { missing: string }[];
+  const invocations = (db.prepare("SELECT COUNT(*) AS n FROM skill_invocations").get() as { n: number }).n;
+  const topSkills = db.prepare("SELECT skill, COUNT(*) AS n FROM skill_invocations GROUP BY skill ORDER BY n DESC LIMIT 10").all();
+  db.close();
+
+  const counts: Record<string, number> = {};
+  for (const row of missingRows) {
+    let list: string[] = [];
+    try {
+      list = JSON.parse(row.missing) as string[];
+    } catch {
+      list = [];
+    }
+    for (const skill of list) counts[skill] = (counts[skill] ?? 0) + 1;
+  }
+  const topMissing = Object.entries(counts)
+    .sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : 1))
+    .slice(0, 10)
+    .map(([skill, n]) => ({ skill, n }));
+
+  const report = { total, invocations, decisions, byTool, byClass, topMissing, topSkills };
+
+  if (asString(parsed.flags.format) === "markdown") {
+    const lines = [
+      "# Novahiz report",
+      "",
+      `Enforcement entries: ${total}`,
+      `Skill invocations: ${invocations}`,
+      "",
+      "## Decisions",
+      ...decisions.map((row) => `- ${(row as { decision: string }).decision}: ${(row as { n: number }).n}`),
+      "",
+      "## Top missing skills",
+      ...topMissing.map((entry) => `- ${entry.skill}: ${entry.n}`),
+      "",
+      "## Top loaded skills",
+      ...topSkills.map((row) => `- ${(row as { skill: string }).skill}: ${(row as { n: number }).n}`),
+      ""
+    ];
+    process.stdout.write(`${lines.join("\n")}\n`);
+    return;
+  }
+
+  print(report);
+}
+
 function usage(): void {
   print({
     name: "novahiz",
@@ -360,7 +414,8 @@ function usage(): void {
       "rules",
       "session-load --session id --skill name",
       "session-state --session id",
-      "hook --harness claude|codex [--event PreToolUse]"
+      "hook --harness claude|codex [--event PreToolUse]",
+      "report [--format markdown]"
     ]
   });}
 
@@ -388,6 +443,8 @@ function main(argv: string[]): void {
       return commandSessionState(parsed);
     case "hook":
       return commandHook(parsed);
+    case "report":
+      return commandReport(parsed);
     default:
       return usage();
   }

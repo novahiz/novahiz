@@ -119,6 +119,19 @@ function main() {
     }
   }
 
+  const agentSource = existsSync(join(home, "adapters", "opencode", "agent", "novahiz-agent.md"))
+    ? join(home, "adapters", "opencode", "agent", "novahiz-agent.md")
+    : join(root, "adapters", "opencode", "agent", "novahiz-agent.md");
+  const agentTarget = join(configDir, "agent", "novahiz-agent.md");
+  if (existsSync(agentSource)) {
+    note(`Installation de l'agent Novahiz dans ${agentTarget}`);
+    if (!dryRun) {
+      const result = copyFileWithBackup(agentSource, agentTarget, true);
+      if (result.created) created.push(result.created);
+      if (result.backup) backups.push(result.backup);
+    }
+  }
+
   const configPath = join(home, "novahiz.config.json");
   if (force || !existsSync(configPath)) {
     note(`Ecriture de ${configPath}`);
