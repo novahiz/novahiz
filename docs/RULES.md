@@ -55,6 +55,14 @@ The `gate` block in `novahiz.config.json` controls behavior:
 - `envEscape`: the environment variable that disables the gate for one session. Defaults to `NOVAHIZ_GATE`. Values `off`, `0`, `false`, `no`, and `disabled` disable it.
 - `tools`: the tool names the gate intercepts.
 
+## Shell writes
+
+The gate also intercepts the shell tool (`bash` or `shell`) when the command writes files. It extracts targets from common patterns: redirections (`>`, `>>`, `&>`), `tee`, `cp`, `mv`, `touch`, `sed -i`, `dd`, and the PowerShell cmdlets `Set-Content`, `Add-Content`, `Out-File`, `New-Item`, and `Tee-Object`. A detected target is gated like any other file, so writing a `.css` from the shell still requires `impeccable`.
+
+Commands that do not appear to write files pass through, so `git status` or `ls` are never blocked.
+
+This detection is best-effort. A command that hides its target (a build step, a script, an obfuscated path) can still write without passing the gate. Shell coverage raises the bar; it is not a sandbox. To disable shell gating, remove `bash` and `shell` from `gate.tools`.
+
 ## Categories
 
 Categories are the second source of required skills. Each category in `catalog/categories.json` has a `defaultSkills` list. When the classifier selects a category, its skills join the session requirements. A category can list skills that also appear in a rule. Duplicates collapse.

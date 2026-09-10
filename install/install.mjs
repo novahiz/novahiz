@@ -41,7 +41,7 @@ function defaultConfig(skillsDir) {
       enabled: true,
       mode: "block",
       envEscape: "NOVAHIZ_GATE",
-      tools: ["edit", "write", "patch", "apply_patch"]
+      tools: ["edit", "write", "patch", "apply_patch", "bash", "shell"]
     },
     classify: {
       minScore: 1,

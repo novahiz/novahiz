@@ -32,7 +32,7 @@ const ENV_ESCAPE = typeof GATE.envEscape === "string" && GATE.envEscape.length >
 const ESCAPE = (process.env[ENV_ESCAPE] || "").toLowerCase();
 const DISABLED = ["off", "0", "false", "no", "disabled"].includes(ESCAPE);
 const GATE_TOOLS = new Set(
-  Array.isArray(GATE.tools) && GATE.tools.length > 0 ? GATE.tools : ["edit", "write", "patch", "apply_patch"]
+  Array.isArray(GATE.tools) && GATE.tools.length > 0 ? GATE.tools : ["edit", "write", "patch", "apply_patch", "bash", "shell"]
 );
 
 type RunResult = { status: number; stdout: string; stderr: string; spawnError?: string };

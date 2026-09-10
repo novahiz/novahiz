@@ -12,7 +12,7 @@
     "enabled": true,
     "mode": "block",
     "envEscape": "NOVAHIZ_GATE",
-    "tools": ["edit", "write", "patch"]
+    "tools": ["edit", "write", "patch", "apply_patch", "bash", "shell"]
   },
   "classify": {
     "minScore": 1,

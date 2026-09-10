@@ -150,17 +150,16 @@ function commandGate(parsed: Parsed): void {
   }
 
   const gated = gateConfig.tools.includes(tool);
+  const shellTool = tool === "bash" || tool === "shell";
   if (paths.length === 0) {
-    const result = {
-      allow: !gated,
-      tool,
-      targets: [],
-      requiredSkills: [],
-      missingSkills: [],
-      reason: gated ? "no target path could be derived for a gated tool" : "tool is not gated"
-    };
-    print(result);
-    if (gated && gateConfig.mode === "block") process.exitCode = 2;
+    const allow = shellTool ? true : !gated;
+    const reason = shellTool
+      ? "no file write detected in shell command"
+      : gated
+        ? "no target path could be derived for a gated tool"
+        : "tool is not gated";
+    print({ allow, tool, targets: [], requiredSkills: [], missingSkills: [], reason });
+    if (!allow && gateConfig.mode === "block") process.exitCode = 2;
     return;
   }
 
