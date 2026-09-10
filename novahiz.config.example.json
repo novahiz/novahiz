@@ -1,0 +1,22 @@
+{
+  "dbPath": "novahiz.sqlite",
+  "skillRoots": [
+    "./skills",
+    "~/.config/opencode/skills",
+    "~/.agents/skills",
+    "~/.config/.agents/skills",
+    "~/.config/marketingskills/skills",
+    "~/.config/humanizer"
+  ],
+  "gate": {
+    "enabled": true,
+    "mode": "block",
+    "envEscape": "NOVAHIZ_GATE",
+    "tools": ["edit", "write", "patch"]
+  },
+  "classify": {
+    "minScore": 1,
+    "maxCategories": 3,
+    "fallbackCategory": "general"
+  }
+}

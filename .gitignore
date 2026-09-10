@@ -1,0 +1,10 @@
+node_modules/
+novahiz.config.json
+.novahiz-install.json
+novahiz.sqlite
+novahiz.sqlite-*
+build/
+*.log
+.env
+.DS_Store
+Thumbs.db

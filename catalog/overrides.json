@@ -1,0 +1,8 @@
+{
+  "skills": {
+    "humanizer": { "power": 5, "stars": null, "tags": ["text", "quality"], "categories": ["code", "docs-writing"] },
+    "impeccable": { "power": 5, "stars": null, "tags": ["design", "ui"], "categories": ["design-ui"] },
+    "supabase": { "power": 5, "stars": null, "tags": ["database"], "categories": ["database-supabase"] },
+    "supabase-postgres-best-practices": { "power": 5, "stars": null, "tags": ["database"], "categories": ["database-supabase"] }
+  }
+}

@@ -1,0 +1,27 @@
+[
+  {
+    "id": "R1",
+    "description": "Charger humanizer avant toute modification de code ou de texte.",
+    "when": {
+      "fileClasses": ["code", "text", "design", "data", "config"]
+    },
+    "require": ["humanizer"]
+  },
+  {
+    "id": "R2",
+    "description": "Charger impeccable avant toute modification de design ou d'interface.",
+    "when": {
+      "fileClasses": ["design"]
+    },
+    "require": ["impeccable"]
+  },
+  {
+    "id": "R3",
+    "description": "Charger les skills Supabase avant toute modification liee a Supabase.",
+    "when": {
+      "pathGlobs": ["**/supabase/**", "**/migrations/**", "**/*.sql"],
+      "promptCategories": ["database-supabase"]
+    },
+    "require": ["supabase", "supabase-postgres-best-practices"]
+  }
+]
