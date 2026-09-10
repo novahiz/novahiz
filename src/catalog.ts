@@ -2,6 +2,7 @@ import { mkdirSync, readdirSync, readFileSync, realpathSync, statSync, writeFile
 import { basename, isAbsolute, join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { expandHome, type Spec } from "./spec.ts";
+import type { CatalogSkill } from "./relevance.ts";
 
 export type SkillRecord = {
   id: string;
@@ -154,6 +155,33 @@ export type InstalledIndex = {
   available: boolean;
   skills: Set<string>;
 };
+
+export function writeCatalog(spec: Spec, skills: SkillRecord[]): string {
+  const directory = join(spec.root, "build");
+  mkdirSync(directory, { recursive: true });
+  const target = join(directory, "catalog.json");
+  const records = skills.map((skill) => ({
+    id: skill.id,
+    name: skill.name,
+    description: skill.description,
+    power: skill.power,
+    stars: skill.stars,
+    tags: skill.tags,
+    categories: skill.categories
+  }));
+  writeFileSync(target, `${JSON.stringify(records, null, 2)}\n`, "utf8");
+  return target;
+}
+
+export function loadCatalog(spec: Spec): CatalogSkill[] {
+  try {
+    const raw = readFileSync(join(spec.root, "build", "catalog.json"), "utf8");
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? (parsed as CatalogSkill[]) : [];
+  } catch {
+    return [];
+  }
+}
 
 export function loadInstalledSkills(spec: Spec): InstalledIndex {
   let raw: string;

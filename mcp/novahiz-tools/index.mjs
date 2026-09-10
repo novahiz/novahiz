@@ -4,7 +4,8 @@ import { pathToFileURL } from "node:url";
 import { classify } from "../../src/classify.ts";
 import { evaluateGate } from "../../src/gate.ts";
 import { loadSpec } from "../../src/spec.ts";
-import { loadInstalledSkills } from "../../src/catalog.ts";
+import { loadCatalog, loadInstalledSkills } from "../../src/catalog.ts";
+import { rankSkills } from "../../src/relevance.ts";
 
 const SUPPORTED_PROTOCOLS = ["2024-11-05", "2025-06-18"];
 const DEFAULT_PROTOCOL = "2024-11-05";
@@ -26,6 +27,18 @@ const TOOLS = [
     inputSchema: {
       type: "object",
       properties: { category: { type: "string", description: "Optional category id." } }
+    }
+  },
+  {
+    name: "novahiz_catalog",
+    description: "Rank catalogued skills by deterministic lexical relevance to a query.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        query: { type: "string", description: "What the task is about." },
+        limit: { type: "number", description: "Maximum results (default 10)." }
+      },
+      required: ["query"]
     }
   },
   {
@@ -73,6 +86,12 @@ function callTool(name, args) {
         return (spec.overrides.skills?.[id]?.categories ?? []).includes(category);
       });
     return toolResult({ count: entries.length, skills: entries });
+  }
+  if (name === "novahiz_catalog") {
+    const query = String(args?.query ?? "");
+    const limit = Number.isFinite(args?.limit) ? Number(args.limit) : 10;
+    const catalog = loadCatalog(spec);
+    return toolResult({ query, total: catalog.length, results: rankSkills(catalog, query, limit) });
   }
   if (name === "novahiz_gate") {
     const index = loadInstalledSkills(spec);

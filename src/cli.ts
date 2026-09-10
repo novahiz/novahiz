@@ -6,7 +6,8 @@ import { claudeDenyOutput, decideHook, missingMessage, type Harness } from "./ho
 import { extractTargetPaths } from "./targets.ts";
 import { loadSpec, novahizHome } from "./spec.ts";
 import { openDb, setMeta, getMeta } from "./db.ts";
-import { loadInstalledSkills, persistCatalog, scanSkills, writeSkillIndex } from "./catalog.ts";
+import { loadCatalog, loadInstalledSkills, persistCatalog, scanSkills, writeCatalog, writeSkillIndex } from "./catalog.ts";
+import { rankSkills } from "./relevance.ts";
 
 type Parsed = {
   positionals: string[];
@@ -88,12 +89,13 @@ function commandSync(): void {
   const spec = loadSpec(root);
   const skills = scanSkills(spec);
   const indexFile = writeSkillIndex(spec, skills);
+  const catalogFile = writeCatalog(spec, skills);
   const db = openDb(dbPathFor(root, spec));
   persistCatalog(db, spec, skills);
   const lastSync = new Date().toISOString();
   setMeta(db, "last_sync", lastSync);
   db.close();
-  print({ root, scanned: skills.length, index: indexFile, lastSync });
+  print({ root, scanned: skills.length, index: indexFile, catalog: catalogFile, lastSync });
 }
 
 function commandClassify(parsed: Parsed): void {
@@ -401,6 +403,15 @@ function commandReport(parsed: Parsed): void {
   print(report);
 }
 
+function commandCatalog(parsed: Parsed): void {
+  const spec = loadSpec();
+  const query = parsed.positionals.slice(1).join(" ") || asString(parsed.flags.query);
+  const limit = parsed.flags.limit ? Number(parsed.flags.limit) : 10;
+  const catalog = loadCatalog(spec);
+  const results = rankSkills(catalog, query, limit);
+  print({ query, total: catalog.length, results });
+}
+
 function usage(): void {
   print({
     name: "novahiz",
@@ -415,7 +426,8 @@ function usage(): void {
       "session-load --session id --skill name",
       "session-state --session id",
       "hook --harness claude|codex [--event PreToolUse]",
-      "report [--format markdown]"
+      "report [--format markdown]",
+      "catalog <query> [--limit N]"
     ]
   });}
 
@@ -445,6 +457,8 @@ function main(argv: string[]): void {
       return commandHook(parsed);
     case "report":
       return commandReport(parsed);
+    case "catalog":
+      return commandCatalog(parsed);
     default:
       return usage();
   }

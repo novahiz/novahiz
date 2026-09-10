@@ -56,6 +56,8 @@ node src/cli.ts classify "ajoute une migration supabase avec une policy rls"
 node src/cli.ts gate --file src/hero.css --tool edit
 node src/cli.ts gate --file src/hero.css --tool edit --loaded humanizer,impeccable
 node src/cli.ts skills --category design-ui
+node src/cli.ts catalog "design frontend landing" --limit 5
+node src/cli.ts report --format markdown
 ```
 
 `gate` prints a JSON verdict and exits `0` when the edit is allowed, `2` when it is blocked. Adapters rely on that exit code.

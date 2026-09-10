@@ -99,3 +99,18 @@ node ~/.config/novahiz/mcp/novahiz-tools/index.mjs
 ```
 
 See [adapters/README.md](../adapters/README.md) for the full picture.
+
+## Publish
+
+The package is ready for npm. Tag a release to publish:
+
+```
+git tag v0.1.0
+git push origin v0.1.0
+```
+
+The release workflow runs the tests and publishes with provenance. It needs an `NPM_TOKEN` repository secret. To publish by hand instead:
+
+```
+npm publish --access public
+```

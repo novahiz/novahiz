@@ -35,9 +35,18 @@ test("lists tools and runs classify", () => {
     '{"jsonrpc":"2.0","id":1,"method":"tools/list"}',
     '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"novahiz_classify","arguments":{"prompt":"refais le css de la landing page"}}}'
   ]);
-  assert.equal(out[0].result.tools.length, 3);
+  assert.equal(out[0].result.tools.length, 4);
   const payload = JSON.parse(out[1].result.content[0].text);
   assert.equal(payload.categories[0].id, "design-ui");
+});
+
+test("ranks catalog skills by relevance", () => {
+  const out = call([
+    '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"novahiz_catalog","arguments":{"query":"impeccable", "limit": 3}}}'
+  ]);
+  const payload = JSON.parse(out[0].result.content[0].text);
+  assert.ok(Array.isArray(payload.results));
+  assert.equal(payload.results[0].id, "impeccable");
 });
 
 test("reports a parse error for invalid json", () => {

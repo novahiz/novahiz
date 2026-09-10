@@ -4,6 +4,31 @@
   "description": "Deterministic agentic layer for coding harnesses: skill catalog, prompt classifier, and a pre-edit enforcement gate.",
   "type": "module",
   "license": "Apache-2.0",
+  "author": "Novahiz",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/novahiz/novahiz.git"
+  },
+  "homepage": "https://github.com/novahiz/novahiz#readme",
+  "bugs": {
+    "url": "https://github.com/novahiz/novahiz/issues"
+  },
+  "keywords": [
+    "ai-agents",
+    "agentic",
+    "deterministic",
+    "opencode",
+    "claude-code",
+    "codex",
+    "skills",
+    "mcp",
+    "enforcement",
+    "gate"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
   "bin": {
     "novahiz": "./bin/novahiz.mjs",
     "novahiz-install": "./install/install.mjs",
@@ -17,6 +42,8 @@
     "check": "node src/cli.ts check",
     "sync": "node src/cli.ts sync",
     "classify": "node src/cli.ts classify",
+    "catalog": "node src/cli.ts catalog",
+    "report": "node src/cli.ts report",
     "setup": "node install/install.mjs",
     "setup:dry": "node install/install.mjs --dry-run",
     "test": "node --test"
