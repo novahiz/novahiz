@@ -420,10 +420,6 @@ function handle(message) {
   return { jsonrpc: "2.0", id, error: { code: -32601, message: `Method not found: ${method}` } };
 }
 
-export function handleLine(line) {
-  return handle(line);
-}
-
 const isMain = (() => {
   if (!process.argv[1]) return false;
   try {

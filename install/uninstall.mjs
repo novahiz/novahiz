@@ -1,7 +1,16 @@
 import { cpSync, existsSync, rmSync } from "node:fs";
 import { homedir } from "node:os";
-import { join, sep } from "node:path";
+import { join, resolve, sep } from "node:path";
 import { loadManifest, novahizHome, parseArgs, pruneEmptyDirs, saveManifest } from "./lib.mjs";
+
+export function underHome(value) {
+  const root = resolve(homedir());
+  const target = resolve(value);
+  const normalize = (item) => (process.platform === "win32" ? item.toLowerCase() : item);
+  const prefix = normalize(root.endsWith(sep) ? root : root + sep);
+  const candidate = normalize(target);
+  return candidate === normalize(root) || candidate.startsWith(prefix);
+}
 
 function main() {
   const flags = parseArgs(process.argv.slice(2));
@@ -23,6 +32,10 @@ function main() {
 
   for (const entry of backups) {
     if (!entry || !entry.backup || !existsSync(entry.backup)) continue;
+    if (!underHome(entry.backup) || !underHome(entry.path)) {
+      process.stdout.write(`skip out-of-scope backup: ${entry.path}\n`);
+      continue;
+    }
     process.stdout.write(`${dryRun ? "[dry-run] " : ""}restauration ${entry.path}\n`);
     if (!dryRun) {
       cpSync(entry.backup, entry.path, { force: true });
@@ -35,6 +48,10 @@ function main() {
   const keepCore = Boolean(manifest.coreCopied) && !purge;
   for (const item of created) {
     if (!existsSync(item)) continue;
+    if (!underHome(item)) {
+      process.stdout.write(`skip out-of-scope entry: ${item}\n`);
+      continue;
+    }
     if (keepConfig && item.endsWith("novahiz.config.json")) continue;
     if (keepCore && item.startsWith(homePrefix)) continue;
     process.stdout.write(`${dryRun ? "[dry-run] " : ""}suppression ${item}\n`);
@@ -63,4 +80,4 @@ function main() {
   }
 }
 
-main();
+if (import.meta.main) main();

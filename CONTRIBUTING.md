@@ -12,6 +12,7 @@ cd novahiz
 cp novahiz.config.example.json novahiz.config.json
 node src/cli.ts sync
 node --test
+npx tsc --noEmit
 ```
 
 ## Conventions

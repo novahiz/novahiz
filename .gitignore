@@ -4,6 +4,8 @@ novahiz.config.json
 novahiz.sqlite
 novahiz.sqlite-*
 build/
+*.novahiz-bak
+coverage/
 *.log
 .env
 .DS_Store

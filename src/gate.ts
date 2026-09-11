@@ -128,6 +128,7 @@ export function contentSatisfies(content: string, patterns: string[]): boolean {
   return patterns.some((pattern) => {
     if (pattern === "prose") return hasProse(content);
     if (pattern === "style") return hasStyle(content);
+    if (pattern.length > 1000) return false;
     try {
       return new RegExp(pattern, "i").test(content);
     } catch {

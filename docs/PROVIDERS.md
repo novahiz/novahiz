@@ -92,7 +92,7 @@ Installation is opt-in on purpose. The commands download third-party packages, i
 
 ## Dependencies
 
-Each provider declares its prerequisites in `requires` (the executable it needs) and, when it can be bootstrapped, a per-platform `bootstrap` command.
+Each provider declares its prerequisites in `requires` (the executable it needs) and, when it can be bootstrapped, a per-platform `bootstrap` command. No provider currently declares a `bootstrap`; `novahiz deps --install` supports the field for future entries.
 
 - `npx` based providers need `npx`, which ships with Node.
 

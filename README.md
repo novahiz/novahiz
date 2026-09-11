@@ -68,13 +68,18 @@ node src/cli.ts task start --id <todo>
 node src/cli.ts task done --id <todo> --proof "node --test tests/export.test.ts -> 4 pass"
 node src/cli.ts task status --session <id>
 node src/cli.ts dispatch --task <id>
+node src/cli.ts tokens --calibrate --format text
 ```
 
 `gate` prints a JSON verdict and exits `0` when the edit is allowed, `2` when it is blocked. Adapters rely on that exit code.
 
+Run `node src/cli.ts` with no arguments for the full command list, including `categories`, `rules`, `session-load`, `session-state`, `hook`, `providers`, `deps`, and every `task` subcommand.
+
+The adapter also trims tool output and deduplicates stale reads to keep long sessions cheap, and `novahiz tokens` reports what it removed (`--since`, `--session`, `--calibrate`). See [docs/TOKENS.md](docs/TOKENS.md).
+
 ## opencode adapter
 
-Copy `adapters/opencode/novahiz.ts` into `~/.config/opencode/plugins/`. It loads automatically at startup. The adapter classifies each user message, injects the roadmap checklist and expected skills, tracks loaded skills, and calls the CLI gate on `edit`, `write`, `patch`, `apply_patch`, and `bash`.
+Copy `adapters/opencode/novahiz.ts` and `adapters/opencode/tokens.ts` into `~/.config/opencode/plugins/` (the plugin imports `./tokens.ts`), or run the installer, which copies both. It loads automatically at startup. The adapter classifies each user message, injects the roadmap checklist and expected skills, tracks loaded skills, and calls the CLI gate on `edit`, `write`, `patch`, `apply_patch`, `bash`, and `shell`.
 
 Set `NOVAHIZ_GATE=off` to disable gating for a session. Set `NOVAHIZ_HOME` when the repo is not at `~/.config/novahiz`. Set `NOVAHIZ_DB` to override the database path, which keeps tests and scratch runs off your real ledger.
 
@@ -84,7 +89,7 @@ For work that spans more than a few steps, `novahiz task` keeps the plan in SQLi
 
 ## Multi-harness
 
-The adapter is thin on purpose. The gate logic lives in the CLI, so a harness that can run a command before a tool call can reuse it. Claude Code gets a blocking `PreToolUse` hook, Codex gets advisory `PostToolUse` and `Stop` hooks, both through `novahiz hook`. Any harness with a stdio MCP client can use `novahiz_classify`, `novahiz_catalog`, `novahiz_roadmap`, `novahiz_providers`, `novahiz_step`, `novahiz_list_skills`, `novahiz_gate`, `novahiz_task`, and `novahiz_dispatch`. Novahiz also catalogues external components as providers: MCP servers (playwright, security, narsil, context7, sequential-thinking, cron), and skill packs (impeccable), and can run their official install commands. See [docs/HARNESSES.md](docs/HARNESSES.md), [adapters/README.md](adapters/README.md), and [docs/PROVIDERS.md](docs/PROVIDERS.md).
+The adapter is thin on purpose. The gate logic lives in the CLI, so a harness that can run a command before a tool call can reuse it. Claude Code gets a blocking `PreToolUse` hook, Codex gets advisory `PreToolUse` and `Stop` hooks, both through `novahiz hook`. Any harness with a stdio MCP client can use `novahiz_classify`, `novahiz_catalog`, `novahiz_roadmap`, `novahiz_providers`, `novahiz_deps`, `novahiz_step`, `novahiz_list_skills`, `novahiz_gate`, `novahiz_task`, and `novahiz_dispatch`. Novahiz also catalogues external components as providers: MCP servers (playwright, security, narsil, context7, sequential-thinking, cron), and skill packs (impeccable), and can run their official install commands. See [docs/HARNESSES.md](docs/HARNESSES.md), [adapters/README.md](adapters/README.md), and [docs/PROVIDERS.md](docs/PROVIDERS.md).
 
 ## License
 

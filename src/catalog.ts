@@ -67,11 +67,12 @@ export function parseFrontmatter(content: string): Record<string, string> {
   return result;
 }
 
-function walkForSkillFiles(root: string, found: string[], visited: Set<string>): void {
+function walkForSkillFiles(root: string, found: string[], visited: Set<string>, errors: string[]): void {
   let real: string;
   try {
     real = realpathSync(root);
-  } catch {
+  } catch (error) {
+    errors.push(`scan could not resolve ${root}: ${String(error)}`);
     return;
   }
   if (visited.has(real)) return;
@@ -80,7 +81,8 @@ function walkForSkillFiles(root: string, found: string[], visited: Set<string>):
   let entries: string[];
   try {
     entries = readdirSync(root).sort();
-  } catch {
+  } catch (error) {
+    errors.push(`scan could not list ${root}: ${String(error)}`);
     return;
   }
   for (const entry of entries) {
@@ -89,23 +91,24 @@ function walkForSkillFiles(root: string, found: string[], visited: Set<string>):
     let stats;
     try {
       stats = statSync(full);
-    } catch {
+    } catch (error) {
+      errors.push(`scan could not stat ${full}: ${String(error)}`);
       continue;
     }
     if (stats.isDirectory()) {
-      walkForSkillFiles(full, found, visited);
+      walkForSkillFiles(full, found, visited, errors);
     } else if (entry === "SKILL.md") {
       found.push(full);
     }
   }
 }
 
-export function scanSkills(spec: Spec): SkillRecord[] {
+export function scanSkills(spec: Spec, errors: string[] = []): SkillRecord[] {
   const files: string[] = [];
   const visited = new Set<string>();
   for (const root of spec.config.skillRoots) {
     const expanded = expandHome(root);
-    walkForSkillFiles(isAbsolute(expanded) ? expanded : join(spec.root, expanded), files, visited);
+    walkForSkillFiles(isAbsolute(expanded) ? expanded : join(spec.root, expanded), files, visited, errors);
   }
   files.sort();
 
@@ -114,7 +117,8 @@ export function scanSkills(spec: Spec): SkillRecord[] {
     let content: string;
     try {
       content = readFileSync(file, "utf8");
-    } catch {
+    } catch (error) {
+      errors.push(`scan could not read ${file}: ${String(error)}`);
       continue;
     }
     const frontmatter = parseFrontmatter(content);

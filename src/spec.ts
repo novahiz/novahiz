@@ -162,7 +162,7 @@ export const DEFAULT_CONFIG: NovahizConfig = {
     placeholders: true,
     trace: {
       enabled: false,
-      categories: ["code", "debug", "audit", "refactor", "migration"]
+      categories: ["code", "debug", "audit", "review", "database-supabase"]
     }
   },
   classify: {

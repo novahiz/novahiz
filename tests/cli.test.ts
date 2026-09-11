@@ -94,3 +94,42 @@ test("deps command reports dependency status", () => {
   assert.ok(Array.isArray(parsed.dependencies));
   assert.equal(parsed.dependencies.length, 7);
 });
+
+test("sync reports the scanned skill count", () => {
+  const parsed = JSON.parse(run(["sync"]));
+  assert.equal(typeof parsed.scanned, "number");
+  assert.ok(Array.isArray(parsed.scanErrors));
+});
+
+test("categories and rules return arrays", () => {
+  assert.ok(Array.isArray(JSON.parse(run(["categories"]))));
+  assert.ok(Array.isArray(JSON.parse(run(["rules"]))));
+});
+
+test("skills can be filtered by category", () => {
+  const parsed = JSON.parse(run(["skills", "--category", "code"]));
+  assert.ok(Array.isArray(parsed));
+});
+
+test("report renders JSON and markdown", () => {
+  const asJson = JSON.parse(run(["report"]));
+  assert.equal(typeof asJson, "object");
+  const asMarkdown = run(["report", "--format", "markdown"]);
+  assert.ok(asMarkdown.length > 0);
+});
+
+test("tokens reports savings in JSON and text", () => {
+  const parsed = JSON.parse(run(["tokens"]));
+  assert.equal(typeof parsed.events, "number");
+  const text = run(["tokens", "--format", "text"]);
+  assert.ok(text.includes("events:"));
+  const calibrate = run(["tokens", "--calibrate", "--format", "text"]);
+  assert.ok(calibrate.includes("bytes/token"));
+});
+
+test("session-load and session-state round-trip", () => {
+  const session = `cli-test-${Date.now().toString(36)}`;
+  run(["session-load", "--session", session, "--skill", "humanizer"]);
+  const state = JSON.parse(run(["session-state", "--session", session]));
+  assert.ok(state.loaded.includes("humanizer"));
+});

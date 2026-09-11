@@ -31,7 +31,7 @@ test("maps providers to categories across kinds", () => {
 test("builds mcp entries only for mcp providers", () => {
   const entries = buildMcpEntries(spec);
   assert.equal(Object.keys(entries).length, 6);
-  assert.deepEqual(entries.playwright.command, ["npx", "-y", "@playwright/mcp@latest"]);
+  assert.deepEqual(entries.playwright.command, ["npx", "-y", "@playwright/mcp@0.0.80"]);
   assert.equal("impeccable" in entries, false);
 });
 
@@ -40,7 +40,7 @@ test("exposes official install commands for every provider", () => {
   assert.equal(commands.length, 7);
   const impeccable = commands.find((entry) => entry.id === "impeccable");
   assert.equal(impeccable?.kind, "skill");
-  assert.deepEqual(impeccable?.command.slice(0, 3), ["npx", "-y", "impeccable"]);
+  assert.deepEqual(impeccable?.command.slice(0, 3), ["npx", "-y", "impeccable@4.1.0"]);
   for (const entry of commands) assert.ok(entry.source.startsWith("https://"));
 });
 

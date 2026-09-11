@@ -48,7 +48,7 @@ type Parsed = {
 
 function parse(argv: string[]): Parsed {
   const positionals: string[] = [];
-  const flags: Record<string, string | boolean> = {};
+  const flags: Record<string, string | boolean> = Object.create(null);
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
     if (!arg.startsWith("--")) {
@@ -86,6 +86,15 @@ function print(value: unknown): void {
   process.stdout.write(`${JSON.stringify(value, null, 2)}\n`);
 }
 
+function safeJsonArray(value: string): string[] {
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed.map(String) : [];
+  } catch {
+    return [];
+  }
+}
+
 function dbPathFor(root: string, spec: ReturnType<typeof loadSpec>): string {
   const configured = spec.config.dbPath;
   if (configured.length === 0) return resolve(root, "novahiz.sqlite");
@@ -119,7 +128,8 @@ function commandCheck(): void {
 function commandSync(): void {
   const root = novahizHome();
   const spec = loadSpec(root);
-  const skills = scanSkills(spec);
+  const scanErrors: string[] = [];
+  const skills = scanSkills(spec, scanErrors);
   const indexFile = writeSkillIndex(spec, skills);
   const catalogFile = writeCatalog(spec, skills);
   const db = openDb(dbPathFor(root, spec));
@@ -127,7 +137,7 @@ function commandSync(): void {
   const lastSync = new Date().toISOString();
   setMeta(db, "last_sync", lastSync);
   db.close();
-  print({ root, scanned: skills.length, index: indexFile, catalog: catalogFile, lastSync });
+  print({ root, scanned: skills.length, index: indexFile, catalog: catalogFile, lastSync, scanErrors });
 }
 
 function commandClassify(parsed: Parsed): void {
@@ -200,6 +210,19 @@ function commandGate(parsed: Parsed): void {
   }
 
   if (paths.length === 0) {
+    const writeTools = ["edit", "write", "patch", "apply_patch"];
+    if (writeTools.includes(tool)) {
+      print({
+        allow: false,
+        tool,
+        targets: [],
+        requiredSkills: [],
+        missingSkills: [],
+        reasons: ["no target path for a write tool"]
+      });
+      if (gateConfig.mode === "block") process.exitCode = 2;
+      return;
+    }
     print({ allow: true, tool, targets: [], requiredSkills: [], missingSkills: [], reason: "no target path" });
     return;
   }
@@ -312,15 +335,15 @@ function commandSkills(parsed: Parsed): void {
   }[];
   db.close();
   const category = asString(parsed.flags.category);
-  const filtered = category.length > 0 ? rows.filter((row) => (JSON.parse(row.categories) as string[]).includes(category)) : rows;
+  const filtered = category.length > 0 ? rows.filter((row) => safeJsonArray(row.categories).includes(category)) : rows;
   print(
     filtered.map((row) => ({
       id: row.id,
       name: row.name,
       power: row.power,
       stars: row.stars,
-      tags: JSON.parse(row.tags),
-      categories: JSON.parse(row.categories)
+      tags: safeJsonArray(row.tags),
+      categories: safeJsonArray(row.categories)
     }))
   );
 }
@@ -365,7 +388,7 @@ function commandSessionState(parsed: Parsed): void {
     | { categories: string; required_skills: string }
     | undefined;
   db.close();
-  print({ session, loaded, categories: state ? JSON.parse(state.categories) : [], requiredSkills: state ? JSON.parse(state.required_skills) : [] });
+  print({ session, loaded, categories: state ? safeJsonArray(state.categories) : [], requiredSkills: state ? safeJsonArray(state.required_skills) : [] });
 }
 
 function commandHook(parsed: Parsed): void {
@@ -527,7 +550,8 @@ function commandCatalog(parsed: Parsed): void {
   const limit = Number.isFinite(limitRaw) && limitRaw > 0 ? limitRaw : 10;
   const catalog = loadCatalog(spec);
   const results = rankSkills(catalog, query, limit);
-  print({ query, total: catalog.length, results });
+  const hint = catalog.length === 0 ? "catalog is empty; run `novahiz sync` to build it" : undefined;
+  print({ query, total: catalog.length, results, ...(hint ? { hint } : {}) });
 }
 
 function commandRoadmap(parsed: Parsed): void {
@@ -982,7 +1006,7 @@ function commandTokens(parsed: Parsed): void {
       `events: ${summary.events}`,
       `~tokens saved: ${summary.totalSaved}`,
       `bytes: ${summary.totalOriginalBytes} -> ${summary.totalKeptBytes}`,
-      `trim: ${summary.byKind.trim}  dedupe: ${summary.byKind.dedupe}  cap: ${summary.byKind.cap}`,
+      `trim: ${summary.byKind.trim}  dedupe: ${summary.byKind.dedupe}`,
       `sessions: ${summary.sessions}`
     ];
     process.stdout.write(`${lines.join("\n")}\n`);

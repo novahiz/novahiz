@@ -171,7 +171,7 @@ export function dedupeStaleReads(messages: MinimalMessage[], config: TokensConfi
   return { stubbed, removedTokens, originalBytes, keptBytes };
 }
 
-export type SavingsKind = "trim" | "dedupe" | "cap";
+export type SavingsKind = "trim" | "dedupe";
 
 export type SavingsEntry = {
   at: string;
@@ -209,7 +209,7 @@ export function parseSavings(text: string): SavingsEntry[] {
           at: typeof parsed.at === "string" ? parsed.at : "",
           session: typeof parsed.session === "string" ? parsed.session : "",
           tool: typeof parsed.tool === "string" ? parsed.tool : "",
-          kind: parsed.kind === "dedupe" || parsed.kind === "cap" ? parsed.kind : "trim",
+          kind: parsed.kind === "dedupe" ? parsed.kind : "trim",
           tokens: parsed.tokens,
           originalBytes: typeof parsed.originalBytes === "number" && Number.isFinite(parsed.originalBytes) ? parsed.originalBytes : undefined,
           keptBytes: typeof parsed.keptBytes === "number" && Number.isFinite(parsed.keptBytes) ? parsed.keptBytes : undefined
@@ -261,7 +261,7 @@ export type SavingsSummary = {
 };
 
 export function summarizeSavings(entries: SavingsEntry[]): SavingsSummary {
-  const byKind: Record<SavingsKind, number> = { trim: 0, dedupe: 0, cap: 0 };
+  const byKind: Record<SavingsKind, number> = { trim: 0, dedupe: 0 };
   const byTool: Record<string, number> = {};
   const sessions = new Set<string>();
   let totalSaved = 0;

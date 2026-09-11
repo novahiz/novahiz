@@ -4,7 +4,7 @@ Novahiz keeps every decision in the CLI. An adapter only translates a harness ev
 
 ## opencode
 
-`adapters/opencode/novahiz.ts` is a plugin. It classifies each user message, injects the roadmap checklist and expected skills, tracks loaded skills per session, and calls `novahiz gate` on `edit`, `write`, `patch`, `apply_patch`, and `bash`. The gate is content-aware, so `humanizer` and `impeccable` are required only when the change contains prose or style. It also registers the MCP server through the plugin `config` hook.
+`adapters/opencode/novahiz.ts` is a plugin. It classifies each user message, injects the roadmap checklist and expected skills, tracks loaded skills per session, and calls `novahiz gate` on `edit`, `write`, `patch`, `apply_patch`, `bash`, and `shell`. The gate is content-aware, so `humanizer` and `impeccable` are required only when the change contains prose or style. It also registers the MCP server through the plugin `config` hook.
 
 ## Claude Code
 
@@ -18,7 +18,7 @@ The CLI reads the hook JSON on stdin, maps `tool_name` and `tool_input`, evaluat
 
 ## Codex
 
-Codex exposes `PostToolUse` and `Stop` hooks. `install/hooks.mjs` writes them into `~/.codex/hooks.json`. Because these fire after the edit, Codex gets an advisory verdict, not a block. The CLI prints a message and logs the enforcement; it cannot undo an edit that already happened.
+Codex exposes `PreToolUse` and `Stop` hooks. `install/hooks.mjs` writes them into `~/.codex/hooks.json`. Because the CLI only emits a hard deny for Claude, Codex gets an advisory verdict, not a block. The CLI prints a message and logs the enforcement; it cannot undo an edit that already happened.
 
 ## Other harnesses
 

@@ -39,6 +39,9 @@
     "spec-driven-workflow": { "power": 4, "stars": null, "tags": ["spec", "planning"], "categories": ["planning"] },
     "skill-creator": { "power": 3, "stars": null, "tags": ["skills"], "categories": ["general"] },
     "write-a-skill": { "power": 3, "stars": null, "tags": ["skills"], "categories": ["general"] },
-    "mcp-server-builder": { "power": 4, "stars": null, "tags": ["mcp"], "categories": ["code", "planning"] }
+    "mcp-server-builder": { "power": 4, "stars": null, "tags": ["mcp"], "categories": ["code", "planning"] },
+    "code-understand": { "power": 4, "stars": null, "tags": ["architecture", "code"], "categories": ["code", "debug", "review"] },
+    "review-changes": { "power": 4, "stars": null, "tags": ["review"], "categories": ["review"] },
+    "defuddle": { "power": 3, "stars": null, "tags": ["research", "web"], "categories": ["research"] }
   }
 }

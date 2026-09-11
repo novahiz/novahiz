@@ -11,6 +11,9 @@ Tools:
 - `novahiz_step` records or lists roadmap step progress for a session.
 - `novahiz_list_skills` lists installed skills, optionally by category.
 - `novahiz_gate` checks a file edit against the rules and returns the verdict.
+- `novahiz_deps` reports provider dependency status.
+- `novahiz_task` drives the durable task ledger (create, plan, todo, start, done, block, review, amend, insert, drop, reorder, signals, status, resume, current).
+- `novahiz_dispatch` turns pending todos into work packets and reports file-ownership conflicts.
 
 It speaks newline-delimited JSON-RPC over stdio. No npm install is needed.
 

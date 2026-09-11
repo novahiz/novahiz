@@ -66,12 +66,12 @@ function codexHooks(home) {
   };
 }
 
-function isNovahizHandler(handler) {
+export function isNovahizHandler(handler) {
   const command = typeof handler?.command === "string" ? handler.command : "";
   return command.includes("hook --harness") && (command.includes("novahiz") || command.includes("cli.ts"));
 }
 
-function mergeHooks(existing, generated) {
+export function mergeHooks(existing, generated) {
   const merged = { ...existing, hooks: { ...(existing.hooks ?? {}) } };
   for (const [event, groups] of Object.entries(generated.hooks)) {
     const current = Array.isArray(merged.hooks[event]) ? merged.hooks[event] : [];
@@ -162,4 +162,4 @@ function main() {
   process.stdout.write("Hooks non geres: Claude Code les charge directement; Codex les execute apres approbation via /hooks.\n");
 }
 
-main();
+if (import.meta.main) main();

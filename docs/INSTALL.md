@@ -93,7 +93,7 @@ The installer backs up the existing file and merges its hook group. Restart Clau
 node ~/.config/novahiz/install/hooks.mjs --harness codex
 ```
 
-This writes `~/.codex/hooks.json`. Codex hooks fire after the edit (`PostToolUse`) and on `Stop`, so the verdict is advisory, not a block.
+This writes `~/.codex/hooks.json`. Codex hooks fire before the edit (`PreToolUse`) and on `Stop`; because the CLI only emits a hard deny for Claude, the Codex verdict is advisory, not a block.
 
 ### MCP only
 

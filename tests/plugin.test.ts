@@ -16,10 +16,19 @@ const hooks = (await NovahizPlugin({
   client: fakeClient
 } as unknown as Parameters<typeof NovahizPlugin>[0])) as unknown as HookMap;
 
-test("the plugin exposes the three token-economy hooks", () => {
-  assert.equal(typeof hooks["tool.execute.after"], "function");
-  assert.equal(typeof hooks["experimental.chat.messages.transform"], "function");
-  assert.equal(typeof hooks["chat.params"], "function");
+test("the plugin exposes the token-economy and enforcement hooks", () => {
+  for (const name of [
+    "tool.execute.after",
+    "experimental.chat.messages.transform",
+    "chat.params",
+    "config",
+    "event",
+    "chat.message",
+    "experimental.chat.system.transform",
+    "tool.execute.before"
+  ]) {
+    assert.equal(typeof hooks[name], "function", `expected hook ${name}`);
+  }
 });
 
 test("tool.execute.after trims a large read output", async () => {

@@ -6,7 +6,7 @@ Novahiz keeps its decisions in the CLI. Every harness integration is a thin adap
 
 - Skill and plugin: `~/.config/opencode/skills/` and `~/.config/opencode/plugins/`.
 - MCP: the plugin registers the Novahiz server through the plugin `config` hook, so `opencode.jsonc` is not edited.
-- Gate: the plugin calls `novahiz gate` on `edit`, `write`, `patch`, `apply_patch`, and `bash`.
+- Gate: the plugin calls `novahiz gate` on `edit`, `write`, `patch`, `apply_patch`, `bash`, and `shell`.
 
 Source: opencode plugin docs (`~/.config/opencode/plugins/`).
 
@@ -25,7 +25,7 @@ Sources: Claude Code hooks reference and MCP reference (`docs.claude.com`).
 
 ## Codex
 
-- Hooks: `~/.codex/hooks.json` (user) or `<repo>/.codex/hooks.json` (project, trusted projects only). Hooks use the same event schema as `[hooks]` in `config.toml`. `PreToolUse` can block the call. `matcher` is a regex that filters the tool name: `Bash` for shell, `apply_patch` for patches (also matched by `Edit` and `Write`), and `mcp__<server>__<tool>` for MCP tools. `timeout` is in seconds.
+- Hooks: `~/.codex/hooks.json` (user) or `<repo>/.codex/hooks.json` (project, trusted projects only). Hooks use the same event schema as `[hooks]` in `config.toml`. `PreToolUse` fires before the call, but Codex still gets an advisory verdict, not a block (`novahiz hook` only emits a deny payload for Claude). `matcher` is a regex that filters the tool name: `Bash` for shell, `apply_patch` for patches (also matched by `Edit` and `Write`), and `mcp__<server>__<tool>` for MCP tools. `timeout` is in seconds.
 - Hook trust: Codex requires you to review and trust non-managed hooks. Run `/hooks` once to approve the Novahiz hooks. Until then Codex skips them.
 - MCP: add the server with the CLI:
 
@@ -45,7 +45,7 @@ Sources: Codex hooks guide and MCP guide (`developers.openai.com/codex`).
 
 ## Other harnesses
 
-Any harness with a stdio MCP client can use the same server, `mcp/novahiz-tools/index.mjs`, for `classify`, `catalog`, `roadmap`, `providers`, `step`, `list_skills`, and `gate`. Harnesses with a pre-tool hook that can abort a call can reuse `novahiz hook --harness <name>`. The tool mapping lives in `src/hook.ts` and is easy to extend: add a case to `normalizeTool`.
+Any harness with a stdio MCP client can use the same server, `mcp/novahiz-tools/index.mjs`, for `classify`, `catalog`, `roadmap`, `providers`, `deps`, `step`, `list_skills`, `gate`, `task`, and `dispatch`. Harnesses with a pre-tool hook that can abort a call can reuse `novahiz hook --harness <name>`. The tool mapping lives in `src/hook.ts` and is easy to extend: add a case to `normalizeTool`.
 
 ## What the installer does
 

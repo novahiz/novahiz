@@ -12,7 +12,7 @@ A todo holds `id`, `task_id`, `seq`, `label`, `kind` (`read`, `edit`, `verify`, 
 
 ## Rules that keep it honest
 
-A todo enters `in_progress` only through `start`. Its dependencies must be `done` or `dropped` first. Each start increments `iterations`, and the start fails once the count passes `max_iterations` (12 by default). This is the loop guard.
+A todo enters `in_progress` only through `start`. Its dependencies must be `done` or `dropped` first. Each start increments `iterations`. The todo allows exactly `max_iterations` starts (12 by default) and the attempt after that fails. This is the loop guard.
 
 A `verify` todo cannot be completed without a proof. The proof is the command you ran and its result, so a test step needs a real test line, not an assertion that it passed.
 

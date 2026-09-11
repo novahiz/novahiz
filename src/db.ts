@@ -1,5 +1,5 @@
 import { DatabaseSync } from "node:sqlite";
-import { mkdirSync } from "node:fs";
+import { chmodSync, mkdirSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 
 export { DatabaseSync };
@@ -8,6 +8,13 @@ export function openDb(dbPath: string): DatabaseSync {
   const absolute = resolve(dbPath);
   mkdirSync(dirname(absolute), { recursive: true });
   const db = new DatabaseSync(absolute);
+  if (process.platform !== "win32") {
+    try {
+      chmodSync(absolute, 0o600);
+    } catch {
+      // best effort, the umask may forbid it
+    }
+  }
   db.exec("PRAGMA journal_mode = WAL;");
   db.exec("PRAGMA busy_timeout = 5000;");
   db.exec(`
@@ -100,6 +107,10 @@ export function openDb(dbPath: string): DatabaseSync {
   return db;
 }
 
+// Table and column names are interpolated here, unlike every other query in the
+// project, because SQLite does not parameterize identifiers. The values come from
+// the fixed strings below and from migrate(), never from external input. Keep it
+// that way: this is the only place where SQL is assembled from strings.
 function tableColumns(db: DatabaseSync, table: string): Set<string> {
   const rows = db.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>;
   return new Set(rows.map((row) => row.name));

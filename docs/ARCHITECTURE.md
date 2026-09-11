@@ -49,7 +49,7 @@ Each category carries a `roadmap`. The classifier returns the category order, th
 
 ### harness hook adapters
 
-`src/hook.ts` maps a harness hook payload to the same gate. `novahiz hook --harness claude|codex` reads the payload on stdin, normalizes the tool name, tracks skill loads by session, and returns a decision. Claude Code uses a blocking `PreToolUse` hook; Codex uses advisory `PostToolUse` and `Stop` hooks. `install/hooks.mjs` writes the manifests.
+`src/hook.ts` maps a harness hook payload to the same gate. `novahiz hook --harness claude|codex` reads the payload on stdin, normalizes the tool name, tracks skill loads by session, and returns a decision. Claude Code uses a blocking `PreToolUse` hook; Codex uses advisory `PreToolUse` and `Stop` hooks. `install/hooks.mjs` writes the manifests.
 
 ## Data flow
 
@@ -73,7 +73,7 @@ The core runs on Node with no dependencies. A new harness adapter needs two thin
 
 ## MCP server
 
-`mcp/novahiz-tools/index.mjs` exposes `novahiz_classify`, `novahiz_catalog`, `novahiz_roadmap`, `novahiz_providers`, `novahiz_step`, `novahiz_list_skills`, `novahiz_gate`, `novahiz_task`, and `novahiz_dispatch` over stdio using newline-delimited JSON-RPC. It has no dependencies and reuses the core modules directly. The opencode plugin registers it through the plugin `config` hook.
+`mcp/novahiz-tools/index.mjs` exposes `novahiz_classify`, `novahiz_catalog`, `novahiz_roadmap`, `novahiz_providers`, `novahiz_deps`, `novahiz_step`, `novahiz_list_skills`, `novahiz_gate`, `novahiz_task`, and `novahiz_dispatch` over stdio using newline-delimited JSON-RPC. It has no dependencies and reuses the core modules directly. The opencode plugin registers it through the plugin `config` hook.
 
 ## Providers
 

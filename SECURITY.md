@@ -14,4 +14,4 @@ Include the affected version, a description, and the steps to reproduce. We aim 
 
 ## Scope
 
-Novahiz reads files under your configured skill roots. Treat the spec files as trusted input. A rule that requires an unavailable skill is reported and skipped, so a misconfigured catalog degrades rather than blocks.
+Novahiz reads files under your configured skill roots. Treat the spec files as trusted input. A rule that requires an unavailable skill is reported and skipped, so a misconfigured catalog degrades rather than blocks, as long as the installed-skills index exists. When that index is missing or unreadable, the gate fails closed instead.

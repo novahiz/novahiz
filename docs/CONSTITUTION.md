@@ -40,7 +40,7 @@ Rationale: the enforcement promise is only as strong as the evidence behind it. 
 ## Additional Constraints
 
 - Versioned configuration is code. Changes to `catalog/categories.json`, `catalog/rules.json`, and `catalog/overrides.json` go through review like source.
-- The published package ships `src`, `adapters`, `catalog`, `install`, `bin`, `mcp`, and `skills`. It never carries secrets, the local database, or machine-specific config.
+- The published package ships `src`, `adapters`, `catalog`, `install`, `bin`, `mcp`, `skills`, `docs`, `tsconfig.json`, `README.md`, `NOTICE.md`, `novahiz.config.example.json`, and `LICENSE`. It never carries secrets, the local database, or machine-specific config.
 - License is Apache-2.0. The source is public. Anything derived from bundled third-party skills keeps its own attribution.
 
 ## Development Workflow

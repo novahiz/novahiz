@@ -130,3 +130,56 @@ test("dispatches the active task into work packets", () => {
   assert.equal(packets.packets.length, 2);
   assert.ok(Array.isArray(packets.conflicts));
 });
+
+test("runs the gate over MCP", () => {
+  const out = call([
+    JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "novahiz_gate", arguments: { tool: "edit", filePath: "README.md", categories: ["docs-writing"] } } })
+  ]);
+  const payload = JSON.parse(out[0].result.content[0].text);
+  assert.equal(typeof payload.allow, "boolean");
+});
+
+test("records a roadmap step over MCP", () => {
+  const out = call([
+    JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "novahiz_step", arguments: { session: "mcp-step", step: "scan", status: "done" } } })
+  ]);
+  assert.ok(out[0].result.content[0].text.length > 0);
+});
+
+test("resolves a roadmap from a query over MCP", () => {
+  const out = call([
+    JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "novahiz_roadmap", arguments: { query: "corrige un bug de login" } } })
+  ]);
+  const payload = JSON.parse(out[0].result.content[0].text);
+  assert.ok(typeof payload.category === "string" && payload.category.length > 0);
+});
+
+test("lists providers from a query over MCP", () => {
+  const out = call([
+    JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "novahiz_providers", arguments: { query: "navigateur" } } })
+  ]);
+  const payload = JSON.parse(out[0].result.content[0].text);
+  assert.ok(Array.isArray(payload.providers));
+});
+
+test("lists skills for a category over MCP", () => {
+  const out = call([
+    JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "novahiz_list_skills", arguments: { category: "code" } } })
+  ]);
+  assert.ok(out[0].result.content[0].text.length > 0);
+});
+
+test("drives ledger plan amendments over MCP", () => {
+  const id = `mcp-amend-${Date.now().toString(36)}`;
+  const out = call([
+    JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "novahiz_task", arguments: { action: "new", title: "MCP amend task", id } } }),
+    JSON.stringify({ jsonrpc: "2.0", id: 2, method: "tools/call", params: { name: "novahiz_task", arguments: { action: "plan", task: id, todos: [{ label: "first", kind: "read", owner: "src/a.ts" }] } } }),
+    JSON.stringify({ jsonrpc: "2.0", id: 3, method: "tools/call", params: { name: "novahiz_task", arguments: { action: "insert", task: id, label: "inserted", kind: "edit", position: "start" } } }),
+    JSON.stringify({ jsonrpc: "2.0", id: 4, method: "tools/call", params: { name: "novahiz_task", arguments: { action: "signals", task: id } } }),
+    JSON.stringify({ jsonrpc: "2.0", id: 5, method: "tools/call", params: { name: "novahiz_task", arguments: { action: "current", task: id } } })
+  ]);
+  assert.equal(JSON.parse(out[1].result.content[0].text).length, 1);
+  assert.ok(JSON.parse(out[2].result.content[0].text));
+  assert.ok(out[3].result.content[0].text.length > 0);
+  assert.ok(out[4].result.content[0].text.length > 0);
+});

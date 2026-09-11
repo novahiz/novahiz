@@ -43,7 +43,7 @@ const ENV_ESCAPE = typeof GATE.envEscape === "string" && GATE.envEscape.length >
 const ESCAPE = (process.env[ENV_ESCAPE] || "").toLowerCase();
 const DISABLED = ["off", "0", "false", "no", "disabled"].includes(ESCAPE);
 const GATE_TOOLS = new Set(
-  Array.isArray(GATE.tools) && GATE.tools.length > 0 ? GATE.tools : ["edit", "write", "patch", "apply_patch", "bash", "shell"]
+  (Array.isArray(GATE.tools) && GATE.tools.length > 0 ? GATE.tools : ["edit", "write", "patch", "apply_patch", "bash", "shell"]).map((tool) => tool.toLowerCase())
 );
 
 const TOKENS: TokensConfig = mergeTokensConfig(CONFIG.tokens);
@@ -67,7 +67,7 @@ function recordSavings(entries: SavingsEntry[]): void {
   try {
     const path = savingsPath(HOME);
     mkdirSync(dirname(path), { recursive: true });
-    appendFileSync(path, entries.map(encodeSavings).join(""), "utf8");
+    appendFileSync(path, entries.map(encodeSavings).join(""), { encoding: "utf8", mode: 0o600 });
     savingsWrites += 1;
     if (savingsWrites % SAVINGS_PRUNE_EVERY === 0 && existsSync(path) && statSync(path).size > SAVINGS_PRUNE_BYTES) {
       writeFileSync(path, pruneSavingsText(readFileSync(path, "utf8")), "utf8");
@@ -210,7 +210,7 @@ export const NovahizPlugin: Plugin = async ({ client }) => {
           return;
         }
 
-        if (DISABLED || !GATE_TOOLS.has(input.tool)) return;
+        if (DISABLED || !GATE_TOOLS.has(input.tool.toLowerCase())) return;
 
         const categories = categoriesBySession.get(input.sessionID) ?? [];
         const result = run(
@@ -226,7 +226,13 @@ export const NovahizPlugin: Plugin = async ({ client }) => {
             "--session",
             input.sessionID
           ],
-          JSON.stringify(output.args ?? {})
+          (() => {
+            try {
+              return JSON.stringify(output.args ?? {});
+            } catch (error) {
+              throw new Error(`Novahiz gate blocked ${input.tool}: could not serialize tool args (${String(error)}).`);
+            }
+          })()
         );
 
         if (result.spawnError) {
