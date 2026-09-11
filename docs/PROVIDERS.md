@@ -102,6 +102,26 @@ Each provider declares its prerequisites in `requires` (the executable it needs)
 
 `novahiz deps` checks every prerequisite and reports what is missing. `novahiz deps --install` first bootstraps a missing prerequisite through its official installer, then runs each provider's install command. The installer runs the check on every install and, when `providers.autoInstall` is true or `--install-providers` is passed, runs the installs too.
 
+## Troubleshooting
+
+Check the `narsil` binary before wiring it into a harness:
+
+```
+narsil-mcp --version
+narsil-mcp tools list
+```
+
+Run `tools list` instead of the bare command. Without a subcommand `narsil-mcp` starts a stdio MCP server and blocks the shell, which looks like a hang.
+
+Common fixes:
+
+- Stale index: rerun with `--reindex`, or clear the default index directory at `~/.cache/narsil-mcp` and reindex. On Windows that directory sits under your user profile.
+- Wrong tree: pass `--repos <path>` or set `NARSIL_REPOS`, and use `--discover <dir>` when you do not know the path.
+- Cache noise while debugging: `--no-cache` skips the cache, and `--cache-ttl <seconds>` moves the default 1800 second window.
+- Slow startup: `--preset minimal` trims the tool surface. The default preset exposes the full set.
+
+Confirm the tool count with `narsil-mcp tools list` afterwards, then rerun `novahiz deps` to recheck the prerequisite.
+
 ## Tools
 
 - `novahiz providers` lists providers, optionally by `--category` or a query.
