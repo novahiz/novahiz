@@ -21,3 +21,10 @@ test("mergeConfig keeps provided values and fills the rest", () => {
 test("mergeConfig tolerates null", () => {
   assert.deepEqual(mergeConfig(null), DEFAULT_CONFIG);
 });
+
+test("mergeConfig coerces invalid gate fields", () => {
+  const merged = mergeConfig({ gate: { ignoreFiles: null, tools: null, mode: "bogus" } } as never);
+  assert.ok(Array.isArray(merged.gate.ignoreFiles));
+  assert.ok(Array.isArray(merged.gate.tools));
+  assert.equal(merged.gate.mode, "block");
+});

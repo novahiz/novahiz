@@ -70,11 +70,15 @@ export function tokenizeShell(command: string): string[] {
 const OPERATORS = new Set([">", ">>", "&>", "<", "|", "||", "&", "&&", ";"]);
 
 function isOperator(token: string): boolean {
-  return OPERATORS.has(token) || token.startsWith("&") || /^\d+$/.test(token);
+  return OPERATORS.has(token) || token.startsWith("&");
+}
+
+function isFlag(token: string): boolean {
+  return token.startsWith("-") || /^\/[a-zA-Z]$/.test(token);
 }
 
 function allPositionals(tokens: string[]): string[] {
-  return tokens.filter((token) => !token.startsWith("-") && !isOperator(token));
+  return tokens.filter((token) => !isFlag(token) && !isOperator(token));
 }
 
 function firstPositional(tokens: string[]): string | null {
@@ -105,7 +109,7 @@ const VALUE_FLAGS = new Set([
 function firstPathLike(tokens: string[]): string | null {
   for (let index = 0; index < tokens.length; index += 1) {
     const token = tokens[index];
-    if (token.startsWith("-") || isOperator(token)) continue;
+    if (isFlag(token) || isOperator(token)) continue;
     const previous = tokens[index - 1];
     if (previous && VALUE_FLAGS.has(previous.toLowerCase())) continue;
     return token;
@@ -118,6 +122,23 @@ function flagValue(tokens: string[], flags: string[]): string | null {
   return index >= 0 && tokens[index + 1] ? tokens[index + 1] : null;
 }
 
+const WRAPPERS = new Set(["sudo", "doas", "env", "nohup", "time", "command", "exec", "cmd", "cmd.exe", "xargs"]);
+const WRITE_CMDLETS = new Set([
+  "set-content",
+  "add-content",
+  "out-file",
+  "tee-object",
+  "set-itemproperty",
+  "set-item",
+  "new-item",
+  "ni",
+  "mkdir",
+  "md"
+]);
+const DEST_CMDLETS = new Set(["copy-item", "move-item", "rename-item", "copy", "move", "ren", "rename", "xcopy"]);
+const DELETE_CMDLETS = new Set(["remove-item", "ri", "rm", "del", "erase", "rd", "rmdir"]);
+const COPY_CMDS = new Set(["cp", "mv", "rsync", "robocopy"]);
+
 export function extractShellPaths(command: string): string[] {
   const out: string[] = [];
   const add = (value: unknown): void => {
@@ -127,77 +148,55 @@ export function extractShellPaths(command: string): string[] {
       path = path.slice(1, -1);
     }
     if (path.length === 0) return;
-    if (path.startsWith("-") || path.startsWith("$") || path.startsWith("&")) return;
-    if (/^\d+$/.test(path)) return;
+    if (isFlag(path) || path.startsWith("$") || path.startsWith("&")) return;
     if (path.includes("://")) return;
     if (!out.includes(path)) out.push(path);
   };
 
   const tokens = tokenizeShell(command);
-  const WRITE_CMDLETS = new Set([
-    "set-content",
-    "add-content",
-    "out-file",
-    "tee-object",
-    "set-itemproperty",
-    "set-item",
-    "new-item",
-    "ni",
-    "mkdir",
-    "md"
-  ]);
-  const DEST_CMDLETS = new Set(["copy-item", "move-item", "rename-item", "copy", "move", "ren", "rename", "xcopy"]);
-  const DELETE_CMDLETS = new Set(["remove-item", "ri", "del", "erase", "rd", "rmdir"]);
-  const COPY_CMDS = new Set(["cp", "mv", "rsync", "robocopy"]);
+  let expectCommand = true;
 
   for (let index = 0; index < tokens.length; index += 1) {
     const token = tokens[index];
-    if (token === ">" || token === ">>" || token === "&>") {
-      const target = tokens[index + 1];
-      if (target && !isOperator(target)) add(target);
+    if (isOperator(token)) {
+      if (token === ">" || token === ">>" || token === "&>") {
+        const target = tokens[index + 1];
+        if (target && !isOperator(target)) add(target);
+      }
+      expectCommand = true;
       continue;
     }
+    if (!expectCommand) continue;
 
     const lower = token.toLowerCase();
-    const rest = tokens.slice(index + 1);
+    if (WRAPPERS.has(lower)) continue;
+    if (isFlag(token)) continue;
+    expectCommand = false;
 
+    const rest = tokens.slice(index + 1);
     if (COPY_CMDS.has(lower)) {
       add(lastPositional(rest));
-      continue;
-    }
-    if (DEST_CMDLETS.has(lower)) {
+    } else if (DEST_CMDLETS.has(lower)) {
       add(flagValue(rest, ["-destination", "-newname"]) ?? lastPositional(rest));
-      continue;
-    }
-    if (DELETE_CMDLETS.has(lower)) {
+    } else if (DELETE_CMDLETS.has(lower)) {
       for (const candidate of allPositionals(rest)) add(candidate);
-      continue;
-    }
-    if (WRITE_CMDLETS.has(lower)) {
+    } else if (WRITE_CMDLETS.has(lower)) {
       add(flagValue(rest, ["-path", "-literalpath", "-filepath", "-destination", "-file"]) ?? firstPathLike(rest));
-      continue;
-    }
-    if (lower === "tee") {
+    } else if (lower === "tee") {
       add(firstPositional(rest));
-      continue;
-    }
-    if (lower === "touch" || lower === "truncate") {
+    } else if (lower === "touch" || lower === "truncate") {
       for (const candidate of allPositionals(rest)) add(candidate);
-      continue;
-    }
-    if (lower === "sed") {
+    } else if (lower === "sed") {
       if (rest.some((value) => value === "-i" || value.startsWith("-i"))) add(lastPositional(rest));
-      continue;
-    }
-    if (lower === "dd") {
+    } else if (lower === "dd") {
       for (const candidate of rest) {
         const match = candidate.match(/^of=(.+)$/);
         if (match) add(match[1]);
       }
-      continue;
+    } else {
+      const ofMatch = token.match(/^of=(.+)$/);
+      if (ofMatch) add(ofMatch[1]);
     }
-    const ofMatch = token.match(/^of=(.+)$/);
-    if (ofMatch) add(ofMatch[1]);
   }
 
   return out;

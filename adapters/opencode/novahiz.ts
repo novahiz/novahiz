@@ -93,7 +93,7 @@ export const NovahizPlugin: Plugin = async ({ client }) => {
 
     event: async ({ event }) => {
       const type = (event as { type?: string }).type ?? "";
-      if (type !== "session.deleted" && type !== "session.idle") return;
+      if (type !== "session.deleted") return;
       const properties = (event as { properties?: { info?: { id?: string }; sessionID?: string } }).properties ?? {};
       const sessionID = properties.info?.id ?? properties.sessionID;
       if (sessionID) forget(sessionID);
@@ -109,12 +109,15 @@ export const NovahizPlugin: Plugin = async ({ client }) => {
           categories?: { id: string }[];
           primary?: string | null;
           requiredSkills?: string[];
+          enforcedSkills?: string[];
           roadmaps?: { id: string; steps: { label: string; kind: string; requireSkills?: string[] }[] }[];
         };
         const categories = (parsed.categories ?? []).map((entry) => entry.id);
         categoriesBySession.set(input.sessionID, categories);
         const primary = parsed.primary ?? categories[0] ?? null;
+        const enforced = parsed.enforcedSkills ?? [];
         const required = parsed.requiredSkills ?? [];
+        const suggested = required.filter((skill) => !enforced.includes(skill));
         const roadmap = (parsed.roadmaps ?? [])[0];
         const lines = [
           "[Novahiz enforcement]",
@@ -127,8 +130,10 @@ export const NovahizPlugin: Plugin = async ({ client }) => {
             lines.push(`  ${index + 1}. [${step.kind}] ${step.label}${skills}`);
           });
         }
-        if (required.length > 0) lines.push(`Skills requis pour cette demande: ${required.join(", ")}`);
-        lines.push("Charge ces skills avec skill({name:\"...\"}) avant tout edit/write/patch. Le gate bloque sinon.");
+        if (enforced.length > 0) lines.push(`Skills requis (bloquants): ${enforced.join(", ")}`);
+        if (suggested.length > 0) lines.push(`Skills suggeres: ${suggested.join(", ")}`);
+        lines.push("Le gate bloque edit/write/patch/bash tant que les skills requis ne sont pas charges via skill({name:\"...\"}).");
+        lines.push("Le gate est sensible au contenu: humanizer pour la prose, impeccable pour le style.");
         enforcementBySession.set(input.sessionID, lines.join("\n"));
       } catch {
         return;
@@ -182,10 +187,12 @@ export const NovahizPlugin: Plugin = async ({ client }) => {
           throw new Error(`Novahiz gate blocked ${input.tool}.\n${result.stdout}`);
         }
         if (result.status !== 0) {
-          await log("warn", `Gate error (exit ${result.status}), allowing the tool call: ${result.stderr}`);
+          throw new Error(
+            `Novahiz gate unavailable (exit ${result.status}). Fix the install (run sync, check catalog/) or set the escape variable to disable.\n${result.stderr}`
+          );
         }
       } catch (error) {
-        if (error instanceof Error && error.message.startsWith("Novahiz gate blocked")) throw error;
+        if (error instanceof Error && error.message.startsWith("Novahiz gate")) throw error;
         await log("warn", `Gate error, allowing the tool call: ${String(error)}`);
       }
     }

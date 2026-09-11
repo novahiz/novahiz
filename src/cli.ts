@@ -320,14 +320,27 @@ function commandHook(parsed: Parsed): void {
   }
 
   const gateConfig = spec.config.gate;
+  if (gateConfig.enabled === false) return;
   const escapeValue = (process.env[gateConfig.envEscape] || "").toLowerCase();
   if (["off", "0", "false", "no", "disabled"].includes(escapeValue)) return;
 
   const sessionId = String(payload.session_id ?? payload.sessionId ?? "default");
   const toolName = String(payload.tool_name ?? payload.toolName ?? "");
   const toolInput = payload.tool_input ?? payload.toolInput ?? {};
-  const db = openDb(dbPathFor(root, spec));
 
+  if (event === "Stop") {
+    const stopDb = openDb(dbPathFor(root, spec));
+    const stepsDone = (
+      stopDb.prepare("SELECT step_id FROM roadmap_progress WHERE session_id = ?").all(sessionId) as { step_id: string }[]
+    ).map((row) => row.step_id);
+    stopDb.close();
+    process.stdout.write(
+      `Novahiz: roadmap steps done${stepsDone.length > 0 ? ` (${stepsDone.join(", ")})` : ""}: ${stepsDone.length}\n`
+    );
+    return;
+  }
+
+  const db = openDb(dbPathFor(root, spec));
   const loadedRows = db.prepare("SELECT skill FROM skill_invocations WHERE session_id = ?").all(sessionId) as {
     skill: string;
   }[];
@@ -431,7 +444,8 @@ function commandReport(parsed: Parsed): void {
 function commandCatalog(parsed: Parsed): void {
   const spec = loadSpec();
   const query = parsed.positionals.slice(1).join(" ") || asString(parsed.flags.query);
-  const limit = parsed.flags.limit ? Number(parsed.flags.limit) : 10;
+  const limitRaw = Number(parsed.flags.limit);
+  const limit = Number.isFinite(limitRaw) && limitRaw > 0 ? limitRaw : 10;
   const catalog = loadCatalog(spec);
   const results = rankSkills(catalog, query, limit);
   print({ query, total: catalog.length, results });

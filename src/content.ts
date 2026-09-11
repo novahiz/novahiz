@@ -8,9 +8,11 @@ export function changeText(tool: string, args: unknown): string {
   const edits = record.edits;
   if (Array.isArray(edits)) {
     for (const edit of edits) {
-      if (edit && typeof edit === "object") {
-        const newString = (edit as Record<string, unknown>).newString;
-        if (typeof newString === "string") parts.push(newString);
+      if (!edit || typeof edit !== "object") continue;
+      const entry = edit as Record<string, unknown>;
+      for (const key of ["newString", "new_string", "content", "newText"]) {
+        const value = entry[key];
+        if (typeof value === "string" && value.length > 0) parts.push(value);
       }
     }
   }
@@ -18,8 +20,7 @@ export function changeText(tool: string, args: unknown): string {
 }
 
 const STYLE_SIGNALS = [
-  /:\s*[^;{}\n]+;/,
-  /(^|\n)\s*[.#][a-z0-9_-]+\s*\{/i,
+  /(^|\n)\s*[.#][a-z0-9_-]+\s*[,{]/i,
   /className\s*=/,
   /\bstyle\s*=/,
   /styled\./,

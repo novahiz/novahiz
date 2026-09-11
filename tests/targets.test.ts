@@ -79,6 +79,26 @@ test("does not flag read-only commands or package installs", () => {
   assert.deepEqual(extractShellPaths("npm install lodash"), []);
 });
 
+test("does not treat a command word used as an argument as a write", () => {
+  assert.deepEqual(extractShellPaths("grep mkdir README.md"), []);
+  assert.deepEqual(extractShellPaths("echo mv a b"), []);
+  assert.deepEqual(extractShellPaths("rg sed docs/README.md"), []);
+});
+
+test("detects rm and windows delete flags", () => {
+  assert.deepEqual(extractShellPaths("rm -rf dist"), ["dist"]);
+  assert.deepEqual(extractShellPaths("rd /s /q builddir"), ["builddir"]);
+});
+
+test("keeps numeric destinations", () => {
+  assert.deepEqual(extractShellPaths("cp -r src 123"), ["123"]);
+});
+
+test("detects wrappers before the real command", () => {
+  assert.deepEqual(extractShellPaths("sudo rm -rf dist"), ["dist"]);
+  assert.deepEqual(extractShellPaths("cmd /c copy a b"), ["b"]);
+});
+
 test("extractTargetPaths reads shell commands", () => {
   assert.deepEqual(extractTargetPaths("bash", { command: "echo x > report.md" }), ["report.md"]);
 });

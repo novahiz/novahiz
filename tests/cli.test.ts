@@ -41,4 +41,16 @@ test("classify output carries a primary and a roadmap", () => {
   const parsed = JSON.parse(run(["classify", "refais le css de la landing page"]));
   assert.equal(parsed.primary, "design-ui");
   assert.equal(parsed.roadmaps[0].category, "design-ui");
+  assert.ok(Array.isArray(parsed.enforcedSkills));
+});
+
+test("catalog tolerates a non-numeric limit", () => {
+  const parsed = JSON.parse(run(["catalog", "design", "--limit", "abc"]));
+  assert.ok(Array.isArray(parsed.results));
+  assert.ok(parsed.results.length > 0);
+});
+
+test("hook Stop prints a roadmap summary", () => {
+  const out = run(["hook", "--harness", "codex", "--event", "Stop"]);
+  assert.ok(out.includes("roadmap steps"));
 });

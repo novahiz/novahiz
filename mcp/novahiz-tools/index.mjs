@@ -111,7 +111,7 @@ function callTool(name, args) {
         if (fromCategories.has(id)) return true;
         return (spec.overrides.skills?.[id]?.categories ?? []).includes(category);
       });
-    return toolResult({ count: entries.length, skills: entries });
+    return toolResult({ count: entries.length, indexAvailable: index.available, skills: entries });
   }
   if (name === "novahiz_catalog") {
     const query = String(args?.query ?? "");
@@ -166,6 +166,8 @@ function handle(message) {
   const id = message?.id;
   const method = message?.method;
   const params = message?.params ?? {};
+  const hasId = id !== undefined && id !== null;
+  if (!hasId) return null;
   if (method === "initialize") {
     return {
       jsonrpc: "2.0",
@@ -186,7 +188,6 @@ function handle(message) {
     }
   }
   if (method === "ping") return { jsonrpc: "2.0", id, result: {} };
-  if (id === undefined || id === null) return null;
   return { jsonrpc: "2.0", id, error: { code: -32601, message: `Method not found: ${method}` } };
 }
 

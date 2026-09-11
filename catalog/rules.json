@@ -48,7 +48,7 @@
     "id": "R3-supabase",
     "description": "Charger les skills Supabase sur une tache Supabase.",
     "when": {
-      "pathGlobs": ["**/supabase/**", "**/migrations/**", "**/*.sql"],
+      "pathGlobs": ["**/supabase/**", "**/migrations/**"],
       "promptCategories": ["database-supabase"]
     },
     "require": ["supabase", "supabase-postgres-best-practices"]

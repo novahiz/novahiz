@@ -95,6 +95,11 @@ test("requires supabase skills for a migration path", () => {
   assert.ok(result.matchedRules.includes("R3-supabase"));
 });
 
+test("does not force supabase for a plain sql file", () => {
+  const result = evaluateGate({ tool: "edit", filePath: "db/query.sql", spec, installedSkills: null });
+  assert.equal(result.matchedRules.includes("R3-supabase"), false);
+});
+
 test("applies the primary roadmap skill steps", () => {
   const result = evaluateGate({
     tool: "edit",

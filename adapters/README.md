@@ -22,4 +22,4 @@ Codex exposes `PostToolUse` and `Stop` hooks. `install/hooks.mjs` writes them in
 
 ## Other harnesses
 
-Any harness with a stdio MCP client can use `mcp/novahiz-tools/index.mjs` for `classify`, `list_skills`, and `gate`. Harnesses with a pre-tool hook that can abort a call can reuse the same `novahiz hook --harness <name>` path. The tool mapping lives in `src/hook.ts` and is easy to extend.
+Any harness with a stdio MCP client can use `mcp/novahiz-tools/index.mjs` for `classify`, `catalog`, `roadmap`, `step`, `list_skills`, and `gate`. Harnesses with a pre-tool hook that can abort a call can reuse the same `novahiz hook --harness <name>` path. The tool mapping lives in `src/hook.ts` and is easy to extend.

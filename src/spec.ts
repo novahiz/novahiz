@@ -139,10 +139,14 @@ function readJson<T>(path: string): T {
 
 export function mergeConfig(raw: Partial<NovahizConfig> | null | undefined): NovahizConfig {
   const source = raw ?? {};
+  const gate = { ...DEFAULT_CONFIG.gate, ...(source.gate ?? {}) };
+  if (!Array.isArray(gate.tools)) gate.tools = DEFAULT_CONFIG.gate.tools;
+  if (!Array.isArray(gate.ignoreFiles)) gate.ignoreFiles = DEFAULT_CONFIG.gate.ignoreFiles;
+  if (gate.mode !== "block" && gate.mode !== "warn" && gate.mode !== "audit") gate.mode = DEFAULT_CONFIG.gate.mode;
   return {
     dbPath: typeof source.dbPath === "string" ? source.dbPath : DEFAULT_CONFIG.dbPath,
     skillRoots: Array.isArray(source.skillRoots) ? source.skillRoots : [...DEFAULT_CONFIG.skillRoots],
-    gate: { ...DEFAULT_CONFIG.gate, ...(source.gate ?? {}) },
+    gate,
     classify: { ...DEFAULT_CONFIG.classify, ...(source.classify ?? {}) }
   };
 }
@@ -158,7 +162,7 @@ export function loadConfig(root: string = novahizHome()): NovahizConfig {
   }
   const examplePath = join(root, "novahiz.config.example.json");
   if (existsSync(examplePath)) return mergeConfig(readJson<Partial<NovahizConfig>>(examplePath));
-  return DEFAULT_CONFIG;
+  return mergeConfig(null);
 }
 
 function readCatalog<T>(path: string): T {
@@ -170,11 +174,11 @@ function readCatalog<T>(path: string): T {
 }
 
 export function loadSpec(root: string = novahizHome()): Spec {
-  return {
-    root,
-    config: loadConfig(root),
-    categories: readCatalog<Category[]>(join(root, "catalog", "categories.json")),
-    rules: readCatalog<Rule[]>(join(root, "catalog", "rules.json")),
-    overrides: readCatalog<Overrides>(join(root, "catalog", "overrides.json"))
-  };
+  const categories = readCatalog<Category[]>(join(root, "catalog", "categories.json"));
+  const rules = readCatalog<Rule[]>(join(root, "catalog", "rules.json"));
+  const overrides = readCatalog<Overrides>(join(root, "catalog", "overrides.json"));
+  if (!Array.isArray(categories)) throw new Error("catalog/categories.json must be an array");
+  if (!Array.isArray(rules)) throw new Error("catalog/rules.json must be an array");
+  if (!overrides || typeof overrides !== "object") throw new Error("catalog/overrides.json must be an object");
+  return { root, config: loadConfig(root), categories, rules, overrides };
 }

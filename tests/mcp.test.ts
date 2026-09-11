@@ -71,3 +71,17 @@ test("reports a parse error for invalid json", () => {
   const out = call(["not json"]);
   assert.equal(out[0].error.code, -32700);
 });
+
+test("ignores notifications and reports unknown methods", () => {
+  const out = call(['{"jsonrpc":"2.0","method":"tools/list"}', '{"jsonrpc":"2.0","id":9,"method":"bogus"}']);
+  assert.equal(out.length, 1);
+  assert.equal(out[0].error.code, -32601);
+});
+
+test("list_skills reports index availability", () => {
+  const out = call([
+    '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"novahiz_list_skills","arguments":{}}}'
+  ]);
+  const payload = JSON.parse(out[0].result.content[0].text);
+  assert.equal(typeof payload.indexAvailable, "boolean");
+});

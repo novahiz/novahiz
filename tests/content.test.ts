@@ -27,3 +27,14 @@ test("treats whitespace-only changes as trivial", () => {
   assert.equal(isTrivial("const x = 1;"), false);
   assert.equal(isTrivial("abc", 10), true);
 });
+
+test("reads new_string inside MultiEdit edits", () => {
+  assert.equal(changeText("edit", { edits: [{ new_string: "prose here" }] }), "prose here");
+  assert.equal(changeText("edit", { edits: [{ newString: "camel" }] }), "camel");
+});
+
+test("does not treat a type annotation as style", () => {
+  assert.equal(hasStyle("const x: number;"), false);
+  assert.equal(hasStyle("interface P { name: string; }"), false);
+  assert.equal(hasStyle(".card { color: red; }"), true);
+});
