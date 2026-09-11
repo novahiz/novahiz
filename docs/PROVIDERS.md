@@ -50,9 +50,6 @@ Skill and command packs:
 | Id | Kind | Install | Categories |
 | --- | --- | --- | --- |
 | `impeccable` | skill | `npx -y impeccable install --providers=opencode --scope=global` | design-ui |
-| `speckit` | commands | `uv tool install specify-cli` | planning, code |
-
-`speckit` installs the Spec Kit CLI only. Initializing a project is a separate, per-project step (`specify init`). It needs `uv` on the PATH.
 
 ## Mapping
 
@@ -98,7 +95,6 @@ Installation is opt-in on purpose. The commands download third-party packages, i
 Each provider declares its prerequisites in `requires` (the executable it needs) and, when it can be bootstrapped, a per-platform `bootstrap` command.
 
 - `npx` based providers need `npx`, which ships with Node.
-- `speckit` needs `uv`; its bootstrap runs the official uv install script for the platform.
 
 `novahiz deps` checks every prerequisite and reports what is missing. `novahiz deps --install` first bootstraps a missing prerequisite through its official installer, then runs each provider's install command. The installer runs the check on every install and, when `providers.autoInstall` is true or `--install-providers` is passed, runs the installs too.
 

@@ -18,15 +18,16 @@ test("detects a missing command", () => {
 test("checks dependencies for every provider", () => {
   const status = checkDependencies(spec);
   assert.equal(status.length, spec.providers.length);
-  const speckit = status.find((entry) => entry.id === "speckit");
-  assert.deepEqual(speckit?.requires, ["uv"]);
 });
 
-test("provides a bootstrap command per platform for uv", () => {
-  const speckit = spec.providers.find((provider) => provider.id === "speckit");
-  assert.ok(speckit);
-  assert.ok((bootstrapFor(speckit, "win32") ?? []).join(" ").includes("uv"));
-  assert.ok((bootstrapFor(speckit, "linux") ?? []).join(" ").includes("uv"));
+test("provides a bootstrap command per platform", () => {
+  const provider = {
+    id: "test-boot",
+    requires: ["uv"],
+    bootstrap: { win32: ["uv", "--version"], default: ["uv", "--version"] }
+  } as never;
+  assert.ok((bootstrapFor(provider, "win32") ?? []).join(" ").includes("uv"));
+  assert.ok((bootstrapFor(provider, "linux") ?? []).join(" ").includes("uv"));
 });
 
 test("missingPrerequisites returns only unmet requirements", () => {

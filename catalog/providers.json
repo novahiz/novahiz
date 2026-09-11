@@ -87,20 +87,5 @@
     "categories": ["design-ui"],
     "source": "https://github.com/pbakaus/impeccable",
     "license": "Apache-2.0"
-  },
-  {
-    "id": "speckit",
-    "label": "Spec Kit commands",
-    "kind": "commands",
-    "install": ["uv", "tool", "install", "specify-cli"],
-    "requires": ["uv"],
-    "bootstrap": {
-      "win32": ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", "irm https://astral.sh/uv/install.ps1 | iex"],
-      "default": ["sh", "-c", "curl -LsSf https://astral.sh/uv/install.sh | sh"]
-    },
-    "purpose": "Spec-driven development commands (specify, plan, tasks, implement).",
-    "categories": ["planning", "code"],
-    "source": "https://github.com/github/spec-kit",
-    "license": "MIT"
   }
 ]

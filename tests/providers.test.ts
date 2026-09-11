@@ -16,8 +16,7 @@ test("loads the bundled providers", () => {
     "narsil",
     "playwright",
     "security",
-    "sequential-thinking",
-    "speckit"
+    "sequential-thinking"
   ]);
 });
 
@@ -26,7 +25,7 @@ test("maps providers to categories across kinds", () => {
   assert.ok(design.includes("playwright"));
   assert.ok(design.includes("impeccable"));
   const planning = providersForCategories(spec, ["planning"]).map((provider) => provider.id);
-  assert.ok(planning.includes("speckit"));
+  assert.deepEqual(planning, ["sequential-thinking"]);
 });
 
 test("builds mcp entries only for mcp providers", () => {
@@ -34,18 +33,14 @@ test("builds mcp entries only for mcp providers", () => {
   assert.equal(Object.keys(entries).length, 6);
   assert.deepEqual(entries.playwright.command, ["npx", "-y", "@playwright/mcp@latest"]);
   assert.equal("impeccable" in entries, false);
-  assert.equal("speckit" in entries, false);
 });
 
 test("exposes official install commands for every provider", () => {
   const commands = installCommands(spec);
-  assert.equal(commands.length, 8);
+  assert.equal(commands.length, 7);
   const impeccable = commands.find((entry) => entry.id === "impeccable");
   assert.equal(impeccable?.kind, "skill");
   assert.deepEqual(impeccable?.command.slice(0, 3), ["npx", "-y", "impeccable"]);
-  const speckit = commands.find((entry) => entry.id === "speckit");
-  assert.equal(speckit?.kind, "commands");
-  assert.deepEqual(speckit?.command, ["uv", "tool", "install", "specify-cli"]);
   for (const entry of commands) assert.ok(entry.source.startsWith("https://"));
 });
 
