@@ -332,11 +332,16 @@ function commandHook(parsed: Parsed): void {
 
   if (event === "Stop") {
     if (!hasSession) return;
-    const stopDb = openDb(dbPathFor(root, spec));
-    const stepsDone = (
-      stopDb.prepare("SELECT step_id FROM roadmap_progress WHERE session_id = ?").all(sessionId) as { step_id: string }[]
-    ).map((row) => row.step_id);
-    stopDb.close();
+    let stepsDone: string[] = [];
+    try {
+      const stopDb = openDb(dbPathFor(root, spec));
+      stepsDone = (
+        stopDb.prepare("SELECT step_id FROM roadmap_progress WHERE session_id = ?").all(sessionId) as { step_id: string }[]
+      ).map((row) => row.step_id);
+      stopDb.close();
+    } catch {
+      stepsDone = [];
+    }
     process.stdout.write(
       `Novahiz: roadmap steps done${stepsDone.length > 0 ? ` (${stepsDone.join(", ")})` : ""}: ${stepsDone.length}\n`
     );
