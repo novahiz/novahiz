@@ -9,7 +9,8 @@
     "requires": ["npx"],
     "purpose": "Navigate, screenshot, and interact with web pages in a real browser.",
     "categories": ["browser", "design-ui"],
-    "source": "https://github.com/microsoft/playwright-mcp"
+    "source": "https://github.com/microsoft/playwright-mcp",
+    "license": "Apache-2.0"
   },
   {
     "id": "security",
@@ -21,7 +22,8 @@
     "requires": ["npx"],
     "purpose": "SAST and DAST scans, OWASP and CWE coverage, compliance mapping.",
     "categories": ["audit"],
-    "source": "https://github.com/AbrahamOO/security-mcp"
+    "source": "https://github.com/AbrahamOO/security-mcp",
+    "license": "MIT"
   },
   {
     "id": "narsil",
@@ -33,7 +35,8 @@
     "requires": ["npx"],
     "purpose": "Code graph, symbols, taint tracking, dead code, and security scan.",
     "categories": ["code", "debug", "review", "audit"],
-    "source": "https://github.com/postrv/narsil-mcp"
+    "source": "https://github.com/postrv/narsil-mcp",
+    "license": "MIT OR Apache-2.0"
   },
   {
     "id": "context7",
@@ -45,7 +48,8 @@
     "requires": ["npx"],
     "purpose": "Up-to-date documentation for libraries, frameworks, and SDKs.",
     "categories": ["code", "research"],
-    "source": "https://github.com/upstash/context7"
+    "source": "https://github.com/upstash/context7",
+    "license": "MIT"
   },
   {
     "id": "sequential-thinking",
@@ -57,7 +61,8 @@
     "requires": ["npx"],
     "purpose": "Step-by-step reasoning for planning, debugging, and audits.",
     "categories": ["planning", "debug", "audit"],
-    "source": "https://github.com/modelcontextprotocol/servers"
+    "source": "https://github.com/modelcontextprotocol/servers",
+    "license": "MIT"
   },
   {
     "id": "cron",
@@ -69,7 +74,8 @@
     "requires": ["npx"],
     "purpose": "Schedule and run recurring or delayed tasks.",
     "categories": ["devops", "general"],
-    "source": "https://github.com/jolks/mcp-cron"
+    "source": "https://github.com/jolks/mcp-cron",
+    "license": "AGPL-3.0-only"
   },
   {
     "id": "impeccable",
@@ -79,7 +85,8 @@
     "requires": ["npx"],
     "purpose": "Design skill and commands for frontend interfaces.",
     "categories": ["design-ui"],
-    "source": "https://github.com/pbakaus/impeccable"
+    "source": "https://github.com/pbakaus/impeccable",
+    "license": "Apache-2.0"
   },
   {
     "id": "speckit",
@@ -93,6 +100,7 @@
     },
     "purpose": "Spec-driven development commands (specify, plan, tasks, implement).",
     "categories": ["planning", "code"],
-    "source": "https://github.com/github/spec-kit"
+    "source": "https://github.com/github/spec-kit",
+    "license": "MIT"
   }
 ]

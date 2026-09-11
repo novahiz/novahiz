@@ -2,6 +2,10 @@
 
 A provider is an external component Novahiz can provision and reference: an MCP server, a skill pack, or a command pack. Novahiz does not vendor them. It stores the official install command and, when you ask, runs it during installation.
 
+## Licensing
+
+Novahiz references providers, it never vendors them. Each entry lists the upstream `license`, and the installer runs the official install command on your machine, so you install the upstream package under its own terms. That holds for every open-source license, copyleft included.
+
 ## Registry
 
 `catalog/providers.json` is the versioned source of truth. Each entry:
@@ -15,6 +19,7 @@ A provider is an external component Novahiz can provision and reference: an MCP 
   "command": ["npx", "-y", "@playwright/mcp@latest"],
   "install": ["npx", "-y", "@playwright/mcp@latest", "--help"],
   "source": "https://github.com/microsoft/playwright-mcp",
+  "license": "Apache-2.0",
   "categories": ["browser", "design-ui"],
   "purpose": "Navigate, screenshot, and interact with web pages in a real browser."
 }
@@ -24,6 +29,7 @@ A provider is an external component Novahiz can provision and reference: an MCP 
 - `command` and `transport`: for `mcp` providers, how to start or reach the server. The opencode plugin registers these.
 - `install`: the official install or warm-up command. This is what the installer runs.
 - `source`: the upstream project.
+- `license`: the upstream SPDX identifier.
 - `categories`: which categories the provider serves. This drives the mapping from a prompt to its tooling.
 
 ## Bundled providers

@@ -73,6 +73,7 @@ export type Provider = {
   purpose?: string;
   categories?: string[];
   source?: string;
+  license?: string;
 };
 
 export type ProvidersConfig = {
