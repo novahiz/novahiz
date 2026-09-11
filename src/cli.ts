@@ -12,6 +12,7 @@ import { loadCatalog, loadInstalledSkills, persistCatalog, scanSkills, writeCata
 import { rankSkills } from "./relevance.ts";
 import { buildMcpEntries, enabledProviders, installCommands } from "./providers.ts";
 import { bootstrapFor, checkDependencies, missingPrerequisites } from "./deps.ts";
+import { parseSavings, savingsPath, summarizeSavings } from "../adapters/opencode/tokens.ts";
 import {
   activeTask,
   addTodos,
@@ -944,6 +945,31 @@ function commandDispatch(parsed: Parsed): void {
   }
 }
 
+function commandTokens(parsed: Parsed): void {
+  const root = novahizHome();
+  const path = savingsPath(root);
+  let text = "";
+  try {
+    text = readFileSync(path, "utf8");
+  } catch {
+    text = "";
+  }
+  const summary = summarizeSavings(parseSavings(text));
+  const format = asString(parsed.flags.format) || "json";
+  if (format === "text") {
+    const lines = [
+      `Novahiz token savings (${path})`,
+      `events: ${summary.events}`,
+      `~tokens saved: ${summary.totalSaved}`,
+      `trim: ${summary.byKind.trim}  dedupe: ${summary.byKind.dedupe}  cap: ${summary.byKind.cap}`,
+      `sessions: ${summary.sessions}`
+    ];
+    process.stdout.write(`${lines.join("\n")}\n`);
+    return;
+  }
+  print({ path, ...summary });
+}
+
 function usage(): void {
   print({
     name: "novahiz",
@@ -975,7 +1001,8 @@ function usage(): void {
       "task reorder [--task id] --order <id,id,...>",
       "task signals [--task id]",
       "task status|resume|current [--session id]",
-      "dispatch [--task id] [--session id]"
+      "dispatch [--task id] [--session id]",
+      "tokens [--format json|text]"
     ]
   });}
 
@@ -1022,6 +1049,8 @@ function main(argv: string[]): void {
       return commandTask(parsed);
     case "dispatch":
       return commandDispatch(parsed);
+    case "tokens":
+      return commandTokens(parsed);
     default:
       return usage();
   }

@@ -18,6 +18,7 @@ import {
   writeJson
 } from "./lib.mjs";
 import { createPrompt } from "./prompt.mjs";
+import { DEFAULT_TOKENS } from "../adapters/opencode/tokens.ts";
 
 const CORE_ITEMS = [
   "src",
@@ -55,6 +56,11 @@ function defaultConfig(skillsDir) {
       autoRegister: true,
       autoInstall: false,
       disabled: []
+    },
+    tokens: {
+      ...DEFAULT_TOKENS,
+      trimTools: [...DEFAULT_TOKENS.trimTools],
+      readTools: [...DEFAULT_TOKENS.readTools]
     }
   };
 }
@@ -168,6 +174,17 @@ async function main() {
     note(`Installation du plugin opencode dans ${pluginTarget}`);
     if (!dryRun) {
       const result = copyFileWithBackup(pluginSource, pluginTarget, true);
+      if (result.created) created.push(result.created);
+      if (result.backup) backups.push(result.backup);
+    }
+  }
+
+  const tokensSource = join(home, "adapters", "opencode", "tokens.ts");
+  const tokensTarget = join(pluginsDir, "tokens.ts");
+  if (existsSync(tokensSource)) {
+    note(`Installation du module tokens dans ${tokensTarget}`);
+    if (!dryRun) {
+      const result = copyFileWithBackup(tokensSource, tokensTarget, true);
       if (result.created) created.push(result.created);
       if (result.backup) backups.push(result.backup);
     }

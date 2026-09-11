@@ -1,8 +1,19 @@
 import type { Plugin } from "@opencode-ai/plugin";
 import { spawnSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
+import {
+  dedupeStaleReads,
+  encodeSavings,
+  mergeTokensConfig,
+  pruneSavingsText,
+  savingsPath,
+  trimToolOutput,
+  type MinimalMessage,
+  type SavingsEntry,
+  type TokensConfig
+} from "./tokens.ts";
 
 const HOME =
   process.env.NOVAHIZ_HOME && process.env.NOVAHIZ_HOME.length > 0
@@ -13,7 +24,7 @@ const NODE =
   process.env.NOVAHIZ_NODE && process.env.NOVAHIZ_NODE.length > 0 ? process.env.NOVAHIZ_NODE : "node";
 
 type GateConfig = { enabled?: boolean; mode?: string; envEscape?: string; tools?: string[] };
-type NovahizConfig = { gate?: GateConfig };
+type NovahizConfig = { gate?: GateConfig; tokens?: unknown };
 
 function readConfig(): NovahizConfig {
   for (const name of ["novahiz.config.json", "novahiz.config.example.json"]) {
@@ -35,12 +46,31 @@ const GATE_TOOLS = new Set(
   Array.isArray(GATE.tools) && GATE.tools.length > 0 ? GATE.tools : ["edit", "write", "patch", "apply_patch", "bash", "shell"]
 );
 
+const TOKENS: TokensConfig = mergeTokensConfig(CONFIG.tokens);
+const TOKENS_ESCAPE = (process.env.NOVAHIZ_TOKENS || "").toLowerCase();
+const TOKENS_OFF = ["off", "0", "false", "no", "disabled"].includes(TOKENS_ESCAPE);
+const SAVINGS_PRUNE_BYTES = 4_000_000;
+
 type RunResult = { status: number; stdout: string; stderr: string; spawnError?: string };
 
 function run(args: string[], input?: string): RunResult {
   const result = spawnSync(NODE, [CLI, ...args], { encoding: "utf8", input });
   if (result.error) return { status: 1, stdout: "", stderr: "", spawnError: result.error.message };
   return { status: result.status ?? 1, stdout: result.stdout ?? "", stderr: result.stderr ?? "" };
+}
+
+function recordSavings(entries: SavingsEntry[]): void {
+  if (entries.length === 0) return;
+  try {
+    const path = savingsPath(HOME);
+    mkdirSync(dirname(path), { recursive: true });
+    appendFileSync(path, entries.map(encodeSavings).join(""), "utf8");
+    if (existsSync(path) && statSync(path).size > SAVINGS_PRUNE_BYTES) {
+      writeFileSync(path, pruneSavingsText(readFileSync(path, "utf8")), "utf8");
+    }
+  } catch {
+    return;
+  }
 }
 
 function textFromParts(parts: unknown): string {
@@ -209,6 +239,39 @@ export const NovahizPlugin: Plugin = async ({ client }) => {
       } catch (error) {
         if (error instanceof Error && error.message.startsWith("Novahiz gate")) throw error;
         await log("warn", `Gate error, allowing the tool call: ${String(error)}`);
+      }
+    },
+
+    "chat.params": async (_input, output) => {
+      if (TOKENS_OFF || !TOKENS.enabled) return;
+      if (TOKENS.capOutputTokens <= 0) return;
+      if (output.maxOutputTokens === undefined) output.maxOutputTokens = TOKENS.capOutputTokens;
+    },
+
+    "tool.execute.after": async (input, output) => {
+      if (TOKENS_OFF || !TOKENS.enabled) return;
+      try {
+        const outcome = trimToolOutput(input.tool, output.output, TOKENS);
+        if (!outcome) return;
+        output.output = outcome.text;
+        recordSavings([
+          { at: new Date().toISOString(), session: input.sessionID, tool: input.tool, kind: "trim", tokens: outcome.removedTokens }
+        ]);
+      } catch (error) {
+        await log("warn", `Token trim skipped: ${String(error)}`);
+      }
+    },
+
+    "experimental.chat.messages.transform": async (_input, output) => {
+      if (TOKENS_OFF || !TOKENS.enabled) return;
+      try {
+        const outcome = dedupeStaleReads(output.messages as unknown as MinimalMessage[], TOKENS);
+        if (outcome.stubbed === 0) return;
+        recordSavings([
+          { at: new Date().toISOString(), session: "", tool: "read", kind: "dedupe", tokens: outcome.removedTokens }
+        ]);
+      } catch (error) {
+        await log("warn", `Token dedupe skipped: ${String(error)}`);
       }
     }
   };
