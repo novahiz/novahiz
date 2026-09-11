@@ -121,6 +121,7 @@ function callTool(name, args) {
     return toolResult({ query, total: catalog.length, results: rankSkills(catalog, query, limit) });
   }
   if (name === "novahiz_gate") {
+    if (spec.config.gate.enabled === false) return toolResult({ allow: true, disabled: true });
     const escapeValue = (process.env[spec.config.gate.envEscape || "NOVAHIZ_GATE"] || "").toLowerCase();
     if (["off", "0", "false", "no", "disabled"].includes(escapeValue)) {
       return toolResult({ allow: true, disabled: true });

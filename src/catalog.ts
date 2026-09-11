@@ -203,56 +203,60 @@ export function loadInstalledSkills(spec: Spec): InstalledIndex {
 export function persistCatalog(db: DatabaseSync, spec: Spec, skills: SkillRecord[]): void {
   const now = new Date().toISOString();
   db.exec("BEGIN; DELETE FROM skills; DELETE FROM categories; DELETE FROM rules;");
-  const upsertSkill = db.prepare(
-    `INSERT INTO skills (id, name, description, source_path, power, stars, tags, categories, scanned_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-     ON CONFLICT(id) DO UPDATE SET
-       name = excluded.name,
-       description = excluded.description,
-       source_path = excluded.source_path,
-       power = excluded.power,
-       stars = excluded.stars,
-       tags = excluded.tags,
-       categories = excluded.categories,
-       scanned_at = excluded.scanned_at`
-  );
-  for (const skill of skills) {
-    upsertSkill.run(
-      skill.id,
-      skill.name,
-      skill.description,
-      skill.sourcePath,
-      skill.power,
-      skill.stars,
-      JSON.stringify(skill.tags),
-      JSON.stringify(skill.categories),
-      now
+  try {
+    const upsertSkill = db.prepare(
+      `INSERT INTO skills (id, name, description, source_path, power, stars, tags, categories, scanned_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(id) DO UPDATE SET
+         name = excluded.name,
+         description = excluded.description,
+         source_path = excluded.source_path,
+         power = excluded.power,
+         stars = excluded.stars,
+         tags = excluded.tags,
+         categories = excluded.categories,
+         scanned_at = excluded.scanned_at`
     );
-  }
+    for (const skill of skills) {
+      upsertSkill.run(
+        skill.id,
+        skill.name,
+        skill.description,
+        skill.sourcePath,
+        skill.power,
+        skill.stars,
+        JSON.stringify(skill.tags),
+        JSON.stringify(skill.categories),
+        now
+      );
+    }
 
-  const upsertCategory = db.prepare(
-    `INSERT INTO categories (id, label, priority, keywords, default_skills)
-     VALUES (?, ?, ?, ?, ?)
-     ON CONFLICT(id) DO UPDATE SET
-       label = excluded.label,
-       priority = excluded.priority,
-       keywords = excluded.keywords,
-       default_skills = excluded.default_skills`
-  );
-  for (const category of spec.categories) {
-    upsertCategory.run(
-      category.id,
-      category.label,
-      category.priority,
-      JSON.stringify(category.keywords),
-      JSON.stringify(category.defaultSkills)
+    const upsertCategory = db.prepare(
+      `INSERT INTO categories (id, label, priority, keywords, default_skills)
+       VALUES (?, ?, ?, ?, ?)
+       ON CONFLICT(id) DO UPDATE SET
+         label = excluded.label,
+         priority = excluded.priority,
+         keywords = excluded.keywords,
+         default_skills = excluded.default_skills`
     );
-  }
+    for (const category of spec.categories) {
+      upsertCategory.run(
+        category.id,
+        category.label,
+        category.priority,
+        JSON.stringify(category.keywords),
+        JSON.stringify(category.defaultSkills)
+      );
+    }
 
-  db.prepare("DELETE FROM rules").run();
-  const insertRule = db.prepare("INSERT INTO rules (id, json) VALUES (?, ?)");
-  for (const rule of spec.rules) {
-    insertRule.run(rule.id, JSON.stringify(rule));
+    const insertRule = db.prepare("INSERT INTO rules (id, json) VALUES (?, ?)");
+    for (const rule of spec.rules) {
+      insertRule.run(rule.id, JSON.stringify(rule));
+    }
+    db.exec("COMMIT");
+  } catch (error) {
+    db.exec("ROLLBACK");
+    throw error;
   }
-  db.exec("COMMIT");
 }

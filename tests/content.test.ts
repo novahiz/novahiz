@@ -44,3 +44,8 @@ test("detects class selectors but not object literals", () => {
   assert.equal(hasStyle("key: value,"), false);
   assert.equal(hasStyle("const flex = 1;"), false);
 });
+
+test("does not treat method chains as style", () => {
+  assert.equal(hasStyle("items\n  .map(x => {\n    return x;\n  })"), false);
+  assert.equal(hasStyle("promise\n  .then(data => {"), false);
+});

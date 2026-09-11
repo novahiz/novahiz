@@ -106,6 +106,19 @@ test("looks through wrappers with arguments", () => {
   assert.deepEqual(extractShellPaths("timeout 5 rm -rf dist"), ["dist"]);
 });
 
+test("does not consume the command on boolean wrapper flags", () => {
+  assert.deepEqual(extractShellPaths("sudo -n rm -rf dist"), ["dist"]);
+  assert.deepEqual(extractShellPaths("sudo -i rm -rf dist"), ["dist"]);
+  assert.deepEqual(extractShellPaths("env -i rm -rf dist"), ["dist"]);
+  assert.deepEqual(extractShellPaths("time -p rm -rf dist"), ["dist"]);
+  assert.deepEqual(extractShellPaths("doas -n rm -rf dist"), ["dist"]);
+});
+
+test("consumes values of value-taking wrapper flags", () => {
+  assert.deepEqual(extractShellPaths("time -o timing.txt rm -rf dist"), ["dist"]);
+  assert.deepEqual(extractShellPaths("stdbuf -o 0 rm -rf dist"), ["dist"]);
+});
+
 test("keeps unix absolute paths instead of treating them as windows flags", () => {
   assert.deepEqual(extractShellPaths("rm /a"), ["/a"]);
   assert.deepEqual(extractShellPaths("cp -r src /d"), ["/d"]);

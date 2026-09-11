@@ -137,6 +137,12 @@ function commandGate(parsed: Parsed): void {
     return;
   }
 
+  const gated = gateConfig.tools.includes(tool);
+  if (!gated) {
+    print({ allow: true, tool, reason: "tool is not gated" });
+    return;
+  }
+
   const single = asString(parsed.flags.file);
   let content = asString(parsed.flags.content);
   let paths: string[];
@@ -162,17 +168,8 @@ function commandGate(parsed: Parsed): void {
     return;
   }
 
-  const gated = gateConfig.tools.includes(tool);
-  const shellTool = tool === "bash" || tool === "shell";
   if (paths.length === 0) {
-    const allow = shellTool ? true : !gated;
-    const reason = shellTool
-      ? "no file write detected in shell command"
-      : gated
-        ? "no target path could be derived for a gated tool"
-        : "tool is not gated";
-    print({ allow, tool, targets: [], requiredSkills: [], missingSkills: [], reason });
-    if (!allow && gateConfig.mode === "block") process.exitCode = 2;
+    print({ allow: true, tool, targets: [], requiredSkills: [], missingSkills: [], reason: "no target path" });
     return;
   }
 
@@ -325,12 +322,13 @@ function commandHook(parsed: Parsed): void {
   if (["off", "0", "false", "no", "disabled"].includes(escapeValue)) return;
 
   const rawSession = payload.session_id ?? payload.sessionId;
-  const sessionId = String(rawSession ?? "default");
+  const hasSession = rawSession !== undefined && rawSession !== null && String(rawSession).length > 0;
+  const sessionId = hasSession ? String(rawSession) : `cwd:${process.cwd()}`;
   const toolName = String(payload.tool_name ?? payload.toolName ?? "");
   const toolInput = payload.tool_input ?? payload.toolInput ?? {};
 
   if (event === "Stop") {
-    if (rawSession === undefined || rawSession === null || String(rawSession).length === 0) return;
+    if (!hasSession) return;
     const stopDb = openDb(dbPathFor(root, spec));
     const stepsDone = (
       stopDb.prepare("SELECT step_id FROM roadmap_progress WHERE session_id = ?").all(sessionId) as { step_id: string }[]

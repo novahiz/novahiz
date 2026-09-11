@@ -127,30 +127,16 @@ function flagValue(tokens: string[], flags: string[]): string | null {
 }
 
 const WRAPPERS = new Set(["sudo", "doas", "env", "nohup", "time", "command", "exec", "cmd", "cmd.exe", "xargs", "nice", "timeout", "stdbuf"]);
-const WRAPPER_VALUE_FLAGS = new Set([
-  "-u",
-  "--user",
-  "-g",
-  "--group",
-  "-p",
-  "--prompt",
-  "-c",
-  "--close-from",
-  "-h",
-  "--host",
-  "-r",
-  "--role",
-  "-t",
-  "--type",
-  "-n",
-  "--adjustment",
-  "-s",
-  "--signal",
-  "-k",
-  "--kill-after",
-  "-i",
-  "--input"
-]);
+const WRAPPER_VALUE_FLAGS: Record<string, Set<string>> = {
+  sudo: new Set(["-u", "--user", "-g", "--group", "-p", "--prompt", "-c", "--close-from", "-h", "--host", "-r", "--role", "-t", "--type", "-T", "--command-timeout"]),
+  doas: new Set(["-u", "-C"]),
+  env: new Set(["-u", "--unset", "-C", "--chdir", "-S", "--split-string"]),
+  time: new Set(["-o", "--output", "-f", "--format", "-a", "--append"]),
+  nice: new Set(["-n", "--adjustment"]),
+  timeout: new Set(["-s", "--signal", "-k", "--kill-after"]),
+  stdbuf: new Set(["-i", "-o", "-e"]),
+  xargs: new Set(["-a", "--arg-file", "-d", "-E", "-I", "-L", "-n", "-P", "-s"])
+};
 const ENV_ASSIGN = /^[A-Za-z_][A-Za-z0-9_]*=/;
 const WRITE_CMDLETS = new Set([
   "set-content",
@@ -237,7 +223,7 @@ export function extractShellPaths(command: string): string[] {
     }
     if (ENV_ASSIGN.test(token)) continue;
     if (isDashFlag(token)) {
-      if (WRAPPER_VALUE_FLAGS.has(lower)) skipValue = true;
+      if (wrapper !== null && WRAPPER_VALUE_FLAGS[wrapper]?.has(lower)) skipValue = true;
       continue;
     }
     if (wrapper !== null && isWindowsFlag(token)) continue;

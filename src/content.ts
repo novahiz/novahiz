@@ -20,9 +20,9 @@ export function changeText(tool: string, args: unknown): string {
 }
 
 const STYLE_SIGNALS = [
-  /(^|\n)\s*[.#][\w-]+[^{}\n]*\{/,
-  /className\s*=/,
-  /\bstyle\s*=/,
+  /(^|\n)\s*[.#][\w-]+(\s*[:>+~]\s*[.#\w:-]+)*\s*[,{]/,
+  /className\s*=/i,
+  /style\s*[=:]\s*[{"]/i,
   /styled\./,
   /\bcss`/,
   /\b(gap-\d|p[xy]?-\d|m[xy]?-\d|text-\w+-\d|bg-\w+-\d)\b/i

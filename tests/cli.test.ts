@@ -46,6 +46,12 @@ test("roadmap command returns the category roadmap", () => {
   assert.equal(parsed.roadmap.id, "feature");
 });
 
+test("does not gate a tool that is not in gate.tools", () => {
+  const parsed = JSON.parse(run(["gate", "--tool", "read", "--file", "README.md"]));
+  assert.equal(parsed.allow, true);
+  assert.equal(parsed.reason, "tool is not gated");
+});
+
 test("classify output carries a primary and a roadmap", () => {
   const parsed = JSON.parse(run(["classify", "refais le css de la landing page"]));
   assert.equal(parsed.primary, "design-ui");
