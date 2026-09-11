@@ -175,9 +175,11 @@ function callTool(name, args) {
       providers: list.map((provider) => ({
         id: provider.id,
         label: provider.label,
-        transport: provider.transport,
+        kind: provider.kind,
+        transport: provider.transport ?? null,
         purpose: provider.purpose ?? "",
         categories: provider.categories ?? [],
+        source: provider.source ?? "",
         enabled: enabled.has(provider.id)
       }))
     });

@@ -11,6 +11,7 @@ import {
   novahizHome,
   opencodeConfigDir,
   parseArgs,
+  readJson,
   repoRoot,
   saveManifest,
   writeJson
@@ -178,6 +179,20 @@ function main() {
     if (existsSync(cli)) {
       note("Construction du catalogue (sync)");
       const result = spawnSync(process.execPath, [cli, "sync"], {
+        encoding: "utf8",
+        env: { ...process.env, NOVAHIZ_HOME: home }
+      });
+      if (result.stdout) process.stdout.write(result.stdout);
+      if (result.status !== 0 && result.stderr) process.stderr.write(result.stderr);
+    }
+  }
+
+  if (!dryRun) {
+    const config = readJson(join(home, "novahiz.config.json"), {});
+    const autoInstall = Boolean(flags["install-providers"]) || config?.providers?.autoInstall === true;
+    if (autoInstall) {
+      note("Installation des providers (MCP, skills, commands)");
+      const result = spawnSync(process.execPath, [join(home, "src", "cli.ts"), "providers", "--install"], {
         encoding: "utf8",
         env: { ...process.env, NOVAHIZ_HOME: home }
       });

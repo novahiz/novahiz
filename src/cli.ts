@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { spawnSync } from "node:child_process";
 import { classify } from "./classify.ts";
 import { changeText } from "./content.ts";
 import { evaluateGate } from "./gate.ts";
@@ -9,7 +10,7 @@ import { loadSpec, novahizHome, expandHome } from "./spec.ts";
 import { openDb, setMeta, getMeta } from "./db.ts";
 import { loadCatalog, loadInstalledSkills, persistCatalog, scanSkills, writeCatalog, writeSkillIndex } from "./catalog.ts";
 import { rankSkills } from "./relevance.ts";
-import { buildMcpEntries, enabledProviders } from "./providers.ts";
+import { buildMcpEntries, enabledProviders, installCommands } from "./providers.ts";
 
 type Parsed = {
   positionals: string[];
@@ -496,6 +497,19 @@ function commandProviders(parsed: Parsed): void {
     print(buildMcpEntries(spec));
     return;
   }
+  if (parsed.flags.install) {
+    const results: Record<string, unknown>[] = [];
+    for (const entry of installCommands(spec)) {
+      const [command, ...args] = entry.command;
+      const result = spawnSync(command, args, { encoding: "utf8", shell: true });
+      const ok = result.status === 0;
+      process.stdout.write(`${ok ? "ok  " : "fail"} ${entry.id} (${entry.kind}) ${entry.command.join(" ")}\n`);
+      if (!ok && result.stderr) process.stderr.write(result.stderr);
+      results.push({ id: entry.id, kind: entry.kind, source: entry.source, command: entry.command.join(" "), ok });
+    }
+    print(results);
+    return;
+  }
   const category = asString(parsed.flags.category);
   const query = parsed.positionals.slice(1).join(" ") || asString(parsed.flags.query);
   let list = spec.providers;
@@ -510,9 +524,11 @@ function commandProviders(parsed: Parsed): void {
     list.map((provider) => ({
       id: provider.id,
       label: provider.label,
-      transport: provider.transport,
+      kind: provider.kind,
+      transport: provider.transport ?? null,
       purpose: provider.purpose ?? "",
       categories: provider.categories ?? [],
+      source: provider.source ?? "",
       enabled: enabled.has(provider.id)
     }))
   );
@@ -536,7 +552,7 @@ function usage(): void {
       "catalog <query> [--limit N]",
       "roadmap --category id | <query>",
       "step --session id --done <step>",
-      "providers [--category id] [--mcp-json]"
+      "providers [--category id] [--mcp-json] [--install]"
     ]
   });}
 

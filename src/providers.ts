@@ -22,6 +22,7 @@ export function buildMcpEntries(spec: Spec): Record<string, McpEntry> {
   const entries: Record<string, McpEntry> = {};
   if (!spec.config.providers.autoRegister) return entries;
   for (const provider of enabledProviders(spec)) {
+    if (provider.kind !== "mcp") continue;
     if (provider.transport === "remote") {
       if (!provider.url) continue;
       entries[provider.id] = { type: "remote", url: provider.url, enabled: true };
@@ -30,4 +31,22 @@ export function buildMcpEntries(spec: Spec): Record<string, McpEntry> {
     }
   }
   return entries;
+}
+
+export type InstallCommand = {
+  id: string;
+  kind: string;
+  command: string[];
+  source: string;
+};
+
+export function installCommands(spec: Spec): InstallCommand[] {
+  return enabledProviders(spec)
+    .filter((provider) => Array.isArray(provider.install) && provider.install.length > 0)
+    .map((provider) => ({
+      id: provider.id,
+      kind: provider.kind,
+      command: provider.install as string[],
+      source: provider.source ?? ""
+    }));
 }

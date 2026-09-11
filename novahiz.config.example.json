@@ -21,6 +21,7 @@
   },
   "providers": {
     "autoRegister": true,
+    "autoInstall": false,
     "disabled": []
   }
 }

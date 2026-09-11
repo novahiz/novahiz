@@ -58,18 +58,24 @@ export type Overrides = {
   skills?: Record<string, SkillOverride>;
 };
 
+export type ProviderKind = "mcp" | "skill" | "commands";
+
 export type Provider = {
   id: string;
   label: string;
-  transport: "local" | "remote";
+  kind: ProviderKind;
+  transport?: "local" | "remote";
   command?: string[];
   url?: string;
+  install?: string[];
   purpose?: string;
   categories?: string[];
+  source?: string;
 };
 
 export type ProvidersConfig = {
   autoRegister: boolean;
+  autoInstall: boolean;
   disabled: string[];
 };
 
@@ -138,6 +144,7 @@ export const DEFAULT_CONFIG: NovahizConfig = {
   },
   providers: {
     autoRegister: true,
+    autoInstall: false,
     disabled: []
   }
 };
@@ -187,6 +194,7 @@ export function mergeConfig(raw: Partial<NovahizConfig> | null | undefined): Nov
   const providersSource = source.providers && typeof source.providers === "object" ? source.providers : {};
   const providers: ProvidersConfig = {
     autoRegister: typeof providersSource.autoRegister === "boolean" ? providersSource.autoRegister : DEFAULT_CONFIG.providers.autoRegister,
+    autoInstall: typeof providersSource.autoInstall === "boolean" ? providersSource.autoInstall : DEFAULT_CONFIG.providers.autoInstall,
     disabled: Array.isArray(providersSource.disabled) ? providersSource.disabled : [...DEFAULT_CONFIG.providers.disabled]
   };
 

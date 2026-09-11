@@ -2,49 +2,85 @@
   {
     "id": "playwright",
     "label": "Playwright browser",
+    "kind": "mcp",
     "transport": "local",
-    "command": ["playwright-mcp"],
+    "command": ["npx", "-y", "@playwright/mcp@latest"],
+    "install": ["npx", "-y", "@playwright/mcp@latest", "--help"],
     "purpose": "Navigate, screenshot, and interact with web pages in a real browser.",
-    "categories": ["browser", "design-ui"]
+    "categories": ["browser", "design-ui"],
+    "source": "https://github.com/microsoft/playwright-mcp"
   },
   {
     "id": "security",
     "label": "Security scanner",
+    "kind": "mcp",
     "transport": "local",
-    "command": ["security-mcp", "serve"],
-    "purpose": "SAST and DAST scans, CVE remediation, and compliance mapping.",
-    "categories": ["audit"]
+    "command": ["npx", "-y", "security-mcp", "serve"],
+    "install": ["npx", "-y", "security-mcp", "--version"],
+    "purpose": "SAST and DAST scans, OWASP and CWE coverage, compliance mapping.",
+    "categories": ["audit"],
+    "source": "https://github.com/AbrahamOO/security-mcp"
   },
   {
     "id": "narsil",
     "label": "Code intelligence",
+    "kind": "mcp",
     "transport": "local",
-    "command": ["narsil-mcp", "--repos", ".", "--git"],
+    "command": ["npx", "-y", "narsil-mcp@latest", "--repos", ".", "--git"],
+    "install": ["npx", "-y", "narsil-mcp@latest", "--help"],
     "purpose": "Code graph, symbols, taint tracking, dead code, and security scan.",
-    "categories": ["code", "debug", "review", "audit"]
+    "categories": ["code", "debug", "review", "audit"],
+    "source": "https://github.com/postrv/narsil-mcp"
   },
   {
     "id": "context7",
     "label": "Library docs",
+    "kind": "mcp",
     "transport": "local",
-    "command": ["context7-mcp", "--transport", "stdio"],
+    "command": ["npx", "-y", "@upstash/context7-mcp@latest"],
+    "install": ["npx", "-y", "@upstash/context7-mcp@latest", "--help"],
     "purpose": "Up-to-date documentation for libraries, frameworks, and SDKs.",
-    "categories": ["code", "research"]
+    "categories": ["code", "research"],
+    "source": "https://github.com/upstash/context7"
   },
   {
     "id": "sequential-thinking",
     "label": "Structured reasoning",
+    "kind": "mcp",
     "transport": "local",
-    "command": ["mcp-server-sequential-thinking"],
+    "command": ["npx", "-y", "@modelcontextprotocol/server-sequential-thinking"],
+    "install": ["npx", "-y", "@modelcontextprotocol/server-sequential-thinking", "--help"],
     "purpose": "Step-by-step reasoning for planning, debugging, and audits.",
-    "categories": ["planning", "debug", "audit"]
+    "categories": ["planning", "debug", "audit"],
+    "source": "https://github.com/modelcontextprotocol/servers"
   },
   {
     "id": "cron",
     "label": "Scheduler",
+    "kind": "mcp",
     "transport": "local",
-    "command": ["mcp-cron", "--transport", "stdio"],
+    "command": ["npx", "-y", "mcp-cron", "--transport", "stdio"],
+    "install": ["npx", "-y", "mcp-cron", "--help"],
     "purpose": "Schedule and run recurring or delayed tasks.",
-    "categories": ["devops", "general"]
+    "categories": ["devops", "general"],
+    "source": "https://github.com/jolks/mcp-cron"
+  },
+  {
+    "id": "impeccable",
+    "label": "Impeccable design skill",
+    "kind": "skill",
+    "install": ["npx", "-y", "impeccable", "install", "--providers=opencode", "--scope=global"],
+    "purpose": "Design skill and commands for frontend interfaces.",
+    "categories": ["design-ui"],
+    "source": "https://github.com/pbakaus/impeccable"
+  },
+  {
+    "id": "speckit",
+    "label": "Spec Kit commands",
+    "kind": "commands",
+    "install": ["uv", "tool", "install", "specify-cli"],
+    "purpose": "Spec-driven development commands (specify, plan, tasks, implement).",
+    "categories": ["planning", "code"],
+    "source": "https://github.com/github/spec-kit"
   }
 ]

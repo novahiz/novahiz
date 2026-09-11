@@ -72,7 +72,7 @@ test("hook Stop prints a roadmap summary", () => {
 
 test("providers command lists the bundled providers", () => {
   const parsed = JSON.parse(run(["providers"]));
-  assert.equal(parsed.length, 6);
+  assert.equal(parsed.length, 8);
 });
 
 test("providers --mcp-json returns mcp entries", () => {
