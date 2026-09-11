@@ -17,14 +17,14 @@ On Windows, the same command works in PowerShell. If you cloned somewhere else, 
 node /path/to/novahiz/install/install.mjs --home ~/.config/novahiz
 ```
 
-The installer runs `git`-free and never deletes your files. It:
+The installer runs `git`-free and never deletes your files. When run in a terminal it is interactive: it prints the plan and the provider list, then asks before writing anything or installing packages. It:
 
 1. Copies the core, the bundled skills, and the plugin into place.
 2. Merges `skills/` into your opencode skills directory.
 3. Drops the opencode plugin into the plugins directory.
 4. Writes `novahiz.config.json` only if it does not exist.
 5. Builds the catalog with `sync`.
-6. Verifies provider dependencies, and installs them when `--install-providers` or `providers.autoInstall` is set.
+6. Verifies provider dependencies, and installs them when you confirm or `--install-providers` is set.
 
 Restart opencode afterward. The plugin registers the Novahiz MCP server automatically, so you do not edit `opencode.jsonc` by hand.
 
@@ -36,7 +36,8 @@ Restart opencode afterward. The plugin registers the Novahiz MCP server automati
 - `--no-skills` skips the bundled skills.
 - `--install-providers` runs the provider dependency bootstrap and install commands.
 - `--force` rewrites `novahiz.config.json` (the previous file is backed up as `novahiz.config.json.novahiz-bak`).
-- `--yes` runs without prompts. This is the default; the flag is accepted for scripts.
+- `--yes` skips every prompt. Use it in scripts and CI, where there is no terminal to answer.
+- `--interactive` forces the prompts even when the output is not a terminal.
 
 ## What it touches
 

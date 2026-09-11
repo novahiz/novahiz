@@ -16,6 +16,7 @@ import {
   saveManifest,
   writeJson
 } from "./lib.mjs";
+import { createPrompt } from "./prompt.mjs";
 
 const CORE_ITEMS = [
   "src",
@@ -48,11 +49,16 @@ function defaultConfig(skillsDir) {
       minScore: 1,
       maxCategories: 3,
       fallbackCategory: "general"
+    },
+    providers: {
+      autoRegister: true,
+      autoInstall: false,
+      disabled: []
     }
   };
 }
 
-function main() {
+async function main() {
   const flags = parseArgs(process.argv.slice(2));
   const dryRun = Boolean(flags["dry-run"]);
   const force = Boolean(flags.force);
@@ -71,6 +77,35 @@ function main() {
   if (!nodeVersionOk()) {
     process.stderr.write(`Node ${process.versions.node} is too old. Node 22.18 or later is required.\n`);
     process.exit(1);
+  }
+
+  const yes = Boolean(flags.yes) || Boolean(flags["yes"]);
+  const interactive = !yes && !dryRun && (Boolean(flags.interactive) || process.stdin.isTTY === true);
+  let providersChoice = null;
+
+  if (interactive) {
+    const prompt = createPrompt();
+    const providers = readJson(join(root, "catalog", "providers.json"), []);
+    process.stdout.write("\nNovahiz setup\n");
+    process.stdout.write(`  Home:            ${home}\n`);
+    process.stdout.write(`  opencode config: ${configDir}\n`);
+    process.stdout.write(`  Skills:          ${skillsDir}\n`);
+    process.stdout.write(`  Plugin:          ${join(pluginsDir, "novahiz.ts")}\n`);
+    process.stdout.write(`  Agent:           ${join(configDir, "agent", "novahiz-agent.md")}\n`);
+    process.stdout.write("\nProviders (optional, installed on your machine, never copied into the repo):\n");
+    for (const provider of providers) {
+      const source = provider.source ? ` ${provider.source}` : "";
+      process.stdout.write(`  [${provider.kind}] ${provider.id} - ${provider.purpose ?? ""}${source}\n`);
+    }
+    process.stdout.write("\n");
+    const proceed = await prompt.confirm("Install the Novahiz core (skills, plugin, agent)?", true);
+    if (!proceed) {
+      prompt.close();
+      process.stdout.write("Aborted. Nothing was written.\n");
+      return;
+    }
+    providersChoice = await prompt.confirm("Install provider packages and their prerequisites now?", false);
+    prompt.close();
   }
 
   const created = [];
@@ -190,7 +225,10 @@ function main() {
   if (!dryRun) {
     const cli = join(home, "src", "cli.ts");
     const config = readJson(join(home, "novahiz.config.json"), {});
-    const autoInstall = Boolean(flags["install-providers"]) || config?.providers?.autoInstall === true;
+    const autoInstall =
+      providersChoice !== null
+        ? providersChoice
+        : Boolean(flags["install-providers"]) || config?.providers?.autoInstall === true;
     note("Verification des dependances");
     const check = spawnSync(process.execPath, [cli, "deps"], {
       encoding: "utf8",
@@ -217,4 +255,7 @@ function main() {
   }
 }
 
-main();
+main().catch((error) => {
+  process.stderr.write(`${String(error)}\n`);
+  process.exit(1);
+});
