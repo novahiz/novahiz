@@ -130,7 +130,7 @@ export const NovahizPlugin: Plugin = async ({ client }) => {
             lines.push(`  ${index + 1}. [${step.kind}] ${step.label}${skills}`);
           });
         }
-        if (enforced.length > 0) lines.push(`Skills requis (bloquants): ${enforced.join(", ")}`);
+        if (enforced.length > 0) lines.push(`Skills requis (roadmap): ${enforced.join(", ")}`);
         if (suggested.length > 0) lines.push(`Skills suggeres: ${suggested.join(", ")}`);
         lines.push("Le gate bloque edit/write/patch/bash tant que les skills requis ne sont pas charges via skill({name:\"...\"}).");
         lines.push("Le gate est sensible au contenu: humanizer pour la prose, impeccable pour le style.");
@@ -153,7 +153,7 @@ export const NovahizPlugin: Plugin = async ({ client }) => {
         if (!loadedBySession.has(input.sessionID)) loadedBySession.set(input.sessionID, new Set());
         const loaded = loadedBySession.get(input.sessionID)!;
 
-        if (input.tool === "skill") {
+        if (input.tool.toLowerCase() === "skill") {
           const args = output.args as { name?: string; skill?: string } | undefined;
           const name = args?.name ?? args?.skill;
           if (name) loaded.add(String(name));

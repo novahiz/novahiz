@@ -133,21 +133,41 @@ export function expandHome(value: string): string {
   return value;
 }
 
+function stripBom(text: string): string {
+  return text.replace(/^\uFEFF/, "");
+}
+
 function readJson<T>(path: string): T {
-  return JSON.parse(readFileSync(path, "utf8")) as T;
+  return JSON.parse(stripBom(readFileSync(path, "utf8"))) as T;
 }
 
 export function mergeConfig(raw: Partial<NovahizConfig> | null | undefined): NovahizConfig {
-  const source = raw ?? {};
-  const gate = { ...DEFAULT_CONFIG.gate, ...(source.gate ?? {}) };
+  const source = raw && typeof raw === "object" ? raw : {};
+  const gateSource = source.gate && typeof source.gate === "object" ? source.gate : {};
+  const gate: GateConfig = { ...DEFAULT_CONFIG.gate, ...gateSource };
+  if (typeof gate.enabled !== "boolean") gate.enabled = DEFAULT_CONFIG.gate.enabled;
+  if (gate.mode !== "block" && gate.mode !== "warn" && gate.mode !== "audit") gate.mode = DEFAULT_CONFIG.gate.mode;
+  if (typeof gate.envEscape !== "string") gate.envEscape = DEFAULT_CONFIG.gate.envEscape;
   if (!Array.isArray(gate.tools)) gate.tools = DEFAULT_CONFIG.gate.tools;
   if (!Array.isArray(gate.ignoreFiles)) gate.ignoreFiles = DEFAULT_CONFIG.gate.ignoreFiles;
-  if (gate.mode !== "block" && gate.mode !== "warn" && gate.mode !== "audit") gate.mode = DEFAULT_CONFIG.gate.mode;
+
+  const classifySource = source.classify && typeof source.classify === "object" ? source.classify : {};
+  const classify: ClassifyConfig = { ...DEFAULT_CONFIG.classify, ...classifySource };
+  if (typeof classify.minScore !== "number" || !Number.isFinite(classify.minScore)) {
+    classify.minScore = DEFAULT_CONFIG.classify.minScore;
+  }
+  if (typeof classify.maxCategories !== "number" || !Number.isFinite(classify.maxCategories)) {
+    classify.maxCategories = DEFAULT_CONFIG.classify.maxCategories;
+  }
+  if (typeof classify.fallbackCategory !== "string") {
+    classify.fallbackCategory = DEFAULT_CONFIG.classify.fallbackCategory;
+  }
+
   return {
     dbPath: typeof source.dbPath === "string" ? source.dbPath : DEFAULT_CONFIG.dbPath,
     skillRoots: Array.isArray(source.skillRoots) ? source.skillRoots : [...DEFAULT_CONFIG.skillRoots],
     gate,
-    classify: { ...DEFAULT_CONFIG.classify, ...(source.classify ?? {}) }
+    classify
   };
 }
 
@@ -155,7 +175,7 @@ export function loadConfig(root: string = novahizHome()): NovahizConfig {
   const userPath = join(root, "novahiz.config.json");
   if (existsSync(userPath)) {
     try {
-      return mergeConfig(JSON.parse(readFileSync(userPath, "utf8")) as Partial<NovahizConfig>);
+      return mergeConfig(JSON.parse(stripBom(readFileSync(userPath, "utf8"))) as Partial<NovahizConfig>);
     } catch (error) {
       throw new Error(`Invalid JSON in ${userPath}: ${(error as Error).message}`);
     }
@@ -167,7 +187,7 @@ export function loadConfig(root: string = novahizHome()): NovahizConfig {
 
 function readCatalog<T>(path: string): T {
   try {
-    return JSON.parse(readFileSync(path, "utf8")) as T;
+    return JSON.parse(stripBom(readFileSync(path, "utf8"))) as T;
   } catch (error) {
     throw new Error(`Invalid or missing catalog file ${path}: ${(error as Error).message}`);
   }

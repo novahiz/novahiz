@@ -28,3 +28,12 @@ test("mergeConfig coerces invalid gate fields", () => {
   assert.ok(Array.isArray(merged.gate.tools));
   assert.equal(merged.gate.mode, "block");
 });
+
+test("mergeConfig validates classify and gate scalars", () => {
+  const bad = mergeConfig({ classify: { minScore: "abc" }, gate: { enabled: "false", envEscape: 123 } } as never);
+  assert.equal(bad.classify.minScore, DEFAULT_CONFIG.classify.minScore);
+  assert.equal(bad.gate.enabled, true);
+  assert.equal(bad.gate.envEscape, DEFAULT_CONFIG.gate.envEscape);
+  const notObject = mergeConfig({ classify: "oops" } as never);
+  assert.deepEqual(notObject.classify, DEFAULT_CONFIG.classify);
+});

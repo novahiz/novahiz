@@ -38,3 +38,9 @@ test("does not treat a type annotation as style", () => {
   assert.equal(hasStyle("interface P { name: string; }"), false);
   assert.equal(hasStyle(".card { color: red; }"), true);
 });
+
+test("detects class selectors but not object literals", () => {
+  assert.equal(hasStyle(".card { color: red; }"), true);
+  assert.equal(hasStyle("key: value,"), false);
+  assert.equal(hasStyle("const flex = 1;"), false);
+});

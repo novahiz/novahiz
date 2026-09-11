@@ -65,7 +65,7 @@ The `gate` block in `novahiz.config.json` controls behavior:
 
 ## Shell writes
 
-The gate intercepts the shell tool when the command writes files. It extracts targets from redirections (`>`, `>>`, `&>`), `tee`, `cp`, `mv`, `touch`, `sed -i`, `dd`, and the PowerShell cmdlets `Set-Content`, `Add-Content`, `Out-File`, `New-Item`, `Tee-Object`. Commands that do not appear to write files pass through.
+The gate intercepts the shell tool when the command writes files. It extracts targets from redirections (`>`, `>>`, `&>`), `tee`, `cp`, `mv`, `rsync`, `robocopy`, `touch`, `truncate`, `sed -i`, `dd`, `rm`, `del`, `erase`, `rd`, and the PowerShell cmdlets `Set-Content`, `Add-Content`, `Out-File`, `New-Item`, `Copy-Item`, `Move-Item`, `Remove-Item`, `Rename-Item`, `Tee-Object`, `mkdir`. It looks through wrappers such as `sudo`, `env`, `timeout`, `nice`, and `cmd /c`, and ignores arguments that only look like a command. Commands that do not appear to write files pass through.
 
 This detection is best-effort. A command that hides its target can still write without passing the gate. To disable shell gating, remove `bash` and `shell` from `gate.tools`.
 

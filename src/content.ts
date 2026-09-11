@@ -20,12 +20,12 @@ export function changeText(tool: string, args: unknown): string {
 }
 
 const STYLE_SIGNALS = [
-  /(^|\n)\s*[.#][a-z0-9_-]+\s*[,{]/i,
+  /(^|\n)\s*[.#][\w-]+[^{}\n]*\{/,
   /className\s*=/,
   /\bstyle\s*=/,
   /styled\./,
   /\bcss`/,
-  /\b(tailwind|flex|grid|gap-\d|p[xy]?-\d|m[xy]?-\d|text-\w+-\d|bg-\w+-\d)\b/i
+  /\b(gap-\d|p[xy]?-\d|m[xy]?-\d|text-\w+-\d|bg-\w+-\d)\b/i
 ];
 
 const PROSE_SIGNALS = [

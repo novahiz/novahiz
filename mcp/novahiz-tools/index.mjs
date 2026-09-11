@@ -2,6 +2,7 @@
 import { createInterface } from "node:readline";
 import { pathToFileURL } from "node:url";
 import { resolve } from "node:path";
+import { realpathSync } from "node:fs";
 import { classify } from "../../src/classify.ts";
 import { evaluateGate } from "../../src/gate.ts";
 import { loadSpec } from "../../src/spec.ts";
@@ -195,7 +196,14 @@ export function handleLine(line) {
   return handle(line);
 }
 
-const isMain = process.argv[1] ? import.meta.url === pathToFileURL(process.argv[1]).href : false;
+const isMain = (() => {
+  if (!process.argv[1]) return false;
+  try {
+    return import.meta.url === pathToFileURL(realpathSync(process.argv[1])).href;
+  } catch {
+    return false;
+  }
+})();
 if (isMain) {
   const reader = createInterface({ input: process.stdin });
   reader.on("line", (line) => {

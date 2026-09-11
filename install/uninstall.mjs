@@ -1,6 +1,6 @@
 import { cpSync, existsSync, rmSync } from "node:fs";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { join, sep } from "node:path";
 import { loadManifest, novahizHome, parseArgs, pruneEmptyDirs, saveManifest } from "./lib.mjs";
 
 function main() {
@@ -31,9 +31,12 @@ function main() {
     removed.push(entry.backup);
   }
 
+  const homePrefix = home.endsWith(sep) ? home : `${home}${sep}`;
+  const keepCore = Boolean(manifest.coreCopied) && !purge;
   for (const item of created) {
     if (!existsSync(item)) continue;
     if (keepConfig && item.endsWith("novahiz.config.json")) continue;
+    if (keepCore && item.startsWith(homePrefix)) continue;
     process.stdout.write(`${dryRun ? "[dry-run] " : ""}suppression ${item}\n`);
     if (!dryRun) rmSync(item, { force: true });
     removed.push(item);
@@ -51,7 +54,7 @@ function main() {
     } else {
       saveManifest(home, { ...manifest, created: [], backups: [], configCreated: false });
       if (manifest.coreCopied) {
-        process.stdout.write(`Core conserve dans ${home}. Utilise --purge pour le supprimer.\n`);
+        process.stdout.write(`Fichiers d'integration supprimes; core conserve dans ${home}. Utilise --purge pour le supprimer.\n`);
       }
     }
     process.stdout.write(`\nDesinstallation terminee (${removed.length} entrees traitees).\n`);

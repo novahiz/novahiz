@@ -115,7 +115,7 @@ export function copyInto(srcDir, destDir, useBackup = true) {
 
 export function readJson(path, fallback = null) {
   try {
-    return JSON.parse(readFileSync(path, "utf8"));
+    return JSON.parse(readFileSync(path, "utf8").replace(/^\uFEFF/, ""));
   } catch {
     return fallback;
   }

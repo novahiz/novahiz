@@ -16,6 +16,15 @@ function run(args: string[], env: Record<string, string> = {}): string {
   return result.stdout.trim();
 }
 
+function runWithInput(args: string[], input: object): string {
+  const result = spawnSync(process.execPath, [cli, ...args], {
+    encoding: "utf8",
+    input: JSON.stringify(input),
+    env: { ...process.env, NOVAHIZ_HOME: root }
+  });
+  return result.stdout.trim();
+}
+
 test("NOVAHIZ_GATE=off disables the gate", () => {
   const parsed = JSON.parse(run(["gate", "--file", "README.md", "--tool", "edit"], { NOVAHIZ_GATE: "off" }));
   assert.equal(parsed.allow, true);
@@ -51,6 +60,6 @@ test("catalog tolerates a non-numeric limit", () => {
 });
 
 test("hook Stop prints a roadmap summary", () => {
-  const out = run(["hook", "--harness", "codex", "--event", "Stop"]);
+  const out = runWithInput(["hook", "--harness", "codex", "--event", "Stop"], { session_id: "stop-session" });
   assert.ok(out.includes("roadmap steps"));
 });

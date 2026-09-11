@@ -324,11 +324,13 @@ function commandHook(parsed: Parsed): void {
   const escapeValue = (process.env[gateConfig.envEscape] || "").toLowerCase();
   if (["off", "0", "false", "no", "disabled"].includes(escapeValue)) return;
 
-  const sessionId = String(payload.session_id ?? payload.sessionId ?? "default");
+  const rawSession = payload.session_id ?? payload.sessionId;
+  const sessionId = String(rawSession ?? "default");
   const toolName = String(payload.tool_name ?? payload.toolName ?? "");
   const toolInput = payload.tool_input ?? payload.toolInput ?? {};
 
   if (event === "Stop") {
+    if (rawSession === undefined || rawSession === null || String(rawSession).length === 0) return;
     const stopDb = openDb(dbPathFor(root, spec));
     const stepsDone = (
       stopDb.prepare("SELECT step_id FROM roadmap_progress WHERE session_id = ?").all(sessionId) as { step_id: string }[]

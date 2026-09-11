@@ -99,6 +99,22 @@ test("detects wrappers before the real command", () => {
   assert.deepEqual(extractShellPaths("cmd /c copy a b"), ["b"]);
 });
 
+test("looks through wrappers with arguments", () => {
+  assert.deepEqual(extractShellPaths("sudo -u root rm -rf dist"), ["dist"]);
+  assert.deepEqual(extractShellPaths("env FOO=bar rm -rf dist"), ["dist"]);
+  assert.deepEqual(extractShellPaths("nice -n 10 rm -rf dist"), ["dist"]);
+  assert.deepEqual(extractShellPaths("timeout 5 rm -rf dist"), ["dist"]);
+});
+
+test("keeps unix absolute paths instead of treating them as windows flags", () => {
+  assert.deepEqual(extractShellPaths("rm /a"), ["/a"]);
+  assert.deepEqual(extractShellPaths("cp -r src /d"), ["/d"]);
+});
+
+test("ignores device redirection targets", () => {
+  assert.deepEqual(extractShellPaths("rm -rf dist 2>/dev/null"), ["dist"]);
+});
+
 test("extractTargetPaths reads shell commands", () => {
   assert.deepEqual(extractTargetPaths("bash", { command: "echo x > report.md" }), ["report.md"]);
 });

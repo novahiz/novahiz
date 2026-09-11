@@ -73,20 +73,24 @@ function isOperator(token: string): boolean {
   return OPERATORS.has(token) || token.startsWith("&");
 }
 
-function isFlag(token: string): boolean {
-  return token.startsWith("-") || /^\/[a-zA-Z]$/.test(token);
+function isDashFlag(token: string): boolean {
+  return token.startsWith("-");
 }
 
-function allPositionals(tokens: string[]): string[] {
-  return tokens.filter((token) => !isFlag(token) && !isOperator(token));
+function isWindowsFlag(token: string): boolean {
+  return /^\/[a-zA-Z]$/.test(token);
 }
 
-function firstPositional(tokens: string[]): string | null {
-  return allPositionals(tokens)[0] ?? null;
+function allPositionals(tokens: string[], windows: boolean): string[] {
+  return tokens.filter((token) => !isDashFlag(token) && !(windows && isWindowsFlag(token)) && !isOperator(token));
 }
 
-function lastPositional(tokens: string[]): string | null {
-  const positional = allPositionals(tokens);
+function firstPositional(tokens: string[], windows: boolean): string | null {
+  return allPositionals(tokens, windows)[0] ?? null;
+}
+
+function lastPositional(tokens: string[], windows: boolean): string | null {
+  const positional = allPositionals(tokens, windows);
   return positional.length > 0 ? positional[positional.length - 1] : null;
 }
 
@@ -106,10 +110,10 @@ const VALUE_FLAGS = new Set([
   "-credential"
 ]);
 
-function firstPathLike(tokens: string[]): string | null {
+function firstPathLike(tokens: string[], windows: boolean): string | null {
   for (let index = 0; index < tokens.length; index += 1) {
     const token = tokens[index];
-    if (isFlag(token) || isOperator(token)) continue;
+    if (isDashFlag(token) || (windows && isWindowsFlag(token)) || isOperator(token)) continue;
     const previous = tokens[index - 1];
     if (previous && VALUE_FLAGS.has(previous.toLowerCase())) continue;
     return token;
@@ -122,7 +126,32 @@ function flagValue(tokens: string[], flags: string[]): string | null {
   return index >= 0 && tokens[index + 1] ? tokens[index + 1] : null;
 }
 
-const WRAPPERS = new Set(["sudo", "doas", "env", "nohup", "time", "command", "exec", "cmd", "cmd.exe", "xargs"]);
+const WRAPPERS = new Set(["sudo", "doas", "env", "nohup", "time", "command", "exec", "cmd", "cmd.exe", "xargs", "nice", "timeout", "stdbuf"]);
+const WRAPPER_VALUE_FLAGS = new Set([
+  "-u",
+  "--user",
+  "-g",
+  "--group",
+  "-p",
+  "--prompt",
+  "-c",
+  "--close-from",
+  "-h",
+  "--host",
+  "-r",
+  "--role",
+  "-t",
+  "--type",
+  "-n",
+  "--adjustment",
+  "-s",
+  "--signal",
+  "-k",
+  "--kill-after",
+  "-i",
+  "--input"
+]);
+const ENV_ASSIGN = /^[A-Za-z_][A-Za-z0-9_]*=/;
 const WRITE_CMDLETS = new Set([
   "set-content",
   "add-content",
@@ -138,6 +167,30 @@ const WRITE_CMDLETS = new Set([
 const DEST_CMDLETS = new Set(["copy-item", "move-item", "rename-item", "copy", "move", "ren", "rename", "xcopy"]);
 const DELETE_CMDLETS = new Set(["remove-item", "ri", "rm", "del", "erase", "rd", "rmdir"]);
 const COPY_CMDS = new Set(["cp", "mv", "rsync", "robocopy"]);
+const WINDOWS_CMDS = new Set([
+  "rd",
+  "rmdir",
+  "del",
+  "erase",
+  "xcopy",
+  "robocopy",
+  "copy",
+  "move",
+  "ren",
+  "rename",
+  "remove-item",
+  "ri",
+  "set-content",
+  "add-content",
+  "out-file",
+  "new-item",
+  "ni",
+  "mkdir",
+  "md",
+  "copy-item",
+  "move-item",
+  "rename-item"
+]);
 
 export function extractShellPaths(command: string): string[] {
   const out: string[] = [];
@@ -148,13 +201,16 @@ export function extractShellPaths(command: string): string[] {
       path = path.slice(1, -1);
     }
     if (path.length === 0) return;
-    if (isFlag(path) || path.startsWith("$") || path.startsWith("&")) return;
+    if (isDashFlag(path) || path.startsWith("$") || path.startsWith("&")) return;
+    if (path.startsWith("/dev/") || path === "NUL") return;
     if (path.includes("://")) return;
     if (!out.includes(path)) out.push(path);
   };
 
   const tokens = tokenizeShell(command);
   let expectCommand = true;
+  let skipValue = false;
+  let wrapper: string | null = null;
 
   for (let index = 0; index < tokens.length; index += 1) {
     const token = tokens[index];
@@ -164,30 +220,47 @@ export function extractShellPaths(command: string): string[] {
         if (target && !isOperator(target)) add(target);
       }
       expectCommand = true;
+      skipValue = false;
+      wrapper = null;
       continue;
     }
     if (!expectCommand) continue;
+    if (skipValue) {
+      skipValue = false;
+      continue;
+    }
 
     const lower = token.toLowerCase();
-    if (WRAPPERS.has(lower)) continue;
-    if (isFlag(token)) continue;
-    expectCommand = false;
+    if (WRAPPERS.has(lower)) {
+      wrapper = lower;
+      continue;
+    }
+    if (ENV_ASSIGN.test(token)) continue;
+    if (isDashFlag(token)) {
+      if (WRAPPER_VALUE_FLAGS.has(lower)) skipValue = true;
+      continue;
+    }
+    if (wrapper !== null && isWindowsFlag(token)) continue;
+    if ((wrapper === "timeout" || wrapper === "nice") && /^\d+(\.\d+)?[a-z]?$/i.test(token)) continue;
 
+    expectCommand = false;
+    const windows = WINDOWS_CMDS.has(lower);
     const rest = tokens.slice(index + 1);
+
     if (COPY_CMDS.has(lower)) {
-      add(lastPositional(rest));
+      add(lastPositional(rest, windows));
     } else if (DEST_CMDLETS.has(lower)) {
-      add(flagValue(rest, ["-destination", "-newname"]) ?? lastPositional(rest));
+      add(flagValue(rest, ["-destination", "-newname"]) ?? lastPositional(rest, windows));
     } else if (DELETE_CMDLETS.has(lower)) {
-      for (const candidate of allPositionals(rest)) add(candidate);
+      for (const candidate of allPositionals(rest, windows)) add(candidate);
     } else if (WRITE_CMDLETS.has(lower)) {
-      add(flagValue(rest, ["-path", "-literalpath", "-filepath", "-destination", "-file"]) ?? firstPathLike(rest));
+      add(flagValue(rest, ["-path", "-literalpath", "-filepath", "-destination", "-file"]) ?? firstPathLike(rest, windows));
     } else if (lower === "tee") {
-      add(firstPositional(rest));
+      add(firstPositional(rest, windows));
     } else if (lower === "touch" || lower === "truncate") {
-      for (const candidate of allPositionals(rest)) add(candidate);
+      for (const candidate of allPositionals(rest, windows)) add(candidate);
     } else if (lower === "sed") {
-      if (rest.some((value) => value === "-i" || value.startsWith("-i"))) add(lastPositional(rest));
+      if (rest.some((value) => value === "-i" || value.startsWith("-i"))) add(lastPositional(rest, windows));
     } else if (lower === "dd") {
       for (const candidate of rest) {
         const match = candidate.match(/^of=(.+)$/);
