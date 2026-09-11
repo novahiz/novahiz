@@ -83,7 +83,8 @@ const TOOLS = [
 ];
 
 export function negotiateProtocol(requested) {
-  return SUPPORTED_PROTOCOLS.includes(requested) ? requested : DEFAULT_PROTOCOL;
+  if (SUPPORTED_PROTOCOLS.includes(requested)) return requested;
+  return SUPPORTED_PROTOCOLS[SUPPORTED_PROTOCOLS.length - 1];
 }
 
 function toolResult(value, isError = false) {
@@ -181,7 +182,7 @@ function handle(message) {
     try {
       return { jsonrpc: "2.0", id, result: callTool(params.name, params.arguments ?? {}) };
     } catch (error) {
-      return { jsonrpc: "2.0", id, result: toolResult(String(error?.stack ?? error), true) };
+      return { jsonrpc: "2.0", id, result: toolResult(String(error?.message ?? error), true) };
     }
   }
   if (method === "ping") return { jsonrpc: "2.0", id, result: {} };

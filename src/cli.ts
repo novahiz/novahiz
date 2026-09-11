@@ -5,7 +5,7 @@ import { changeText } from "./content.ts";
 import { evaluateGate } from "./gate.ts";
 import { claudeDenyOutput, decideHook, missingMessage, type Harness } from "./hook.ts";
 import { extractTargetPaths } from "./targets.ts";
-import { loadSpec, novahizHome } from "./spec.ts";
+import { loadSpec, novahizHome, expandHome } from "./spec.ts";
 import { openDb, setMeta, getMeta } from "./db.ts";
 import { loadCatalog, loadInstalledSkills, persistCatalog, scanSkills, writeCatalog, writeSkillIndex } from "./catalog.ts";
 import { rankSkills } from "./relevance.ts";
@@ -103,9 +103,11 @@ function commandClassify(parsed: Parsed): void {
   const root = novahizHome();
   const spec = loadSpec(root);
   const text = parsed.positionals.slice(1).join(" ") || asString(parsed.flags.text);
+  const minScore = Number(parsed.flags["min-score"]);
+  const maxCategories = Number(parsed.flags["max-categories"]);
   const result = classify(spec, text, {
-    minScore: parsed.flags["min-score"] ? Number(parsed.flags["min-score"]) : undefined,
-    maxCategories: parsed.flags["max-categories"] ? Number(parsed.flags["max-categories"]) : undefined
+    minScore: Number.isFinite(minScore) ? minScore : undefined,
+    maxCategories: Number.isFinite(maxCategories) ? maxCategories : undefined
   });
   print({ prompt: text, ...result });
 }
@@ -480,7 +482,7 @@ function usage(): void {
       "check",
       "sync",
       "classify <text> [--min-score N] [--max-categories N]",
-      "gate --tools <tool> (--file <path> | --args-stdin) [--categories a,b] [--loaded a,b] [--session id]",
+      "gate --tool <tool> (--file <path> | --args-stdin) [--categories a,b] [--loaded a,b] [--session id]",
       "skills [--category id]",
       "categories",
       "rules",
@@ -496,6 +498,9 @@ function usage(): void {
 
 function main(argv: string[]): void {
   const parsed = parse(argv);
+  if (typeof parsed.flags.home === "string" && parsed.flags.home.length > 0) {
+    process.env.NOVAHIZ_HOME = resolve(expandHome(parsed.flags.home));
+  }
   const command = parsed.positionals[0];
   switch (command) {
     case "check":

@@ -31,7 +31,7 @@ function call(lines) {
 
 test("negotiates an unknown protocol version to a supported one", () => {
   const out = call(['{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"9999-99-99"}}']);
-  assert.equal(out[0].result.protocolVersion, "2024-11-05");
+  assert.equal(out[0].result.protocolVersion, "2025-06-18");
 });
 
 test("honors a supported protocol version", () => {

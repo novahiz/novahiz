@@ -73,23 +73,49 @@ function isOperator(token: string): boolean {
   return OPERATORS.has(token) || token.startsWith("&") || /^\d+$/.test(token);
 }
 
+function allPositionals(tokens: string[]): string[] {
+  return tokens.filter((token) => !token.startsWith("-") && !isOperator(token));
+}
+
 function firstPositional(tokens: string[]): string | null {
-  for (const token of tokens) {
-    if (token.startsWith("-")) continue;
-    if (isOperator(token)) continue;
+  return allPositionals(tokens)[0] ?? null;
+}
+
+function lastPositional(tokens: string[]): string | null {
+  const positional = allPositionals(tokens);
+  return positional.length > 0 ? positional[positional.length - 1] : null;
+}
+
+const VALUE_FLAGS = new Set([
+  "-encoding",
+  "-value",
+  "-filter",
+  "-name",
+  "-itemtype",
+  "-delimiter",
+  "-width",
+  "-stream",
+  "-destination",
+  "-newname",
+  "-property",
+  "-inputobject",
+  "-credential"
+]);
+
+function firstPathLike(tokens: string[]): string | null {
+  for (let index = 0; index < tokens.length; index += 1) {
+    const token = tokens[index];
+    if (token.startsWith("-") || isOperator(token)) continue;
+    const previous = tokens[index - 1];
+    if (previous && VALUE_FLAGS.has(previous.toLowerCase())) continue;
     return token;
   }
   return null;
 }
 
-function lastPositional(tokens: string[]): string | null {
-  for (let index = tokens.length - 1; index >= 0; index -= 1) {
-    const token = tokens[index];
-    if (token.startsWith("-")) continue;
-    if (isOperator(token)) continue;
-    return token;
-  }
-  return null;
+function flagValue(tokens: string[], flags: string[]): string | null {
+  const index = tokens.findIndex((token) => flags.includes(token.toLowerCase()));
+  return index >= 0 && tokens[index + 1] ? tokens[index + 1] : null;
 }
 
 export function extractShellPaths(command: string): string[] {
@@ -114,19 +140,21 @@ export function extractShellPaths(command: string): string[] {
     "out-file",
     "tee-object",
     "set-itemproperty",
-    "sc",
-    "ac",
+    "set-item",
     "new-item",
-    "ni"
+    "ni",
+    "mkdir",
+    "md"
   ]);
-  const COPY_CMDS = new Set(["cp", "mv", "robocopy", "rsync", "install"]);
+  const DEST_CMDLETS = new Set(["copy-item", "move-item", "rename-item", "copy", "move", "ren", "rename", "xcopy"]);
+  const DELETE_CMDLETS = new Set(["remove-item", "ri", "del", "erase", "rd", "rmdir"]);
+  const COPY_CMDS = new Set(["cp", "mv", "rsync", "robocopy"]);
 
   for (let index = 0; index < tokens.length; index += 1) {
     const token = tokens[index];
     if (token === ">" || token === ">>" || token === "&>") {
-      let cursor = index + 1;
-      while (cursor < tokens.length && isOperator(tokens[cursor])) cursor += 1;
-      if (cursor < tokens.length) add(tokens[cursor]);
+      const target = tokens[index + 1];
+      if (target && !isOperator(target)) add(target);
       continue;
     }
 
@@ -137,12 +165,24 @@ export function extractShellPaths(command: string): string[] {
       add(lastPositional(rest));
       continue;
     }
+    if (DEST_CMDLETS.has(lower)) {
+      add(flagValue(rest, ["-destination", "-newname"]) ?? lastPositional(rest));
+      continue;
+    }
+    if (DELETE_CMDLETS.has(lower)) {
+      for (const candidate of allPositionals(rest)) add(candidate);
+      continue;
+    }
+    if (WRITE_CMDLETS.has(lower)) {
+      add(flagValue(rest, ["-path", "-literalpath", "-filepath", "-destination", "-file"]) ?? firstPathLike(rest));
+      continue;
+    }
     if (lower === "tee") {
       add(firstPositional(rest));
       continue;
     }
     if (lower === "touch" || lower === "truncate") {
-      for (const candidate of rest) if (!candidate.startsWith("-") && !isOperator(candidate)) add(candidate);
+      for (const candidate of allPositionals(rest)) add(candidate);
       continue;
     }
     if (lower === "sed") {
@@ -154,14 +194,6 @@ export function extractShellPaths(command: string): string[] {
         const match = candidate.match(/^of=(.+)$/);
         if (match) add(match[1]);
       }
-      continue;
-    }
-    if (WRITE_CMDLETS.has(lower)) {
-      const flagIndex = rest.findIndex((value) =>
-        ["-path", "-literalpath", "-filepath", "-destination", "-file"].includes(value.toLowerCase())
-      );
-      if (flagIndex >= 0 && rest[flagIndex + 1]) add(rest[flagIndex + 1]);
-      else add(firstPositional(rest));
       continue;
     }
     const ofMatch = token.match(/^of=(.+)$/);
@@ -191,8 +223,10 @@ export function extractTargetPaths(tool: string, args: unknown): string[] {
         : "";
   if (patchText.length > 0) {
     for (const line of patchText.split(/\r?\n/)) {
-      const match = line.match(/^\*\*\*\s+(?:Update|Add|Delete|Move)\s+File:\s+(.+?)\s*$/);
-      if (match) push(match[1]);
+      const fileMatch = line.match(/^\*\*\*\s+(?:Update|Add|Delete)\s+File:\s+(.+?)\s*$/);
+      if (fileMatch) push(fileMatch[1]);
+      const moveMatch = line.match(/^\*\*\*\s+Move to:\s+(.+?)\s*$/);
+      if (moveMatch) push(moveMatch[1]);
     }
   }
 

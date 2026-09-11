@@ -161,12 +161,20 @@ export function loadConfig(root: string = novahizHome()): NovahizConfig {
   return DEFAULT_CONFIG;
 }
 
+function readCatalog<T>(path: string): T {
+  try {
+    return JSON.parse(readFileSync(path, "utf8")) as T;
+  } catch (error) {
+    throw new Error(`Invalid or missing catalog file ${path}: ${(error as Error).message}`);
+  }
+}
+
 export function loadSpec(root: string = novahizHome()): Spec {
   return {
     root,
     config: loadConfig(root),
-    categories: readJson<Category[]>(join(root, "catalog", "categories.json")),
-    rules: readJson<Rule[]>(join(root, "catalog", "rules.json")),
-    overrides: readJson<Overrides>(join(root, "catalog", "overrides.json"))
+    categories: readCatalog<Category[]>(join(root, "catalog", "categories.json")),
+    rules: readCatalog<Rule[]>(join(root, "catalog", "rules.json")),
+    overrides: readCatalog<Overrides>(join(root, "catalog", "overrides.json"))
   };
 }

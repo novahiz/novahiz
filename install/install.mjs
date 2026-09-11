@@ -1,4 +1,4 @@
-import { cpSync, existsSync, mkdirSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, statSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
 import {
@@ -88,7 +88,16 @@ function main() {
         note(`  + ${item}`);
         continue;
       }
-      cpSync(source, join(home, item), { recursive: true, force: true });
+      const target = join(home, item);
+      if (statSync(source).isDirectory()) {
+        const result = copyInto(source, target, true);
+        created.push(...result.created);
+        backups.push(...result.backups);
+      } else {
+        const result = copyFileWithBackup(source, target, true);
+        if (result.created) created.push(result.created);
+        if (result.backup) backups.push(result.backup);
+      }
     }
     coreCopied = true;
   }

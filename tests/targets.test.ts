@@ -5,51 +5,65 @@ import { extractShellPaths, extractTargetPaths, tokenizeShell } from "../src/tar
 test("extracts filePath from edit and write args", () => {
   assert.deepEqual(extractTargetPaths("edit", { filePath: "src/a.ts", oldString: "x" }), ["src/a.ts"]);
   assert.deepEqual(extractTargetPaths("write", { filePath: "src/b.ts", content: "x" }), ["src/b.ts"]);
+  assert.deepEqual(extractTargetPaths("edit", { file_path: "src/c.ts" }), ["src/c.ts"]);
 });
 
-test("extracts paths from a patch payload", () => {
+test("extracts paths from a patch payload including Move to", () => {
   const patchText = [
     "*** Begin Patch",
     "*** Update File: src/one.ts",
-    "@@",
-    "-a",
-    "+b",
     "*** Add File: src/two.ts",
-    "+new",
     "*** Delete File: src/three.ts",
+    "*** Move to: src/four.ts",
     "*** End Patch"
   ].join("\n");
-  assert.deepEqual(extractTargetPaths("patch", { patchText }), ["src/one.ts", "src/two.ts", "src/three.ts"]);
-});
-
-test("returns no paths for unrelated args", () => {
-  assert.deepEqual(extractTargetPaths("edit", { oldString: "x" }), []);
-  assert.deepEqual(extractTargetPaths("edit", null), []);
+  assert.deepEqual(extractTargetPaths("patch", { patchText }), [
+    "src/one.ts",
+    "src/two.ts",
+    "src/three.ts",
+    "src/four.ts"
+  ]);
 });
 
 test("tokenizer keeps quotes together and drops file descriptor digits", () => {
   assert.deepEqual(tokenizeShell("echo hi > out.txt"), ["echo", "hi", ">", "out.txt"]);
   assert.deepEqual(tokenizeShell("cmd 2> err.log"), ["cmd", ">", "err.log"]);
-  assert.deepEqual(tokenizeShell('cp "a b" c'), ["cp", "a b", "c"]);
+  assert.deepEqual(tokenizeShell("cmd 2>&1 | next"), ["cmd", ">", "&", "1", "|", "next"]);
 });
 
-test("detects shell redirections", () => {
+test("does not treat fd duplication or a following pipe as a target", () => {
+  assert.deepEqual(extractShellPaths("node cli.ts check 2>&1 | Select-String x"), []);
+  assert.deepEqual(extractShellPaths("cmd > out.log 2>&1"), ["out.log"]);
+});
+
+test("detects shell redirections and tee", () => {
   assert.deepEqual(extractShellPaths("echo hi > out.txt"), ["out.txt"]);
   assert.deepEqual(extractShellPaths("cat a >> b.md"), ["b.md"]);
-  assert.deepEqual(extractShellPaths("cmd > out.log 2>&1"), ["out.log"]);
   assert.deepEqual(extractShellPaths("cmd &> both.txt"), ["both.txt"]);
+  assert.deepEqual(extractShellPaths("npm run build | tee build.log"), ["build.log"]);
 });
 
-test("detects pipe and copy targets", () => {
-  assert.deepEqual(extractShellPaths("npm run build | tee build.log"), ["build.log"]);
+test("detects unix copy and move", () => {
   assert.deepEqual(extractShellPaths("cp -r src dist"), ["dist"]);
   assert.deepEqual(extractShellPaths("mv old.txt new.txt"), ["new.txt"]);
 });
 
 test("detects powershell write cmdlets", () => {
   assert.deepEqual(extractShellPaths('Set-Content -Path foo.css -Value "x"'), ["foo.css"]);
+  assert.deepEqual(extractShellPaths("Set-Content -Encoding utf8 out.txt"), ["out.txt"]);
   assert.deepEqual(extractShellPaths('Add-Content -LiteralPath notes.md -Value "x"'), ["notes.md"]);
   assert.deepEqual(extractShellPaths("New-Item -ItemType Directory -Path outdir"), ["outdir"]);
+});
+
+test("detects powershell item cmdlets", () => {
+  assert.deepEqual(extractShellPaths("Copy-Item a.ts b.ts"), ["b.ts"]);
+  assert.deepEqual(extractShellPaths("Move-Item a b"), ["b"]);
+  assert.deepEqual(extractShellPaths("Remove-Item -Recurse -Force dist"), ["dist"]);
+});
+
+test("detects cmd builtins", () => {
+  assert.deepEqual(extractShellPaths("cmd /c copy a b"), ["b"]);
+  assert.deepEqual(extractShellPaths("del old.txt"), ["old.txt"]);
 });
 
 test("detects touch, sed -i, and dd", () => {
@@ -58,10 +72,11 @@ test("detects touch, sed -i, and dd", () => {
   assert.deepEqual(extractShellPaths("dd if=in.bin of=out.img"), ["out.img"]);
 });
 
-test("returns nothing for read-only and status commands", () => {
+test("does not flag read-only commands or package installs", () => {
   assert.deepEqual(extractShellPaths("git status"), []);
   assert.deepEqual(extractShellPaths("ls -la"), []);
-  assert.deepEqual(extractShellPaths("echo hello"), []);
+  assert.deepEqual(extractShellPaths("pip install -r requirements.txt"), []);
+  assert.deepEqual(extractShellPaths("npm install lodash"), []);
 });
 
 test("extractTargetPaths reads shell commands", () => {

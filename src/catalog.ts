@@ -201,6 +201,7 @@ export function loadInstalledSkills(spec: Spec): InstalledIndex {
 
 export function persistCatalog(db: DatabaseSync, spec: Spec, skills: SkillRecord[]): void {
   const now = new Date().toISOString();
+  db.exec("DELETE FROM skills; DELETE FROM categories; DELETE FROM rules;");
   const upsertSkill = db.prepare(
     `INSERT INTO skills (id, name, description, source_path, power, stars, tags, categories, scanned_at)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)

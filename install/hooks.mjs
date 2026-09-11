@@ -1,11 +1,19 @@
 import { cpSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
-import { novahizHome, parseArgs } from "./lib.mjs";
+import {
+  loadManifest,
+  mergeBackups,
+  mergeCreated,
+  novahizHome,
+  parseArgs,
+  saveManifest
+} from "./lib.mjs";
 
 function cliCommand(home, harness, event) {
   const cli = join(home, "src", "cli.ts").replace(/\\/g, "/");
-  return `node "${cli}" hook --harness ${harness} --event ${event}`;
+  const root = home.replace(/\\/g, "/");
+  return `node "${cli}" --home "${root}" hook --harness ${harness} --event ${event}`;
 }
 
 function claudeHooks(home) {
@@ -13,7 +21,7 @@ function claudeHooks(home) {
     hooks: {
       PreToolUse: [
         {
-          matcher: "Edit|Write|MultiEdit|Bash|PowerShell",
+          matcher: "Edit|Write|MultiEdit|NotebookEdit|Bash|PowerShell",
           hooks: [
             {
               type: "command",
@@ -48,36 +56,35 @@ function codexHooks(home) {
   };
 }
 
-function readJson(path) {
-  return JSON.parse(readFileSync(path, "utf8"));
+function isNovahizHandler(handler) {
+  const command = typeof handler?.command === "string" ? handler.command : "";
+  return command.includes("hook --harness") && (command.includes("novahiz") || command.includes("cli.ts"));
 }
 
 function mergeHooks(existing, generated) {
-  const merged = { ...existing };
-  merged.hooks = { ...(existing.hooks ?? {}) };
+  const merged = { ...existing, hooks: { ...(existing.hooks ?? {}) } };
   for (const [event, groups] of Object.entries(generated.hooks)) {
     const current = Array.isArray(merged.hooks[event]) ? merged.hooks[event] : [];
-    const generatedCommands = new Set(
-      groups.flatMap((group) => (group.hooks ?? []).map((handler) => handler.command))
-    );
-    const kept = current.filter(
-      (group) => !(group.hooks ?? []).some((handler) => generatedCommands.has(handler.command))
-    );
+    const kept = current.filter((group) => !(group.hooks ?? []).some(isNovahizHandler));
     merged.hooks[event] = [...kept, ...groups];
   }
   return merged;
 }
 
-function writeMerged(path, generated) {
+function writeMerged(path, generated, tracked) {
   let existing = {};
   if (existsSync(path)) {
     try {
-      existing = readJson(path);
+      existing = JSON.parse(readFileSync(path, "utf8"));
     } catch (error) {
       process.stderr.write(`Refus: ${path} n'est pas un JSON valide (${error.message}). Rien ecrit.\n`);
       return false;
     }
-    cpSync(path, `${path}.novahiz-bak`);
+    const backup = `${path}.novahiz-bak`;
+    if (!existsSync(backup)) cpSync(path, backup);
+    tracked.backups.push({ path, backup });
+  } else {
+    tracked.created.push(path);
   }
   mkdirSync(dirname(path), { recursive: true });
   writeFileSync(path, `${JSON.stringify(mergeHooks(existing, generated), null, 2)}\n`, "utf8");
@@ -109,18 +116,28 @@ function main() {
     return;
   }
 
+  const tracked = { created: [], backups: [] };
   for (const target of targets) {
     process.stdout.write(`${dryRun ? "[dry-run] " : ""}hooks ${target.name} -> ${target.path}\n`);
     if (dryRun) continue;
-    const dir = dirname(target.path);
-    if (!existsSync(dir)) {
-      process.stdout.write(`  dossier absent, ignore: ${dir}\n`);
+    if (!existsSync(dirname(target.path))) {
+      process.stdout.write(`  dossier absent, ignore: ${dirname(target.path)}\n`);
       continue;
     }
-    if (writeMerged(target.path, target.generated)) process.stdout.write("  ecrit\n");
+    if (writeMerged(target.path, target.generated, tracked)) process.stdout.write("  ecrit\n");
   }
 
-  if (dryRun) process.stdout.write("\nDry-run termine, rien ecrit.\n");
+  if (dryRun) {
+    process.stdout.write("\nDry-run termine, rien ecrit.\n");
+    return;
+  }
+
+  const previous = loadManifest(home);
+  saveManifest(home, {
+    ...previous,
+    created: mergeCreated(previous.created, tracked.created),
+    backups: mergeBackups(previous.backups, tracked.backups)
+  });
 }
 
 main();
