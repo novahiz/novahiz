@@ -1,6 +1,7 @@
 import { cpSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
+import { spawnSync } from "node:child_process";
 import {
   loadManifest,
   mergeBackups,
@@ -10,10 +11,19 @@ import {
   saveManifest
 } from "./lib.mjs";
 
-function cliCommand(home, harness, event) {
+function hookCommand(home, harness, event) {
   const cli = join(home, "src", "cli.ts").replace(/\\/g, "/");
   const root = home.replace(/\\/g, "/");
   return `node "${cli}" --home "${root}" hook --harness ${harness} --event ${event}`;
+}
+
+function commandExists(command) {
+  const probe = process.platform === "win32" ? "where" : "which";
+  return spawnSync(probe, [command], { encoding: "utf8", shell: false }).status === 0;
+}
+
+function mcpEntryPoint(home) {
+  return join(home, "mcp", "novahiz-tools", "index.mjs");
 }
 
 function claudeHooks(home) {
@@ -25,7 +35,7 @@ function claudeHooks(home) {
           hooks: [
             {
               type: "command",
-              command: cliCommand(home, "claude", "PreToolUse"),
+              command: hookCommand(home, "claude", "PreToolUse"),
               timeout: 10,
               statusMessage: "Novahiz gate"
             }
@@ -37,14 +47,14 @@ function claudeHooks(home) {
 }
 
 function codexHooks(home) {
-  const command = cliCommand(home, "codex", "PostToolUse");
-  const stop = cliCommand(home, "codex", "Stop");
+  const pre = hookCommand(home, "codex", "PreToolUse");
+  const stop = hookCommand(home, "codex", "Stop");
   return {
     hooks: {
-      PostToolUse: [
+      PreToolUse: [
         {
-          matcher: "Edit|Write|apply_patch",
-          hooks: [{ type: "command", command, commandWindows: command, timeout: 10, statusMessage: "Novahiz gate" }]
+          matcher: "Bash|apply_patch|Edit|Write",
+          hooks: [{ type: "command", command: pre, commandWindows: pre, timeout: 10, statusMessage: "Novahiz gate" }]
         }
       ],
       Stop: [
@@ -75,7 +85,7 @@ function writeMerged(path, generated, tracked) {
   let existing = {};
   if (existsSync(path)) {
     try {
-      existing = JSON.parse(readFileSync(path, "utf8"));
+      existing = JSON.parse(readFileSync(path, "utf8").replace(/^\uFEFF/, ""));
     } catch (error) {
       process.stderr.write(`Refus: ${path} n'est pas un JSON valide (${error.message}). Rien ecrit.\n`);
       return false;
@@ -91,6 +101,16 @@ function writeMerged(path, generated, tracked) {
   return true;
 }
 
+function registerMcp(name, args, label) {
+  if (!commandExists(name)) {
+    process.stdout.write(`  ${label}: CLI '${name}' introuvable, enregistrement MCP ignore\n`);
+    return;
+  }
+  const result = spawnSync(name, args, { encoding: "utf8", shell: false });
+  if (result.status === 0) process.stdout.write(`  ${label}: serveur MCP 'novahiz' enregistre\n`);
+  else process.stdout.write(`  ${label}: MCP non enregistre (deja present ou erreur): ${(result.stderr || "").trim()}\n`);
+}
+
 function main() {
   const flags = parseArgs(process.argv.slice(2));
   const dryRun = Boolean(flags["dry-run"]);
@@ -99,20 +119,21 @@ function main() {
     .split(",")
     .map((value) => value.trim())
     .filter(Boolean);
+  const mcp = mcpEntryPoint(home).replace(/\\/g, "/");
+
+  const claudeDir = process.env.CLAUDE_CONFIG_DIR || join(homedir(), ".claude");
+  const codexDir = process.env.CODEX_HOME || join(homedir(), ".codex");
 
   const targets = [];
-  if (harnesses.includes("claude")) {
-    const dir = process.env.CLAUDE_CONFIG_DIR || join(homedir(), ".claude");
-    targets.push({ name: "claude", path: join(dir, "settings.json"), generated: claudeHooks(home) });
+  if (harnesses.includes("claude") && existsSync(claudeDir)) {
+    targets.push({ name: "claude", dir: claudeDir, path: join(claudeDir, "settings.json"), generated: claudeHooks(home) });
   }
-  if (harnesses.includes("codex")) {
-    const dir = process.env.CODEX_HOME || join(homedir(), ".codex");
-    targets.push({ name: "codex", path: join(dir, "hooks.json"), generated: codexHooks(home) });
+  if (harnesses.includes("codex") && existsSync(codexDir)) {
+    targets.push({ name: "codex", dir: codexDir, path: join(codexDir, "hooks.json"), generated: codexHooks(home) });
   }
 
   if (targets.length === 0) {
-    process.stderr.write("Aucun harness reconnu pour les hooks (claude, codex).\n");
-    process.exitCode = 1;
+    process.stdout.write("Aucun harness detecte (ni ~/.claude ni ~/.codex). Rien a configurer.\n");
     return;
   }
 
@@ -120,11 +141,11 @@ function main() {
   for (const target of targets) {
     process.stdout.write(`${dryRun ? "[dry-run] " : ""}hooks ${target.name} -> ${target.path}\n`);
     if (dryRun) continue;
-    if (!existsSync(dirname(target.path))) {
-      process.stdout.write(`  dossier absent, ignore: ${dirname(target.path)}\n`);
-      continue;
+    if (writeMerged(target.path, target.generated, tracked)) {
+      process.stdout.write("  hooks ecrits\n");
+      if (target.name === "claude") registerMcp("claude", ["mcp", "add", "--scope", "user", "novahiz", "--", "node", mcp], "claude");
+      if (target.name === "codex") registerMcp("codex", ["mcp", "add", "novahiz", "--", "node", mcp], "codex");
     }
-    if (writeMerged(target.path, target.generated, tracked)) process.stdout.write("  ecrit\n");
   }
 
   if (dryRun) {
@@ -138,6 +159,7 @@ function main() {
     created: mergeCreated(previous.created, tracked.created),
     backups: mergeBackups(previous.backups, tracked.backups)
   });
+  process.stdout.write("Hooks non geres: Claude Code les charge directement; Codex les execute apres approbation via /hooks.\n");
 }
 
 main();

@@ -1,4 +1,5 @@
 import { cpSync, existsSync, mkdirSync, statSync } from "node:fs";
+import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
 import {
@@ -82,6 +83,7 @@ async function main() {
   const yes = Boolean(flags.yes) || Boolean(flags["yes"]);
   const interactive = !yes && !dryRun && (Boolean(flags.interactive) || process.stdin.isTTY === true);
   let providersChoice = null;
+  let harnessesChoice = "";
 
   if (interactive) {
     const prompt = createPrompt();
@@ -105,6 +107,13 @@ async function main() {
       return;
     }
     providersChoice = await prompt.confirm("Install provider packages and their prerequisites now?", false);
+    const detected = [];
+    if (existsSync(process.env.CLAUDE_CONFIG_DIR || join(homedir(), ".claude"))) detected.push("claude");
+    if (existsSync(process.env.CODEX_HOME || join(homedir(), ".codex"))) detected.push("codex");
+    if (detected.length > 0) {
+      const answer = await prompt.confirm(`Configure ${detected.join(" and ")} (hooks + Novahiz MCP)?`, true);
+      harnessesChoice = answer ? detected.join(",") : "";
+    }
     prompt.close();
   }
 
@@ -238,6 +247,19 @@ async function main() {
     if (autoInstall) {
       note("Installation des dependances et des providers (MCP, skills, commands)");
       const result = spawnSync(process.execPath, [cli, "deps", "--install"], {
+        encoding: "utf8",
+        env: { ...process.env, NOVAHIZ_HOME: home }
+      });
+      if (result.stdout) process.stdout.write(result.stdout);
+      if (result.status !== 0 && result.stderr) process.stderr.write(result.stderr);
+    }
+  }
+
+  if (!dryRun) {
+    const harnessList = typeof flags.harness === "string" ? flags.harness : harnessesChoice;
+    if (harnessList) {
+      note(`Configuration des harness (${harnessList})`);
+      const result = spawnSync(process.execPath, [join(home, "install", "hooks.mjs"), "--harness", harnessList, "--home", home], {
         encoding: "utf8",
         env: { ...process.env, NOVAHIZ_HOME: home }
       });

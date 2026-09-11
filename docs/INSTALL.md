@@ -25,8 +25,9 @@ The installer runs `git`-free and never deletes your files. When run in a termin
 4. Writes `novahiz.config.json` only if it does not exist.
 5. Builds the catalog with `sync`.
 6. Verifies provider dependencies, and installs them when you confirm or `--install-providers` is set.
+7. Detects Claude Code and Codex and, after your confirmation, installs their hooks and registers the Novahiz MCP server.
 
-Restart opencode afterward. The plugin registers the Novahiz MCP server automatically, so you do not edit `opencode.jsonc` by hand.
+Restart opencode afterward. The plugin registers the Novahiz MCP server automatically, so you do not edit `opencode.jsonc` by hand. See [HARNESSES.md](HARNESSES.md) for the exact paths per harness.
 
 ## Options
 
@@ -35,6 +36,7 @@ Restart opencode afterward. The plugin registers the Novahiz MCP server automati
 - `--dry-run` prints the actions and writes nothing.
 - `--no-skills` skips the bundled skills.
 - `--install-providers` runs the provider dependency bootstrap and install commands.
+- `--harness claude,codex` configures the named harnesses without prompting.
 - `--force` rewrites `novahiz.config.json` (the previous file is backed up as `novahiz.config.json.novahiz-bak`).
 - `--yes` skips every prompt. Use it in scripts and CI, where there is no terminal to answer.
 - `--interactive` forces the prompts even when the output is not a terminal.
