@@ -24,6 +24,7 @@ The installer runs `git`-free and never deletes your files. It:
 3. Drops the opencode plugin into the plugins directory.
 4. Writes `novahiz.config.json` only if it does not exist.
 5. Builds the catalog with `sync`.
+6. Verifies provider dependencies, and installs them when `--install-providers` or `providers.autoInstall` is set.
 
 Restart opencode afterward. The plugin registers the Novahiz MCP server automatically, so you do not edit `opencode.jsonc` by hand.
 
@@ -33,6 +34,7 @@ Restart opencode afterward. The plugin registers the Novahiz MCP server automati
 - `--scope project` targets `./.opencode` instead of the global config.
 - `--dry-run` prints the actions and writes nothing.
 - `--no-skills` skips the bundled skills.
+- `--install-providers` runs the provider dependency bootstrap and install commands.
 - `--force` rewrites `novahiz.config.json` (the previous file is backed up as `novahiz.config.json.novahiz-bak`).
 - `--yes` runs without prompts. This is the default; the flag is accepted for scripts.
 

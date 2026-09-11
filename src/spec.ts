@@ -68,6 +68,8 @@ export type Provider = {
   command?: string[];
   url?: string;
   install?: string[];
+  requires?: string[];
+  bootstrap?: Record<string, string>;
   purpose?: string;
   categories?: string[];
   source?: string;

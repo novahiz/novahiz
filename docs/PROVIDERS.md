@@ -87,10 +87,20 @@ node install/install.mjs --install-providers
 
 Installation is opt-in on purpose. The commands download third-party packages, including a large Rust binary for `narsil`, so `autoInstall` defaults to `false`. Enabling it means you trust each upstream listed in `source`.
 
+## Dependencies
+
+Each provider declares its prerequisites in `requires` (the executable it needs) and, when it can be bootstrapped, a per-platform `bootstrap` command.
+
+- `npx` based providers need `npx`, which ships with Node.
+- `speckit` needs `uv`; its bootstrap runs the official uv install script for the platform.
+
+`novahiz deps` checks every prerequisite and reports what is missing. `novahiz deps --install` first bootstraps a missing prerequisite through its official installer, then runs each provider's install command. The installer runs the check on every install and, when `providers.autoInstall` is true or `--install-providers` is passed, runs the installs too.
+
 ## Tools
 
 - `novahiz providers` lists providers, optionally by `--category` or a query.
 - `novahiz providers --mcp-json` prints the MCP entry map.
 - `novahiz providers --install` runs the official install commands.
-- MCP `novahiz_providers` exposes the list over stdio.
+- `novahiz deps [--install]` checks prerequisites and bootstraps or installs missing ones.
+- MCP `novahiz_providers` and `novahiz_deps` expose the list and the dependency status over stdio.
 - `novahiz report` lists the provider ids.

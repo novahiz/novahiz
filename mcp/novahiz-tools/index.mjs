@@ -10,6 +10,7 @@ import { loadCatalog, loadInstalledSkills } from "../../src/catalog.ts";
 import { rankSkills } from "../../src/relevance.ts";
 import { openDb } from "../../src/db.ts";
 import { enabledProviders } from "../../src/providers.ts";
+import { checkDependencies } from "../../src/deps.ts";
 
 const SUPPORTED_PROTOCOLS = ["2024-11-05", "2025-06-18"];
 const DEFAULT_PROTOCOL = "2024-11-05";
@@ -81,6 +82,11 @@ const TOOLS = [
         query: { type: "string", description: "A prompt to classify." }
       }
     }
+  },
+  {
+    name: "novahiz_deps",
+    description: "Check that every provider prerequisite (npx, uv) is available on the machine.",
+    inputSchema: { type: "object", properties: {} }
   },
   {
     name: "novahiz_step",
@@ -183,6 +189,9 @@ function callTool(name, args) {
         enabled: enabled.has(provider.id)
       }))
     });
+  }
+  if (name === "novahiz_deps") {
+    return toolResult({ node: process.version, platform: process.platform, dependencies: checkDependencies(spec) });
   }
   if (name === "novahiz_step") {
     const session = String(args?.session ?? "default");

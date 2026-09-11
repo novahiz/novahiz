@@ -11,6 +11,7 @@ import { openDb, setMeta, getMeta } from "./db.ts";
 import { loadCatalog, loadInstalledSkills, persistCatalog, scanSkills, writeCatalog, writeSkillIndex } from "./catalog.ts";
 import { rankSkills } from "./relevance.ts";
 import { buildMcpEntries, enabledProviders, installCommands } from "./providers.ts";
+import { bootstrapFor, checkDependencies, missingPrerequisites } from "./deps.ts";
 
 type Parsed = {
   positionals: string[];
@@ -534,6 +535,38 @@ function commandProviders(parsed: Parsed): void {
   );
 }
 
+function commandDeps(parsed: Parsed): void {
+  const spec = loadSpec();
+  const status = checkDependencies(spec);
+  if (!parsed.flags.install) {
+    print({ node: process.version, platform: process.platform, dependencies: status });
+    return;
+  }
+
+  const run = (command: string[], label: string): boolean => {
+    const [bin, ...args] = command;
+    const result = spawnSync(bin, args, { encoding: "utf8", shell: true });
+    const ok = result.status === 0;
+    process.stdout.write(`${ok ? "ok  " : "fail"} ${label}\n`);
+    if (!ok && result.stderr) process.stderr.write(result.stderr);
+    return ok;
+  };
+
+  const results: Record<string, unknown>[] = [];
+  for (const entry of missingPrerequisites(spec)) {
+    const bootstrap = bootstrapFor(entry.provider);
+    if (!bootstrap) {
+      results.push({ provider: entry.provider.id, step: "bootstrap", ok: false, note: `missing ${entry.missing.join(", ")}` });
+      continue;
+    }
+    results.push({ provider: entry.provider.id, step: "bootstrap", command: bootstrap, ok: run([bootstrap], `bootstrap ${entry.provider.id}`) });
+  }
+  for (const entry of installCommands(spec)) {
+    results.push({ provider: entry.id, step: "install", command: entry.command.join(" "), ok: run(entry.command, `install ${entry.id}`) });
+  }
+  print(results);
+}
+
 function usage(): void {
   print({
     name: "novahiz",
@@ -552,7 +585,8 @@ function usage(): void {
       "catalog <query> [--limit N]",
       "roadmap --category id | <query>",
       "step --session id --done <step>",
-      "providers [--category id] [--mcp-json] [--install]"
+      "providers [--category id] [--mcp-json] [--install]",
+      "deps [--install]"
     ]
   });}
 
@@ -593,6 +627,8 @@ function main(argv: string[]): void {
       return commandStep(parsed);
     case "providers":
       return commandProviders(parsed);
+    case "deps":
+      return commandDeps(parsed);
     default:
       return usage();
   }

@@ -188,11 +188,18 @@ function main() {
   }
 
   if (!dryRun) {
+    const cli = join(home, "src", "cli.ts");
     const config = readJson(join(home, "novahiz.config.json"), {});
     const autoInstall = Boolean(flags["install-providers"]) || config?.providers?.autoInstall === true;
+    note("Verification des dependances");
+    const check = spawnSync(process.execPath, [cli, "deps"], {
+      encoding: "utf8",
+      env: { ...process.env, NOVAHIZ_HOME: home }
+    });
+    if (check.stdout) process.stdout.write(check.stdout);
     if (autoInstall) {
-      note("Installation des providers (MCP, skills, commands)");
-      const result = spawnSync(process.execPath, [join(home, "src", "cli.ts"), "providers", "--install"], {
+      note("Installation des dependances et des providers (MCP, skills, commands)");
+      const result = spawnSync(process.execPath, [cli, "deps", "--install"], {
         encoding: "utf8",
         env: { ...process.env, NOVAHIZ_HOME: home }
       });

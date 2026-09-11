@@ -79,3 +79,9 @@ test("providers --mcp-json returns mcp entries", () => {
   const parsed = JSON.parse(run(["providers", "--mcp-json"]));
   assert.equal(parsed.playwright.type, "local");
 });
+
+test("deps command reports dependency status", () => {
+  const parsed = JSON.parse(run(["deps"]));
+  assert.ok(Array.isArray(parsed.dependencies));
+  assert.equal(parsed.dependencies.length, 8);
+});
