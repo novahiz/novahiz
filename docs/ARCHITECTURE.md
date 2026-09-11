@@ -43,17 +43,21 @@ Three versioned JSON files under `catalog/`:
 
 Each category carries a `roadmap`. The classifier returns the category order, the primary category, the union of required skills, and the roadmaps. The gate adds the primary roadmap `skill` steps to its requirements. `src/db.ts` stores step progress in `roadmap_progress`.
 
+### Execution ledger
+
+`src/ledger.ts` stores a task and its todos in SQLite (`tasks`, `todos`). Each todo has a kind, a status, an acceptance criterion, an iteration budget, an owner glob, and a proof. `startTodo` enforces dependencies and the budget; `completeTodo` requires a proof on a `verify` step. The plan is mutable: `amendTodo`, `insertTodo`, `dropTodo`, and `reorderTodos` adjust it, and `reviewTask` applies a whole diff in one transaction and bumps `revision`. `reviewDue` reports when the cadence (`edits` or `todos`) is reached, and `revisionSignals` derives concrete reasons to revise from the ledger. `buildWorkPackets` turns the open todos into sub-agent work packets with file ownership, and `traceCheck` verifies that an edit targets an in-progress todo that owns the file. `commandGate` records each edit and blocks edits while a review is due, so the plan is reconciled before work continues.
+
 ### harness hook adapters
 
 `src/hook.ts` maps a harness hook payload to the same gate. `novahiz hook --harness claude|codex` reads the payload on stdin, normalizes the tool name, tracks skill loads by session, and returns a decision. Claude Code uses a blocking `PreToolUse` hook; Codex uses advisory `PostToolUse` and `Stop` hooks. `install/hooks.mjs` writes the manifests.
 
 ## Data flow
 
-1. The user sends a message. `chat.message` classifies it and stores the categories and required skills for the session.
-2. `experimental.chat.system.transform` adds a short enforcement block to the system prompt.
+1. The user sends a message. `chat.message` classifies it, stores the categories and required skills for the session, and reads the active ledger task.
+2. `experimental.chat.system.transform` adds a short enforcement block to the system prompt, including the ledger summary and any review signal.
 3. The model calls `skill` to load a skill. The adapter records it for the session.
 4. The model calls `edit`, `write`, or `patch`. The adapter runs `novahiz gate` with the file path, the session categories, and the loaded skills.
-5. If the gate blocks, the adapter throws and the model sees the list of missing skills.
+5. If the gate blocks, the adapter throws and the model sees the list of missing skills or the review reason.
 
 ## Determinism
 
@@ -69,7 +73,7 @@ The core runs on Node with no dependencies. A new harness adapter needs two thin
 
 ## MCP server
 
-`mcp/novahiz-tools/index.mjs` exposes `novahiz_classify`, `novahiz_catalog`, `novahiz_roadmap`, `novahiz_providers`, `novahiz_step`, `novahiz_list_skills`, and `novahiz_gate` over stdio using newline-delimited JSON-RPC. It has no dependencies and reuses the core modules directly. The opencode plugin registers it through the plugin `config` hook.
+`mcp/novahiz-tools/index.mjs` exposes `novahiz_classify`, `novahiz_catalog`, `novahiz_roadmap`, `novahiz_providers`, `novahiz_step`, `novahiz_list_skills`, `novahiz_gate`, `novahiz_task`, and `novahiz_dispatch` over stdio using newline-delimited JSON-RPC. It has no dependencies and reuses the core modules directly. The opencode plugin registers it through the plugin `config` hook.
 
 ## Providers
 

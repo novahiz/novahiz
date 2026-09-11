@@ -11,6 +11,7 @@ import { rankSkills } from "../../src/relevance.ts";
 import { openDb } from "../../src/db.ts";
 import { enabledProviders } from "../../src/providers.ts";
 import { checkDependencies } from "../../src/deps.ts";
+import { activeTask, addTodos, amendTodo, blockTodo, buildWorkPackets, completeTodo, createTask, dropTodo, getTask, getTodo, insertTodo, ledgerSummary, listTodos, recordTodoDone, reorderTodos, resume, reviewDue, reviewTask, revisionSignals, startTodo } from "../../src/ledger.ts";
 
 const SUPPORTED_PROTOCOLS = ["2024-11-05", "2025-06-18"];
 const DEFAULT_PROTOCOL = "2024-11-05";
@@ -98,6 +99,55 @@ const TOOLS = [
         done: { type: "string", description: "Step id to mark done." }
       }
     }
+  },
+  {
+    name: "novahiz_task",
+    description: "Drive the durable execution ledger and keep its plan alive. Create a task, add long detailed todos, then start, complete or block them. Revise the plan between steps with review, amend, insert, drop and reorder. A todo of kind verify cannot be completed without proof. Actions: new, plan, todo, start, done, block, review, amend, insert, drop, reorder, signals, status, resume, current.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        action: {
+          type: "string",
+          enum: ["new", "plan", "todo", "start", "done", "block", "review", "amend", "insert", "drop", "reorder", "signals", "status", "resume", "current"],
+          description: "What to do with the ledger."
+        },
+        title: { type: "string", description: "Task title for action new." },
+        id: { type: "string", description: "Task id (new) or todo id (start, done, block)." },
+        task: { type: "string", description: "Task id. Defaults to the active task." },
+        session: { type: "string", description: "Session id used to scope the active task." },
+        label: { type: "string", description: "Todo label for action todo." },
+        kind: { type: "string", enum: ["read", "edit", "verify", "delegate"], description: "Todo kind." },
+        acceptance: { type: "string", description: "Acceptance criterion for the todo." },
+        owner: { type: "string", description: "Comma-separated file globs this todo owns." },
+        proof: { type: "string", description: "Proof for action done. Required when the todo kind is verify." },
+        reason: { type: "string", description: "Reason for action block." },
+        maxIterations: { type: "number", description: "Iteration budget for the todo (default 12)." },
+        dependsOn: { type: "array", items: { type: "string" }, description: "Todo ids this todo depends on." },
+        position: { type: "string", description: "Insert position for action insert: start, end, or a sequence number." },
+        order: { type: "array", items: { type: "string" }, description: "Todo ids in the new order for action reorder." },
+        changes: {
+          type: "object",
+          description: "Plan diff for action review: { additions, amendments, removals, order }."
+        },
+        todos: {
+          type: "array",
+          items: { type: "object" },
+          description: "Array of todo inputs for action plan."
+        }
+      },
+      required: ["action"]
+    }
+  },
+  {
+    name: "novahiz_dispatch",
+    description: "Turn the active task's pending todos into work packets for subagents, each with an objective, owned files, exit criteria and budget. Reports file-ownership conflicts.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        task: { type: "string", description: "Task id. Defaults to the active task." },
+        session: { type: "string", description: "Session id used to scope the active task." }
+      }
+    }
   }
 ];
 
@@ -109,6 +159,32 @@ export function negotiateProtocol(requested) {
 function toolResult(value, isError = false) {
   const text = typeof value === "string" ? value : JSON.stringify(value, null, 2);
   return { content: [{ type: "text", text }], isError };
+}
+
+function normalizeTodo(item) {
+  if (!item || typeof item !== "object") return { label: String(item ?? "") };
+  const ownerValue = item.owner;
+  const owner = Array.isArray(ownerValue)
+    ? ownerValue.map(String).join(",")
+    : ownerValue
+      ? String(ownerValue)
+      : undefined;
+  return {
+    label: String(item.label ?? item.title ?? ""),
+    kind: item.kind ? String(item.kind) : undefined,
+    acceptance: item.acceptance ? String(item.acceptance) : undefined,
+    owner,
+    dependsOn: Array.isArray(item.dependsOn)
+      ? item.dependsOn.map(String)
+      : Array.isArray(item.depends_on)
+        ? item.depends_on.map(String)
+        : undefined,
+    maxIterations: Number.isFinite(item.maxIterations)
+      ? Number(item.maxIterations)
+      : Number.isFinite(item.max_iterations)
+        ? Number(item.max_iterations)
+        : undefined
+  };
 }
 
 function callTool(name, args) {
@@ -205,6 +281,112 @@ function callTool(name, args) {
     const steps = db.prepare("SELECT step_id, status, updated_at FROM roadmap_progress WHERE session_id = ? ORDER BY updated_at").all(session);
     db.close();
     return toolResult({ session, steps });
+  }
+  if (name === "novahiz_task") {
+    const action = String(args?.action ?? "status");
+    const session = args?.session ? String(args.session) : undefined;
+    const db = openDb(resolve(spec.root, spec.config.dbPath));
+    try {
+      if (action === "new") {
+        return toolResult(createTask(db, { title: String(args?.title ?? ""), id: args?.id ? String(args.id) : undefined, sessionId: session }));
+      }
+      if (action === "plan") {
+        const taskId = args?.task ? String(args.task) : activeTask(db, session)?.id;
+        if (!taskId) return toolResult("no active task", true);
+        const items = Array.isArray(args?.todos) ? args.todos.map(normalizeTodo) : [];
+        return toolResult(addTodos(db, taskId, items));
+      }
+      if (action === "todo") {
+        const taskId = args?.task ? String(args.task) : activeTask(db, session)?.id;
+        if (!taskId) return toolResult("no active task", true);
+        const [todo] = addTodos(db, taskId, [normalizeTodo(args)]);
+        return toolResult(todo);
+      }
+      if (action === "start") {
+        const id = String(args?.id ?? "");
+        const target = getTodo(db, id);
+        if (target) {
+          const due = reviewDue(db, target.task_id);
+          if (due.due) return toolResult({ error: due.reason, task: target.task_id }, true);
+        }
+        return toolResult(startTodo(db, id));
+      }
+      if (action === "done") {
+        const todo = completeTodo(db, String(args?.id ?? ""), args?.proof ? String(args.proof) : "");
+        recordTodoDone(db, todo.task_id);
+        return toolResult(todo);
+      }
+      if (action === "block") return toolResult(blockTodo(db, String(args?.id ?? ""), args?.reason ? String(args.reason) : ""));
+      if (action === "review") {
+        const taskId = args?.task ? String(args.task) : activeTask(db, session)?.id;
+        if (!taskId) return toolResult("no active task", true);
+        const diff = args?.changes && typeof args.changes === "object" ? args.changes : {};
+        return toolResult(reviewTask(db, { taskId, ...diff }));
+      }
+      if (action === "amend") {
+        const patch = {
+          label: args?.label ? String(args.label) : undefined,
+          kind: args?.kind ? String(args.kind) : undefined,
+          acceptance: args?.acceptance !== undefined ? (args.acceptance === null ? null : String(args.acceptance)) : undefined,
+          owner: args?.owner !== undefined ? (args.owner === null ? null : String(args.owner)) : undefined,
+          maxIterations: Number.isFinite(args?.maxIterations) ? Number(args.maxIterations) : undefined
+        };
+        return toolResult(amendTodo(db, String(args?.id ?? ""), patch));
+      }
+      if (action === "insert") {
+        const taskId = args?.task ? String(args.task) : activeTask(db, session)?.id;
+        if (!taskId) return toolResult("no active task", true);
+        const raw = args?.position;
+        const position = raw === undefined || raw === "" ? "end" : /^\d+$/.test(String(raw)) ? Number(raw) : String(raw);
+        return toolResult(insertTodo(db, taskId, normalizeTodo(args), position));
+      }
+      if (action === "drop") return toolResult(dropTodo(db, String(args?.id ?? ""), args?.reason ? String(args.reason) : ""));
+      if (action === "reorder") {
+        const taskId = args?.task ? String(args.task) : activeTask(db, session)?.id;
+        if (!taskId) return toolResult("no active task", true);
+        const order = Array.isArray(args?.order) ? args.order.map(String) : [];
+        return toolResult(reorderTodos(db, taskId, order));
+      }
+      if (action === "signals") {
+        const taskId = args?.task ? String(args.task) : activeTask(db, session)?.id;
+        if (!taskId) return toolResult("no active task", true);
+        return toolResult(revisionSignals(db, taskId));
+      }
+      const explicit = args?.task ? getTask(db, String(args.task)) : null;
+      const state = explicit
+        ? {
+            task: explicit,
+            todos: listTodos(db, explicit.id),
+            current: listTodos(db, explicit.id).find((todo) => todo.status === "in_progress") ?? listTodos(db, explicit.id).find((todo) => todo.status === "pending") ?? null
+          }
+        : resume(db, session);
+      const review = state.task ? reviewDue(db, state.task.id) : null;
+      const signals = state.task ? revisionSignals(db, state.task.id) : [];
+      return toolResult({ task: state.task, current: state.current, todos: state.todos, summary: ledgerSummary(state), review, signals });
+    } finally {
+      db.close();
+    }
+  }
+  if (name === "novahiz_dispatch") {
+    const db = openDb(resolve(spec.root, spec.config.dbPath));
+    try {
+      const taskId = args?.task ? String(args.task) : activeTask(db, args?.session ? String(args.session) : undefined)?.id;
+      if (!taskId) return toolResult("no active task", true);
+      const packets = buildWorkPackets(db, taskId);
+      const byFile = new Map();
+      for (const packet of packets) {
+        for (const file of packet.files) {
+          if (!byFile.has(file)) byFile.set(file, []);
+          byFile.get(file).push(packet.todo);
+        }
+      }
+      const conflicts = [...byFile.entries()]
+        .filter(([, todos]) => todos.length > 1)
+        .map(([file, todos]) => ({ file, todos }));
+      return toolResult({ task: taskId, packets, conflicts });
+    } finally {
+      db.close();
+    }
   }
   return toolResult(`Unknown tool: ${name}`, true);
 }

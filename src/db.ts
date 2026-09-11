@@ -68,8 +68,53 @@ export function openDb(dbPath: string): DatabaseSync {
       matched_rules TEXT NOT NULL DEFAULT '[]',
       logged_at TEXT NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS tasks (
+      id TEXT PRIMARY KEY,
+      title TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'active',
+      session_id TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      revision INTEGER NOT NULL DEFAULT 0,
+      reviewed_at TEXT,
+      edits_since_review INTEGER NOT NULL DEFAULT 0,
+      todos_since_review INTEGER NOT NULL DEFAULT 0
+    );
+    CREATE TABLE IF NOT EXISTS todos (
+      id TEXT PRIMARY KEY,
+      task_id TEXT NOT NULL,
+      seq INTEGER NOT NULL DEFAULT 0,
+      label TEXT NOT NULL,
+      kind TEXT NOT NULL DEFAULT 'edit',
+      status TEXT NOT NULL DEFAULT 'pending',
+      acceptance TEXT,
+      proof TEXT,
+      owner TEXT,
+      depends_on TEXT NOT NULL DEFAULT '[]',
+      iterations INTEGER NOT NULL DEFAULT 0,
+      max_iterations INTEGER,
+      updated_at TEXT NOT NULL
+    );
   `);
+  migrate(db);
   return db;
+}
+
+function tableColumns(db: DatabaseSync, table: string): Set<string> {
+  const rows = db.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>;
+  return new Set(rows.map((row) => row.name));
+}
+
+function ensureColumn(db: DatabaseSync, table: string, column: string, definition: string): void {
+  if (tableColumns(db, table).has(column)) return;
+  db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition};`);
+}
+
+function migrate(db: DatabaseSync): void {
+  ensureColumn(db, "tasks", "revision", "INTEGER NOT NULL DEFAULT 0");
+  ensureColumn(db, "tasks", "reviewed_at", "TEXT");
+  ensureColumn(db, "tasks", "edits_since_review", "INTEGER NOT NULL DEFAULT 0");
+  ensureColumn(db, "tasks", "todos_since_review", "INTEGER NOT NULL DEFAULT 0");
 }
 
 export function setMeta(db: DatabaseSync, key: string, value: string): void {

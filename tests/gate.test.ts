@@ -153,3 +153,35 @@ test("does not block a valid empty index", () => {
   assert.equal(result.allow, true);
   assert.equal(result.indexMissing, false);
 });
+
+test("blocks a placeholder marker in code content", () => {
+  const marker = "not " + "implemented";
+  const result = evaluateGate({
+    tool: "edit",
+    filePath: "src/app.ts",
+    spec,
+    installedSkills: null,
+    loadedSkills: ["humanizer"],
+    content: `throw new Error("${marker}");`
+  });
+  assert.equal(result.placeholder, true);
+  assert.equal(result.allow, false);
+  assert.ok(result.reasons.some((entry) => entry.includes("placeholder")));
+});
+
+test("does not flag clean code as a placeholder", () => {
+  const result = evaluateGate({
+    tool: "edit",
+    filePath: "src/app.ts",
+    spec,
+    installedSkills: null,
+    loadedSkills: ["humanizer"],
+    content: "const x = 1;"
+  });
+  assert.equal(result.placeholder, false);
+});
+
+test("explains each missing skill in reasons", () => {
+  const result = evaluateGate({ tool: "edit", filePath: "README.md", spec, installedSkills: null, loadedSkills: [] });
+  assert.ok(result.reasons.some((entry) => entry.includes("humanizer")));
+});

@@ -25,7 +25,7 @@ export type Category = {
   label: string;
   priority: number;
   keywords: CategoryKeyword[];
-  negativeKeywords?: string[];
+  negativeKeywords?: CategoryKeyword[];
   defaultSkills: string[];
   roadmap?: Roadmap;
 };
@@ -82,12 +82,19 @@ export type ProvidersConfig = {
   disabled: string[];
 };
 
+export type TraceConfig = {
+  enabled: boolean;
+  categories: string[];
+};
+
 export type GateConfig = {
   enabled: boolean;
   mode: "block" | "warn" | "audit";
   envEscape: string;
   tools: string[];
   ignoreFiles: string[];
+  placeholders: boolean;
+  trace: TraceConfig;
 };
 
 export type ClassifyConfig = {
@@ -96,12 +103,23 @@ export type ClassifyConfig = {
   fallbackCategory: string;
 };
 
+export type LedgerReviewConfig = {
+  edits: number;
+  todos: number;
+};
+
+export type LedgerConfig = {
+  enabled: boolean;
+  review: LedgerReviewConfig;
+};
+
 export type NovahizConfig = {
   dbPath: string;
   skillRoots: string[];
   gate: GateConfig;
   classify: ClassifyConfig;
   providers: ProvidersConfig;
+  ledger: LedgerConfig;
 };
 
 export type Spec = {
@@ -138,7 +156,12 @@ export const DEFAULT_CONFIG: NovahizConfig = {
     mode: "block",
     envEscape: "NOVAHIZ_GATE",
     tools: ["edit", "write", "patch", "apply_patch", "bash", "shell"],
-    ignoreFiles: DEFAULT_IGNORE_FILES
+    ignoreFiles: DEFAULT_IGNORE_FILES,
+    placeholders: true,
+    trace: {
+      enabled: false,
+      categories: ["code", "debug", "audit", "refactor", "migration"]
+    }
   },
   classify: {
     minScore: 1,
@@ -149,6 +172,13 @@ export const DEFAULT_CONFIG: NovahizConfig = {
     autoRegister: true,
     autoInstall: false,
     disabled: []
+  },
+  ledger: {
+    enabled: true,
+    review: {
+      edits: 3,
+      todos: 2
+    }
   }
 };
 
@@ -181,6 +211,13 @@ export function mergeConfig(raw: Partial<NovahizConfig> | null | undefined): Nov
   if (typeof gate.envEscape !== "string") gate.envEscape = DEFAULT_CONFIG.gate.envEscape;
   if (!Array.isArray(gate.tools)) gate.tools = DEFAULT_CONFIG.gate.tools;
   if (!Array.isArray(gate.ignoreFiles)) gate.ignoreFiles = DEFAULT_CONFIG.gate.ignoreFiles;
+  if (typeof gate.placeholders !== "boolean") gate.placeholders = DEFAULT_CONFIG.gate.placeholders;
+
+  const traceSource = gateSource.trace && typeof gateSource.trace === "object" ? gateSource.trace : {};
+  const trace: TraceConfig = { ...DEFAULT_CONFIG.gate.trace, ...traceSource };
+  if (typeof trace.enabled !== "boolean") trace.enabled = DEFAULT_CONFIG.gate.trace.enabled;
+  if (!Array.isArray(trace.categories)) trace.categories = [...DEFAULT_CONFIG.gate.trace.categories];
+  gate.trace = trace;
 
   const classifySource = source.classify && typeof source.classify === "object" ? source.classify : {};
   const classify: ClassifyConfig = { ...DEFAULT_CONFIG.classify, ...classifySource };
@@ -201,16 +238,35 @@ export function mergeConfig(raw: Partial<NovahizConfig> | null | undefined): Nov
     disabled: Array.isArray(providersSource.disabled) ? providersSource.disabled : [...DEFAULT_CONFIG.providers.disabled]
   };
 
+  const ledgerSource = source.ledger && typeof source.ledger === "object" ? source.ledger : {};
+  const reviewSource = ledgerSource.review && typeof ledgerSource.review === "object" ? ledgerSource.review : {};
+  const review: LedgerReviewConfig = {
+    edits: Number.isFinite(reviewSource.edits) && reviewSource.edits > 0 ? Math.trunc(reviewSource.edits) : DEFAULT_CONFIG.ledger.review.edits,
+    todos: Number.isFinite(reviewSource.todos) && reviewSource.todos > 0 ? Math.trunc(reviewSource.todos) : DEFAULT_CONFIG.ledger.review.todos
+  };
+  const ledger: LedgerConfig = {
+    enabled: typeof ledgerSource.enabled === "boolean" ? ledgerSource.enabled : DEFAULT_CONFIG.ledger.enabled,
+    review
+  };
+
   return {
     dbPath: typeof source.dbPath === "string" ? source.dbPath : DEFAULT_CONFIG.dbPath,
     skillRoots: Array.isArray(source.skillRoots) ? source.skillRoots : [...DEFAULT_CONFIG.skillRoots],
     gate,
     classify,
-    providers
+    providers,
+    ledger
   };
 }
 
 export function loadConfig(root: string = novahizHome()): NovahizConfig {
+  const config = readUserConfig(root);
+  const dbOverride = process.env.NOVAHIZ_DB;
+  if (dbOverride && dbOverride.length > 0) config.dbPath = dbOverride;
+  return config;
+}
+
+function readUserConfig(root: string): NovahizConfig {
   const userPath = join(root, "novahiz.config.json");
   if (existsSync(userPath)) {
     try {

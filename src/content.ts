@@ -51,3 +51,20 @@ export function isTrivial(text: string, minChange = 0): boolean {
   if (minChange <= 0) return text.trim().length === 0;
   return text.replace(/\s+/g, " ").trim().length < minChange;
 }
+
+const PLACEHOLDER_PATTERNS = [
+  /\b(TODO|FIXME|XXX|HACK)\b/,
+  /\bnot implemented\b/i,
+  /\bcoming soon\b/i,
+  /<placeholder/i,
+  /<your[_ ]code/i,
+  /\blorem ipsum\b/i,
+  /\.\.\.\s*rest of\b/i,
+  /\bimplement me\b/i,
+  /\.\.\.\s*existing\b/i
+];
+
+export function hasPlaceholder(text: string): boolean {
+  if (text.length === 0) return false;
+  return PLACEHOLDER_PATTERNS.some((pattern) => pattern.test(text));
+}

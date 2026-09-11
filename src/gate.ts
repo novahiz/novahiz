@@ -1,5 +1,5 @@
 import type { Rule, Spec } from "./spec.ts";
-import { hasProse, hasStyle, isTrivial } from "./content.ts";
+import { hasPlaceholder, hasProse, hasStyle, isTrivial } from "./content.ts";
 
 export type FileClass = "code" | "text" | "design" | "data" | "config" | "other";
 
@@ -169,6 +169,8 @@ export type GateResult = {
   unmatchedRequired: string[];
   matchedRules: string[];
   indexMissing: boolean;
+  placeholder: boolean;
+  reasons: string[];
 };
 
 export function evaluateGate(input: GateInput): GateResult {
@@ -188,7 +190,9 @@ export function evaluateGate(input: GateInput): GateResult {
       missingSkills: [],
       unmatchedRequired: [],
       matchedRules: [],
-      indexMissing: false
+      indexMissing: false,
+      placeholder: false,
+      reasons: []
     };
   }
 
@@ -233,8 +237,15 @@ export function evaluateGate(input: GateInput): GateResult {
   const loaded = new Set(input.loadedSkills ?? []);
   const missingSkills = effective.filter((skill) => !loaded.has(skill));
 
+  const placeholderEligible = input.spec.config.gate.placeholders && (classification === "code" || classification === "design");
+  const placeholder = placeholderEligible && hasPlaceholder(content);
+
+  const reasons: string[] = [];
+  for (const skill of missingSkills) reasons.push(`missing skill: ${skill}`);
+  if (placeholder) reasons.push("placeholder marker found in content");
+
   return {
-    allow: missingSkills.length === 0,
+    allow: missingSkills.length === 0 && !placeholder,
     ignored: false,
     fileClass: classification,
     roadmap,
@@ -242,6 +253,8 @@ export function evaluateGate(input: GateInput): GateResult {
     missingSkills,
     unmatchedRequired,
     matchedRules,
-    indexMissing: input.installedIndexAvailable === false
+    indexMissing: input.installedIndexAvailable === false,
+    placeholder,
+    reasons
   };
 }

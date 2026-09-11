@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { changeText, hasProse, hasStyle, isTrivial } from "../src/content.ts";
+import { changeText, hasPlaceholder, hasProse, hasStyle, isTrivial } from "../src/content.ts";
 
 test("detects prose in comments and strings", () => {
   assert.equal(hasProse("// Ce commentaire explique le calcul du total pour le client"), true);
@@ -48,4 +48,18 @@ test("detects class selectors but not object literals", () => {
 test("does not treat method chains as style", () => {
   assert.equal(hasStyle("items\n  .map(x => {\n    return x;\n  })"), false);
   assert.equal(hasStyle("promise\n  .then(data => {"), false);
+});
+
+test("detects placeholder markers in code", () => {
+  const marker = "TO" + "DO";
+  const notImplemented = "not " + "implemented";
+  assert.equal(hasPlaceholder(`// ${marker}: wire the parser`), true);
+  assert.equal(hasPlaceholder(`function save() { throw new Error("${notImplemented}"); }`), true);
+  assert.equal(hasPlaceholder("<" + "placeholder>x</" + "placeholder>"), true);
+  assert.equal(hasPlaceholder("const total = price * quantity;"), false);
+});
+
+test("does not treat ordinary comments as placeholders", () => {
+  assert.equal(hasPlaceholder("// compute the total for the order"), false);
+  assert.equal(hasPlaceholder("return items.filter(Boolean);"), false);
 });

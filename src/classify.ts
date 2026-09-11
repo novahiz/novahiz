@@ -5,7 +5,9 @@ export type CategoryScore = {
   id: string;
   score: number;
   confidence: number;
+  margin: number;
   terms: string[];
+  negatives: string[];
 };
 
 export type RoadmapView = {
@@ -14,11 +16,21 @@ export type RoadmapView = {
   steps: RoadmapStep[];
 };
 
+export type SkillInvocation = {
+  category: string;
+  step: string;
+  label: string;
+  kind: RoadmapStep["kind"];
+  skills: string[];
+  optional: boolean;
+};
+
 export type Classification = {
   categories: CategoryScore[];
   primary: string | null;
   requiredSkills: string[];
   enforcedSkills: string[];
+  invocations: SkillInvocation[];
   providers: string[];
   roadmaps: RoadmapView[];
 };
@@ -54,6 +66,16 @@ function keywordTerm(keyword: CategoryKeyword): string {
 function keywordWeight(keyword: CategoryKeyword): number {
   if (typeof keyword === "string") return 1;
   return typeof keyword.weight === "number" ? keyword.weight : 1;
+}
+
+function matchedAlternative(text: string, keyword: CategoryKeyword): string | null {
+  const raw = keywordTerm(keyword);
+  const alternatives = raw.includes("|") ? raw.split("|") : [raw];
+  for (const alternative of alternatives) {
+    const term = alternative.trim();
+    if (term.length > 0 && termMatches(text, term)) return term;
+  }
+  return null;
 }
 
 function byCodeUnit(a: string, b: string): number {
@@ -96,17 +118,24 @@ export function classify(spec: Spec, prompt: string, options: ClassifyOptions = 
   for (const category of spec.categories) {
     let score = 0;
     const terms: string[] = [];
+    const negatives: string[] = [];
     for (const keyword of category.keywords) {
-      if (!termMatches(text, keywordTerm(keyword))) continue;
+      const matched = matchedAlternative(text, keyword);
+      if (!matched) continue;
       let weight = keywordWeight(keyword);
-      if (keywordTerm(keyword).includes(" ")) weight += 0.5;
+      if (matched.includes(" ")) weight += 0.5;
       score += weight;
-      terms.push(keywordTerm(keyword));
+      terms.push(matched);
     }
     for (const negative of category.negativeKeywords ?? []) {
-      if (termMatches(text, negative)) score -= 1;
+      const matched = matchedAlternative(text, negative);
+      if (!matched) continue;
+      score -= keywordWeight(negative);
+      negatives.push(matched);
     }
-    if (score >= minScore) scored.push({ id: category.id, score, confidence: confidence(score), terms });
+    if (score >= minScore) {
+      scored.push({ id: category.id, score, confidence: confidence(score), margin: 0, terms, negatives });
+    }
   }
 
   const priorityOf = (id: string): number =>
@@ -116,18 +145,35 @@ export function classify(spec: Spec, prompt: string, options: ClassifyOptions = 
     (a, b) => b.score - a.score || priorityOf(b.id) - priorityOf(a.id) || byCodeUnit(a.id, b.id)
   );
 
+  for (let index = 0; index < scored.length; index += 1) {
+    const next = scored[index + 1]?.score ?? 0;
+    scored[index].margin = Math.round((scored[index].score - next) * 1000) / 1000;
+  }
+
   const selected = scored.slice(0, Math.max(0, maxCategories));
   if (selected.length === 0 && fallbackCategory.length > 0) {
-    selected.push({ id: fallbackCategory, score: 0, confidence: 0, terms: [] });
+    selected.push({ id: fallbackCategory, score: 0, confidence: 0, margin: 0, terms: [], negatives: [] });
   }
 
   const requiredSkills: string[] = [];
+  const invocations: SkillInvocation[] = [];
   const roadmaps: RoadmapView[] = [];
   for (const item of selected) {
     const category = spec.categories.find((entry) => entry.id === item.id);
     if (!category) continue;
     for (const skill of skillsOfCategory(category)) {
       if (!requiredSkills.includes(skill)) requiredSkills.push(skill);
+    }
+    for (const step of category.roadmap?.steps ?? []) {
+      if (step.kind !== "skill") continue;
+      invocations.push({
+        category: category.id,
+        step: step.id,
+        label: step.label,
+        kind: step.kind,
+        skills: step.requireSkills ?? [],
+        optional: step.optional === true
+      });
     }
     if (category.roadmap) {
       roadmaps.push({ category: category.id, id: category.roadmap.id, steps: category.roadmap.steps });
@@ -143,5 +189,13 @@ export function classify(spec: Spec, prompt: string, options: ClassifyOptions = 
     selected.map((entry) => entry.id)
   ).map((provider) => provider.id);
 
-  return { categories: selected, primary, requiredSkills, enforcedSkills, providers, roadmaps };
+  return {
+    categories: selected,
+    primary,
+    requiredSkills,
+    enforcedSkills,
+    invocations,
+    providers,
+    roadmaps
+  };
 }

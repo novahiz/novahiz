@@ -15,6 +15,7 @@ The decisions run in code. The same prompt and the same rule set always produce 
 - **Gate** inspects `edit`, `write`, `patch`, `apply_patch`, and shell writes. It is content-aware, so `humanizer` is required only for prose changes and `impeccable` only for style changes. The primary roadmap `skill` steps are enforced. When a required skill is not loaded, the call is blocked with an explanation.
 - **Roadmaps** attach an ordered task list to each category. The primary category drives the roadmap the agent follows.
 - **Enforcer** injects the detected categories, the roadmap checklist, and the expected skills into the system prompt.
+- **Ledger** keeps a long task in SQLite: atomic todos with an acceptance criterion and a proof, a per-todo iteration budget, work packets with exclusive file ownership, and a living plan the gate forces you to revise every few edits. The current plan is injected into the system prompt each turn, so it survives context compaction.
 
 ## Status
 
@@ -61,6 +62,12 @@ node src/cli.ts catalog "design frontend landing" --limit 5
 node src/cli.ts roadmap --category code
 node src/cli.ts step --session my-session --done plan
 node src/cli.ts report --format markdown
+node src/cli.ts task new --title "Add the CSV export"
+node src/cli.ts task plan --task <id> --json '[{"label":"read the parser","kind":"read"},{"label":"write the exporter","kind":"edit","acceptance":"csv round-trips","owner":"src/export.ts"}]'
+node src/cli.ts task start --id <todo>
+node src/cli.ts task done --id <todo> --proof "node --test tests/export.test.ts -> 4 pass"
+node src/cli.ts task status --session <id>
+node src/cli.ts dispatch --task <id>
 ```
 
 `gate` prints a JSON verdict and exits `0` when the edit is allowed, `2` when it is blocked. Adapters rely on that exit code.
@@ -69,11 +76,15 @@ node src/cli.ts report --format markdown
 
 Copy `adapters/opencode/novahiz.ts` into `~/.config/opencode/plugins/`. It loads automatically at startup. The adapter classifies each user message, injects the roadmap checklist and expected skills, tracks loaded skills, and calls the CLI gate on `edit`, `write`, `patch`, `apply_patch`, and `bash`.
 
-Set `NOVAHIZ_GATE=off` to disable gating for a session. Set `NOVAHIZ_HOME` when the repo is not at `~/.config/novahiz`.
+Set `NOVAHIZ_GATE=off` to disable gating for a session. Set `NOVAHIZ_HOME` when the repo is not at `~/.config/novahiz`. Set `NOVAHIZ_DB` to override the database path, which keeps tests and scratch runs off your real ledger.
+
+## Execution ledger
+
+For work that spans more than a few steps, `novahiz task` keeps the plan in SQLite instead of in the conversation. A todo carries its own acceptance criterion, an iteration budget, and, for a `verify` step, a proof that must be present before it can close. `novahiz dispatch` turns the open todos into work packets with exclusive file ownership, so parallel sub-agents do not edit the same file. The gate forces a review every three edits or two finished todos, and the enriched summary is injected on every turn. See [docs/EXECUTION.md](docs/EXECUTION.md).
 
 ## Multi-harness
 
-The adapter is thin on purpose. The gate logic lives in the CLI, so a harness that can run a command before a tool call can reuse it. Claude Code gets a blocking `PreToolUse` hook, Codex gets advisory `PostToolUse` and `Stop` hooks, both through `novahiz hook`. Any harness with a stdio MCP client can use `novahiz_classify`, `novahiz_catalog`, `novahiz_roadmap`, `novahiz_providers`, `novahiz_step`, `novahiz_list_skills`, and `novahiz_gate`. Novahiz also catalogues external components as providers: MCP servers (playwright, security, narsil, context7, sequential-thinking, cron), skill packs (impeccable), and command packs (speckit), and can run their official install commands. See [docs/HARNESSES.md](docs/HARNESSES.md), [adapters/README.md](adapters/README.md), and [docs/PROVIDERS.md](docs/PROVIDERS.md).
+The adapter is thin on purpose. The gate logic lives in the CLI, so a harness that can run a command before a tool call can reuse it. Claude Code gets a blocking `PreToolUse` hook, Codex gets advisory `PostToolUse` and `Stop` hooks, both through `novahiz hook`. Any harness with a stdio MCP client can use `novahiz_classify`, `novahiz_catalog`, `novahiz_roadmap`, `novahiz_providers`, `novahiz_step`, `novahiz_list_skills`, `novahiz_gate`, `novahiz_task`, and `novahiz_dispatch`. Novahiz also catalogues external components as providers: MCP servers (playwright, security, narsil, context7, sequential-thinking, cron), skill packs (impeccable), and command packs (speckit), and can run their official install commands. See [docs/HARNESSES.md](docs/HARNESSES.md), [adapters/README.md](adapters/README.md), and [docs/PROVIDERS.md](docs/PROVIDERS.md).
 
 ## License
 

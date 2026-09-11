@@ -50,3 +50,24 @@ test("classifies the relevant MCP providers", () => {
   const result = classify(spec, "ouvre la page web avec playwright et capture un screenshot");
   assert.ok(result.providers.includes("playwright"));
 });
+
+test("reports a confidence margin and matched negatives", () => {
+  const result = classify(spec, "ajoute une migration supabase avec une policy rls");
+  const top = result.categories[0];
+  assert.equal(typeof top.margin, "number");
+  assert.ok(top.margin >= 0);
+  assert.ok(Array.isArray(top.negatives));
+});
+
+test("exposes skill invocations with their roadmap step", () => {
+  const result = classify(spec, "refactor le module de paiement et corrige le total");
+  const skills = result.invocations.flatMap((entry) => entry.skills);
+  assert.ok(result.invocations.length > 0);
+  assert.ok(skills.includes("planner"));
+  assert.ok(result.invocations.every((entry) => entry.kind === "skill"));
+});
+
+test("a clear prompt separates the top category from the next", () => {
+  const result = classify(spec, "audit securite owasp de l api et des dependances");
+  assert.ok(result.categories[0].margin > 0);
+});
