@@ -50,6 +50,9 @@ const TOKENS: TokensConfig = mergeTokensConfig(CONFIG.tokens);
 const TOKENS_ESCAPE = (process.env.NOVAHIZ_TOKENS || "").toLowerCase();
 const TOKENS_OFF = ["off", "0", "false", "no", "disabled"].includes(TOKENS_ESCAPE);
 const SAVINGS_PRUNE_BYTES = 4_000_000;
+const SAVINGS_PRUNE_EVERY = 64;
+let savingsWrites = 0;
+let lastSessionID = "";
 
 type RunResult = { status: number; stdout: string; stderr: string; spawnError?: string };
 
@@ -65,7 +68,8 @@ function recordSavings(entries: SavingsEntry[]): void {
     const path = savingsPath(HOME);
     mkdirSync(dirname(path), { recursive: true });
     appendFileSync(path, entries.map(encodeSavings).join(""), "utf8");
-    if (existsSync(path) && statSync(path).size > SAVINGS_PRUNE_BYTES) {
+    savingsWrites += 1;
+    if (savingsWrites % SAVINGS_PRUNE_EVERY === 0 && existsSync(path) && statSync(path).size > SAVINGS_PRUNE_BYTES) {
       writeFileSync(path, pruneSavingsText(readFileSync(path, "utf8")), "utf8");
     }
   } catch {
@@ -152,6 +156,7 @@ export const NovahizPlugin: Plugin = async ({ client }) => {
         };
         const categories = (parsed.categories ?? []).map((entry) => entry.id);
         categoriesBySession.set(input.sessionID, categories);
+        lastSessionID = input.sessionID;
         const primary = parsed.primary ?? categories[0] ?? null;
         const enforced = parsed.enforcedSkills ?? [];
         const required = parsed.requiredSkills ?? [];
@@ -268,7 +273,7 @@ export const NovahizPlugin: Plugin = async ({ client }) => {
         const outcome = dedupeStaleReads(output.messages as unknown as MinimalMessage[], TOKENS);
         if (outcome.stubbed === 0) return;
         recordSavings([
-          { at: new Date().toISOString(), session: "", tool: "read", kind: "dedupe", tokens: outcome.removedTokens }
+          { at: new Date().toISOString(), session: lastSessionID, tool: "read", kind: "dedupe", tokens: outcome.removedTokens }
         ]);
       } catch (error) {
         await log("warn", `Token dedupe skipped: ${String(error)}`);

@@ -1,5 +1,9 @@
 import { join } from "node:path";
 
+// Lives under adapters/opencode on purpose: the installer copies it next to the
+// plugin as a sibling, so the plugin imports it as "./tokens.ts". src/ and
+// install/ reuse the same file through a relative path, keeping one source of
+// truth for the defaults and helpers below.
 export type TokensConfig = {
   enabled: boolean;
   trimOutputs: boolean;
@@ -24,7 +28,7 @@ export const DEFAULT_TOKENS: TokensConfig = {
   keepErrorLines: 40,
   dedupeReads: true,
   capOutputTokens: 0,
-  trimTools: ["read", "bash", "shell", "grep", "glob", "webfetch", "list"],
+  trimTools: ["read", "bash", "shell"],
   readTools: ["read"]
 };
 
@@ -118,6 +122,8 @@ export type MinimalMessage = { parts?: MinimalPart[] };
 
 export type DedupeOutcome = { stubbed: number; removedTokens: number };
 
+// Walks every message on each request, so this is O(n) in conversation length.
+// opencode compacts the history long before the cost matters.
 export function dedupeStaleReads(messages: MinimalMessage[], config: TokensConfig): DedupeOutcome {
   if (!config.enabled || !config.dedupeReads) return { stubbed: 0, removedTokens: 0 };
 

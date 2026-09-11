@@ -33,7 +33,7 @@
     "keepErrorLines": 40,
     "dedupeReads": true,
     "capOutputTokens": 0,
-    "trimTools": ["read", "bash", "shell", "grep", "glob", "webfetch", "list"],
+    "trimTools": ["read", "bash", "shell"],
     "readTools": ["read"]
   }
 }
