@@ -260,7 +260,7 @@ export const NovahizPlugin: Plugin = async ({ client }) => {
         if (!outcome) return;
         output.output = outcome.text;
         recordSavings([
-          { at: new Date().toISOString(), session: input.sessionID, tool: input.tool, kind: "trim", tokens: outcome.removedTokens }
+          { at: new Date().toISOString(), session: input.sessionID, tool: input.tool, kind: "trim", tokens: outcome.removedTokens, originalBytes: outcome.originalBytes, keptBytes: outcome.keptBytes }
         ]);
       } catch (error) {
         await log("warn", `Token trim skipped: ${String(error)}`);
@@ -273,7 +273,7 @@ export const NovahizPlugin: Plugin = async ({ client }) => {
         const outcome = dedupeStaleReads(output.messages as unknown as MinimalMessage[], TOKENS);
         if (outcome.stubbed === 0) return;
         recordSavings([
-          { at: new Date().toISOString(), session: lastSessionID, tool: "read", kind: "dedupe", tokens: outcome.removedTokens }
+          { at: new Date().toISOString(), session: lastSessionID, tool: "read", kind: "dedupe", tokens: outcome.removedTokens, originalBytes: outcome.originalBytes, keptBytes: outcome.keptBytes }
         ]);
       } catch (error) {
         await log("warn", `Token dedupe skipped: ${String(error)}`);

@@ -12,7 +12,7 @@ import { loadCatalog, loadInstalledSkills, persistCatalog, scanSkills, writeCata
 import { rankSkills } from "./relevance.ts";
 import { buildMcpEntries, enabledProviders, installCommands } from "./providers.ts";
 import { bootstrapFor, checkDependencies, missingPrerequisites } from "./deps.ts";
-import { parseSavings, savingsPath, summarizeSavings } from "../adapters/opencode/tokens.ts";
+import { filterSavings, parseSavings, savingsPath, summarizeSavings } from "../adapters/opencode/tokens.ts";
 import {
   activeTask,
   addTodos,
@@ -954,13 +954,18 @@ function commandTokens(parsed: Parsed): void {
   } catch {
     text = "";
   }
-  const summary = summarizeSavings(parseSavings(text));
+  const entries = filterSavings(parseSavings(text), {
+    since: asString(parsed.flags.since),
+    session: asString(parsed.flags.session)
+  });
+  const summary = summarizeSavings(entries);
   const format = asString(parsed.flags.format) || "json";
   if (format === "text") {
     const lines = [
       `Novahiz token savings (${path})`,
       `events: ${summary.events}`,
       `~tokens saved: ${summary.totalSaved}`,
+      `bytes: ${summary.totalOriginalBytes} -> ${summary.totalKeptBytes}`,
       `trim: ${summary.byKind.trim}  dedupe: ${summary.byKind.dedupe}  cap: ${summary.byKind.cap}`,
       `sessions: ${summary.sessions}`
     ];
@@ -1002,7 +1007,7 @@ function usage(): void {
       "task signals [--task id]",
       "task status|resume|current [--session id]",
       "dispatch [--task id] [--session id]",
-      "tokens [--format json|text]"
+      "tokens [--format json|text] [--since <Nd|Nh|ISO>] [--session id]"
     ]
   });}
 

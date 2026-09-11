@@ -6,6 +6,7 @@ import {
   dedupeStaleReads,
   encodeSavings,
   estimateTokens,
+  filterSavings,
   mergeTokensConfig,
   parseSavings,
   pruneSavingsText,
@@ -197,4 +198,59 @@ test("the example config keeps the default token settings", () => {
     readFileSync(new URL("../novahiz.config.example.json", import.meta.url), "utf8")
   ) as { tokens?: unknown };
   assert.deepEqual(example.tokens, DEFAULT_TOKENS);
+});
+
+test("filterSavings filters by session", () => {
+  const entries = [
+    { at: "2026-09-11T10:00:00.000Z", session: "s1", tool: "read", kind: "trim" as const, tokens: 10 },
+    { at: "2026-09-11T10:05:00.000Z", session: "s2", tool: "read", kind: "trim" as const, tokens: 20 }
+  ];
+  const filtered = filterSavings(entries, { session: "s2" });
+  assert.equal(filtered.length, 1);
+  assert.equal(filtered[0]?.session, "s2");
+});
+
+test("filterSavings filters by an ISO since", () => {
+  const entries = [
+    { at: "2026-09-10T00:00:00.000Z", session: "", tool: "read", kind: "trim" as const, tokens: 5 },
+    { at: "2026-09-12T00:00:00.000Z", session: "", tool: "read", kind: "trim" as const, tokens: 7 }
+  ];
+  const filtered = filterSavings(entries, { since: "2026-09-11T00:00:00.000Z" });
+  assert.deepEqual(filtered.map((entry) => entry.tokens), [7]);
+});
+
+test("filterSavings accepts a relative day window", () => {
+  const recent = new Date().toISOString();
+  const old = new Date(Date.now() - 10 * 86_400_000).toISOString();
+  const entries = [
+    { at: old, session: "", tool: "read", kind: "trim" as const, tokens: 1 },
+    { at: recent, session: "", tool: "read", kind: "trim" as const, tokens: 2 }
+  ];
+  const filtered = filterSavings(entries, { since: "1d" });
+  assert.deepEqual(filtered.map((entry) => entry.tokens), [2]);
+});
+
+test("parseSavings carries the byte fields", () => {
+  const line = encodeSavings({
+    at: "2026-09-11T10:00:00.000Z",
+    session: "s1",
+    tool: "read",
+    kind: "trim",
+    tokens: 30,
+    originalBytes: 5000,
+    keptBytes: 1200
+  });
+  const [entry] = parseSavings(line);
+  assert.equal(entry?.originalBytes, 5000);
+  assert.equal(entry?.keptBytes, 1200);
+});
+
+test("summarizeSavings aggregates the byte totals", () => {
+  const summary = summarizeSavings([
+    { at: "2026-09-11T10:00:00.000Z", session: "s1", tool: "read", kind: "trim", tokens: 10, originalBytes: 400, keptBytes: 100 },
+    { at: "2026-09-11T10:01:00.000Z", session: "s1", tool: "bash", kind: "trim", tokens: 5, originalBytes: 600, keptBytes: 200 },
+    { at: "2026-09-11T10:02:00.000Z", session: "s1", tool: "read", kind: "dedupe", tokens: 3 }
+  ]);
+  assert.equal(summary.totalOriginalBytes, 1000);
+  assert.equal(summary.totalKeptBytes, 300);
 });
