@@ -1,11 +1,20 @@
-import { test } from "node:test";
+import { test, before } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
+import { loadSpec } from "../src/spec.ts";
+import { scanSkills, writeCatalog, writeSkillIndex } from "../src/catalog.ts";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
 const cli = join(root, "src", "cli.ts");
+
+before(() => {
+  const spec = loadSpec(root);
+  const skills = scanSkills(spec);
+  writeSkillIndex(spec, skills);
+  writeCatalog(spec, skills);
+});
 
 function run(args: string[], env: Record<string, string> = {}): string {
   const result = spawnSync(process.execPath, [cli, ...args], {
