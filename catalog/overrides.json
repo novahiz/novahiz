@@ -4,7 +4,6 @@
     "impeccable": { "power": 5, "stars": null, "tags": ["design", "ui"], "categories": ["design-ui"] },
     "supabase": { "power": 5, "stars": null, "tags": ["database", "supabase"], "categories": ["database-supabase"] },
     "supabase-postgres-best-practices": { "power": 5, "stars": null, "tags": ["database", "postgres"], "categories": ["database-supabase"] },
-    "supabase-agent-skills": { "power": 4, "stars": null, "tags": ["database", "supabase"], "categories": ["database-supabase"] },
     "gate": { "power": 5, "stars": null, "tags": ["novahiz", "workflow"], "categories": ["general"] },
     "novahiz-gate": { "power": 5, "stars": null, "tags": ["novahiz", "workflow"], "categories": ["general"] },
     "novahiz-audit": { "power": 4, "stars": null, "tags": ["novahiz", "audit"], "categories": ["audit"] },

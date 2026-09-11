@@ -6,7 +6,7 @@ Novahiz is licensed under Apache-2.0. See [LICENSE](LICENSE).
 
 The `skills/` directory ships a curated set of agent skills so the system works right after installation. Each skill is a self-contained folder. When it carries its own `LICENSE` or `NOTICE`, that file governs that skill. The rest ship with Novahiz under Apache-2.0.
 
-Some skills began as community work and keep their upstream attribution: `skill-creator` is by Anthropic, `impeccable` by Paul Bakaus, `adversarial-reviewer` by ekreloff. If you are an author and want a different attribution or removal, open an issue on the repository.
+Some skills began as community work and keep their upstream attribution: `skill-creator` is by Anthropic, `impeccable` by Paul Bakaus, `adversarial-reviewer` by ekreloff, and `supabase` and `supabase-postgres-best-practices` are by Supabase. `supabase-postgres-best-practices` ships under the MIT license stated in its own frontmatter. The `code-understand`, `review-changes`, and `defuddle` skills come from the agent-skill collections in this environment and carry no upstream license file. If you are an author and want a different attribution or removal, open an issue on the repository.
 
 ## Providers
 
