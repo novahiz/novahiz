@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
+  buildCalibration,
   DEFAULT_TOKENS,
   dedupeStaleReads,
   encodeSavings,
@@ -253,4 +254,18 @@ test("summarizeSavings aggregates the byte totals", () => {
   ]);
   assert.equal(summary.totalOriginalBytes, 1000);
   assert.equal(summary.totalKeptBytes, 300);
+});
+
+test("buildCalibration summarizes the trimmed events", () => {
+  const report = buildCalibration([
+    { at: "2026-09-11T10:00:00.000Z", session: "s1", tool: "read", kind: "trim", tokens: 150, originalBytes: 1000, keptBytes: 400 },
+    { at: "2026-09-11T10:01:00.000Z", session: "s1", tool: "bash", kind: "trim", tokens: 125, originalBytes: 800, keptBytes: 300 },
+    { at: "2026-09-11T10:02:00.000Z", session: "s1", tool: "read", kind: "dedupe", tokens: 10 }
+  ]);
+  assert.equal(report.trimEvents, 2);
+  assert.equal(report.instrumentedTrims, 2);
+  assert.equal(report.removedBytes.min, 500);
+  assert.equal(report.reReads, 1);
+  assert.ok(report.bytesPerToken !== null && Math.abs(report.bytesPerToken - 4) < 1e-9);
+  assert.equal(report.byTool.read?.removedBytes, 600);
 });

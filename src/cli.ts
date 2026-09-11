@@ -12,7 +12,7 @@ import { loadCatalog, loadInstalledSkills, persistCatalog, scanSkills, writeCata
 import { rankSkills } from "./relevance.ts";
 import { buildMcpEntries, enabledProviders, installCommands } from "./providers.ts";
 import { bootstrapFor, checkDependencies, missingPrerequisites } from "./deps.ts";
-import { filterSavings, parseSavings, savingsPath, summarizeSavings } from "../adapters/opencode/tokens.ts";
+import { buildCalibration, filterSavings, parseSavings, savingsPath, summarizeSavings } from "../adapters/opencode/tokens.ts";
 import {
   activeTask,
   addTodos,
@@ -960,6 +960,22 @@ function commandTokens(parsed: Parsed): void {
   });
   const summary = summarizeSavings(entries);
   const format = asString(parsed.flags.format) || "json";
+  if (parsed.flags.calibrate === true) {
+    const calibration = buildCalibration(entries);
+    if (format === "text") {
+      const lines = [
+        `Novahiz token calibration (${path})`,
+        `removed bytes: min ${calibration.removedBytes.min} / median ${calibration.removedBytes.median} / max ${calibration.removedBytes.max}`,
+        `removed tokens: min ${calibration.removedTokens.min} / median ${calibration.removedTokens.median} / max ${calibration.removedTokens.max}`,
+        `bytes/token: ${calibration.bytesPerToken === null ? "n/a" : calibration.bytesPerToken.toFixed(2)}`,
+        `trims: ${calibration.trimEvents} (instrumented ${calibration.instrumentedTrims})  re-reads: ${calibration.reReads}`
+      ];
+      process.stdout.write(`${lines.join("\n")}\n`);
+      return;
+    }
+    print({ path, calibration });
+    return;
+  }
   if (format === "text") {
     const lines = [
       `Novahiz token savings (${path})`,
@@ -1007,7 +1023,7 @@ function usage(): void {
       "task signals [--task id]",
       "task status|resume|current [--session id]",
       "dispatch [--task id] [--session id]",
-      "tokens [--format json|text] [--since <Nd|Nh|ISO>] [--session id]"
+      "tokens [--format json|text] [--since <Nd|Nh|ISO>] [--session id] [--calibrate]"
     ]
   });}
 

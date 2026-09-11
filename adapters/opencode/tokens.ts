@@ -285,3 +285,62 @@ export function summarizeSavings(entries: SavingsEntry[]): SavingsSummary {
     sessions: sessions.size
   };
 }
+
+export type ValueSpread = { count: number; min: number; median: number; max: number; mean: number };
+
+export type CalibrationReport = {
+  events: number;
+  trimEvents: number;
+  instrumentedTrims: number;
+  removedBytes: ValueSpread;
+  removedTokens: ValueSpread;
+  bytesPerToken: number | null;
+  reReads: number;
+  byTool: Record<string, { events: number; removedBytes: number; removedTokens: number }>;
+};
+
+function spreadOf(values: number[]): ValueSpread {
+  if (values.length === 0) return { count: 0, min: 0, median: 0, max: 0, mean: 0 };
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  const median = sorted.length % 2 === 0 ? (sorted[mid - 1] + sorted[mid]) / 2 : sorted[mid];
+  const sum = sorted.reduce((acc, value) => acc + value, 0);
+  return { count: sorted.length, min: sorted[0], median, max: sorted[sorted.length - 1], mean: sum / sorted.length };
+}
+
+// Summarizes trimmed events so the thresholds can be judged against real usage
+// instead of guessed. Bytes come from the recorded original/kept sizes.
+export function buildCalibration(entries: SavingsEntry[]): CalibrationReport {
+  const trims = entries.filter((entry) => entry.kind === "trim");
+  const instrumented = trims.filter(
+    (entry) => typeof entry.originalBytes === "number" && typeof entry.keptBytes === "number"
+  );
+  const removedBytes: number[] = [];
+  const removedTokens: number[] = [];
+  const byTool: Record<string, { events: number; removedBytes: number; removedTokens: number }> = {};
+  let totalRemovedBytes = 0;
+  let totalRemovedTokens = 0;
+  for (const entry of instrumented) {
+    const bytes = (entry.originalBytes ?? 0) - (entry.keptBytes ?? 0);
+    removedBytes.push(bytes);
+    removedTokens.push(entry.tokens);
+    totalRemovedBytes += bytes;
+    totalRemovedTokens += entry.tokens;
+    const bucket = byTool[entry.tool] ?? { events: 0, removedBytes: 0, removedTokens: 0 };
+    bucket.events += 1;
+    bucket.removedBytes += bytes;
+    bucket.removedTokens += entry.tokens;
+    byTool[entry.tool] = bucket;
+  }
+  const reReads = entries.filter((entry) => entry.kind === "dedupe").length;
+  return {
+    events: entries.length,
+    trimEvents: trims.length,
+    instrumentedTrims: instrumented.length,
+    removedBytes: spreadOf(removedBytes),
+    removedTokens: spreadOf(removedTokens),
+    bytesPerToken: totalRemovedTokens > 0 ? totalRemovedBytes / totalRemovedTokens : null,
+    reReads,
+    byTool
+  };
+}
