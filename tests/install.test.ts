@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { mkdtempSync, mkdirSync, writeFileSync, existsSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+// @ts-expect-error -- install/lib.mjs is untyped JavaScript by design
 import { copyInto, mergeCreated, nodeVersionOk, parseArgs } from "../install/lib.mjs";
 
 test("parses flags with equals and space forms", () => {

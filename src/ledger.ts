@@ -142,23 +142,23 @@ export function createTask(db: DatabaseSync, options: { title: string; id?: stri
 
 export function getTask(db: DatabaseSync, id: string): TaskRow | null {
   const row = db.prepare("SELECT * FROM tasks WHERE id = ?").get(id);
-  return (row as TaskRow) ?? null;
+  return (row as unknown as TaskRow) ?? null;
 }
 
 export function activeTask(db: DatabaseSync, sessionId?: string): TaskRow | null {
   const row = sessionId
     ? db.prepare("SELECT * FROM tasks WHERE status = 'active' AND session_id = ? ORDER BY created_at DESC LIMIT 1").get(sessionId)
     : db.prepare("SELECT * FROM tasks WHERE status = 'active' ORDER BY created_at DESC LIMIT 1").get();
-  return (row as TaskRow) ?? null;
+  return (row as unknown as TaskRow) ?? null;
 }
 
 export function getTodo(db: DatabaseSync, id: string): TodoRow | null {
   const row = db.prepare("SELECT * FROM todos WHERE id = ?").get(id);
-  return (row as TodoRow) ?? null;
+  return (row as unknown as TodoRow) ?? null;
 }
 
 export function listTodos(db: DatabaseSync, taskId: string): TodoRow[] {
-  return db.prepare("SELECT * FROM todos WHERE task_id = ? ORDER BY seq").all(taskId) as TodoRow[];
+  return db.prepare("SELECT * FROM todos WHERE task_id = ? ORDER BY seq").all(taskId) as unknown as TodoRow[];
 }
 
 export function addTodos(db: DatabaseSync, taskId: string, items: TodoInput[]): TodoRow[] {

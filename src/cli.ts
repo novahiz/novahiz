@@ -1,11 +1,11 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { spawnSync } from "node:child_process";
 import { classify } from "./classify.ts";
 import { changeText } from "./content.ts";
 import { evaluateGate } from "./gate.ts";
-import { claudeDenyOutput, decideHook, missingMessage, type Harness } from "./hook.ts";
+import { claudeDenyOutput, decideHook, missingMessage, normalizeTool, type Harness } from "./hook.ts";
 import { extractTargetPaths } from "./targets.ts";
+import { runCommand, runScript } from "./exec.ts";
 import { loadSpec, novahizHome, expandHome } from "./spec.ts";
 import { openDb, setMeta, getMeta } from "./db.ts";
 import { loadCatalog, loadInstalledSkills, persistCatalog, scanSkills, writeCatalog, writeSkillIndex } from "./catalog.ts";
@@ -393,6 +393,13 @@ function commandHook(parsed: Parsed): void {
   const toolName = String(payload.tool_name ?? payload.toolName ?? "");
   const toolInput = payload.tool_input ?? payload.toolInput ?? {};
 
+  const tool = normalizeTool(harness, toolName);
+  let categories = splitList(parsed.flags.categories);
+  if (categories.length === 0) {
+    const text = `${extractTargetPaths(tool, toolInput).join(" ")} ${changeText(tool, toolInput)}`.trim();
+    if (text.length > 0) categories = classify(spec, text).categories.map((entry) => entry.id);
+  }
+
   if (event === "Stop") {
     if (!hasSession) return;
     let stepsDone: string[] = [];
@@ -416,7 +423,7 @@ function commandHook(parsed: Parsed): void {
     skill: string;
   }[];
   const loadedSkills = loadedRows.map((row) => row.skill);
-  const decision = decideHook(spec, harness, toolName, toolInput, { loadedSkills });
+  const decision = decideHook(spec, harness, toolName, toolInput, { loadedSkills, categories });
 
   if (decision.kind === "skill") {
     db.prepare("INSERT OR IGNORE INTO skill_invocations (session_id, skill, invoked_at) VALUES (?, ?, ?)").run(
@@ -570,11 +577,10 @@ function commandProviders(parsed: Parsed): void {
     const results: Record<string, unknown>[] = [];
     for (const entry of installCommands(spec)) {
       const [command, ...args] = entry.command;
-      const result = spawnSync(command, args, { encoding: "utf8", shell: true });
-      const ok = result.status === 0;
-      process.stdout.write(`${ok ? "ok  " : "fail"} ${entry.id} (${entry.kind}) ${entry.command.join(" ")}\n`);
-      if (!ok && result.stderr) process.stderr.write(result.stderr);
-      results.push({ id: entry.id, kind: entry.kind, source: entry.source, command: entry.command.join(" "), ok });
+      const result = runCommand(command, args);
+      process.stdout.write(`${result.ok ? "ok  " : "fail"} ${entry.id} (${entry.kind}) ${entry.command.join(" ")}\n`);
+      if (!result.ok && result.stderr) process.stderr.write(result.stderr);
+      results.push({ id: entry.id, kind: entry.kind, source: entry.source, command: entry.command.join(" "), ok: result.ok, error: result.error ?? null });
     }
     print(results);
     return;
@@ -613,21 +619,29 @@ function commandDeps(parsed: Parsed): void {
 
   const run = (command: string[], label: string): boolean => {
     const [bin, ...args] = command;
-    const result = spawnSync(bin, args, { encoding: "utf8", shell: true });
-    const ok = result.status === 0;
-    process.stdout.write(`${ok ? "ok  " : "fail"} ${label}\n`);
-    if (!ok && result.stderr) process.stderr.write(result.stderr);
-    return ok;
+    const result = runCommand(bin, args);
+    process.stdout.write(`${result.ok ? "ok  " : "fail"} ${label}\n`);
+    if (!result.ok && result.stderr) process.stderr.write(result.stderr);
+    if (result.error) process.stderr.write(`${result.error}\n`);
+    return result.ok;
+  };
+
+  const runBootstrap = (argv: string[], label: string): boolean => {
+    const result = runScript(argv);
+    process.stdout.write(`${result.ok ? "ok  " : "fail"} ${label}\n`);
+    if (!result.ok && result.stderr) process.stderr.write(result.stderr);
+    if (result.error) process.stderr.write(`${result.error}\n`);
+    return result.ok;
   };
 
   const results: Record<string, unknown>[] = [];
   for (const entry of missingPrerequisites(spec)) {
     const bootstrap = bootstrapFor(entry.provider);
-    if (!bootstrap) {
+    if (!bootstrap || bootstrap.length === 0) {
       results.push({ provider: entry.provider.id, step: "bootstrap", ok: false, note: `missing ${entry.missing.join(", ")}` });
       continue;
     }
-    results.push({ provider: entry.provider.id, step: "bootstrap", command: bootstrap, ok: run([bootstrap], `bootstrap ${entry.provider.id}`) });
+    results.push({ provider: entry.provider.id, step: "bootstrap", command: bootstrap.join(" "), ok: runBootstrap(bootstrap, `bootstrap ${entry.provider.id}`) });
   }
   for (const entry of installCommands(spec)) {
     results.push({ provider: entry.id, step: "install", command: entry.command.join(" "), ok: run(entry.command, `install ${entry.id}`) });
@@ -642,9 +656,8 @@ function normalizeTodoInput(item: unknown): TodoInput {
     : typeof record.owner === "string"
       ? record.owner.split(",").map((part) => part.trim()).filter(Boolean)
       : [];
-  const dependsOn = Array.isArray(record.dependsOn ?? record.depends_on)
-    ? (record.dependsOn ?? record.depends_on as unknown[]).map(String)
-    : [];
+  const dependsRaw = record.dependsOn ?? record.depends_on;
+  const dependsOn = Array.isArray(dependsRaw) ? dependsRaw.map(String) : [];
   const maxIterations = Number(record.maxIterations ?? record.max_iterations);
   return {
     label: String(record.label ?? record.title ?? "").trim(),
@@ -944,7 +957,7 @@ function usage(): void {
       "rules",
       "session-load --session id --skill name",
       "session-state --session id",
-      "hook --harness claude|codex [--event PreToolUse]",
+      "hook --harness claude|codex [--event PreToolUse] [--categories a,b]",
       "report [--format markdown]",
       "catalog <query> [--limit N]",
       "roadmap --category id | <query>",

@@ -11,8 +11,9 @@ const spec = loadSpec(root);
 const cli = join(root, "src", "cli.ts");
 const PROSE = "// Ce commentaire explique le calcul du total de la commande pour le client";
 
-function runHook(payload: object): { stdout: string; status: number } {
-  const result = spawnSync(process.execPath, [cli, "hook", "--harness", "claude", "--event", "PreToolUse"], {
+function runHook(payload: object, extra: string[] = []): { stdout: string; status: number } {
+  const args = [cli, "hook", "--harness", "claude", "--event", "PreToolUse", ...extra];
+  const result = spawnSync(process.execPath, args, {
     encoding: "utf8",
     input: JSON.stringify(payload),
     env: { ...process.env, NOVAHIZ_HOME: root }
@@ -70,4 +71,40 @@ test("cli hook allows a read-only command silently", () => {
   const out = runHook({ tool_name: "Bash", tool_input: { command: "git status" }, session_id: "hook-read" });
   assert.equal(out.stdout, "");
   assert.equal(out.status, 0);
+});
+
+test("decideHook requires roadmap skills for the prompt category", () => {
+  const decision = decideHook(
+    spec,
+    "claude",
+    "Edit",
+    { file_path: "src/app.ts", new_string: "const x = 1;" },
+    { categories: ["audit"] }
+  );
+  assert.equal(decision.kind, "evaluate");
+  if (decision.kind !== "evaluate") return;
+  assert.equal(decision.block, true);
+  assert.ok(decision.missing.includes("security-guidance"));
+});
+
+test("cli hook blocks on an explicit category", () => {
+  const out = runHook(
+    { tool_name: "Edit", tool_input: { file_path: "src/app.ts", new_string: "const x = 1;" }, session_id: "hook-cat" },
+    ["--categories", "audit"]
+  );
+  const parsed = JSON.parse(out.stdout);
+  assert.equal(parsed.hookSpecificOutput.permissionDecision, "deny");
+});
+
+test("cli hook infers the category from a supabase migration path", () => {
+  const out = runHook(
+    {
+      tool_name: "Write",
+      tool_input: { file_path: "supabase/migrations/001_init.sql", content: "create table account (id uuid primary key);" },
+      session_id: "hook-supabase"
+    },
+    []
+  );
+  const parsed = JSON.parse(out.stdout);
+  assert.equal(parsed.hookSpecificOutput.permissionDecision, "deny");
 });

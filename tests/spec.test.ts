@@ -11,7 +11,7 @@ test("mergeConfig fills missing blocks from defaults", () => {
 });
 
 test("mergeConfig keeps provided values and fills the rest", () => {
-  const merged = mergeConfig({ gate: { mode: "warn" }, classify: { maxCategories: 5 } });
+  const merged = mergeConfig({ gate: { mode: "warn" }, classify: { maxCategories: 5 } } as never);
   assert.equal(merged.gate.mode, "warn");
   assert.equal(merged.gate.envEscape, DEFAULT_CONFIG.gate.envEscape);
   assert.equal(merged.classify.maxCategories, 5);

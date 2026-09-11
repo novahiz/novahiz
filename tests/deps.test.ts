@@ -25,8 +25,8 @@ test("checks dependencies for every provider", () => {
 test("provides a bootstrap command per platform for uv", () => {
   const speckit = spec.providers.find((provider) => provider.id === "speckit");
   assert.ok(speckit);
-  assert.ok((bootstrapFor(speckit, "win32") ?? "").includes("uv"));
-  assert.ok((bootstrapFor(speckit, "linux") ?? "").includes("uv"));
+  assert.ok((bootstrapFor(speckit, "win32") ?? []).join(" ").includes("uv"));
+  assert.ok((bootstrapFor(speckit, "linux") ?? []).join(" ").includes("uv"));
 });
 
 test("missingPrerequisites returns only unmet requirements", () => {

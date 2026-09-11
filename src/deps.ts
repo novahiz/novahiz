@@ -23,7 +23,7 @@ export function checkDependencies(spec: Spec): DependencyStatus[] {
   });
 }
 
-export function bootstrapFor(provider: Provider, platform: string = process.platform): string | null {
+export function bootstrapFor(provider: Provider, platform: string = process.platform): string[] | null {
   const bootstrap = provider.bootstrap;
   if (!bootstrap) return null;
   return bootstrap[platform] ?? bootstrap.default ?? null;

@@ -46,7 +46,8 @@
     "report": "node src/cli.ts report",
     "setup": "node install/install.mjs",
     "setup:dry": "node install/install.mjs --dry-run",
-    "test": "node --test"
+    "test": "node --test",
+    "typecheck": "tsc --noEmit"
   },
   "files": [
     "src",
@@ -62,5 +63,13 @@
     "novahiz.config.example.json",
     "tsconfig.json",
     "LICENSE"
-  ]
+  ],
+  "devDependencies": {
+    "@opencode-ai/plugin": "1.18.30",
+    "@types/node": "24.13.4",
+    "typescript": "7.0.2"
+  },
+  "allowScripts": {
+    "msgpackr-extract@3.0.4": true
+  }
 }

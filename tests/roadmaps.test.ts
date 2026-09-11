@@ -17,6 +17,7 @@ test("every category has a roadmap with at least one step", () => {
 test("roadmap steps have a valid shape", () => {
   const kinds = new Set(["advisory", "skill", "edit", "verify", "approval"]);
   for (const category of spec.categories) {
+    assert.ok(category.roadmap, `category ${category.id} has no roadmap`);
     for (const step of category.roadmap.steps) {
       assert.ok(step.id.length > 0, `empty step id in ${category.id}`);
       assert.ok(step.label.length > 0, `empty step label in ${category.id}`);

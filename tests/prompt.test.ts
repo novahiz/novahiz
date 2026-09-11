@@ -1,9 +1,10 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { PassThrough } from "node:stream";
+// @ts-expect-error -- install/prompt.mjs is untyped JavaScript by design
 import { createPrompt } from "../install/prompt.mjs";
 
-function withAnswer(text) {
+function withAnswer(text: string) {
   const input = new PassThrough();
   const output = new PassThrough();
   const prompt = createPrompt(input, output);

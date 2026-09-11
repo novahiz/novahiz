@@ -51,6 +51,7 @@ export type HookDecision =
 
 export type HookOptions = {
   loadedSkills?: string[];
+  categories?: string[];
 };
 
 export function decideHook(
@@ -78,6 +79,7 @@ export function decideHook(
       tool,
       filePath,
       content,
+      categories: options.categories ?? [],
       loadedSkills: options.loadedSkills ?? [],
       installedSkills: index.skills,
       installedIndexAvailable: index.available,

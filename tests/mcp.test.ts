@@ -18,7 +18,7 @@ before(() => {
   writeCatalog(spec, skills);
 });
 
-function call(lines) {
+function call(lines: string[]) {
   const result = spawnSync(process.execPath, [server], {
     encoding: "utf8",
     input: `${lines.join("\n")}\n`,
@@ -64,7 +64,7 @@ test("lists providers for a category", () => {
     '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"novahiz_providers","arguments":{"category":"browser"}}}'
   ]);
   const payload = JSON.parse(out[0].result.content[0].text);
-  assert.ok(payload.providers.some((provider) => provider.id === "playwright"));
+  assert.ok(payload.providers.some((provider: { id: string }) => provider.id === "playwright"));
 });
 
 test("returns a roadmap by category", () => {
@@ -115,7 +115,7 @@ test("drives the execution ledger over MCP", () => {
   assert.equal(JSON.parse(out[1].result.content[0].text).length, 2);
   const status = JSON.parse(out[2].result.content[0].text);
   assert.equal(status.task.id, id);
-  assert.ok(status.summary.some((line) => line.includes(id)));
+  assert.ok(status.summary.some((line: string) => line.includes(id)));
 });
 
 test("dispatches the active task into work packets", () => {

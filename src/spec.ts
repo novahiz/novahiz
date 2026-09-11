@@ -69,7 +69,7 @@ export type Provider = {
   url?: string;
   install?: string[];
   requires?: string[];
-  bootstrap?: Record<string, string>;
+  bootstrap?: Record<string, string[]>;
   purpose?: string;
   categories?: string[];
   source?: string;
@@ -204,7 +204,7 @@ function readJson<T>(path: string): T {
 
 export function mergeConfig(raw: Partial<NovahizConfig> | null | undefined): NovahizConfig {
   const source = raw && typeof raw === "object" ? raw : {};
-  const gateSource = source.gate && typeof source.gate === "object" ? source.gate : {};
+  const gateSource: Partial<GateConfig> = source.gate && typeof source.gate === "object" ? source.gate : {};
   const gate: GateConfig = { ...DEFAULT_CONFIG.gate, ...gateSource };
   if (typeof gate.enabled !== "boolean") gate.enabled = DEFAULT_CONFIG.gate.enabled;
   if (gate.mode !== "block" && gate.mode !== "warn" && gate.mode !== "audit") gate.mode = DEFAULT_CONFIG.gate.mode;
@@ -213,13 +213,13 @@ export function mergeConfig(raw: Partial<NovahizConfig> | null | undefined): Nov
   if (!Array.isArray(gate.ignoreFiles)) gate.ignoreFiles = DEFAULT_CONFIG.gate.ignoreFiles;
   if (typeof gate.placeholders !== "boolean") gate.placeholders = DEFAULT_CONFIG.gate.placeholders;
 
-  const traceSource = gateSource.trace && typeof gateSource.trace === "object" ? gateSource.trace : {};
+  const traceSource: Partial<TraceConfig> = gateSource.trace && typeof gateSource.trace === "object" ? gateSource.trace : {};
   const trace: TraceConfig = { ...DEFAULT_CONFIG.gate.trace, ...traceSource };
   if (typeof trace.enabled !== "boolean") trace.enabled = DEFAULT_CONFIG.gate.trace.enabled;
   if (!Array.isArray(trace.categories)) trace.categories = [...DEFAULT_CONFIG.gate.trace.categories];
   gate.trace = trace;
 
-  const classifySource = source.classify && typeof source.classify === "object" ? source.classify : {};
+  const classifySource: Partial<ClassifyConfig> = source.classify && typeof source.classify === "object" ? source.classify : {};
   const classify: ClassifyConfig = { ...DEFAULT_CONFIG.classify, ...classifySource };
   if (typeof classify.minScore !== "number" || !Number.isFinite(classify.minScore)) {
     classify.minScore = DEFAULT_CONFIG.classify.minScore;
@@ -231,18 +231,18 @@ export function mergeConfig(raw: Partial<NovahizConfig> | null | undefined): Nov
     classify.fallbackCategory = DEFAULT_CONFIG.classify.fallbackCategory;
   }
 
-  const providersSource = source.providers && typeof source.providers === "object" ? source.providers : {};
+  const providersSource: Partial<ProvidersConfig> = source.providers && typeof source.providers === "object" ? source.providers : {};
   const providers: ProvidersConfig = {
     autoRegister: typeof providersSource.autoRegister === "boolean" ? providersSource.autoRegister : DEFAULT_CONFIG.providers.autoRegister,
     autoInstall: typeof providersSource.autoInstall === "boolean" ? providersSource.autoInstall : DEFAULT_CONFIG.providers.autoInstall,
     disabled: Array.isArray(providersSource.disabled) ? providersSource.disabled : [...DEFAULT_CONFIG.providers.disabled]
   };
 
-  const ledgerSource = source.ledger && typeof source.ledger === "object" ? source.ledger : {};
-  const reviewSource = ledgerSource.review && typeof ledgerSource.review === "object" ? ledgerSource.review : {};
+  const ledgerSource: Partial<LedgerConfig> = source.ledger && typeof source.ledger === "object" ? source.ledger : {};
+  const reviewSource: Partial<LedgerReviewConfig> = ledgerSource.review && typeof ledgerSource.review === "object" ? ledgerSource.review : {};
   const review: LedgerReviewConfig = {
-    edits: Number.isFinite(reviewSource.edits) && reviewSource.edits > 0 ? Math.trunc(reviewSource.edits) : DEFAULT_CONFIG.ledger.review.edits,
-    todos: Number.isFinite(reviewSource.todos) && reviewSource.todos > 0 ? Math.trunc(reviewSource.todos) : DEFAULT_CONFIG.ledger.review.todos
+    edits: typeof reviewSource.edits === "number" && Number.isFinite(reviewSource.edits) && reviewSource.edits > 0 ? Math.trunc(reviewSource.edits) : DEFAULT_CONFIG.ledger.review.edits,
+    todos: typeof reviewSource.todos === "number" && Number.isFinite(reviewSource.todos) && reviewSource.todos > 0 ? Math.trunc(reviewSource.todos) : DEFAULT_CONFIG.ledger.review.todos
   };
   const ledger: LedgerConfig = {
     enabled: typeof ledgerSource.enabled === "boolean" ? ledgerSource.enabled : DEFAULT_CONFIG.ledger.enabled,

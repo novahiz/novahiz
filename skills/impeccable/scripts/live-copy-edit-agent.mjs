@@ -252,10 +252,16 @@ function isInsideQuotedLiteral(line, index) {
 function runManualEditValidationScript(cwd) {
   const script = readManualEditValidationScript(cwd);
   if (!script) return null;
-  const validation = spawnSync(script, {
+  // Run the project validator through its own package runner, by script name.
+  // Feeding the raw package.json command line to a shell would execute whatever
+  // that field contains; here the argument list stays fixed and shell stays off.
+  const npmArgs = ['run', 'impeccable:manual-edit-validate'];
+  const command = process.platform === 'win32' ? process.env.ComSpec || 'cmd.exe' : 'npm';
+  const args = process.platform === 'win32' ? ['/d', '/s', '/c', ['npm', ...npmArgs].join(' ')] : npmArgs;
+  const validation = spawnSync(command, args, {
     cwd,
     encoding: 'utf-8',
-    shell: true,
+    shell: false,
     timeout: 30_000,
   });
   if (validation.error) {
