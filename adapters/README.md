@@ -4,7 +4,7 @@ Novahiz keeps every decision in the CLI. An adapter only translates a harness ev
 
 ## opencode
 
-`adapters/opencode/novahiz.ts` is a plugin. It classifies each user message, injects enforcement text, tracks loaded skills per session, and calls `novahiz gate` on `edit`, `write`, `patch`, `apply_patch`, and `bash`. It also registers the MCP server through the plugin `config` hook.
+`adapters/opencode/novahiz.ts` is a plugin. It classifies each user message, injects the roadmap checklist and expected skills, tracks loaded skills per session, and calls `novahiz gate` on `edit`, `write`, `patch`, `apply_patch`, and `bash`. The gate is content-aware, so `humanizer` and `impeccable` are required only when the change contains prose or style. It also registers the MCP server through the plugin `config` hook.
 
 ## Claude Code
 

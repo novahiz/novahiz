@@ -50,6 +50,13 @@ export function openDb(dbPath: string): DatabaseSync {
       invoked_at TEXT NOT NULL,
       PRIMARY KEY (session_id, skill)
     );
+    CREATE TABLE IF NOT EXISTS roadmap_progress (
+      session_id TEXT NOT NULL,
+      step_id TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'done',
+      updated_at TEXT NOT NULL,
+      PRIMARY KEY (session_id, step_id)
+    );
     CREATE TABLE IF NOT EXISTS enforcement_log (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       session_id TEXT,

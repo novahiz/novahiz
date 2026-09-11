@@ -4,97 +4,241 @@
     "label": "Code",
     "priority": 60,
     "keywords": ["code", "coder", "fonction", "function", "methode", "method", "classe", "class", "module", "composant", "component", "api", "endpoint", "script", "implemente", "implement", "feature", "fonctionnalite", "refactor", "refactoring", "refactorise", "typescript", "javascript", "python", "rust", "golang", "java", "kotlin", "swift", "php", "dart", "flutter", "react", "vue", "angular", "svelte", "node", "backend", "frontend"],
-    "defaultSkills": []
+    "defaultSkills": [],
+    "roadmap": {
+      "id": "feature",
+      "steps": [
+        { "id": "understand", "label": "Lire le code existant", "kind": "advisory" },
+        { "id": "plan", "label": "Ecrire un plan", "kind": "skill", "requireSkills": ["planner"] },
+        { "id": "quality", "label": "Charger humanizer", "kind": "advisory", "requireSkills": ["humanizer"] },
+        { "id": "implement", "label": "Implementer", "kind": "edit" },
+        { "id": "test", "label": "Executer les tests", "kind": "verify" },
+        { "id": "review", "label": "Auto-review", "kind": "skill", "requireSkills": ["code-reviewer"] }
+      ]
+    }
   },
   {
     "id": "debug",
     "label": "Debug",
     "priority": 58,
     "keywords": ["bug", "erreur", "error", "crash", "exception", "stacktrace", "stack trace", "trace", "debug", "debogue", "debugger", "panic", "fails", "echoue", "ne marche pas", "broken", "casse", "regression", "corrige", "corriger", "fix", "reparer", "reproduce"],
-    "defaultSkills": []
+    "defaultSkills": [],
+    "roadmap": {
+      "id": "bugfix",
+      "steps": [
+        { "id": "reproduce", "label": "Reproduire le bug", "kind": "advisory" },
+        { "id": "isolate", "label": "Isoler la cause", "kind": "advisory" },
+        { "id": "analyze", "label": "Analyser le code", "kind": "skill", "requireSkills": ["code-understand"] },
+        { "id": "fix", "label": "Corriger", "kind": "advisory", "requireSkills": ["humanizer"] },
+        { "id": "test", "label": "Verifier la correction", "kind": "verify" },
+        { "id": "prevent", "label": "Prevenir la recidive", "kind": "advisory" }
+      ]
+    }
   },
   {
     "id": "review",
     "label": "Review",
     "priority": 55,
     "keywords": ["review", "revue", "relis", "relire", "relecture", "code review", "pull request", "pull-request", "pr ", "diff", "feedback", "critique de code", "audit de code"],
-    "defaultSkills": ["review-changes", "code-understand"]
+    "defaultSkills": [],
+    "roadmap": {
+      "id": "review",
+      "steps": [
+        { "id": "context", "label": "Rassembler le contexte", "kind": "skill", "requireSkills": ["code-understand"] },
+        { "id": "read", "label": "Lire le diff", "kind": "skill", "requireSkills": ["review-changes"] },
+        { "id": "assess", "label": "Evaluer", "kind": "skill", "requireSkills": ["code-reviewer"] },
+        { "id": "report", "label": "Rapporter", "kind": "advisory" }
+      ]
+    }
   },
   {
     "id": "audit",
     "label": "Audit",
     "priority": 54,
     "keywords": ["audit", "audite", "scan", "analyse statique", "static analysis", "qualite", "quality", "lint", "conformite", "compliance", "cwe", "owasp", "vulnerabilite", "vulnerability", "sécurité", "securite", "security", "injection", "xss", "csrf", "secret", "secrets", "fuite de donnees"],
-    "defaultSkills": []
+    "defaultSkills": [],
+    "roadmap": {
+      "id": "audit",
+      "steps": [
+        { "id": "scope", "label": "Cadrer le perimetre", "kind": "advisory" },
+        { "id": "scan", "label": "Scanner", "kind": "skill", "requireSkills": ["security-guidance"] },
+        { "id": "triage", "label": "Trier les trouvailles", "kind": "advisory" },
+        { "id": "prioritize", "label": "Prioriser", "kind": "advisory" },
+        { "id": "report", "label": "Rapporter", "kind": "advisory" }
+      ]
+    }
   },
   {
     "id": "test",
     "label": "Test",
     "priority": 53,
     "keywords": ["test", "tests", "unitaire", "unit", "integration", "e2e", "end to end", "coverage", "couverture", "tdd", "mock", "mocks", "jest", "vitest", "pytest", "playwright test", "assertion"],
-    "defaultSkills": []
+    "defaultSkills": [],
+    "roadmap": {
+      "id": "testing",
+      "steps": [
+        { "id": "target", "label": "Cibler ce qui doit etre teste", "kind": "advisory" },
+        { "id": "write", "label": "Ecrire les tests", "kind": "advisory", "requireSkills": ["humanizer"] },
+        { "id": "run", "label": "Executer les tests", "kind": "verify" },
+        { "id": "coverage", "label": "Verifier la couverture", "kind": "verify" },
+        { "id": "report", "label": "Rapporter", "kind": "advisory" }
+      ]
+    }
   },
   {
     "id": "research",
     "label": "Research",
     "priority": 50,
     "keywords": ["recherche", "research", "rechercher", "investigue", "investigate", "documentation", "docs", "doc", "comment fonctionne", "how does", "comparaison", "compare", "benchmark", "bonne pratique", "best practice", "etat de l'art", "veille", "ressources"],
-    "defaultSkills": ["defuddle"]
+    "defaultSkills": ["defuddle"],
+    "roadmap": {
+      "id": "research",
+      "steps": [
+        { "id": "frame", "label": "Cadrer la question", "kind": "advisory" },
+        { "id": "gather", "label": "Collecter des sources", "kind": "skill", "requireSkills": ["defuddle"] },
+        { "id": "compare", "label": "Comparer", "kind": "advisory" },
+        { "id": "synthesize", "label": "Synthetiser", "kind": "advisory", "requireSkills": ["humanizer"] },
+        { "id": "cite", "label": "Citer les sources", "kind": "advisory" }
+      ]
+    }
   },
   {
     "id": "browser",
     "label": "Browser",
     "priority": 48,
     "keywords": ["browser", "navigateur", "playwright", "scrape", "scraping", "screenshot", "capture d ecran", "page web", "webpage", "url", "site web", "website", "dom", "selenium", "puppeteer", "clic", "click", "formulaire web"],
-    "defaultSkills": []
+    "defaultSkills": [],
+    "roadmap": {
+      "id": "browse",
+      "steps": [
+        { "id": "goal", "label": "Definir l'objectif", "kind": "advisory" },
+        { "id": "navigate", "label": "Naviguer", "kind": "advisory" },
+        { "id": "interact", "label": "Interagir", "kind": "advisory" },
+        { "id": "capture", "label": "Capturer", "kind": "advisory" },
+        { "id": "report", "label": "Rapporter", "kind": "advisory" }
+      ]
+    }
   },
   {
     "id": "design-ui",
     "label": "Design UI",
     "priority": 52,
     "keywords": ["design", "ui", "ux", "interface", "landing", "landing page", "maquette", "mockup", "wireframe", "layout", "css", "scss", "tailwind", "style", "styling", "typographie", "typography", "font", "police", "couleur", "color", "palette", "animation", "motion", "composant visuel", "responsive", "accessibilite", "accessibility", "a11y", "dashboard", "formulaire", "onboarding"],
-    "defaultSkills": ["impeccable"]
+    "negativeKeywords": ["migration", "rls", "edge function"],
+    "defaultSkills": ["impeccable"],
+    "roadmap": {
+      "id": "design",
+      "steps": [
+        { "id": "brief", "label": "Clarifier le brief", "kind": "advisory" },
+        { "id": "load", "label": "Charger impeccable", "kind": "advisory", "requireSkills": ["impeccable"] },
+        { "id": "implement", "label": "Implementer", "kind": "edit" },
+        { "id": "responsive", "label": "Verifier le responsive", "kind": "verify" },
+        { "id": "a11y", "label": "Verifier l'accessibilite", "kind": "skill", "requireSkills": ["a11y-audit"], "optional": true },
+        { "id": "polish", "label": "Polish", "kind": "advisory", "requireSkills": ["impeccable"] }
+      ]
+    }
   },
   {
     "id": "database-supabase",
     "label": "Database / Supabase",
     "priority": 57,
     "keywords": ["supabase", "postgres", "postgresql", "sql", "requete sql", "rls", "row level security", "migration", "migrations", "edge function", "edge functions", "storage", "realtime", "bucket", "pgvector", "trigger", "base de donnees", "database"],
-    "defaultSkills": ["supabase", "supabase-postgres-best-practices"]
+    "negativeKeywords": ["maquette", "landing"],
+    "defaultSkills": ["supabase", "supabase-postgres-best-practices"],
+    "roadmap": {
+      "id": "schema",
+      "steps": [
+        { "id": "inspect", "label": "Inspecter le schema", "kind": "advisory" },
+        { "id": "load", "label": "Charger les skills Supabase", "kind": "skill", "requireSkills": ["supabase"] },
+        { "id": "migration", "label": "Ecrire la migration", "kind": "edit" },
+        { "id": "security", "label": "Verifier RLS et securite", "kind": "skill", "requireSkills": ["supabase-postgres-best-practices"] },
+        { "id": "test", "label": "Tester localement", "kind": "verify" },
+        { "id": "document", "label": "Documenter", "kind": "advisory" }
+      ]
+    }
   },
   {
     "id": "docs-writing",
     "label": "Docs & Writing",
     "priority": 49,
     "keywords": ["redige", "redaction", "redactionnel", "write", "writing", "texte", "article", "blog", "copywriting", "copy", "email", "newsletter", "seo", "marketing", "note", "memoire", "readme", "changelog", "reformule", "rewrite", "vulgarise"],
-    "defaultSkills": ["humanizer"]
+    "defaultSkills": ["humanizer"],
+    "roadmap": {
+      "id": "writing",
+      "steps": [
+        { "id": "outline", "label": "Planifier", "kind": "advisory" },
+        { "id": "draft", "label": "Rediger", "kind": "advisory", "requireSkills": ["humanizer"] },
+        { "id": "review", "label": "Relire", "kind": "advisory" },
+        { "id": "publish", "label": "Publier", "kind": "advisory" }
+      ]
+    }
   },
   {
     "id": "planning",
     "label": "Planning",
     "priority": 47,
     "keywords": ["plan", "planifie", "planning", "architecture", "roadmap", "strategie", "strategy", "backlog", "spec", "specification", "prd", "user story", "decoupage", "estimation", "priorisation"],
-    "defaultSkills": []
+    "defaultSkills": [],
+    "roadmap": {
+      "id": "planning",
+      "steps": [
+        { "id": "clarify", "label": "Clarifier", "kind": "advisory" },
+        { "id": "decompose", "label": "Decouper", "kind": "skill", "requireSkills": ["planner"] },
+        { "id": "estimate", "label": "Estimer", "kind": "advisory" },
+        { "id": "spec", "label": "Specifier", "kind": "advisory" },
+        { "id": "validate", "label": "Valider", "kind": "advisory" }
+      ]
+    }
   },
   {
     "id": "devops",
     "label": "DevOps",
     "priority": 46,
     "keywords": ["docker", "dockerfile", "kubernetes", "k8s", "ci pipeline", "cd pipeline", "continuous integration", "continuous deployment", "pipeline ci", "pipeline cd", "pipeline", "deploy", "deploiement", "github action", "github actions", "terraform", "ansible", "nix", "systemd", "nginx", "infra", "infrastructure", "monitoring"],
-    "defaultSkills": []
+    "defaultSkills": [],
+    "roadmap": {
+      "id": "devops",
+      "steps": [
+        { "id": "assess", "label": "Evaluer", "kind": "advisory" },
+        { "id": "change", "label": "Modifier", "kind": "edit" },
+        { "id": "dryrun", "label": "Dry-run", "kind": "verify" },
+        { "id": "apply", "label": "Appliquer", "kind": "advisory" },
+        { "id": "verify", "label": "Verifier", "kind": "verify" }
+      ]
+    }
   },
   {
     "id": "data",
     "label": "Data",
     "priority": 45,
     "keywords": ["dataset", "csv", "pandas", "numpy", "etl", "analytics", "analyse de donnees", "data analysis", "dataframe", "statistiques", "statistics", "visualisation de donnees", "power bi", "grafana"],
-    "defaultSkills": []
+    "defaultSkills": [],
+    "roadmap": {
+      "id": "data",
+      "steps": [
+        { "id": "understand", "label": "Comprendre les donnees", "kind": "advisory" },
+        { "id": "transform", "label": "Transformer", "kind": "edit" },
+        { "id": "validate", "label": "Valider", "kind": "verify" },
+        { "id": "visualize", "label": "Visualiser", "kind": "advisory" },
+        { "id": "report", "label": "Rapporter", "kind": "advisory" }
+      ]
+    }
   },
   {
     "id": "general",
     "label": "General",
     "priority": 0,
     "keywords": [],
-    "defaultSkills": []
+    "defaultSkills": [],
+    "roadmap": {
+      "id": "general",
+      "steps": [
+        { "id": "clarify", "label": "Clarifier", "kind": "advisory" },
+        { "id": "plan", "label": "Planifier", "kind": "advisory" },
+        { "id": "execute", "label": "Executer", "kind": "advisory", "requireSkills": ["humanizer"] },
+        { "id": "verify", "label": "Verifier", "kind": "verify" },
+        { "id": "report", "label": "Rapporter", "kind": "advisory" }
+      ]
+    }
   }
 ]

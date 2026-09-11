@@ -1,4 +1,5 @@
-import type { Spec } from "./spec.ts";
+import type { Rule, Spec } from "./spec.ts";
+import { hasProse, hasStyle, isTrivial } from "./content.ts";
 
 export type FileClass = "code" | "text" | "design" | "data" | "config" | "other";
 
@@ -122,9 +123,35 @@ export function globToRegExp(glob: string): RegExp {
   return new RegExp(`^${output}$`, "i");
 }
 
+export function contentSatisfies(content: string, patterns: string[]): boolean {
+  if (content.length === 0) return false;
+  return patterns.some((pattern) => {
+    if (pattern === "prose") return hasProse(content);
+    if (pattern === "style") return hasStyle(content);
+    try {
+      return new RegExp(pattern, "i").test(content);
+    } catch {
+      return false;
+    }
+  });
+}
+
+function selectorMatches(rule: Rule, classification: FileClass, path: string, categories: string[]): boolean {
+  const when = rule.when;
+  const checks: boolean[] = [];
+  if (when.fileClasses && when.fileClasses.length > 0) checks.push(when.fileClasses.includes(classification));
+  if (when.pathGlobs && when.pathGlobs.length > 0) checks.push(when.pathGlobs.some((glob) => globToRegExp(glob).test(path)));
+  if (when.promptCategories && when.promptCategories.length > 0) {
+    checks.push(when.promptCategories.some((category) => categories.includes(category)));
+  }
+  if (checks.length === 0) return true;
+  return when.match === "all" ? checks.every(Boolean) : checks.some(Boolean);
+}
+
 export type GateInput = {
   tool: string;
   filePath: string;
+  content?: string;
   categories?: string[];
   loadedSkills?: string[];
   installedSkills?: ReadonlySet<string> | null;
@@ -134,7 +161,9 @@ export type GateInput = {
 
 export type GateResult = {
   allow: boolean;
+  ignored: boolean;
   fileClass: FileClass;
+  roadmap: string | null;
   requiredSkills: string[];
   missingSkills: string[];
   unmatchedRequired: string[];
@@ -146,25 +175,49 @@ export function evaluateGate(input: GateInput): GateResult {
   const classification = fileClass(input.filePath);
   const categories = input.categories ?? [];
   const path = input.filePath.replace(/\\/g, "/");
+  const content = input.content ?? "";
+
+  const ignored = input.spec.config.gate.ignoreFiles.some((glob) => globToRegExp(glob).test(path));
+  if (ignored) {
+    return {
+      allow: true,
+      ignored: true,
+      fileClass: classification,
+      roadmap: null,
+      requiredSkills: [],
+      missingSkills: [],
+      unmatchedRequired: [],
+      matchedRules: [],
+      indexMissing: false
+    };
+  }
+
   const requiredSkills: string[] = [];
   const matchedRules: string[] = [];
 
   for (const rule of input.spec.rules) {
-    const byClass = rule.when.fileClasses?.includes(classification) ?? false;
-    const byPath = rule.when.pathGlobs?.some((glob) => globToRegExp(glob).test(path)) ?? false;
-    const byCategory = rule.when.promptCategories?.some((category) => categories.includes(category)) ?? false;
-    if (!byClass && !byPath && !byCategory) continue;
+    if (!selectorMatches(rule, classification, path, categories)) continue;
+    if (rule.when.minChange && isTrivial(content, rule.when.minChange)) continue;
+    if (rule.when.contentExcludes && contentSatisfies(content, rule.when.contentExcludes)) continue;
+    if (rule.when.contentMatches && !contentSatisfies(content, rule.when.contentMatches)) continue;
     matchedRules.push(rule.id);
     for (const skill of rule.require) {
       if (!requiredSkills.includes(skill)) requiredSkills.push(skill);
     }
   }
 
-  for (const id of categories) {
-    const category = input.spec.categories.find((entry) => entry.id === id);
-    if (!category) continue;
-    for (const skill of category.defaultSkills) {
-      if (!requiredSkills.includes(skill)) requiredSkills.push(skill);
+  const primary = categories[0];
+  let roadmap: string | null = null;
+  if (primary) {
+    const category = input.spec.categories.find((entry) => entry.id === primary);
+    if (category?.roadmap) {
+      roadmap = category.roadmap.id;
+      for (const step of category.roadmap.steps) {
+        if (step.kind !== "skill" || step.optional) continue;
+        for (const skill of step.requireSkills ?? []) {
+          if (!requiredSkills.includes(skill)) requiredSkills.push(skill);
+        }
+      }
     }
   }
 
@@ -182,7 +235,9 @@ export function evaluateGate(input: GateInput): GateResult {
 
   return {
     allow: missingSkills.length === 0,
+    ignored: false,
     fileClass: classification,
+    roadmap,
     requiredSkills: effective,
     missingSkills,
     unmatchedRequired,

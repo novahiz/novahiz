@@ -37,6 +37,12 @@ Three versioned JSON files under `catalog/`:
 
 `adapters/opencode/novahiz.ts` is a plugin. It runs the CLI for classification and gating, tracks loaded skills per session in memory, and injects enforcement text through `experimental.chat.system.transform`. The gate call runs in `tool.execute.before`, which can throw and cancel the tool call.
 
+### content rules and roadmaps
+
+`src/content.ts` provides `changeText`, `hasProse`, and `hasStyle`. Rules in `catalog/rules.json` use them through `when.contentMatches` and `when.contentExcludes`, so `humanizer` and `impeccable` are required only for prose and style changes. `when.match` combines class, path, and category selectors.
+
+Each category carries a `roadmap`. The classifier returns the category order, the primary category, the union of required skills, and the roadmaps. The gate adds the primary roadmap `skill` steps to its requirements. `src/db.ts` stores step progress in `roadmap_progress`.
+
 ### harness hook adapters
 
 `src/hook.ts` maps a harness hook payload to the same gate. `novahiz hook --harness claude|codex` reads the payload on stdin, normalizes the tool name, tracks skill loads by session, and returns a decision. Claude Code uses a blocking `PreToolUse` hook; Codex uses advisory `PostToolUse` and `Stop` hooks. `install/hooks.mjs` writes the manifests.
@@ -63,11 +69,10 @@ The core runs on Node with no dependencies. A new harness adapter needs two thin
 
 ## MCP server
 
-`mcp/novahiz-tools/index.mjs` exposes `novahiz_classify`, `novahiz_list_skills`, and `novahiz_gate` over stdio using newline-delimited JSON-RPC. It has no dependencies and reuses the core modules directly. The opencode plugin registers it through the plugin `config` hook.
+`mcp/novahiz-tools/index.mjs` exposes `novahiz_classify`, `novahiz_catalog`, `novahiz_roadmap`, `novahiz_step`, `novahiz_list_skills`, and `novahiz_gate` over stdio using newline-delimited JSON-RPC. It has no dependencies and reuses the core modules directly. The opencode plugin registers it through the plugin `config` hook.
 
 ## Next
 
-- A `Novahiz-Agent` primary agent that orchestrates classify, skill loading, execution, and the gate.
-- A curated scoring pass that fills `power` and `stars` beyond the defaults.
 - Optional embedding tie-break for the classifier.
-- A `novahiz report` command over the enforcement log.
+- A catalog enrichment pass that fills `stars` from a source.
+- More content matchers beyond prose and style.

@@ -4,16 +4,17 @@
 [![license](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 [![node](https://img.shields.io/badge/node-%3E%3D22.18-brightgreen.svg)](https://nodejs.org)
 
-A deterministic layer for AI coding harnesses. It catalogs your skills, classifies a prompt into categories, and blocks file edits until the required skills are loaded.
+A deterministic layer for AI coding harnesses. It catalogs your skills, classifies a prompt into categories, attaches an execution roadmap, and blocks file edits until the required skills are loaded.
 
 The decisions run in code. The same prompt and the same rule set always produce the same result. No model vote, no random sampling, no hidden state.
 
 ## What it does
 
-- **Catalog** scans `SKILL.md` files, reads their frontmatter, and stores them in SQLite with a curated score.
-- **Classifier** maps a prompt to categories (code, debug, review, audit, research, browser, design, Supabase, and more) from keyword rules. It returns the skills those categories require.
-- **Gate** inspects `edit`, `write`, and `patch` calls. When a required skill is not loaded in the session, the call is blocked and the model gets an explanation.
-- **Enforcer** injects the detected categories and the expected skills into the system prompt, so the model knows what the gate will check.
+- **Catalog** scans `SKILL.md` files, reads their frontmatter, stores them in SQLite with a curated score, and ranks them by deterministic lexical relevance.
+- **Classifier** maps a prompt to categories (code, debug, review, audit, research, browser, design, Supabase, and more) with weighted keyword rules. It returns the primary category, the required skills, and the execution roadmaps.
+- **Gate** inspects `edit`, `write`, `patch`, `apply_patch`, and shell writes. It is content-aware, so `humanizer` is required only for prose changes and `impeccable` only for style changes. The primary roadmap `skill` steps are enforced. When a required skill is not loaded, the call is blocked with an explanation.
+- **Roadmaps** attach an ordered task list to each category. The primary category drives the roadmap the agent follows.
+- **Enforcer** injects the detected categories, the roadmap checklist, and the expected skills into the system prompt.
 
 ## Status
 
@@ -41,8 +42,8 @@ Full options and the uninstall steps are in [docs/INSTALL.md](docs/INSTALL.md).
 
 Generic behavior lives in `catalog/` and is versioned:
 
-- `catalog/categories.json` defines each category, its keywords, and the skills it requires.
-- `catalog/rules.json` defines the pre-edit rules (file classes, path globs, prompt categories, required skills).
+- `catalog/categories.json` defines each category, its keywords, the skills it requires, and its execution roadmap.
+- `catalog/rules.json` defines the pre-edit rules (file classes, path globs, prompt categories, content matches, required skills).
 - `catalog/overrides.json` holds manual curation for skills (power, stars, tags, categories).
 
 Machine-specific settings live in `novahiz.config.json`, which is gitignored: the database path, the skill roots, and gate behavior. Copy the example file to create it.
@@ -57,6 +58,8 @@ node src/cli.ts gate --file src/hero.css --tool edit
 node src/cli.ts gate --file src/hero.css --tool edit --loaded humanizer,impeccable
 node src/cli.ts skills --category design-ui
 node src/cli.ts catalog "design frontend landing" --limit 5
+node src/cli.ts roadmap --category code
+node src/cli.ts step --session my-session --done plan
 node src/cli.ts report --format markdown
 ```
 
@@ -64,13 +67,13 @@ node src/cli.ts report --format markdown
 
 ## opencode adapter
 
-Copy `adapters/opencode/novahiz.ts` into `~/.config/opencode/plugins/`. It loads automatically at startup. The adapter classifies each user message, tracks loaded skills, injects enforcement text, and calls the CLI gate on `edit`, `write`, and `patch`.
+Copy `adapters/opencode/novahiz.ts` into `~/.config/opencode/plugins/`. It loads automatically at startup. The adapter classifies each user message, injects the roadmap checklist and expected skills, tracks loaded skills, and calls the CLI gate on `edit`, `write`, `patch`, `apply_patch`, and `bash`.
 
 Set `NOVAHIZ_GATE=off` to disable gating for a session. Set `NOVAHIZ_HOME` when the repo is not at `~/.config/novahiz`.
 
 ## Multi-harness
 
-The adapter is thin on purpose. The gate logic lives in the CLI, so a harness that can run a command before a tool call can reuse it. Claude Code and Codex adapters will call the same `novahiz gate` command. Harnesses without pre-tool hooks can only use the classifier and the injected instructions.
+The adapter is thin on purpose. The gate logic lives in the CLI, so a harness that can run a command before a tool call can reuse it. Claude Code gets a blocking `PreToolUse` hook, Codex gets advisory `PostToolUse` and `Stop` hooks, both through `novahiz hook`. Any harness with a stdio MCP client can use `novahiz_catalog`, `novahiz_roadmap`, `novahiz_step`, `novahiz_classify`, and `novahiz_gate`. See [adapters/README.md](adapters/README.md).
 
 ## License
 

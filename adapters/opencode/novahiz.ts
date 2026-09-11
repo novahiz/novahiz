@@ -56,6 +56,7 @@ function textFromParts(parts: unknown): string {
 export const NovahizPlugin: Plugin = async ({ client }) => {
   const loadedBySession = new Map<string, Set<string>>();
   const categoriesBySession = new Map<string, string[]>();
+  const enforcementBySession = new Map<string, string>();
 
   const log = async (level: "info" | "warn", message: string): Promise<void> => {
     try {
@@ -68,6 +69,7 @@ export const NovahizPlugin: Plugin = async ({ client }) => {
   const forget = (sessionID: string): void => {
     loadedBySession.delete(sessionID);
     categoriesBySession.delete(sessionID);
+    enforcementBySession.delete(sessionID);
   };
 
   if (DISABLED) await log("info", "Gate disabled via environment escape");
@@ -103,8 +105,31 @@ export const NovahizPlugin: Plugin = async ({ client }) => {
         if (text.length === 0) return;
         const result = run(["classify", text]);
         if (result.status !== 0) return;
-        const parsed = JSON.parse(result.stdout) as { categories?: { id: string }[] };
-        categoriesBySession.set(input.sessionID, (parsed.categories ?? []).map((entry) => entry.id));
+        const parsed = JSON.parse(result.stdout) as {
+          categories?: { id: string }[];
+          primary?: string | null;
+          requiredSkills?: string[];
+          roadmaps?: { id: string; steps: { label: string; kind: string; requireSkills?: string[] }[] }[];
+        };
+        const categories = (parsed.categories ?? []).map((entry) => entry.id);
+        categoriesBySession.set(input.sessionID, categories);
+        const primary = parsed.primary ?? categories[0] ?? null;
+        const required = parsed.requiredSkills ?? [];
+        const roadmap = (parsed.roadmaps ?? [])[0];
+        const lines = [
+          "[Novahiz enforcement]",
+          `Categories detectees: ${categories.join(", ") || "aucune"}${primary ? ` (primaire: ${primary})` : ""}`
+        ];
+        if (roadmap) {
+          lines.push(`Roadmap ${roadmap.id}:`);
+          roadmap.steps.forEach((step, index) => {
+            const skills = step.requireSkills?.length ? ` (${step.requireSkills.join(", ")})` : "";
+            lines.push(`  ${index + 1}. [${step.kind}] ${step.label}${skills}`);
+          });
+        }
+        if (required.length > 0) lines.push(`Skills requis pour cette demande: ${required.join(", ")}`);
+        lines.push("Charge ces skills avec skill({name:\"...\"}) avant tout edit/write/patch. Le gate bloque sinon.");
+        enforcementBySession.set(input.sessionID, lines.join("\n"));
       } catch {
         return;
       }
@@ -114,16 +139,8 @@ export const NovahizPlugin: Plugin = async ({ client }) => {
       if (DISABLED) return;
       const sessionID = input.sessionID;
       if (!sessionID) return;
-      const categories = categoriesBySession.get(sessionID) ?? [];
-      if (categories.length === 0) return;
-      output.system.push(
-        [
-          "[Novahiz enforcement]",
-          `Categories detectees: ${categories.join(", ")}`,
-          "Charge les skills requis avec skill({name:\"...\"}) avant tout edit/write/patch. Le gate bloque sinon.",
-          "Regles: humanizer sur tout code ou texte, impeccable sur tout design, skills supabase sur toute tache Supabase."
-        ].join("\n")
-      );
+      const block = enforcementBySession.get(sessionID);
+      if (block) output.system.push(block);
     },
 
     "tool.execute.before": async (input, output) => {

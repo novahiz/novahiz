@@ -1,5 +1,6 @@
 import { evaluateGate, type GateResult } from "./gate.ts";
 import { extractTargetPaths } from "./targets.ts";
+import { changeText } from "./content.ts";
 import { loadInstalledSkills } from "./catalog.ts";
 import type { Spec } from "./spec.ts";
 
@@ -48,7 +49,17 @@ export type HookDecision =
   | { kind: "pass"; tool: string; reason: string }
   | EvaluateDecision;
 
-export function decideHook(spec: Spec, harness: Harness, toolName: string, toolInput: unknown): HookDecision {
+export type HookOptions = {
+  loadedSkills?: string[];
+};
+
+export function decideHook(
+  spec: Spec,
+  harness: Harness,
+  toolName: string,
+  toolInput: unknown,
+  options: HookOptions = {}
+): HookDecision {
   const tool = normalizeTool(harness, toolName);
   if (tool === "skill") {
     const skill = extractSkillName(toolInput);
@@ -59,12 +70,15 @@ export function decideHook(spec: Spec, harness: Harness, toolName: string, toolI
   const paths = extractTargetPaths(tool, toolInput);
   if (paths.length === 0) return { kind: "pass", tool, reason: "no target path detected" };
 
+  const content = changeText(tool, toolInput);
   const index = loadInstalledSkills(spec);
   const results = paths.map((filePath) => ({
     path: filePath,
     ...evaluateGate({
       tool,
       filePath,
+      content,
+      loadedSkills: options.loadedSkills ?? [],
       installedSkills: index.skills,
       installedIndexAvailable: index.available,
       spec

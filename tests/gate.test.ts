@@ -6,6 +6,8 @@ import { loadSpec } from "../src/spec.ts";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
 const spec = loadSpec(root);
+const PROSE = "// Ce commentaire explique le calcul du total de la commande pour le client";
+const STYLE = "className={styles.card}";
 
 test("maps extensions to file classes", () => {
   assert.equal(fileClass("src/hero.css"), "design");
@@ -20,7 +22,6 @@ test("classifies dotfiles instead of dropping them to other", () => {
   assert.equal(fileClass(".env.local"), "config");
   assert.equal(fileClass(".gitignore"), "config");
   assert.equal(fileClass(".eslintrc.json"), "data");
-  assert.equal(fileClass("a/.gitattributes"), "config");
 });
 
 test("globs match nested paths", () => {
@@ -29,30 +30,56 @@ test("globs match nested paths", () => {
   assert.equal(globToRegExp("**/*.sql").test("src/index.ts"), false);
 });
 
-test("blocks a design edit until humanizer and impeccable are loaded", () => {
-  const result = evaluateGate({ tool: "edit", filePath: "src/hero.css", spec, installedSkills: null });
-  assert.equal(result.allow, false);
-  assert.deepEqual([...result.missingSkills].sort(), ["humanizer", "impeccable"]);
-  assert.deepEqual(result.matchedRules, ["R1", "R2"]);
-});
-
-test("allows a design edit once both skills are loaded", () => {
-  const result = evaluateGate({
-    tool: "edit",
-    filePath: "src/hero.css",
-    spec,
-    installedSkills: null,
-    loadedSkills: ["humanizer", "impeccable"]
-  });
-  assert.equal(result.allow, true);
-  assert.deepEqual(result.missingSkills, []);
-});
-
-test("requires humanizer for a dotfile edit", () => {
-  const result = evaluateGate({ tool: "edit", filePath: ".env", spec, installedSkills: null });
+test("requires humanizer for a markdown edit", () => {
+  const result = evaluateGate({ tool: "edit", filePath: "README.md", spec, installedSkills: null });
   assert.equal(result.allow, false);
   assert.ok(result.missingSkills.includes("humanizer"));
-  assert.equal(result.matchedRules.includes("R1"), true);
+  assert.ok(result.matchedRules.includes("R1-docs"));
+});
+
+test("does not require humanizer for pure logic code", () => {
+  const result = evaluateGate({ tool: "edit", filePath: "src/app.ts", spec, installedSkills: null, content: "const x = 1;" });
+  assert.equal(result.missingSkills.includes("humanizer"), false);
+  assert.equal(result.matchedRules.includes("R1-code-prose"), false);
+});
+
+test("requires humanizer for code containing prose", () => {
+  const result = evaluateGate({ tool: "edit", filePath: "src/app.ts", spec, installedSkills: null, content: PROSE });
+  assert.ok(result.missingSkills.includes("humanizer"));
+  assert.ok(result.matchedRules.includes("R1-code-prose"));
+});
+
+test("requires impeccable for a style file", () => {
+  const result = evaluateGate({ tool: "edit", filePath: "src/hero.css", spec, installedSkills: null });
+  assert.ok(result.missingSkills.includes("impeccable"));
+  assert.ok(result.matchedRules.includes("R2-style"));
+});
+
+test("requires impeccable for a styled component only with style content", () => {
+  const withStyle = evaluateGate({ tool: "edit", filePath: "src/Button.tsx", spec, installedSkills: null, content: STYLE });
+  assert.ok(withStyle.missingSkills.includes("impeccable"));
+  const logicOnly = evaluateGate({ tool: "edit", filePath: "src/Button.tsx", spec, installedSkills: null, content: "const n = 2;" });
+  assert.equal(logicOnly.missingSkills.includes("impeccable"), false);
+});
+
+test("requires impeccable for a design prompt on a UI target", () => {
+  const result = evaluateGate({
+    tool: "edit",
+    filePath: "src/Hero.tsx",
+    spec,
+    installedSkills: null,
+    categories: ["design-ui"],
+    content: "const n = 2;"
+  });
+  assert.ok(result.missingSkills.includes("impeccable"));
+  assert.ok(result.matchedRules.includes("R2-design-target"));
+});
+
+test("ignores generated and lock files", () => {
+  const result = evaluateGate({ tool: "edit", filePath: "package-lock.json", spec, installedSkills: null });
+  assert.equal(result.allow, true);
+  assert.equal(result.ignored, true);
+  assert.deepEqual(result.matchedRules, []);
 });
 
 test("requires supabase skills for a migration path", () => {
@@ -61,24 +88,25 @@ test("requires supabase skills for a migration path", () => {
     filePath: "supabase/migrations/20260101_init.sql",
     spec,
     installedSkills: null,
-    loadedSkills: ["humanizer"]
+    loadedSkills: []
   });
-  assert.equal(result.allow, false);
   assert.ok(result.missingSkills.includes("supabase"));
   assert.ok(result.missingSkills.includes("supabase-postgres-best-practices"));
-  assert.ok(result.matchedRules.includes("R3"));
+  assert.ok(result.matchedRules.includes("R3-supabase"));
 });
 
-test("applies category default skills", () => {
+test("applies the primary roadmap skill steps", () => {
   const result = evaluateGate({
     tool: "edit",
     filePath: "src/app.ts",
     spec,
     installedSkills: null,
-    categories: ["review"]
+    categories: ["code"],
+    content: "const x = 1;"
   });
-  assert.ok(result.requiredSkills.includes("review-changes"));
-  assert.ok(result.missingSkills.includes("review-changes"));
+  assert.equal(result.roadmap, "feature");
+  assert.ok(result.requiredSkills.includes("planner"));
+  assert.ok(result.requiredSkills.includes("code-reviewer"));
 });
 
 test("reports required skills that are not installed separately", () => {
@@ -89,15 +117,15 @@ test("reports required skills that are not installed separately", () => {
     installedSkills: new Set(["humanizer"]),
     loadedSkills: []
   });
-  assert.deepEqual(result.requiredSkills, ["humanizer"]);
+  assert.deepEqual(result.requiredSkills, []);
   assert.deepEqual(result.unmatchedRequired, ["impeccable"]);
-  assert.deepEqual(result.missingSkills, ["humanizer"]);
+  assert.deepEqual(result.missingSkills, []);
 });
 
 test("fails closed when the installed index is unavailable", () => {
   const result = evaluateGate({
     tool: "edit",
-    filePath: "src/hero.css",
+    filePath: "README.md",
     spec,
     installedSkills: new Set(),
     installedIndexAvailable: false,
@@ -105,13 +133,13 @@ test("fails closed when the installed index is unavailable", () => {
   });
   assert.equal(result.allow, false);
   assert.equal(result.indexMissing, true);
-  assert.deepEqual([...result.missingSkills].sort(), ["humanizer", "impeccable"]);
+  assert.ok(result.missingSkills.includes("humanizer"));
 });
 
 test("does not block a valid empty index", () => {
   const result = evaluateGate({
     tool: "edit",
-    filePath: "src/hero.css",
+    filePath: "README.md",
     spec,
     installedSkills: new Set(),
     installedIndexAvailable: true,

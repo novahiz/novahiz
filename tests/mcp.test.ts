@@ -44,9 +44,18 @@ test("lists tools and runs classify", () => {
     '{"jsonrpc":"2.0","id":1,"method":"tools/list"}',
     '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"novahiz_classify","arguments":{"prompt":"refais le css de la landing page"}}}'
   ]);
-  assert.equal(out[0].result.tools.length, 4);
+  assert.equal(out[0].result.tools.length, 6);
   const payload = JSON.parse(out[1].result.content[0].text);
   assert.equal(payload.categories[0].id, "design-ui");
+});
+
+test("returns a roadmap by category", () => {
+  const out = call([
+    '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"novahiz_roadmap","arguments":{"category":"code"}}}'
+  ]);
+  const payload = JSON.parse(out[0].result.content[0].text);
+  assert.equal(payload.category, "code");
+  assert.equal(payload.roadmap.id, "feature");
 });
 
 test("ranks catalog skills by relevance", () => {

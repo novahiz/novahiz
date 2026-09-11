@@ -1,11 +1,13 @@
 #!/usr/bin/env node
 import { createInterface } from "node:readline";
 import { pathToFileURL } from "node:url";
+import { resolve } from "node:path";
 import { classify } from "../../src/classify.ts";
 import { evaluateGate } from "../../src/gate.ts";
 import { loadSpec } from "../../src/spec.ts";
 import { loadCatalog, loadInstalledSkills } from "../../src/catalog.ts";
 import { rankSkills } from "../../src/relevance.ts";
+import { openDb } from "../../src/db.ts";
 
 const SUPPORTED_PROTOCOLS = ["2024-11-05", "2025-06-18"];
 const DEFAULT_PROTOCOL = "2024-11-05";
@@ -49,10 +51,33 @@ const TOOLS = [
       properties: {
         file: { type: "string", description: "Target file path." },
         tool: { type: "string", description: "edit, write or patch." },
+        content: { type: "string", description: "The edited content, used for content-aware rules." },
         categories: { type: "array", items: { type: "string" } },
         loaded: { type: "array", items: { type: "string" } }
       },
       required: ["file"]
+    }
+  },
+  {
+    name: "novahiz_roadmap",
+    description: "Return the execution roadmap for a category or the category a query classifies into.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        category: { type: "string", description: "Category id." },
+        query: { type: "string", description: "A prompt to classify." }
+      }
+    }
+  },
+  {
+    name: "novahiz_step",
+    description: "Record or list roadmap step progress for a session.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        session: { type: "string" },
+        done: { type: "string", description: "Step id to mark done." }
+      }
     }
   }
 ];
@@ -94,10 +119,15 @@ function callTool(name, args) {
     return toolResult({ query, total: catalog.length, results: rankSkills(catalog, query, limit) });
   }
   if (name === "novahiz_gate") {
+    const escapeValue = (process.env[spec.config.gate.envEscape || "NOVAHIZ_GATE"] || "").toLowerCase();
+    if (["off", "0", "false", "no", "disabled"].includes(escapeValue)) {
+      return toolResult({ allow: true, disabled: true });
+    }
     const index = loadInstalledSkills(spec);
     const result = evaluateGate({
       tool: String(args?.tool ?? "edit"),
       filePath: String(args?.file ?? ""),
+      content: typeof args?.content === "string" ? args.content : "",
       categories: Array.isArray(args?.categories) ? args.categories.map(String) : [],
       loadedSkills: Array.isArray(args?.loaded) ? args.loaded.map(String) : [],
       installedSkills: index.skills,
@@ -105,6 +135,28 @@ function callTool(name, args) {
       spec
     });
     return toolResult(result, !result.allow);
+  }
+  if (name === "novahiz_roadmap") {
+    const categoryId = args?.category ? String(args.category) : null;
+    let category = categoryId ? spec.categories.find((entry) => entry.id === categoryId) : undefined;
+    if (!category && typeof args?.query === "string") {
+      const primary = classify(spec, args.query).primary;
+      category = spec.categories.find((entry) => entry.id === primary);
+    }
+    return toolResult({ category: category?.id ?? null, roadmap: category?.roadmap ?? null });
+  }
+  if (name === "novahiz_step") {
+    const session = String(args?.session ?? "default");
+    const done = args?.done ? String(args.done) : "";
+    const db = openDb(resolve(spec.root, spec.config.dbPath));
+    if (done.length > 0) {
+      db.prepare(
+        "INSERT INTO roadmap_progress (session_id, step_id, status, updated_at) VALUES (?, ?, 'done', ?) ON CONFLICT(session_id, step_id) DO UPDATE SET status = 'done', updated_at = excluded.updated_at"
+      ).run(session, done, new Date().toISOString());
+    }
+    const steps = db.prepare("SELECT step_id, status, updated_at FROM roadmap_progress WHERE session_id = ? ORDER BY updated_at").all(session);
+    db.close();
+    return toolResult({ session, steps });
   }
   return toolResult(`Unknown tool: ${name}`, true);
 }

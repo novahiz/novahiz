@@ -7,10 +7,13 @@ import { loadSpec } from "../src/spec.ts";
 const root = fileURLToPath(new URL("..", import.meta.url));
 const spec = loadSpec(root);
 
-test("classifies a design prompt as design-ui", () => {
+test("classifies a design prompt as design-ui with a roadmap", () => {
   const result = classify(spec, "refais le css de la landing page et la typographie");
   assert.equal(result.categories[0].id, "design-ui");
+  assert.equal(result.primary, "design-ui");
   assert.ok(result.requiredSkills.includes("impeccable"));
+  assert.equal(result.roadmaps[0].category, "design-ui");
+  assert.ok(result.categories[0].confidence > 0 && result.categories[0].confidence <= 1);
 });
 
 test("classifies a supabase prompt and requires supabase skills", () => {
@@ -26,13 +29,19 @@ test("classification is deterministic", () => {
   assert.deepEqual(first, second);
 });
 
-test("falls back to general on a neutral prompt", () => {
+test("falls back to general and injects the general roadmap skill", () => {
   const result = classify(spec, "bonjour, comment vas tu ?");
   assert.equal(result.categories[0].id, "general");
-  assert.deepEqual(result.requiredSkills, []);
+  assert.ok(result.requiredSkills.includes("humanizer"));
 });
 
 test("ignores accents when matching", () => {
   const result = classify(spec, "verifie la securite");
   assert.ok(result.categories.some((entry) => entry.id === "audit"));
+});
+
+test("negative keywords can suppress a category", () => {
+  const result = classify(spec, "fais une migration pour la landing");
+  const ids = result.categories.map((entry) => entry.id);
+  assert.equal(ids.includes("database-supabase"), false);
 });

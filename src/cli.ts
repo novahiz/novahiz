@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { classify } from "./classify.ts";
+import { changeText } from "./content.ts";
 import { evaluateGate } from "./gate.ts";
 import { claudeDenyOutput, decideHook, missingMessage, type Harness } from "./hook.ts";
 import { extractTargetPaths } from "./targets.ts";
@@ -128,8 +129,14 @@ function commandGate(parsed: Parsed): void {
     print({ allow: true, disabled: true, tool });
     return;
   }
+  const escapeValue = (process.env[gateConfig.envEscape] || "").toLowerCase();
+  if (["off", "0", "false", "no", "disabled"].includes(escapeValue)) {
+    print({ allow: true, disabled: true, reason: `${gateConfig.envEscape} set`, tool });
+    return;
+  }
 
   const single = asString(parsed.flags.file);
+  let content = asString(parsed.flags.content);
   let paths: string[];
   if (single.length > 0) {
     paths = [single];
@@ -146,6 +153,7 @@ function commandGate(parsed: Parsed): void {
       }
     }
     paths = extractTargetPaths(tool, args);
+    if (content.length === 0) content = changeText(tool, args);
   } else {
     process.stderr.write("Novahiz: gate requires --file <path> or --args-stdin\n");
     process.exitCode = 1;
@@ -172,6 +180,7 @@ function commandGate(parsed: Parsed): void {
     ...evaluateGate({
       tool,
       filePath,
+      content,
       categories,
       loadedSkills: loaded,
       installedSkills: index.skills,
@@ -212,6 +221,8 @@ function commandGate(parsed: Parsed): void {
     targets: results.map((entry) => ({
       path: entry.path,
       fileClass: entry.fileClass,
+      ignored: entry.ignored,
+      roadmap: entry.roadmap,
       requiredSkills: entry.requiredSkills,
       missingSkills: entry.missingSkills,
       matchedRules: entry.matchedRules
@@ -306,11 +317,20 @@ function commandHook(parsed: Parsed): void {
     }
   }
 
+  const gateConfig = spec.config.gate;
+  const escapeValue = (process.env[gateConfig.envEscape] || "").toLowerCase();
+  if (["off", "0", "false", "no", "disabled"].includes(escapeValue)) return;
+
   const sessionId = String(payload.session_id ?? payload.sessionId ?? "default");
   const toolName = String(payload.tool_name ?? payload.toolName ?? "");
   const toolInput = payload.tool_input ?? payload.toolInput ?? {};
-  const decision = decideHook(spec, harness, toolName, toolInput);
   const db = openDb(dbPathFor(root, spec));
+
+  const loadedRows = db.prepare("SELECT skill FROM skill_invocations WHERE session_id = ?").all(sessionId) as {
+    skill: string;
+  }[];
+  const loadedSkills = loadedRows.map((row) => row.skill);
+  const decision = decideHook(spec, harness, toolName, toolInput, { loadedSkills });
 
   if (decision.kind === "skill") {
     db.prepare("INSERT OR IGNORE INTO skill_invocations (session_id, skill, invoked_at) VALUES (?, ?, ?)").run(
@@ -360,6 +380,8 @@ function commandReport(parsed: Parsed): void {
   const missingRows = db.prepare("SELECT missing FROM enforcement_log").all() as { missing: string }[];
   const invocations = (db.prepare("SELECT COUNT(*) AS n FROM skill_invocations").get() as { n: number }).n;
   const topSkills = db.prepare("SELECT skill, COUNT(*) AS n FROM skill_invocations GROUP BY skill ORDER BY n DESC LIMIT 10").all();
+  const roadmapDone = (db.prepare("SELECT COUNT(*) AS n FROM roadmap_progress").get() as { n: number }).n;
+  const roadmapBySession = db.prepare("SELECT session_id, COUNT(*) AS n FROM roadmap_progress GROUP BY session_id ORDER BY n DESC LIMIT 10").all();
   db.close();
 
   const counts: Record<string, number> = {};
@@ -377,7 +399,7 @@ function commandReport(parsed: Parsed): void {
     .slice(0, 10)
     .map(([skill, n]) => ({ skill, n }));
 
-  const report = { total, invocations, decisions, byTool, byClass, topMissing, topSkills };
+  const report = { total, invocations, roadmapDone, decisions, byTool, byClass, topMissing, topSkills, roadmapBySession };
 
   if (asString(parsed.flags.format) === "markdown") {
     const lines = [
@@ -385,6 +407,7 @@ function commandReport(parsed: Parsed): void {
       "",
       `Enforcement entries: ${total}`,
       `Skill invocations: ${invocations}`,
+      `Roadmap steps done: ${roadmapDone}`,
       "",
       "## Decisions",
       ...decisions.map((row) => `- ${(row as { decision: string }).decision}: ${(row as { n: number }).n}`),
@@ -412,6 +435,44 @@ function commandCatalog(parsed: Parsed): void {
   print({ query, total: catalog.length, results });
 }
 
+function commandRoadmap(parsed: Parsed): void {
+  const spec = loadSpec();
+  const categoryId = asString(parsed.flags.category);
+  const query = parsed.positionals.slice(1).join(" ") || asString(parsed.flags.query);
+  let category = categoryId ? spec.categories.find((entry) => entry.id === categoryId) : undefined;
+  if (!category && query.length > 0) {
+    const result = classify(spec, query);
+    category = spec.categories.find((entry) => entry.id === result.primary);
+  }
+  if (!category) {
+    print({ error: "roadmap requires --category <id> or a query" });
+    process.exitCode = 1;
+    return;
+  }
+  print({ category: category.id, roadmap: category.roadmap ?? null });
+}
+
+function commandStep(parsed: Parsed): void {
+  const root = novahizHome();
+  const spec = loadSpec(root);
+  const session = asString(parsed.flags.session);
+  const done = asString(parsed.flags.done);
+  if (session.length === 0) {
+    print({ error: "step requires --session <id>" });
+    process.exitCode = 1;
+    return;
+  }
+  const db = openDb(dbPathFor(root, spec));
+  if (done.length > 0) {
+    db.prepare(
+      "INSERT INTO roadmap_progress (session_id, step_id, status, updated_at) VALUES (?, ?, 'done', ?) ON CONFLICT(session_id, step_id) DO UPDATE SET status = 'done', updated_at = excluded.updated_at"
+    ).run(session, done, new Date().toISOString());
+  }
+  const steps = db.prepare("SELECT step_id, status, updated_at FROM roadmap_progress WHERE session_id = ? ORDER BY updated_at").all(session);
+  db.close();
+  print({ session, steps });
+}
+
 function usage(): void {
   print({
     name: "novahiz",
@@ -427,7 +488,9 @@ function usage(): void {
       "session-state --session id",
       "hook --harness claude|codex [--event PreToolUse]",
       "report [--format markdown]",
-      "catalog <query> [--limit N]"
+      "catalog <query> [--limit N]",
+      "roadmap --category id | <query>",
+      "step --session id --done <step>"
     ]
   });}
 
@@ -459,6 +522,10 @@ function main(argv: string[]): void {
       return commandReport(parsed);
     case "catalog":
       return commandCatalog(parsed);
+    case "roadmap":
+      return commandRoadmap(parsed);
+    case "step":
+      return commandStep(parsed);
     default:
       return usage();
   }

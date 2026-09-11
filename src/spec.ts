@@ -2,18 +2,42 @@ import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 
+export type Keyword = { term: string; weight?: number };
+export type CategoryKeyword = string | Keyword;
+
+export type RoadmapStepKind = "advisory" | "skill" | "edit" | "verify" | "approval";
+
+export type RoadmapStep = {
+  id: string;
+  label: string;
+  kind: RoadmapStepKind;
+  requireSkills?: string[];
+  optional?: boolean;
+};
+
+export type Roadmap = {
+  id: string;
+  steps: RoadmapStep[];
+};
+
 export type Category = {
   id: string;
   label: string;
   priority: number;
-  keywords: string[];
+  keywords: CategoryKeyword[];
+  negativeKeywords?: string[];
   defaultSkills: string[];
+  roadmap?: Roadmap;
 };
 
 export type RuleWhen = {
+  match?: "any" | "all";
   fileClasses?: string[];
   pathGlobs?: string[];
   promptCategories?: string[];
+  contentMatches?: string[];
+  contentExcludes?: string[];
+  minChange?: number;
 };
 
 export type Rule = {
@@ -39,6 +63,7 @@ export type GateConfig = {
   mode: "block" | "warn" | "audit";
   envEscape: string;
   tools: string[];
+  ignoreFiles: string[];
 };
 
 export type ClassifyConfig = {
@@ -62,6 +87,23 @@ export type Spec = {
   overrides: Overrides;
 };
 
+export const DEFAULT_IGNORE_FILES = [
+  "**/node_modules/**",
+  "**/dist/**",
+  "**/build/**",
+  "**/coverage/**",
+  "**/vendor/**",
+  "**/*.min.*",
+  "**/*.map",
+  "**/package-lock.json",
+  "**/pnpm-lock.yaml",
+  "**/yarn.lock",
+  "**/bun.lockb",
+  "**/__snapshots__/**",
+  "**/*.snap",
+  "**/*.generated.*"
+];
+
 export const DEFAULT_CONFIG: NovahizConfig = {
   dbPath: "novahiz.sqlite",
   skillRoots: [],
@@ -69,7 +111,8 @@ export const DEFAULT_CONFIG: NovahizConfig = {
     enabled: true,
     mode: "block",
     envEscape: "NOVAHIZ_GATE",
-    tools: ["edit", "write", "patch"]
+    tools: ["edit", "write", "patch", "apply_patch", "bash", "shell"],
+    ignoreFiles: DEFAULT_IGNORE_FILES
   },
   classify: {
     minScore: 1,
@@ -98,7 +141,7 @@ export function mergeConfig(raw: Partial<NovahizConfig> | null | undefined): Nov
   const source = raw ?? {};
   return {
     dbPath: typeof source.dbPath === "string" ? source.dbPath : DEFAULT_CONFIG.dbPath,
-    skillRoots: Array.isArray(source.skillRoots) ? source.skillRoots : DEFAULT_CONFIG.skillRoots,
+    skillRoots: Array.isArray(source.skillRoots) ? source.skillRoots : [...DEFAULT_CONFIG.skillRoots],
     gate: { ...DEFAULT_CONFIG.gate, ...(source.gate ?? {}) },
     classify: { ...DEFAULT_CONFIG.classify, ...(source.classify ?? {}) }
   };
