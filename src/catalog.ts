@@ -26,7 +26,8 @@ function stripQuotes(value: string): string {
 
 export function parseFrontmatter(content: string): Record<string, string> {
   const result: Record<string, string> = {};
-  const lines = content.split(/\r?\n/);
+  const text = content.replace(/^\uFEFF/, "");
+  const lines = text.split(/\r?\n/);
   if (lines[0]?.trim() !== "---") return result;
   let end = -1;
   for (let index = 1; index < lines.length; index += 1) {

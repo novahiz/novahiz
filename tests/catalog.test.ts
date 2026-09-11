@@ -25,3 +25,8 @@ test("parses folded scalar descriptions", () => {
 test("returns empty on missing frontmatter", () => {
   assert.deepEqual(parseFrontmatter("# no frontmatter"), {});
 });
+
+test("parses frontmatter despite a leading BOM", () => {
+  const parsed = parseFrontmatter("\uFEFF---\nname: gate\ndescription: Le gardien\n---\nbody");
+  assert.equal(parsed.name, "gate");
+});
