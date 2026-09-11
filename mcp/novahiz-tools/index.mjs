@@ -9,6 +9,7 @@ import { loadSpec } from "../../src/spec.ts";
 import { loadCatalog, loadInstalledSkills } from "../../src/catalog.ts";
 import { rankSkills } from "../../src/relevance.ts";
 import { openDb } from "../../src/db.ts";
+import { enabledProviders } from "../../src/providers.ts";
 
 const SUPPORTED_PROTOCOLS = ["2024-11-05", "2025-06-18"];
 const DEFAULT_PROTOCOL = "2024-11-05";
@@ -62,6 +63,17 @@ const TOOLS = [
   {
     name: "novahiz_roadmap",
     description: "Return the execution roadmap for a category or the category a query classifies into.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        category: { type: "string", description: "Category id." },
+        query: { type: "string", description: "A prompt to classify." }
+      }
+    }
+  },
+  {
+    name: "novahiz_providers",
+    description: "List the MCP providers registered in Novahiz, optionally for a category or a prompt.",
     inputSchema: {
       type: "object",
       properties: {
@@ -147,6 +159,28 @@ function callTool(name, args) {
       category = spec.categories.find((entry) => entry.id === primary);
     }
     return toolResult({ category: category?.id ?? null, roadmap: category?.roadmap ?? null });
+  }
+  if (name === "novahiz_providers") {
+    const enabled = new Set(enabledProviders(spec).map((provider) => provider.id));
+    const categoryId = args?.category ? String(args.category) : null;
+    let list = spec.providers;
+    if (categoryId) {
+      list = list.filter((provider) => (provider.categories ?? []).includes(categoryId));
+    } else if (typeof args?.query === "string") {
+      const ids = new Set(classify(spec, args.query).providers);
+      list = list.filter((provider) => ids.has(provider.id));
+    }
+    return toolResult({
+      count: list.length,
+      providers: list.map((provider) => ({
+        id: provider.id,
+        label: provider.label,
+        transport: provider.transport,
+        purpose: provider.purpose ?? "",
+        categories: provider.categories ?? [],
+        enabled: enabled.has(provider.id)
+      }))
+    });
   }
   if (name === "novahiz_step") {
     const session = String(args?.session ?? "default");

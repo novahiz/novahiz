@@ -69,7 +69,11 @@ The core runs on Node with no dependencies. A new harness adapter needs two thin
 
 ## MCP server
 
-`mcp/novahiz-tools/index.mjs` exposes `novahiz_classify`, `novahiz_catalog`, `novahiz_roadmap`, `novahiz_step`, `novahiz_list_skills`, and `novahiz_gate` over stdio using newline-delimited JSON-RPC. It has no dependencies and reuses the core modules directly. The opencode plugin registers it through the plugin `config` hook.
+`mcp/novahiz-tools/index.mjs` exposes `novahiz_classify`, `novahiz_catalog`, `novahiz_roadmap`, `novahiz_providers`, `novahiz_step`, `novahiz_list_skills`, and `novahiz_gate` over stdio using newline-delimited JSON-RPC. It has no dependencies and reuses the core modules directly. The opencode plugin registers it through the plugin `config` hook.
+
+## Providers
+
+`catalog/providers.json` lists external MCP servers with their purpose and the categories they serve. `src/providers.ts` maps categories to providers and builds MCP entries. The classifier returns the relevant providers, the enforcer injects them, and the plugin registers the missing ones on startup. See [PROVIDERS.md](PROVIDERS.md).
 
 ## Next
 

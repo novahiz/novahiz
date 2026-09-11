@@ -86,6 +86,13 @@ export const NovahizPlugin: Plugin = async ({ client }) => {
             enabled: true
           };
         }
+        const providers = run(["providers", "--mcp-json"]);
+        if (providers.status === 0 && providers.stdout.trim().length > 0) {
+          const entries = JSON.parse(providers.stdout) as Record<string, unknown>;
+          for (const [id, entry] of Object.entries(entries)) {
+            if (!config.mcp[id]) config.mcp[id] = entry;
+          }
+        }
       } catch {
         return;
       }
@@ -110,6 +117,7 @@ export const NovahizPlugin: Plugin = async ({ client }) => {
           primary?: string | null;
           requiredSkills?: string[];
           enforcedSkills?: string[];
+          providers?: string[];
           roadmaps?: { id: string; steps: { label: string; kind: string; requireSkills?: string[] }[] }[];
         };
         const categories = (parsed.categories ?? []).map((entry) => entry.id);
@@ -119,6 +127,7 @@ export const NovahizPlugin: Plugin = async ({ client }) => {
         const required = parsed.requiredSkills ?? [];
         const suggested = required.filter((skill) => !enforced.includes(skill));
         const roadmap = (parsed.roadmaps ?? [])[0];
+        const providers = parsed.providers ?? [];
         const lines = [
           "[Novahiz enforcement]",
           `Categories detectees: ${categories.join(", ") || "aucune"}${primary ? ` (primaire: ${primary})` : ""}`
@@ -132,6 +141,7 @@ export const NovahizPlugin: Plugin = async ({ client }) => {
         }
         if (enforced.length > 0) lines.push(`Skills requis (roadmap): ${enforced.join(", ")}`);
         if (suggested.length > 0) lines.push(`Skills suggeres: ${suggested.join(", ")}`);
+        if (providers.length > 0) lines.push(`MCP providers pour cette tache: ${providers.join(", ")}`);
         lines.push("Le gate bloque edit/write/patch/bash tant que les skills requis ne sont pas charges via skill({name:\"...\"}).");
         lines.push("Le gate est sensible au contenu: humanizer pour la prose, impeccable pour le style.");
         enforcementBySession.set(input.sessionID, lines.join("\n"));

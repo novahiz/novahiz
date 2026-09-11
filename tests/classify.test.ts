@@ -45,3 +45,8 @@ test("negative keywords can suppress a category", () => {
   const ids = result.categories.map((entry) => entry.id);
   assert.equal(ids.includes("database-supabase"), false);
 });
+
+test("classifies the relevant MCP providers", () => {
+  const result = classify(spec, "ouvre la page web avec playwright et capture un screenshot");
+  assert.ok(result.providers.includes("playwright"));
+});

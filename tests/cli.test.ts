@@ -69,3 +69,13 @@ test("hook Stop prints a roadmap summary", () => {
   const out = runWithInput(["hook", "--harness", "codex", "--event", "Stop"], { session_id: "stop-session" });
   assert.ok(out.includes("roadmap steps"));
 });
+
+test("providers command lists the bundled providers", () => {
+  const parsed = JSON.parse(run(["providers"]));
+  assert.equal(parsed.length, 6);
+});
+
+test("providers --mcp-json returns mcp entries", () => {
+  const parsed = JSON.parse(run(["providers", "--mcp-json"]));
+  assert.equal(parsed.playwright.type, "local");
+});

@@ -58,6 +58,21 @@ export type Overrides = {
   skills?: Record<string, SkillOverride>;
 };
 
+export type Provider = {
+  id: string;
+  label: string;
+  transport: "local" | "remote";
+  command?: string[];
+  url?: string;
+  purpose?: string;
+  categories?: string[];
+};
+
+export type ProvidersConfig = {
+  autoRegister: boolean;
+  disabled: string[];
+};
+
 export type GateConfig = {
   enabled: boolean;
   mode: "block" | "warn" | "audit";
@@ -77,6 +92,7 @@ export type NovahizConfig = {
   skillRoots: string[];
   gate: GateConfig;
   classify: ClassifyConfig;
+  providers: ProvidersConfig;
 };
 
 export type Spec = {
@@ -85,6 +101,7 @@ export type Spec = {
   categories: Category[];
   rules: Rule[];
   overrides: Overrides;
+  providers: Provider[];
 };
 
 export const DEFAULT_IGNORE_FILES = [
@@ -118,6 +135,10 @@ export const DEFAULT_CONFIG: NovahizConfig = {
     minScore: 1,
     maxCategories: 3,
     fallbackCategory: "general"
+  },
+  providers: {
+    autoRegister: true,
+    disabled: []
   }
 };
 
@@ -163,11 +184,18 @@ export function mergeConfig(raw: Partial<NovahizConfig> | null | undefined): Nov
     classify.fallbackCategory = DEFAULT_CONFIG.classify.fallbackCategory;
   }
 
+  const providersSource = source.providers && typeof source.providers === "object" ? source.providers : {};
+  const providers: ProvidersConfig = {
+    autoRegister: typeof providersSource.autoRegister === "boolean" ? providersSource.autoRegister : DEFAULT_CONFIG.providers.autoRegister,
+    disabled: Array.isArray(providersSource.disabled) ? providersSource.disabled : [...DEFAULT_CONFIG.providers.disabled]
+  };
+
   return {
     dbPath: typeof source.dbPath === "string" ? source.dbPath : DEFAULT_CONFIG.dbPath,
     skillRoots: Array.isArray(source.skillRoots) ? source.skillRoots : [...DEFAULT_CONFIG.skillRoots],
     gate,
-    classify
+    classify,
+    providers
   };
 }
 
@@ -197,8 +225,15 @@ export function loadSpec(root: string = novahizHome()): Spec {
   const categories = readCatalog<Category[]>(join(root, "catalog", "categories.json"));
   const rules = readCatalog<Rule[]>(join(root, "catalog", "rules.json"));
   const overrides = readCatalog<Overrides>(join(root, "catalog", "overrides.json"));
+  let providers: Provider[] = [];
+  try {
+    const loaded = readCatalog<Provider[]>(join(root, "catalog", "providers.json"));
+    if (Array.isArray(loaded)) providers = loaded;
+  } catch {
+    providers = [];
+  }
   if (!Array.isArray(categories)) throw new Error("catalog/categories.json must be an array");
   if (!Array.isArray(rules)) throw new Error("catalog/rules.json must be an array");
   if (!overrides || typeof overrides !== "object") throw new Error("catalog/overrides.json must be an object");
-  return { root, config: loadConfig(root), categories, rules, overrides };
+  return { root, config: loadConfig(root), categories, rules, overrides, providers };
 }

@@ -18,5 +18,9 @@
     "minScore": 1,
     "maxCategories": 3,
     "fallbackCategory": "general"
+  },
+  "providers": {
+    "autoRegister": true,
+    "disabled": []
   }
 }

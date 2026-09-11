@@ -73,7 +73,7 @@ Set `NOVAHIZ_GATE=off` to disable gating for a session. Set `NOVAHIZ_HOME` when 
 
 ## Multi-harness
 
-The adapter is thin on purpose. The gate logic lives in the CLI, so a harness that can run a command before a tool call can reuse it. Claude Code gets a blocking `PreToolUse` hook, Codex gets advisory `PostToolUse` and `Stop` hooks, both through `novahiz hook`. Any harness with a stdio MCP client can use `novahiz_classify`, `novahiz_catalog`, `novahiz_roadmap`, `novahiz_step`, `novahiz_list_skills`, and `novahiz_gate`. See [adapters/README.md](adapters/README.md).
+The adapter is thin on purpose. The gate logic lives in the CLI, so a harness that can run a command before a tool call can reuse it. Claude Code gets a blocking `PreToolUse` hook, Codex gets advisory `PostToolUse` and `Stop` hooks, both through `novahiz hook`. Any harness with a stdio MCP client can use `novahiz_classify`, `novahiz_catalog`, `novahiz_roadmap`, `novahiz_providers`, `novahiz_step`, `novahiz_list_skills`, and `novahiz_gate`. Novahiz also catalogues external MCP servers (playwright, security, narsil, context7, sequential-thinking, cron) as providers and registers the missing ones. See [adapters/README.md](adapters/README.md) and [docs/PROVIDERS.md](docs/PROVIDERS.md).
 
 ## License
 

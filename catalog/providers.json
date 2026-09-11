@@ -1,0 +1,50 @@
+[
+  {
+    "id": "playwright",
+    "label": "Playwright browser",
+    "transport": "local",
+    "command": ["playwright-mcp"],
+    "purpose": "Navigate, screenshot, and interact with web pages in a real browser.",
+    "categories": ["browser", "design-ui"]
+  },
+  {
+    "id": "security",
+    "label": "Security scanner",
+    "transport": "local",
+    "command": ["security-mcp", "serve"],
+    "purpose": "SAST and DAST scans, CVE remediation, and compliance mapping.",
+    "categories": ["audit"]
+  },
+  {
+    "id": "narsil",
+    "label": "Code intelligence",
+    "transport": "local",
+    "command": ["narsil-mcp", "--repos", ".", "--git"],
+    "purpose": "Code graph, symbols, taint tracking, dead code, and security scan.",
+    "categories": ["code", "debug", "review", "audit"]
+  },
+  {
+    "id": "context7",
+    "label": "Library docs",
+    "transport": "local",
+    "command": ["context7-mcp", "--transport", "stdio"],
+    "purpose": "Up-to-date documentation for libraries, frameworks, and SDKs.",
+    "categories": ["code", "research"]
+  },
+  {
+    "id": "sequential-thinking",
+    "label": "Structured reasoning",
+    "transport": "local",
+    "command": ["mcp-server-sequential-thinking"],
+    "purpose": "Step-by-step reasoning for planning, debugging, and audits.",
+    "categories": ["planning", "debug", "audit"]
+  },
+  {
+    "id": "cron",
+    "label": "Scheduler",
+    "transport": "local",
+    "command": ["mcp-cron", "--transport", "stdio"],
+    "purpose": "Schedule and run recurring or delayed tasks.",
+    "categories": ["devops", "general"]
+  }
+]

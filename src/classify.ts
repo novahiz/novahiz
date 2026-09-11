@@ -1,4 +1,5 @@
 import type { Category, CategoryKeyword, RoadmapStep, Spec } from "./spec.ts";
+import { providersForCategories } from "./providers.ts";
 
 export type CategoryScore = {
   id: string;
@@ -18,6 +19,7 @@ export type Classification = {
   primary: string | null;
   requiredSkills: string[];
   enforcedSkills: string[];
+  providers: string[];
   roadmaps: RoadmapView[];
 };
 
@@ -136,5 +138,10 @@ export function classify(spec: Spec, prompt: string, options: ClassifyOptions = 
   const primaryCategory = primary ? spec.categories.find((entry) => entry.id === primary) : undefined;
   const enforcedSkills = primaryCategory ? enforcedOfCategory(primaryCategory) : [];
 
-  return { categories: selected, primary, requiredSkills, enforcedSkills, roadmaps };
+  const providers = providersForCategories(
+    spec,
+    selected.map((entry) => entry.id)
+  ).map((provider) => provider.id);
+
+  return { categories: selected, primary, requiredSkills, enforcedSkills, providers, roadmaps };
 }

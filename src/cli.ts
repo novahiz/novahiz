@@ -9,6 +9,7 @@ import { loadSpec, novahizHome, expandHome } from "./spec.ts";
 import { openDb, setMeta, getMeta } from "./db.ts";
 import { loadCatalog, loadInstalledSkills, persistCatalog, scanSkills, writeCatalog, writeSkillIndex } from "./catalog.ts";
 import { rankSkills } from "./relevance.ts";
+import { buildMcpEntries, enabledProviders } from "./providers.ts";
 
 type Parsed = {
   positionals: string[];
@@ -414,7 +415,7 @@ function commandReport(parsed: Parsed): void {
     .slice(0, 10)
     .map(([skill, n]) => ({ skill, n }));
 
-  const report = { total, invocations, roadmapDone, decisions, byTool, byClass, topMissing, topSkills, roadmapBySession };
+  const report = { total, invocations, roadmapDone, providers: spec.providers.map((provider) => provider.id), decisions, byTool, byClass, topMissing, topSkills, roadmapBySession };
 
   if (asString(parsed.flags.format) === "markdown") {
     const lines = [
@@ -489,6 +490,34 @@ function commandStep(parsed: Parsed): void {
   print({ session, steps });
 }
 
+function commandProviders(parsed: Parsed): void {
+  const spec = loadSpec();
+  if (parsed.flags["mcp-json"]) {
+    print(buildMcpEntries(spec));
+    return;
+  }
+  const category = asString(parsed.flags.category);
+  const query = parsed.positionals.slice(1).join(" ") || asString(parsed.flags.query);
+  let list = spec.providers;
+  if (category.length > 0) {
+    list = list.filter((provider) => (provider.categories ?? []).includes(category));
+  } else if (query.length > 0) {
+    const ids = new Set(classify(spec, query).providers);
+    list = list.filter((provider) => ids.has(provider.id));
+  }
+  const enabled = new Set(enabledProviders(spec).map((provider) => provider.id));
+  print(
+    list.map((provider) => ({
+      id: provider.id,
+      label: provider.label,
+      transport: provider.transport,
+      purpose: provider.purpose ?? "",
+      categories: provider.categories ?? [],
+      enabled: enabled.has(provider.id)
+    }))
+  );
+}
+
 function usage(): void {
   print({
     name: "novahiz",
@@ -506,7 +535,8 @@ function usage(): void {
       "report [--format markdown]",
       "catalog <query> [--limit N]",
       "roadmap --category id | <query>",
-      "step --session id --done <step>"
+      "step --session id --done <step>",
+      "providers [--category id] [--mcp-json]"
     ]
   });}
 
@@ -545,6 +575,8 @@ function main(argv: string[]): void {
       return commandRoadmap(parsed);
     case "step":
       return commandStep(parsed);
+    case "providers":
+      return commandProviders(parsed);
     default:
       return usage();
   }
