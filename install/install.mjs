@@ -38,6 +38,15 @@ const CORE_ITEMS = [
   "novahiz.config.example.json"
 ];
 
+// The harnesses present on this machine. Used to configure hooks without a flag,
+// so `--yes` on a fresh machine still wires every harness it finds.
+function detectedHarnesses() {
+  const found = [];
+  if (existsSync(process.env.CLAUDE_CONFIG_DIR || join(homedir(), ".claude"))) found.push("claude");
+  if (existsSync(process.env.CODEX_HOME || join(homedir(), ".codex"))) found.push("codex");
+  return found;
+}
+
 function defaultConfig(skillsDir) {
   return {
     dbPath: "novahiz.sqlite",
@@ -114,9 +123,7 @@ async function main() {
       return;
     }
     providersChoice = await prompt.confirm("Install provider packages and their prerequisites now?", false);
-    const detected = [];
-    if (existsSync(process.env.CLAUDE_CONFIG_DIR || join(homedir(), ".claude"))) detected.push("claude");
-    if (existsSync(process.env.CODEX_HOME || join(homedir(), ".codex"))) detected.push("codex");
+    const detected = detectedHarnesses();
     if (detected.length > 0) {
       const answer = await prompt.confirm(`Configure ${detected.join(" and ")} (hooks + Novahiz MCP)?`, true);
       harnessesChoice = answer ? detected.join(",") : "";
@@ -311,13 +318,20 @@ async function main() {
     note(`Config existante conservee: ${configPath}`);
   }
 
+  const configuredHarnesses = (
+    typeof flags.harness === "string" ? flags.harness : harnessesChoice || detectedHarnesses().join(",")
+  )
+    .split(",")
+    .map((value) => value.trim())
+    .filter(Boolean);
+
   if (!dryRun) {
     const previous = loadManifest(home);
     saveManifest(home, {
       version: "0.1.0",
       installedAt: new Date().toISOString(),
       harness: "opencode",
-      harnesses: claudeInstalled ? ["opencode", "claude"] : ["opencode"],
+      harnesses: ["opencode", ...configuredHarnesses],
       configDir,
       home,
       coreCopied: previous.coreCopied || coreCopied,
@@ -365,8 +379,8 @@ async function main() {
   }
 
   if (!dryRun) {
-    const harnessList = typeof flags.harness === "string" ? flags.harness : harnessesChoice;
-    if (harnessList) {
+    const harnessList = configuredHarnesses.join(",");
+    if (harnessList.length > 0) {
       note(`Configuration des harness (${harnessList})`);
       const result = spawnSync(process.execPath, [join(home, "install", "hooks.mjs"), "--harness", harnessList, "--home", home], {
         encoding: "utf8",
@@ -379,7 +393,10 @@ async function main() {
 
   if (!dryRun) {
     process.stdout.write(`\nNovahiz installe dans ${home}.\n`);
-    process.stdout.write("Redemarre opencode pour activer le plugin et le serveur MCP.\n");
+    const names = ["opencode", ...configuredHarnesses].map((name) =>
+      name === "claude" ? "Claude Code" : name === "codex" ? "Codex" : "opencode"
+    );
+    process.stdout.write(`Redemarre ${names.join(" et ")} pour activer les hooks et le serveur MCP.\n`);
     process.stdout.write("Gate desactivable avec la variable d'environnement NOVAHIZ_GATE=off.\n");
   } else {
     process.stdout.write("\nDry-run termine, aucune modification ecrite.\n");
