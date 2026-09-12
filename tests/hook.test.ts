@@ -5,7 +5,7 @@ import { rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
-import { claudeDenyOutput, decideHook, extractSkillName, normalizeTool, unmatchedMessage } from "../src/hook.ts";
+import { claudeDenyOutput, decideHook, extractReadSkill, extractSkillName, normalizeTool, unmatchedMessage } from "../src/hook.ts";
 import { loadSpec } from "../src/spec.ts";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
@@ -80,6 +80,24 @@ test("unmatchedMessage names the skills missing from the installed index", () =>
   const message = unmatchedMessage(decision);
   assert.ok(message.includes("impeccable"));
   assert.ok(message.includes("novahiz sync"));
+});
+
+test("reading a skill file registers the load on a harness without a skill tool", () => {
+  const decision = decideHook(spec, "claude", "Read", { file_path: "C:/Users/x/.claude/skills/humanizer/SKILL.md" });
+  assert.equal(decision.kind, "skill");
+  assert.equal(decision.skill, "humanizer");
+});
+
+test("a read that is not a skill file passes without gating", () => {
+  const decision = decideHook(spec, "claude", "Read", { file_path: "docs/ROADMAPS.md" });
+  assert.equal(decision.kind, "pass");
+});
+
+test("extractReadSkill only matches a direct SKILL.md below a skills folder", () => {
+  assert.equal(extractReadSkill({ file_path: "src/hook.ts" }), null);
+  assert.equal(extractReadSkill({ file_path: "a/skills/novahiz-plan/README.md" }), null);
+  assert.equal(extractReadSkill({ file_path: "a/skills/novahiz-plan/SKILL.md" }), "novahiz-plan");
+  assert.equal(extractReadSkill({}), null);
 });
 
 test("cli hook denies a markdown edit without loaded skills", () => {

@@ -35,6 +35,22 @@ export function extractSkillName(input: unknown): string | null {
   return null;
 }
 
+// Claude Code and Codex have no `skill` tool: their agent loads a skill by reading
+// the file. That read is the only load signal those harnesses produce, so the hook
+// treats it as one. Without this, a gated edit can never be unblocked there.
+const SKILL_FILE = /[\\/]skills[\\/]([^\\/]+)[\\/]SKILL\.md$/i;
+
+export function extractReadSkill(input: unknown): string | null {
+  const record = (input && typeof input === "object" ? input : {}) as Record<string, unknown>;
+  for (const key of ["file_path", "filePath", "path", "notebook_path"]) {
+    const value = record[key];
+    if (typeof value !== "string") continue;
+    const match = SKILL_FILE.exec(value);
+    if (match) return match[1];
+  }
+  return null;
+}
+
 export type EvaluateDecision = {
   kind: "evaluate";
   tool: string;
@@ -67,6 +83,11 @@ export function decideHook(
     const skill = extractSkillName(toolInput);
     if (skill) return { kind: "skill", skill };
     return { kind: "pass", tool, reason: "skill name not found" };
+  }
+  if (tool === "read") {
+    const skill = extractReadSkill(toolInput);
+    if (skill) return { kind: "skill", skill };
+    return { kind: "pass", tool, reason: "read is not a skill file" };
   }
 
   const paths = extractTargetPaths(tool, toolInput);

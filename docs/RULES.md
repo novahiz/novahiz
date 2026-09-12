@@ -53,6 +53,15 @@ Duplicates collapse. The result is filtered against the installed skills index:
 
 A required skill that is installed but not loaded in the session blocks the call. In `block` mode the gate exits with code 2. In `warn` and `audit` modes it reports and exits 0.
 
+### What counts as a loaded skill
+
+The harness records the load, not the gate. Two signals exist:
+
+- A tool named `skill` (opencode). The adapter also calls `novahiz session-load` on every such call.
+- A read of `<...>/skills/<name>/SKILL.md` (Claude Code, Codex). Those harnesses have no skill tool: the agent loads a skill by opening the file. The Novahiz hook therefore treats that read as the load, which is why the Claude `PreToolUse` matcher includes `Read`.
+
+Anything else leaves the skill unloaded. A harness that reads skills some other way has to call `novahiz session-load --session <id> --skill <name>` itself.
+
 ## Modes and configuration
 
 The `gate` block in `novahiz.config.json` controls behavior:
