@@ -106,7 +106,7 @@ The adapter also trims tool output and deduplicates stale reads to keep long ses
 
 Copy `adapters/opencode/novahiz.ts` and `adapters/opencode/tokens.ts` into `~/.config/opencode/plugins/` (the plugin imports `./tokens.ts`), or run the installer, which copies both. It loads automatically at startup. The adapter classifies each user message, injects the roadmap checklist and expected skills, tracks loaded skills, and calls the CLI gate on `edit`, `write`, `patch`, `apply_patch`, `bash`, and `shell`.
 
-The installer also drops three slash commands into the opencode command directory: `/novahiz-clean`, `/novahiz-doctor`, and `/novahiz-status`.
+The installer also drops four slash commands into the opencode command directory: `/novahiz-plan`, `/novahiz-clean`, `/novahiz-doctor`, and `/novahiz-status`. `/novahiz-plan` runs the pipeline read-only and produces the plan without writing a file.
 
 Set `NOVAHIZ_GATE=off` to disable gating for a session. Set `NOVAHIZ_HOME` when the repo is not at `~/.config/novahiz`. Set `NOVAHIZ_DB` to override the database path, which keeps tests and scratch runs off your real ledger.
 

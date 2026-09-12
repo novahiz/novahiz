@@ -5,7 +5,7 @@ Novahiz keeps its decisions in the CLI. Every harness integration is a thin adap
 ## opencode
 
 - Skill and plugin: `~/.config/opencode/skills/` and `~/.config/opencode/plugins/`.
-- Slash commands: `~/.config/opencode/commands/` (`novahiz-clean`, `novahiz-doctor`, `novahiz-status`).
+- Slash commands: `~/.config/opencode/commands/` (`novahiz-plan`, `novahiz-clean`, `novahiz-doctor`, `novahiz-status`).
 - MCP: the plugin registers the Novahiz server through the plugin `config` hook, so `opencode.jsonc` is not edited.
 - Gate: the plugin calls `novahiz gate` on `edit`, `write`, `patch`, `apply_patch`, `bash`, and `shell`.
 
