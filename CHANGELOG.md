@@ -10,14 +10,16 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 - Six-stage execution pipeline: `novahiz-plan`, `novahiz-clarify`, `novahiz-task`, `novahiz-analyse`, `novahiz-implement`, `novahiz-converge`, orchestrated by `novahiz-planner`.
 - `novahiz clean` removes old enforcement logs, roadmap progress, sessions, and closed tasks, with `--days`, `--dry-run`, `--apply`, and `--vacuum`.
-- `novahiz doctor` runs seven preflight checks and exits non-zero on a blocking finding.
+- `novahiz doctor` runs eight preflight checks and exits non-zero on a blocking finding.
 - Terminal renderer (`src/render.ts`) with colour, tables, and byte formatting, plus `--pretty` and `--json` output modes.
-- Slash commands `novahiz-clean`, `novahiz-doctor`, and `novahiz-status`, installed with the opencode command directory.
+- Slash commands `novahiz-plan`, `novahiz-clean`, `novahiz-doctor`, and `novahiz-status`, installed with the opencode command directory.
+- `/novahiz-plan` produces the plan read-only: it classifies the request, asks its questions through the interface, traces the plan in the ledger, and writes nothing.
 - The gate reports required skills that are absent from the installed index, in `unmatchedRequired` and in a `warnings` array.
 - `CHANGELOG.md` and a rewritten `NOTICE.md` that records the licence of every bundled third-party skill.
 
 ### Changed
 
+- `src/cli.ts` is now a thin entry point: 107 lines left from 1435. The commands moved to `src/commands/` and their shared primitives to `src/commands/context.ts`. The split is behaviour-neutral, checked against captured output of all 31 CLI invocations.
 - The planning pipeline asks its questions through the harness question interface instead of writing them in the chat.
 - The installer skips a skill that already exists in another scanned root (`~/.claude/skills`, `~/.agents/skills`) and reports what it skipped. `--force-skills` overrides.
 - The opencode adapter persists skill invocations, so `report` and `clean --logs` see them under that harness.
