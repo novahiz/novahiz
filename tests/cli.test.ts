@@ -94,11 +94,6 @@ test("catalog tolerates a non-numeric limit", () => {
   assert.ok(parsed.results.length > 0);
 });
 
-test("hook Stop prints a roadmap summary", () => {
-  const out = runWithInput(["hook", "--harness", "codex", "--event", "Stop"], { session_id: "stop-session" });
-  assert.ok(out.includes("roadmap steps"));
-});
-
 test("providers command lists the bundled providers", () => {
   const parsed = JSON.parse(run(["providers"]));
   assert.equal(parsed.length, 7);

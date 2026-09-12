@@ -4,7 +4,6 @@ import { expandHome } from "./spec.ts";
 
 import { commandCheck, commandSync, commandClassify, commandSkills, commandCategories, commandRules, commandSessionLoad, commandSessionState, commandCatalog, commandRoadmap, commandStep, commandProviders, commandDeps, commandDispatch } from "./commands/inspect.ts";
 import { commandGate } from "./commands/gate.ts";
-import { commandHook } from "./commands/hook.ts";
 import { commandReport } from "./commands/report.ts";
 import { commandTask } from "./commands/task.ts";
 import { commandTokens } from "./commands/tokens.ts";
@@ -24,7 +23,6 @@ function usage(): void {
       "rules",
       "session-load --session id --skill name",
       "session-state --session id",
-      "hook --harness claude|codex [--event PreToolUse] [--categories a,b]",
       "report [--format markdown]",
       "catalog <query> [--limit N]",
       "roadmap --category id | <query>",
@@ -74,8 +72,6 @@ function main(argv: string[]): void {
       return commandSessionLoad(parsed);
     case "session-state":
       return commandSessionState(parsed);
-    case "hook":
-      return commandHook(parsed);
     case "report":
       return commandReport(parsed);
     case "clean":
