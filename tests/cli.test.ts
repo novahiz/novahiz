@@ -180,7 +180,7 @@ test("doctor reports its checks and a blocking verdict", () => {
   const parsed = JSON.parse(run(["doctor", "--json"]));
   assert.ok(Array.isArray(parsed.checks));
   const ids = parsed.checks.map((check: { id: string }) => check.id);
-  for (const expected of ["node", "npx", "index", "referenced", "gate"]) {
+  for (const expected of ["node", "npx", "index", "referenced", "gate", "db", "adapter"]) {
     assert.ok(ids.includes(expected), `doctor should report the ${expected} check`);
   }
   assert.ok(Array.isArray(parsed.blocking));

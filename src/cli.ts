@@ -1,6 +1,7 @@
-import { readFileSync, readSync, statSync } from "node:fs";
+import { existsSync, readFileSync, readSync, statSync } from "node:fs";
 import { spawnSync } from "node:child_process";
-import { resolve } from "node:path";
+import { homedir } from "node:os";
+import { join, resolve } from "node:path";
 import { classify } from "./classify.ts";
 import { changeText } from "./content.ts";
 import { evaluateGate } from "./gate.ts";
@@ -1291,6 +1292,20 @@ function commandDoctor(parsed: Parsed): void {
     dbDetail = `illisible: ${(error as Error).message}`;
   }
   checks.push({ id: "db", label: "Base du registre", ok: dbOk, detail: dbDetail, blocking: false });
+
+  const adapterSource = join(root, "adapters", "opencode", "novahiz.ts");
+  const opencodeDir =
+    process.env.OPENCODE_CONFIG_DIR && process.env.OPENCODE_CONFIG_DIR.length > 0
+      ? process.env.OPENCODE_CONFIG_DIR
+      : join(homedir(), ".config", "opencode");
+  const adapterInstalled = join(opencodeDir, "plugins", "novahiz.ts");
+  let adapterOk = true;
+  let adapterDetail = "aucune copie installee";
+  if (existsSync(adapterSource) && existsSync(adapterInstalled)) {
+    adapterOk = readFileSync(adapterSource, "utf8") === readFileSync(adapterInstalled, "utf8");
+    adapterDetail = adapterOk ? "copie harnais a jour" : "copie harnais perimee, relance l'installeur puis redemarre opencode";
+  }
+  checks.push({ id: "adapter", label: "Copie harnais du plugin", ok: adapterOk, detail: adapterDetail, blocking: false });
 
   const failing = checks.filter((check) => !check.ok);
   const blocking = failing.filter((check) => check.blocking);

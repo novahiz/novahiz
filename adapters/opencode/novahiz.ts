@@ -206,7 +206,10 @@ export const NovahizPlugin: Plugin = async ({ client }) => {
         if (input.tool.toLowerCase() === "skill") {
           const args = output.args as { name?: string; skill?: string } | undefined;
           const name = args?.name ?? args?.skill;
-          if (name) loaded.add(String(name));
+          if (name) {
+            loaded.add(String(name));
+            run(["session-load", "--session", input.sessionID, "--skill", String(name)]);
+          }
           return;
         }
 
