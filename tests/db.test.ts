@@ -7,6 +7,26 @@ import { DatabaseSync, openDb } from "../src/db.ts";
 
 const dbPath = join(tmpdir(), `novahiz-migrate-${Date.now().toString(36)}.sqlite`);
 
+test("openDb records the schema version and the log indexes", () => {
+  const ownPath = join(tmpdir(), `novahiz-schema-${Date.now().toString(36)}.sqlite`);
+  const db = openDb(ownPath);
+  const version = db.prepare("PRAGMA user_version").get() as { user_version: number };
+  assert.equal(version.user_version, 1);
+  const names = (
+    db.prepare("SELECT name FROM sqlite_master WHERE type = 'index'").all() as Array<{ name: string }>
+  ).map((row) => row.name);
+  assert.ok(names.includes("enforcement_log_logged_at"));
+  assert.ok(names.includes("enforcement_log_session"));
+  db.close();
+  for (const suffix of ["", "-wal", "-shm"]) {
+    try {
+      rmSync(`${ownPath}${suffix}`, { force: true });
+    } catch {
+      // best effort cleanup
+    }
+  }
+});
+
 after(() => {
   for (const suffix of ["", "-wal", "-shm"]) {
     try {

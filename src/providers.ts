@@ -1,6 +1,6 @@
 import type { Provider, Spec } from "./spec.ts";
 
-export type McpEntry = {
+type McpEntry = {
   type: "local" | "remote";
   command?: string[];
   url?: string;
@@ -33,7 +33,7 @@ export function buildMcpEntries(spec: Spec): Record<string, McpEntry> {
   return entries;
 }
 
-export type InstallCommand = {
+type InstallCommand = {
   id: string;
   kind: string;
   command: string[];

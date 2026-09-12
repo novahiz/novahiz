@@ -55,7 +55,7 @@ export function flagOn(parsed: Parsed, name: string): boolean {
   return !["false", "0", "no", "off", ""].includes(String(value).toLowerCase());
 }
 
-export function humanMode(parsed: Parsed): boolean {
+function humanMode(parsed: Parsed): boolean {
   if (flagOn(parsed, "json")) return false;
   if (flagOn(parsed, "pretty")) return true;
   return ui.isTty();
@@ -102,4 +102,16 @@ export function readStdin(): string {
   } catch {
     return "";
   }
+}
+
+export function numberFlag(parsed: Parsed, name: string): number | undefined {
+  const raw = parsed.flags[name];
+  if (raw === undefined || typeof raw === "boolean") return undefined;
+  const text = asString(raw).trim();
+  if (text.length === 0) return undefined;
+  const value = Number(text);
+  if (!Number.isFinite(value)) {
+    throw new Error(`--${name} expects a number, got "${text}"`);
+  }
+  return value;
 }

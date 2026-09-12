@@ -21,7 +21,7 @@ export function isTty(): boolean {
   return process.stdout.isTTY === true;
 }
 
-export function colorEnabled(): boolean {
+function colorEnabled(): boolean {
   if (typeof process.env.NO_COLOR === "string" && process.env.NO_COLOR.length > 0) return false;
   if (typeof process.env.FORCE_COLOR === "string" && process.env.FORCE_COLOR !== "0") return true;
   return isTty();
@@ -34,7 +34,7 @@ export function style(token: Token, text: string): string {
   return `${code}${text}${RESET}`;
 }
 
-export function stripAnsi(text: string): string {
+function stripAnsi(text: string): string {
   return text.replace(ANSI, "");
 }
 
@@ -69,9 +69,9 @@ export function kv(rows: Array<[string, string]>): string {
     .join("\n");
 }
 
-export type Align = "left" | "right";
+type Align = "left" | "right";
 
-export type TableOptions = {
+type TableOptions = {
   align?: Align[];
   indent?: number;
 };
@@ -102,15 +102,6 @@ export function table(headers: string[], rows: string[][], options: TableOptions
   ].join("\n");
 }
 
-export function bullet(label: string, value: string): string {
-  return `  ${style("dim", "-")} ${style("bold", label)} ${value}`;
-}
-
 export function status(ok: boolean): string {
   return ok ? style("green", "ok") : style("red", "echec");
-}
-
-export function emphasize(value: number, danger = false): string {
-  if (value === 0) return style("dim", String(value));
-  return style(danger ? "red" : "yellow", String(value));
 }

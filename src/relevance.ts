@@ -10,7 +10,7 @@ export type CatalogSkill = {
   categories: string[];
 };
 
-export type RankedSkill = {
+type RankedSkill = {
   id: string;
   score: number;
   power: number;

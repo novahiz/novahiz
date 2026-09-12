@@ -9,11 +9,11 @@ import { loadInstalledSkills } from "../catalog.ts";
 import { evaluateGate } from "../gate.ts";
 import * as ui from "../render.ts";
 
-export type DoctorCheck = { id: string; label: string; ok: boolean; detail: string; blocking: boolean };
+type DoctorCheck = { id: string; label: string; ok: boolean; detail: string; blocking: boolean };
 
-export const SKILL_CLI: Record<string, string> = { defuddle: "defuddle" };
+const SKILL_CLI: Record<string, string> = { defuddle: "defuddle" };
 
-export function hasCommand(name: string): boolean {
+function hasCommand(name: string): boolean {
   const probe = process.platform === "win32" ? "where" : "which";
   const result = spawnSync(probe, [name], { encoding: "utf8", shell: false });
   return result.status === 0;
@@ -23,7 +23,7 @@ export function grantsQuestionIn(agentFile: string): boolean {
   return /^\s*question:\s*allow\s*$/m.test(agentFile);
 }
 
-export function referencedSkills(spec: ReturnType<typeof loadSpec>): string[] {
+function referencedSkills(spec: ReturnType<typeof loadSpec>): string[] {
   const ids = new Set<string>();
   for (const category of spec.categories) {
     for (const skill of category.defaultSkills ?? []) ids.add(skill);

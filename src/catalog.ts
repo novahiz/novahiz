@@ -4,7 +4,7 @@ import { DatabaseSync } from "node:sqlite";
 import { expandHome, type Spec } from "./spec.ts";
 import type { CatalogSkill } from "./relevance.ts";
 
-export type SkillRecord = {
+type SkillRecord = {
   id: string;
   name: string;
   description: string;
@@ -156,7 +156,7 @@ export function writeSkillIndex(spec: Spec, skills: SkillRecord[]): string {
   return target;
 }
 
-export type InstalledIndex = {
+type InstalledIndex = {
   available: boolean;
   skills: Set<string>;
 };

@@ -7,7 +7,7 @@ export function commandExists(command: string): boolean {
   return result.status === 0;
 }
 
-export type DependencyStatus = {
+type DependencyStatus = {
   id: string;
   kind: string;
   requires: string[];

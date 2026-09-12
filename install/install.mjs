@@ -254,7 +254,6 @@ async function main() {
       version: "0.1.0",
       installedAt: new Date().toISOString(),
       harness: "opencode",
-      harnesses: ["opencode"],
       configDir,
       home,
       coreCopied: previous.coreCopied || coreCopied,

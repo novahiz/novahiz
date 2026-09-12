@@ -3,10 +3,10 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { DEFAULT_TOKENS, mergeTokensConfig, type TokensConfig } from "../adapters/opencode/tokens.ts";
 
-export type Keyword = { term: string; weight?: number };
+type Keyword = { term: string; weight?: number };
 export type CategoryKeyword = string | Keyword;
 
-export type RoadmapStepKind = "advisory" | "skill" | "edit" | "verify" | "approval";
+type RoadmapStepKind = "advisory" | "skill" | "edit" | "verify" | "approval";
 
 export type RoadmapStep = {
   id: string;
@@ -31,7 +31,7 @@ export type Category = {
   roadmap?: Roadmap;
 };
 
-export type RuleWhen = {
+type RuleWhen = {
   match?: "any" | "all";
   fileClasses?: string[];
   pathGlobs?: string[];
@@ -48,18 +48,18 @@ export type Rule = {
   require: string[];
 };
 
-export type SkillOverride = {
+type SkillOverride = {
   power?: number;
   stars?: number | null;
   tags?: string[];
   categories?: string[];
 };
 
-export type Overrides = {
+type Overrides = {
   skills?: Record<string, SkillOverride>;
 };
 
-export type ProviderKind = "mcp" | "skill" | "commands";
+type ProviderKind = "mcp" | "skill" | "commands";
 
 export type Provider = {
   id: string;
@@ -77,13 +77,13 @@ export type Provider = {
   license?: string;
 };
 
-export type ProvidersConfig = {
+type ProvidersConfig = {
   autoRegister: boolean;
   autoInstall: boolean;
   disabled: string[];
 };
 
-export type TraceConfig = {
+type TraceConfig = {
   enabled: boolean;
   categories: string[];
 };
@@ -98,18 +98,18 @@ export type GateConfig = {
   trace: TraceConfig;
 };
 
-export type ClassifyConfig = {
+type ClassifyConfig = {
   minScore: number;
   maxCategories: number;
   fallbackCategory: string;
 };
 
-export type LedgerReviewConfig = {
+type LedgerReviewConfig = {
   edits: number;
   todos: number;
 };
 
-export type LedgerConfig = {
+type LedgerConfig = {
   enabled: boolean;
   review: LedgerReviewConfig;
 };
@@ -133,7 +133,7 @@ export type Spec = {
   providers: Provider[];
 };
 
-export const DEFAULT_IGNORE_FILES = [
+const DEFAULT_IGNORE_FILES = [
   "**/node_modules/**",
   "**/dist/**",
   "**/build/**",
@@ -267,7 +267,7 @@ export function mergeConfig(raw: Partial<NovahizConfig> | null | undefined): Nov
   };
 }
 
-export function loadConfig(root: string = novahizHome()): NovahizConfig {
+function loadConfig(root: string = novahizHome()): NovahizConfig {
   const config = readUserConfig(root);
   const dbOverride = process.env.NOVAHIZ_DB;
   if (dbOverride && dbOverride.length > 0) config.dbPath = dbOverride;

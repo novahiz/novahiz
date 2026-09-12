@@ -1,7 +1,7 @@
 import type { Rule, Spec } from "./spec.ts";
 import { hasPlaceholder, hasProse, hasStyle, isTrivial } from "./content.ts";
 
-export type FileClass = "code" | "text" | "design" | "data" | "config" | "other";
+type FileClass = "code" | "text" | "design" | "data" | "config" | "other";
 
 const CLASS_BY_EXTENSION: Record<string, FileClass> = {
   css: "design",
@@ -149,7 +149,7 @@ function selectorMatches(rule: Rule, classification: FileClass, path: string, ca
   return when.match === "all" ? checks.every(Boolean) : checks.some(Boolean);
 }
 
-export type GateInput = {
+type GateInput = {
   tool: string;
   filePath: string;
   content?: string;
@@ -160,7 +160,7 @@ export type GateInput = {
   spec: Spec;
 };
 
-export type GateResult = {
+type GateResult = {
   allow: boolean;
   ignored: boolean;
   fileClass: FileClass;

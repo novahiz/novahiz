@@ -102,6 +102,8 @@ export function openDb(dbPath: string): DatabaseSync {
       max_iterations INTEGER,
       updated_at TEXT NOT NULL
     );
+    CREATE INDEX IF NOT EXISTS enforcement_log_logged_at ON enforcement_log(logged_at);
+    CREATE INDEX IF NOT EXISTS enforcement_log_session ON enforcement_log(session_id);
   `);
   migrate(db);
   return db;
@@ -121,11 +123,14 @@ function ensureColumn(db: DatabaseSync, table: string, column: string, definitio
   db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition};`);
 }
 
+const SCHEMA_VERSION = 1;
+
 function migrate(db: DatabaseSync): void {
   ensureColumn(db, "tasks", "revision", "INTEGER NOT NULL DEFAULT 0");
   ensureColumn(db, "tasks", "reviewed_at", "TEXT");
   ensureColumn(db, "tasks", "edits_since_review", "INTEGER NOT NULL DEFAULT 0");
   ensureColumn(db, "tasks", "todos_since_review", "INTEGER NOT NULL DEFAULT 0");
+  db.exec(`PRAGMA user_version = ${SCHEMA_VERSION};`);
 }
 
 export function setMeta(db: DatabaseSync, key: string, value: string): void {

@@ -6,7 +6,7 @@ import { spawnSync } from "node:child_process";
 // cmd.exe, so widening this set would re-open command injection on that path.
 const SAFE_TOKEN = /^[A-Za-z0-9@._+,/:=~-]+$/;
 
-export type CommandResult = {
+type CommandResult = {
   ok: boolean;
   status: number | null;
   stdout: string;

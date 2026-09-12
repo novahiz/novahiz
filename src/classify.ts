@@ -1,7 +1,7 @@
 import type { Category, CategoryKeyword, RoadmapStep, Spec } from "./spec.ts";
 import { providersForCategories } from "./providers.ts";
 
-export type CategoryScore = {
+type CategoryScore = {
   id: string;
   score: number;
   confidence: number;
@@ -10,13 +10,13 @@ export type CategoryScore = {
   negatives: string[];
 };
 
-export type RoadmapView = {
+type RoadmapView = {
   category: string;
   id: string;
   steps: RoadmapStep[];
 };
 
-export type SkillInvocation = {
+type SkillInvocation = {
   category: string;
   step: string;
   label: string;
@@ -25,7 +25,7 @@ export type SkillInvocation = {
   optional: boolean;
 };
 
-export type Classification = {
+type Classification = {
   categories: CategoryScore[];
   primary: string | null;
   requiredSkills: string[];
@@ -35,7 +35,7 @@ export type Classification = {
   roadmaps: RoadmapView[];
 };
 
-export type ClassifyOptions = {
+type ClassifyOptions = {
   minScore?: number;
   maxCategories?: number;
   fallbackCategory?: string;
@@ -48,11 +48,11 @@ export function fold(value: string): string {
     .replace(/[\u0300-\u036f]/g, "");
 }
 
-export function escapeRegex(value: string): string {
+function escapeRegex(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-export function termMatches(text: string, keyword: string): boolean {
+function termMatches(text: string, keyword: string): boolean {
   const needle = fold(keyword).trim();
   if (needle.length === 0) return false;
   const pattern = new RegExp(`(^|[^\\p{L}\\p{N}])${escapeRegex(needle)}([^\\p{L}\\p{N}]|$)`, "u");

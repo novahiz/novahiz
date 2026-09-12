@@ -88,10 +88,42 @@ test("classify output carries a primary and a roadmap", () => {
   assert.ok(Array.isArray(parsed.enforcedSkills));
 });
 
-test("catalog tolerates a non-numeric limit", () => {
-  const parsed = JSON.parse(run(["catalog", "design", "--limit", "abc"]));
-  assert.ok(Array.isArray(parsed.results));
-  assert.ok(parsed.results.length > 0);
+test("catalog rejects a non-numeric limit", () => {
+  const result = spawnSync(process.execPath, [cli, "catalog", "design", "--limit", "abc"], {
+    encoding: "utf8",
+    input: "",
+    env: { ...process.env, NOVAHIZ_HOME: root, NOVAHIZ_DB: testDb }
+  });
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /--limit expects a number/);
+});
+
+test("an unknown command exits non-zero with a single clean line", () => {
+  const result = spawnSync(process.execPath, [cli, "bogus"], {
+    encoding: "utf8",
+    input: "",
+    env: { ...process.env, NOVAHIZ_HOME: root, NOVAHIZ_DB: testDb }
+  });
+  assert.equal(result.status, 1);
+  assert.equal(result.stderr.trim().split("\n").length, 1);
+  assert.match(result.stderr, /unknown command bogus/);
+});
+
+test("a missing install reports one clean line instead of a stack trace", () => {
+  const missing = join(tmpdir(), `novahiz-absent-${Date.now().toString(36)}`);
+  const result = spawnSync(process.execPath, [cli, "check"], {
+    encoding: "utf8",
+    input: "",
+    env: { ...process.env, NOVAHIZ_HOME: missing }
+  });
+  assert.equal(result.status, 1);
+  assert.equal(result.stderr.trim().split("\n").length, 1);
+  assert.match(result.stderr, /^novahiz: /);
+});
+
+test("check reports the stored last sync", () => {
+  const parsed = JSON.parse(run(["check"]));
+  assert.ok("lastSync" in parsed);
 });
 
 test("providers command lists the bundled providers", () => {

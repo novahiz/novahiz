@@ -1,7 +1,7 @@
 import { join } from "node:path";
-import { asString, dbPathFor, print, safeJsonArray, type Parsed } from "./context.ts";
+import { asString, dbPathFor, numberFlag, print, safeJsonArray, type Parsed } from "./context.ts";
 import { loadSpec, novahizHome } from "../spec.ts";
-import { openDb, setMeta } from "../db.ts";
+import { getMeta, openDb, setMeta } from "../db.ts";
 import { loadCatalog, loadInstalledSkills, persistCatalog, scanSkills, writeCatalog, writeSkillIndex } from "../catalog.ts";
 import { rankSkills } from "../relevance.ts";
 import { buildMcpEntries, enabledProviders, installCommands } from "../providers.ts";
@@ -14,6 +14,9 @@ export function commandCheck(): void {
   const root = novahizHome();
   const spec = loadSpec(root);
   const index = loadInstalledSkills(spec);
+  const db = openDb(dbPathFor(root, spec));
+  const lastSync = getMeta(db, "last_sync");
+  db.close();
   print({
     home: root,
     categories: spec.categories.length,
@@ -21,6 +24,7 @@ export function commandCheck(): void {
     skillRoots: spec.config.skillRoots.length,
     installedSkills: index.skills.size,
     indexAvailable: index.available,
+    lastSync,
     gate: spec.config.gate,
     classify: spec.config.classify
   });
@@ -44,12 +48,13 @@ export function commandSync(): void {
 export function commandClassify(parsed: Parsed): void {
   const root = novahizHome();
   const spec = loadSpec(root);
-  const text = parsed.positionals.slice(1).join(" ") || asString(parsed.flags.text);
-  const minScore = Number(parsed.flags["min-score"]);
-  const maxCategories = Number(parsed.flags["max-categories"]);
+  const text = (parsed.positionals.slice(1).join(" ") || asString(parsed.flags.text)).trim();
+  if (text.length === 0) {
+    throw new Error("classify needs a prompt: pass it as an argument or with --text");
+  }
   const result = classify(spec, text, {
-    minScore: Number.isFinite(minScore) ? minScore : undefined,
-    maxCategories: Number.isFinite(maxCategories) ? maxCategories : undefined
+    minScore: numberFlag(parsed, "min-score"),
+    maxCategories: numberFlag(parsed, "max-categories")
   });
   print({ prompt: text, ...result });
 }
@@ -129,8 +134,8 @@ export function commandSessionState(parsed: Parsed): void {
 export function commandCatalog(parsed: Parsed): void {
   const spec = loadSpec();
   const query = parsed.positionals.slice(1).join(" ") || asString(parsed.flags.query);
-  const limitRaw = Number(parsed.flags.limit);
-  const limit = Number.isFinite(limitRaw) && limitRaw > 0 ? limitRaw : 10;
+  const limitRaw = numberFlag(parsed, "limit");
+  const limit = limitRaw !== undefined && limitRaw > 0 ? limitRaw : 10;
   const catalog = loadCatalog(spec);
   const results = rankSkills(catalog, query, limit);
   const hint = catalog.length === 0 ? "catalog is empty; run `novahiz sync` to build it" : undefined;

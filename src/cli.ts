@@ -53,6 +53,10 @@ function main(argv: string[]): void {
     process.env.NOVAHIZ_HOME = resolve(expandHome(parsed.flags.home));
   }
   const command = parsed.positionals[0];
+  if (command === undefined) {
+    usage();
+    return;
+  }
   switch (command) {
     case "check":
       return commandCheck();
@@ -95,8 +99,17 @@ function main(argv: string[]): void {
     case "tokens":
       return commandTokens(parsed);
     default:
-      return usage();
+      process.stderr.write(`novahiz: unknown command ${command}\n`);
+      usage();
+      process.exitCode = 1;
+      return;
   }
 }
 
-main(process.argv.slice(2));
+try {
+  main(process.argv.slice(2));
+} catch (error) {
+  const message = error instanceof Error ? error.message : String(error);
+  process.stderr.write(`novahiz: ${message}\n`);
+  process.exitCode = 1;
+}

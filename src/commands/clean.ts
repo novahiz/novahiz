@@ -1,13 +1,13 @@
 import { statSync } from "node:fs";
 import { join } from "node:path";
-import { asString, confirm, dbPathFor, emit, flagOn, print, type Parsed } from "./context.ts";
+import { asString, confirm, dbPathFor, emit, flagOn, numberFlag, print, type Parsed } from "./context.ts";
 import { loadSpec, novahizHome } from "../spec.ts";
 import { openDb } from "../db.ts";
 import * as ui from "../render.ts";
 
-export type CleanScope = { table: string; column: string; where?: string; label: string };
+type CleanScope = { table: string; column: string; where?: string; label: string };
 
-export const CLEAN_SCOPES: Record<string, CleanScope[]> = {
+const CLEAN_SCOPES: Record<string, CleanScope[]> = {
   logs: [
     { table: "enforcement_log", column: "logged_at", label: "journal d'enforcement" },
     { table: "skill_invocations", column: "invoked_at", label: "invocations de skills" }
@@ -17,14 +17,14 @@ export const CLEAN_SCOPES: Record<string, CleanScope[]> = {
   tasks: [{ table: "tasks", column: "created_at", where: "status <> 'active'", label: "taches terminees" }]
 };
 
-export const CLEAN_CHOICES = ["logs", "roadmap", "sessions", "tasks", "all"];
+const CLEAN_CHOICES = ["logs", "roadmap", "sessions", "tasks", "all"];
 
 export function commandClean(parsed: Parsed): void {
   const root = novahizHome();
   const spec = loadSpec(root);
   const path = dbPathFor(root, spec);
-  const daysRaw = Number(asString(parsed.flags.days));
-  const days = Number.isFinite(daysRaw) && daysRaw > 0 ? Math.floor(daysRaw) : 30;
+  const daysRaw = numberFlag(parsed, "days");
+  const days = daysRaw !== undefined && daysRaw > 0 ? Math.floor(daysRaw) : 30;
   const targetRaw = (asString(parsed.flags.target) || "logs").toLowerCase();
   if (!CLEAN_CHOICES.includes(targetRaw)) {
     print({ error: `cible inconnue: ${targetRaw}`, choices: CLEAN_CHOICES });

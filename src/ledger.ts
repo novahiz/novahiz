@@ -2,10 +2,10 @@ import type { DatabaseSync } from "node:sqlite";
 import { globToRegExp } from "./gate.ts";
 
 export type TodoKind = "read" | "edit" | "verify" | "delegate";
-export type TodoStatus = "pending" | "in_progress" | "done" | "blocked" | "dropped";
-export type TaskStatus = "active" | "done" | "abandoned";
+type TodoStatus = "pending" | "in_progress" | "done" | "blocked" | "dropped";
+type TaskStatus = "active" | "done" | "abandoned";
 
-export interface TaskRow {
+interface TaskRow {
   id: string;
   title: string;
   status: TaskStatus;
@@ -18,7 +18,7 @@ export interface TaskRow {
   todos_since_review: number;
 }
 
-export interface TodoRow {
+interface TodoRow {
   id: string;
   task_id: string;
   seq: number;
@@ -44,7 +44,7 @@ export interface TodoInput {
   status?: TodoStatus;
 }
 
-export interface WorkPacket {
+interface WorkPacket {
   todo: string;
   label: string;
   objective: string;
@@ -55,13 +55,13 @@ export interface WorkPacket {
   dependsOn: string[];
 }
 
-export interface LedgerState {
+interface LedgerState {
   task: TaskRow | null;
   todos: TodoRow[];
   current: TodoRow | null;
 }
 
-export interface TraceResult {
+interface TraceResult {
   required: boolean;
   ok: boolean;
   todo: TodoRow | null;
@@ -69,15 +69,15 @@ export interface TraceResult {
 }
 
 export const DEFAULT_MAX_ITERATIONS = 12;
-export const DEFAULT_REVIEW_EDITS = 3;
-export const DEFAULT_REVIEW_TODOS = 2;
+const DEFAULT_REVIEW_EDITS = 3;
+const DEFAULT_REVIEW_TODOS = 2;
 
-export interface ReviewPolicy {
+interface ReviewPolicy {
   edits: number;
   todos: number;
 }
 
-export interface ReviewState {
+interface ReviewState {
   due: boolean;
   edits: number;
   todos: number;
@@ -101,13 +101,13 @@ export interface ReviewDiff {
   order?: string[];
 }
 
-export interface RevisionSignal {
+interface RevisionSignal {
   type: string;
   todo: string | null;
   detail: string;
 }
 
-export interface ReviewOutcome {
+interface ReviewOutcome {
   task: TaskRow;
   revision: number;
   applied: { additions: number; amendments: number; removals: number; reordered: boolean };
@@ -229,6 +229,7 @@ export function completeTodo(db: DatabaseSync, id: string, proof = ""): TodoRow 
 export function blockTodo(db: DatabaseSync, id: string, reason = ""): TodoRow {
   const todo = getTodo(db, id);
   if (!todo) throw new Error(`unknown todo: ${id}`);
+  // The todos table has no reason column, so the block reason travels in proof.
   db.prepare("UPDATE todos SET status = 'blocked', proof = ?, updated_at = ? WHERE id = ?").run(String(reason ?? "").trim() || null, nowIso(), id);
   return getTodo(db, id) as TodoRow;
 }
