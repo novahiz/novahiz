@@ -47,10 +47,6 @@ Each category carries a `roadmap`. The classifier returns the category order, th
 
 `src/ledger.ts` stores a task and its todos in SQLite (`tasks`, `todos`). Each todo has a kind, a status, an acceptance criterion, an iteration budget, an owner glob, and a proof. `startTodo` enforces dependencies and the budget; `completeTodo` requires a proof on a `verify` step. The plan is mutable: `amendTodo`, `insertTodo`, `dropTodo`, and `reorderTodos` adjust it, and `reviewTask` applies a whole diff in one transaction and bumps `revision`. `reviewDue` reports when the cadence (`edits` or `todos`) is reached, and `revisionSignals` derives concrete reasons to revise from the ledger. `buildWorkPackets` turns the open todos into sub-agent work packets with file ownership, and `traceCheck` verifies that an edit targets an in-progress todo that owns the file. `commandGate` records each edit and blocks edits while a review is due, so the plan is reconciled before work continues.
 
-### harness hook adapters
-
-`src/hook.ts` maps a harness hook payload to the same gate. `novahiz hook --harness claude|codex` reads the payload on stdin, normalizes the tool name, tracks skill loads by session, and returns a decision. Claude Code uses a blocking `PreToolUse` hook; Codex uses advisory `PreToolUse` and `Stop` hooks. `install/hooks.mjs` writes the manifests.
-
 ## Data flow
 
 1. The user sends a message. `chat.message` classifies it, stores the categories and required skills for the session, and reads the active ledger task.

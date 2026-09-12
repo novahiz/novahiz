@@ -4,7 +4,7 @@ Durable facts about this repository. The change history lives in [CHANGELOG.md](
 
 ## What it is
 
-An enforcement and execution layer for coding agents. It classifies a request into categories, attaches a roadmap, and gates edits until the roadmap's skills are loaded. It runs on opencode as a plugin plus an MCP server, and installs hooks for Claude Code and Codex.
+An enforcement and execution layer for coding agents. It classifies a request into categories, attaches a roadmap, and gates edits until the roadmap's skills are loaded. It runs on opencode as a plugin plus an MCP server. Other clients can use the MCP server, without the gate.
 
 ## Invariants
 

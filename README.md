@@ -114,9 +114,9 @@ Set `NOVAHIZ_GATE=off` to disable gating for a session. Set `NOVAHIZ_HOME` when 
 
 For work that spans more than a few steps, `novahiz task` keeps the plan in SQLite instead of in the conversation. A todo carries its own acceptance criterion, an iteration budget, and, for a `verify` step, a proof that must be present before it can close. `novahiz dispatch` turns the open todos into work packets with exclusive file ownership, so parallel sub-agents do not edit the same file. The gate forces a review every three edits or two finished todos, and the enriched summary is injected on every turn. See [docs/EXECUTION.md](docs/EXECUTION.md).
 
-## Multi-harness
+## Harnesses
 
-The adapter is thin on purpose. The gate logic lives in the CLI, so a harness that can run a command before a tool call can reuse it. Claude Code gets a blocking `PreToolUse` hook, Codex gets advisory `PreToolUse` and `Stop` hooks, both through `novahiz hook`. Any harness with a stdio MCP client can use `novahiz_classify`, `novahiz_catalog`, `novahiz_roadmap`, `novahiz_providers`, `novahiz_deps`, `novahiz_step`, `novahiz_list_skills`, `novahiz_gate`, `novahiz_task`, and `novahiz_dispatch`. Novahiz also catalogues external components as providers: MCP servers (playwright, security, narsil, context7, sequential-thinking, cron), and skill packs (impeccable), and can run their official install commands. See [docs/HARNESSES.md](docs/HARNESSES.md), [adapters/README.md](adapters/README.md), and [docs/PROVIDERS.md](docs/PROVIDERS.md).
+The adapter is thin on purpose: the gate logic lives in the CLI. opencode is the supported harness, through the plugin in `adapters/opencode/`. Any harness with a stdio MCP client can use `novahiz_classify`, `novahiz_catalog`, `novahiz_roadmap`, `novahiz_providers`, `novahiz_deps`, `novahiz_step`, `novahiz_list_skills`, `novahiz_gate`, `novahiz_task`, and `novahiz_dispatch`, but the gate only blocks inside opencode. Novahiz also catalogues external components as providers: MCP servers (playwright, security, narsil, context7, sequential-thinking, cron), and skill packs (impeccable), and can run their official install commands. See [docs/HARNESSES.md](docs/HARNESSES.md), [adapters/README.md](adapters/README.md), and [docs/PROVIDERS.md](docs/PROVIDERS.md).
 
 ## License
 

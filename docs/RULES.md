@@ -55,12 +55,12 @@ A required skill that is installed but not loaded in the session blocks the call
 
 ### What counts as a loaded skill
 
-The harness records the load, not the gate. Two signals exist:
+The harness records the load, not the gate.
 
-- The `Skill` tool. Claude Code 2.x exposes it, and the hook records the event directly; opencode's `skill` tool works the same way, and the adapter also calls `novahiz session-load` on every such call.
-- A read of `<...>/skills/<name>/SKILL.md`. It is the fallback on a harness with no skill tool, and the only signal Codex produces. The Novahiz hook treats that read as the load, which is why the Claude `PreToolUse` matcher includes `Read`.
+- opencode calls the `skill` tool, and the adapter records it by running `novahiz session-load --session <id> --skill <name>`.
+- A harness that reads skills some other way records the load itself, by calling `novahiz session-load` before its edit.
 
-Anything else leaves the skill unloaded. A harness that reads skills some other way has to call `novahiz session-load --session <id> --skill <name>` itself.
+Anything else leaves the skill unloaded.
 
 A skill whose frontmatter names an `allowed-tools` entry the harness does not recognize fails to launch at all. That is why the bundled `novahiz-*` skills declare no `allowed-tools`.
 

@@ -25,7 +25,7 @@ Rationale: the tool exists to make quality gates unavoidable. A gate that can be
 
 ### IV. Harness-Agnostic Core
 All decision logic lives in the CLI and the MCP surface. Adapters stay thin.
-- No harness-specific logic (opencode, Claude Code, Codex) appears in the core modules.
+- No harness-specific logic appears in the core modules. opencode is the only adapter today.
 - An adapter may classify input, call the CLI, and translate the result into that harness's hook contract. Nothing more.
 - A new harness is added by writing an adapter, never by branching the core.
 Rationale: one rule set governs every harness. Duplicated logic drifts, and a drifted guarantee is no guarantee.
