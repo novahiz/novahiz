@@ -63,6 +63,18 @@ export function listFiles(root) {
   return out;
 }
 
+export function skillNamesIn(roots) {
+  const names = new Set();
+  for (const root of roots) {
+    if (!existsSync(root)) continue;
+    for (const entry of readdirSync(root, { withFileTypes: true })) {
+      if (!entry.isDirectory()) continue;
+      if (existsSync(join(root, entry.name, "SKILL.md"))) names.add(entry.name);
+    }
+  }
+  return names;
+}
+
 function sameContent(a, b) {
   try {
     return readFileSync(a, "utf8") === readFileSync(b, "utf8");

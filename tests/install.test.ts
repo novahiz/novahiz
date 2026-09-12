@@ -4,7 +4,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, existsSync, rmSync } from "node:
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 // @ts-expect-error -- install/lib.mjs is untyped JavaScript by design
-import { copyInto, mergeCreated, nodeVersionOk, parseArgs } from "../install/lib.mjs";
+import { copyInto, mergeCreated, nodeVersionOk, parseArgs, skillNamesIn } from "../install/lib.mjs";
 
 test("parses flags with equals and space forms", () => {
   const flags = parseArgs(["--harness=opencode", "--home", "/tmp/x", "--dry-run"]);
@@ -40,5 +40,21 @@ test("mergeCreated deduplicates and drops missing paths", () => {
   writeFileSync(present, "x");
   const merged = mergeCreated([present], [present, join(base, "missing.txt")]);
   assert.deepEqual(merged, [present]);
+  rmSync(base, { recursive: true, force: true });
+});
+
+test("skillNamesIn lists only directories that hold a SKILL.md", () => {
+  const base = mkdtempSync(join(tmpdir(), "novahiz-"));
+  const first = join(base, "first");
+  const second = join(base, "second");
+  mkdirSync(join(first, "alpha"), { recursive: true });
+  writeFileSync(join(first, "alpha", "SKILL.md"), "---\nname: alpha\n---\n");
+  mkdirSync(join(first, "empty"), { recursive: true });
+  mkdirSync(join(second, "beta"), { recursive: true });
+  writeFileSync(join(second, "beta", "SKILL.md"), "---\nname: beta\n---\n");
+
+  const names = skillNamesIn([first, join(base, "missing"), second]);
+
+  assert.deepEqual([...names].sort(), ["alpha", "beta"]);
   rmSync(base, { recursive: true, force: true });
 });

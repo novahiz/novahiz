@@ -1,4 +1,4 @@
-import { cpSync, existsSync, mkdirSync, statSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, readdirSync, statSync } from "node:fs";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
@@ -15,6 +15,7 @@ import {
   readJson,
   repoRoot,
   saveManifest,
+  skillNamesIn,
   writeJson
 } from "./lib.mjs";
 import { createPrompt } from "./prompt.mjs";
@@ -156,12 +157,37 @@ async function main() {
   if (withSkills) {
     const skillsSource = existsSync(join(home, "skills")) ? join(home, "skills") : join(root, "skills");
     if (existsSync(skillsSource)) {
-      note(`Installation des skills dans ${skillsDir}`);
+      const externalRoots = [
+        process.env.CLAUDE_CONFIG_DIR ? join(process.env.CLAUDE_CONFIG_DIR, "skills") : join(homedir(), ".claude", "skills"),
+        join(homedir(), ".agents", "skills")
+      ];
+      const alreadyInstalled = skillNamesIn(externalRoots);
+      const force = Boolean(flags["force-skills"]);
+      const entries = readdirSync(skillsSource, { withFileTypes: true })
+        .filter((entry) => entry.isDirectory())
+        .sort((a, b) => (a.name < b.name ? -1 : 1));
+      const skipped = force
+        ? []
+        : entries.filter((entry) => alreadyInstalled.has(entry.name)).map((entry) => entry.name);
+      const toCopy = entries.filter((entry) => !skipped.includes(entry.name));
+      note(`Installation des skills dans ${skillsDir} (${toCopy.length} a copier, ${skipped.length} deja presents ailleurs)`);
       if (!dryRun) {
-        const result = copyInto(skillsSource, skillsDir, true);
-        created.push(...result.created);
-        backups.push(...result.backups);
-        note(`  ${result.total} fichiers, ${result.created.length} nouveaux, ${result.backups.length} sauvegardes`);
+        let total = 0;
+        let added = 0;
+        let saved = 0;
+        for (const entry of toCopy) {
+          const result = copyInto(join(skillsSource, entry.name), join(skillsDir, entry.name), true);
+          created.push(...result.created);
+          backups.push(...result.backups);
+          total += result.total;
+          added += result.created.length;
+          saved += result.backups.length;
+        }
+        note(`  ${total} fichiers, ${added} nouveaux, ${saved} sauvegardes`);
+      }
+      if (skipped.length > 0) {
+        note(`  deja presentes dans une autre racine, non recopiees: ${skipped.join(", ")}`);
+        note("  Relance avec --force-skills pour les recopier malgre tout.");
       }
     } else {
       note(`Aucun dossier skills trouve a ${skillsSource}`);
