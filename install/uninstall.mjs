@@ -12,11 +12,20 @@ export function underHome(value) {
   return candidate === normalize(root) || candidate.startsWith(prefix);
 }
 
+export function withinDir(value, dir) {
+  const normalize = (item) => (process.platform === "win32" ? item.toLowerCase() : item);
+  const base = normalize(resolve(dir));
+  const target = normalize(resolve(value));
+  return target === base || target.startsWith(base.endsWith(sep) ? base : `${base}${sep}`);
+}
+
 function main() {
   const flags = parseArgs(process.argv.slice(2));
   const dryRun = Boolean(flags["dry-run"]);
   const keepConfig = Boolean(flags["keep-config"]);
   const purge = Boolean(flags.purge);
+  const only = typeof flags.only === "string" ? resolve(flags.only) : null;
+  const inScope = (value) => (only ? withinDir(value, only) : true);
   const home = novahizHome(flags);
   const manifest = loadManifest(home);
   const created = manifest.created ?? [];
@@ -32,6 +41,7 @@ function main() {
 
   for (const entry of backups) {
     if (!entry || !entry.backup || !existsSync(entry.backup)) continue;
+    if (!inScope(entry.path)) continue;
     if (!underHome(entry.backup) || !underHome(entry.path)) {
       process.stdout.write(`skip out-of-scope backup: ${entry.path}\n`);
       continue;
@@ -48,6 +58,7 @@ function main() {
   const keepCore = Boolean(manifest.coreCopied) && !purge;
   for (const item of created) {
     if (!existsSync(item)) continue;
+    if (!inScope(item)) continue;
     if (!underHome(item)) {
       process.stdout.write(`skip out-of-scope entry: ${item}\n`);
       continue;
@@ -60,7 +71,7 @@ function main() {
   }
 
   if (!dryRun) {
-    if (manifest.configCreated && !keepConfig && existsSync(configPath)) {
+    if (!only && manifest.configCreated && !keepConfig && existsSync(configPath)) {
       rmSync(configPath, { force: true });
       removed.push(configPath);
     }
@@ -69,7 +80,14 @@ function main() {
       rmSync(home, { recursive: true, force: true });
       process.stdout.write(`Dossier Novahiz supprime: ${home}\n`);
     } else {
-      saveManifest(home, { ...manifest, created: [], backups: [], configCreated: false });
+      const untouchedCreated = only ? created.filter((item) => !removed.includes(item)) : [];
+      const untouchedBackups = only ? backups.filter((entry) => !removed.includes(entry && entry.backup)) : [];
+      saveManifest(home, {
+        ...manifest,
+        created: untouchedCreated,
+        backups: untouchedBackups,
+        configCreated: only ? Boolean(manifest.configCreated) : false
+      });
       if (manifest.coreCopied) {
         process.stdout.write(`Fichiers d'integration supprimes; core conserve dans ${home}. Utilise --purge pour le supprimer.\n`);
       }

@@ -164,17 +164,25 @@ export function pruneEmptyDirs(paths, stops = []) {
   const stopSet = new Set(stops.map((value) => resolve(value)));
   const candidates = new Set();
   for (const item of paths) candidates.add(dirname(item));
-  for (const start of [...candidates].sort((a, b) => b.length - a.length)) {
-    let current = start;
-    while (current && existsSync(current) && !stopSet.has(resolve(current))) {
-      try {
-        if (readdirSync(current).length !== 0) break;
-        rmSync(current, { recursive: false });
-        const parent = dirname(current);
-        if (parent === current) break;
-        current = parent;
-      } catch {
-        break;
+  const ordered = [...candidates].sort((a, b) => b.length - a.length);
+  // One pass is not enough: a directory emptied by a later candidate is only
+  // noticed on the next pass. Repeat until a full pass removes nothing.
+  let removed = true;
+  while (removed) {
+    removed = false;
+    for (const start of ordered) {
+      let current = start;
+      while (current && existsSync(current) && !stopSet.has(resolve(current))) {
+        try {
+          if (readdirSync(current).length !== 0) break;
+          rmSync(current, { recursive: false });
+          removed = true;
+          const parent = dirname(current);
+          if (parent === current) break;
+          current = parent;
+        } catch {
+          break;
+        }
       }
     }
   }
