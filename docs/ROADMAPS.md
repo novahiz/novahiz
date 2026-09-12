@@ -11,7 +11,7 @@ Roadmaps live inline in `catalog/categories.json`:
   "id": "feature",
   "steps": [
     { "id": "understand", "label": "Lire le code existant", "kind": "advisory" },
-    { "id": "plan", "label": "Ecrire un plan", "kind": "skill", "requireSkills": ["planner"] },
+    { "id": "plan", "label": "Ecrire un plan", "kind": "skill", "requireSkills": ["novahiz-plan"] },
     { "id": "implement", "label": "Implementer", "kind": "edit" },
     { "id": "test", "label": "Executer les tests", "kind": "verify" }
   ]
@@ -28,7 +28,7 @@ Step kinds:
 
 ## Enforcement
 
-The chosen level is skill-gate. For the category the classifier ranks first, every `skill` step that is not optional becomes a required skill in the gate, in addition to the content-aware rules. Skills that are not installed are reported and skipped, so a missing installation never blocks.
+The chosen level is skill-gate. For the category the classifier ranks first, every `skill` step that is not optional becomes a required skill in the gate, in addition to the content-aware rules. A required skill that is absent from the installed index is reported in `unmatchedRequired` and in `warnings`, and the gate stops requiring it for that edit, so a missing installation never blocks. Run `novahiz sync` after installing or removing a skill so the index matches the disk.
 
 Steps of other kinds do not block. They shape the injected checklist and the report.
 

@@ -63,7 +63,7 @@ test("exposes skill invocations with their roadmap step", () => {
   const result = classify(spec, "refactor le module de paiement et corrige le total");
   const skills = result.invocations.flatMap((entry) => entry.skills);
   assert.ok(result.invocations.length > 0);
-  assert.ok(skills.includes("planner"));
+  assert.ok(skills.includes("novahiz-plan"));
   assert.ok(result.invocations.every((entry) => entry.kind === "skill"));
 });
 

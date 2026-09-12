@@ -8,11 +8,13 @@
     "roadmap": {
       "id": "feature",
       "steps": [
-        { "id": "understand", "label": "Lire le code existant", "kind": "advisory" },
-        { "id": "plan", "label": "Ecrire un plan", "kind": "skill", "requireSkills": ["planner"] },
+        { "id": "plan", "label": "Cadrer la direction", "kind": "skill", "requireSkills": ["novahiz-plan"] },
+        { "id": "clarify", "label": "Lever les ambiguites", "kind": "skill", "requireSkills": ["novahiz-clarify"] },
+        { "id": "tasks", "label": "Decouper en taches", "kind": "skill", "requireSkills": ["novahiz-task"] },
+        { "id": "analyse", "label": "Analyser le code concerne", "kind": "skill", "requireSkills": ["novahiz-analyse"] },
         { "id": "quality", "label": "Charger humanizer", "kind": "advisory", "requireSkills": ["humanizer"] },
-        { "id": "implement", "label": "Implementer", "kind": "edit" },
-        { "id": "test", "label": "Executer les tests", "kind": "verify" },
+        { "id": "implement", "label": "Implementer par tranches", "kind": "edit", "requireSkills": ["novahiz-implement"] },
+        { "id": "converge", "label": "Converger", "kind": "verify", "requireSkills": ["novahiz-converge"] },
         { "id": "review", "label": "Auto-review", "kind": "skill", "requireSkills": ["code-reviewer"] }
       ]
     }
@@ -28,9 +30,10 @@
       "steps": [
         { "id": "reproduce", "label": "Reproduire le bug", "kind": "advisory" },
         { "id": "isolate", "label": "Isoler la cause", "kind": "advisory" },
-        { "id": "analyze", "label": "Analyser le code", "kind": "skill", "requireSkills": ["code-understand"] },
-        { "id": "fix", "label": "Corriger", "kind": "advisory", "requireSkills": ["humanizer"] },
-        { "id": "test", "label": "Verifier la correction", "kind": "verify" },
+        { "id": "plan", "label": "Cadrer la correction", "kind": "skill", "requireSkills": ["novahiz-plan"] },
+        { "id": "analyse", "label": "Analyser le code", "kind": "skill", "requireSkills": ["novahiz-analyse"] },
+        { "id": "fix", "label": "Corriger", "kind": "edit", "requireSkills": ["novahiz-implement"] },
+        { "id": "converge", "label": "Verifier la correction", "kind": "verify", "requireSkills": ["novahiz-converge"] },
         { "id": "prevent", "label": "Prevenir la recidive", "kind": "advisory" }
       ]
     }
@@ -44,7 +47,7 @@
     "roadmap": {
       "id": "review",
       "steps": [
-        { "id": "context", "label": "Rassembler le contexte", "kind": "skill", "requireSkills": ["code-understand"] },
+        { "id": "context", "label": "Rassembler le contexte", "kind": "skill", "requireSkills": ["novahiz-analyse"] },
         { "id": "read", "label": "Lire le diff", "kind": "skill", "requireSkills": ["review-changes"] },
         { "id": "assess", "label": "Evaluer", "kind": "skill", "requireSkills": ["code-reviewer"] },
         { "id": "report", "label": "Rapporter", "kind": "advisory" }
@@ -64,6 +67,7 @@
         { "id": "scan", "label": "Scanner", "kind": "skill", "requireSkills": ["security-guidance"] },
         { "id": "triage", "label": "Trier les trouvailles", "kind": "advisory" },
         { "id": "prioritize", "label": "Prioriser", "kind": "advisory" },
+        { "id": "converge", "label": "Tracer les restes", "kind": "verify", "requireSkills": ["novahiz-converge"] },
         { "id": "report", "label": "Rapporter", "kind": "advisory" }
       ]
     }
@@ -78,9 +82,10 @@
       "id": "testing",
       "steps": [
         { "id": "target", "label": "Cibler ce qui doit etre teste", "kind": "advisory" },
-        { "id": "write", "label": "Ecrire les tests", "kind": "advisory", "requireSkills": ["humanizer"] },
+        { "id": "write", "label": "Ecrire les tests", "kind": "edit", "requireSkills": ["novahiz-implement", "humanizer"] },
         { "id": "run", "label": "Executer les tests", "kind": "verify" },
         { "id": "coverage", "label": "Verifier la couverture", "kind": "verify" },
+        { "id": "converge", "label": "Converger", "kind": "verify", "requireSkills": ["novahiz-converge"] },
         { "id": "report", "label": "Rapporter", "kind": "advisory" }
       ]
     }
@@ -111,10 +116,12 @@
     "roadmap": {
       "id": "browse",
       "steps": [
-        { "id": "goal", "label": "Definir l'objectif", "kind": "advisory" },
+        { "id": "goal", "label": "Cadrer l'objectif", "kind": "skill", "requireSkills": ["novahiz-plan"] },
+        { "id": "tasks", "label": "Decouper les etapes", "kind": "skill", "requireSkills": ["novahiz-task"] },
         { "id": "navigate", "label": "Naviguer", "kind": "advisory" },
         { "id": "interact", "label": "Interagir", "kind": "advisory" },
         { "id": "capture", "label": "Capturer", "kind": "advisory" },
+        { "id": "converge", "label": "Verifier la cible atteinte", "kind": "verify", "requireSkills": ["novahiz-converge"] },
         { "id": "report", "label": "Rapporter", "kind": "advisory" }
       ]
     }
@@ -129,11 +136,14 @@
     "roadmap": {
       "id": "design",
       "steps": [
-        { "id": "brief", "label": "Clarifier le brief", "kind": "advisory" },
+        { "id": "plan", "label": "Cadrer la direction", "kind": "skill", "requireSkills": ["novahiz-plan"] },
+        { "id": "brief", "label": "Clarifier le brief", "kind": "skill", "requireSkills": ["novahiz-clarify"] },
+        { "id": "tasks", "label": "Decouper", "kind": "skill", "requireSkills": ["novahiz-task"] },
         { "id": "load", "label": "Charger impeccable", "kind": "advisory", "requireSkills": ["impeccable"] },
-        { "id": "implement", "label": "Implementer", "kind": "edit" },
+        { "id": "implement", "label": "Implementer", "kind": "edit", "requireSkills": ["novahiz-implement"] },
         { "id": "responsive", "label": "Verifier le responsive", "kind": "verify" },
         { "id": "a11y", "label": "Verifier l'accessibilite", "kind": "skill", "requireSkills": ["a11y-audit"], "optional": true },
+        { "id": "converge", "label": "Converger", "kind": "verify", "requireSkills": ["novahiz-converge"] },
         { "id": "polish", "label": "Polish", "kind": "advisory", "requireSkills": ["impeccable"] }
       ]
     }
@@ -148,11 +158,14 @@
     "roadmap": {
       "id": "schema",
       "steps": [
-        { "id": "inspect", "label": "Inspecter le schema", "kind": "advisory" },
+        { "id": "plan", "label": "Cadrer le changement", "kind": "skill", "requireSkills": ["novahiz-plan"] },
+        { "id": "clarify", "label": "Lever les ambiguites", "kind": "skill", "requireSkills": ["novahiz-clarify"] },
+        { "id": "inspect", "label": "Inspecter le schema", "kind": "skill", "requireSkills": ["novahiz-analyse"] },
         { "id": "load", "label": "Charger les skills Supabase", "kind": "skill", "requireSkills": ["supabase"] },
-        { "id": "migration", "label": "Ecrire la migration", "kind": "edit" },
+        { "id": "migration", "label": "Ecrire la migration", "kind": "edit", "requireSkills": ["novahiz-implement"] },
         { "id": "security", "label": "Verifier RLS et securite", "kind": "skill", "requireSkills": ["supabase-postgres-best-practices"] },
         { "id": "test", "label": "Tester localement", "kind": "verify" },
+        { "id": "converge", "label": "Converger", "kind": "verify", "requireSkills": ["novahiz-converge"] },
         { "id": "document", "label": "Documenter", "kind": "advisory" }
       ]
     }
@@ -166,9 +179,11 @@
     "roadmap": {
       "id": "writing",
       "steps": [
-        { "id": "outline", "label": "Planifier", "kind": "advisory" },
-        { "id": "draft", "label": "Rediger", "kind": "advisory", "requireSkills": ["humanizer"] },
+        { "id": "outline", "label": "Planifier la structure", "kind": "advisory", "requireSkills": ["novahiz-plan"] },
+        { "id": "clarify", "label": "Clarifier le brief", "kind": "advisory", "requireSkills": ["novahiz-clarify"] },
+        { "id": "draft", "label": "Rediger", "kind": "edit", "requireSkills": ["humanizer"] },
         { "id": "review", "label": "Relire", "kind": "advisory" },
+        { "id": "converge", "label": "Verifier la couverture", "kind": "verify", "requireSkills": ["novahiz-converge"] },
         { "id": "publish", "label": "Publier", "kind": "advisory" }
       ]
     }
@@ -182,10 +197,11 @@
     "roadmap": {
       "id": "planning",
       "steps": [
-        { "id": "clarify", "label": "Clarifier", "kind": "advisory" },
-        { "id": "decompose", "label": "Decouper", "kind": "skill", "requireSkills": ["planner"] },
+        { "id": "clarify", "label": "Clarifier", "kind": "skill", "requireSkills": ["novahiz-clarify"] },
+        { "id": "plan", "label": "Cadrer la direction", "kind": "skill", "requireSkills": ["novahiz-plan"] },
+        { "id": "tasks", "label": "Decouper en taches", "kind": "skill", "requireSkills": ["novahiz-task"] },
         { "id": "estimate", "label": "Estimer", "kind": "advisory" },
-        { "id": "spec", "label": "Specifier", "kind": "advisory" },
+        { "id": "converge", "label": "Verifier la couverture", "kind": "verify", "requireSkills": ["novahiz-converge"] },
         { "id": "validate", "label": "Valider", "kind": "advisory" }
       ]
     }
@@ -199,11 +215,13 @@
     "roadmap": {
       "id": "devops",
       "steps": [
-        { "id": "assess", "label": "Evaluer", "kind": "advisory" },
-        { "id": "change", "label": "Modifier", "kind": "edit" },
+        { "id": "plan", "label": "Cadrer le changement", "kind": "skill", "requireSkills": ["novahiz-plan"] },
+        { "id": "clarify", "label": "Lever les ambiguites", "kind": "skill", "requireSkills": ["novahiz-clarify"] },
+        { "id": "assess", "label": "Analyser l'existant", "kind": "skill", "requireSkills": ["novahiz-analyse"] },
+        { "id": "change", "label": "Modifier", "kind": "edit", "requireSkills": ["novahiz-implement"] },
         { "id": "dryrun", "label": "Dry-run", "kind": "verify" },
         { "id": "apply", "label": "Appliquer", "kind": "advisory" },
-        { "id": "verify", "label": "Verifier", "kind": "verify" }
+        { "id": "converge", "label": "Verifier", "kind": "verify", "requireSkills": ["novahiz-converge"] }
       ]
     }
   },
@@ -216,10 +234,12 @@
     "roadmap": {
       "id": "data",
       "steps": [
-        { "id": "understand", "label": "Comprendre les donnees", "kind": "advisory" },
-        { "id": "transform", "label": "Transformer", "kind": "edit" },
+        { "id": "plan", "label": "Cadrer l'analyse", "kind": "skill", "requireSkills": ["novahiz-plan"] },
+        { "id": "understand", "label": "Comprendre les donnees", "kind": "skill", "requireSkills": ["novahiz-analyse"] },
+        { "id": "transform", "label": "Transformer", "kind": "edit", "requireSkills": ["novahiz-implement"] },
         { "id": "validate", "label": "Valider", "kind": "verify" },
         { "id": "visualize", "label": "Visualiser", "kind": "advisory" },
+        { "id": "converge", "label": "Converger", "kind": "verify", "requireSkills": ["novahiz-converge"] },
         { "id": "report", "label": "Rapporter", "kind": "advisory" }
       ]
     }
@@ -233,8 +253,8 @@
     "roadmap": {
       "id": "general",
       "steps": [
-        { "id": "clarify", "label": "Clarifier", "kind": "advisory" },
-        { "id": "plan", "label": "Planifier", "kind": "advisory" },
+        { "id": "plan", "label": "Cadrer la direction", "kind": "advisory" },
+        { "id": "clarify", "label": "Lever les ambiguites", "kind": "advisory" },
         { "id": "execute", "label": "Executer", "kind": "advisory", "requireSkills": ["humanizer"] },
         { "id": "verify", "label": "Verifier", "kind": "verify" },
         { "id": "report", "label": "Rapporter", "kind": "advisory" }

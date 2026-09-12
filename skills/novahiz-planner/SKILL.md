@@ -1,13 +1,13 @@
 ---
 name: novahiz-planner
 description: |
-  Mandatory task planner for Novahiz agent. CATEGORY-AWARE: creates Todo breakdown
-  adapted to the request category. Only includes tasks relevant to the category
-  (e.g. no code review for text tasks, no tech debt for config tasks).
-  Use at the START of every task that has 3+ steps or involves multiple files/changes.
-  Decomposes requests into atomic tasks with priorities, dependencies, and clear acceptance criteria.
-  Prevents scope creep, missed steps, and disorganized execution.
-  Triggers on: any non-trivial user request, multi-step tasks, feature implementation, refactoring, debugging sessions.
+  Orchestrateur du pipeline Novahiz. CATEGORY-AWARE et BLOQUANT : aucun travail non
+  trivial ne commence sans plan écrit.
+  Le pipeline suit six étapes dans l'ordre : plan, clarification, tâches, analyse,
+  implémentation, convergence. Chaque étape a sa skill dédiée.
+  Use at the START of any request with 3+ steps, several files, or an unclear scope.
+  Triggers on: multi-step tasks, feature implementation, refactoring, debugging sessions,
+  migrations, architecture work, "plan this", "break this down", "where do I start".
 license: MIT
 compatibility: opencode
 allowed-tools:
@@ -16,203 +16,100 @@ allowed-tools:
   - Read
   - Grep
   - Glob
+  - novahiz_task
+  - novahiz_gate
+  - novahiz_roadmap
+  - novahiz_classify
+  - question
 ---
 
-# Novahiz Planner — Task Decomposition Engine (Category-Aware, BLOCKING)
+# novahiz-planner : orchestrateur du pipeline
 
-You are a task planning specialist. **NO WORK BEGINS** without a Todo list (except for `trivial` and `research` categories). This is a hard gate, not a suggestion.
+Tu ouvres le travail. Toute tâche non triviale suit la même séquence.
 
-## CRITICAL: Blocking Gate
-
-```
-IF category is NOT trivial/research AND no Todo exists:
-  → STOP all work
-  → Create the Todo list FIRST
-  → THEN proceed
-```
-
-## Category-Aware Task Inclusion
-
-The Todo is adapted to the request category. Include ONLY the tasks that apply:
-
-### Tasks to Include by Category
-
-| Category | Core Tasks | Code Review | Tech Debt | Memory | Audit | Next Steps |
-|----------|-----------|-------------|-----------|--------|-------|------------|
-| `code` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| `debugging` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| `database` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| `audit` | ✅ | ✅ | ✅ | ⚠️ | ✅ | ✅ |
-| `browser` | ✅ | ❌ | ❌ | ✅ | ✅ | ✅ |
-| `text` | ✅ | ❌ | ❌ | ✅ | ✅ | ✅ |
-| `i18n` | ✅ | ❌ | ❌ | ✅ | ✅ | ✅ |
-| `config` | ✅ | ❌ | ❌ | ✅ | ✅ | ✅ |
-| `devops` | ✅ | ❌ | ❌ | ✅ | ✅ | ✅ |
-| `opencode-config` | ✅ | ❌ | ❌ | ✅ | ✅ | ✅ |
-| `planning` | ✅ | ❌ | ❌ | ✅ | ✅ | ✅ |
-| `research` | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| `trivial` | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
-
-### Example: `code` category Todo
-```
-1. [high] Identifier la cause racine du bug de login
-2. [high] Corriger la validation dans AuthService
-3. [medium] Écrire 2 tests unitaires pour le fix
-4. [medium] Code review
-5. [medium] Tech debt detection
-6. [medium] Mise à jour mémoire (MEMORY.md + Obsidian)
-7. [low] Next steps
-```
-
-### Example: `text` category Todo
-```
-1. [high] Rédiger la copy de la landing page (sections: hero, features, CTA)
-2. [medium] Appliquer humanizer sur la copie
-3. [medium] Mise à jour mémoire
-4. [low] Next steps
-```
-
-### Example: `browser` category Todo
-```
-1. [high] Naviguer vers la page cible
-2. [high] Capturer l'écran en mode headed
-3. [medium] Remplir le formulaire si demandé
-4. [medium] Mise à jour mémoire
-5. [low] Next steps
-```
-
-### Example: `config` category Todo
-```
-1. [high] Modifier le fichier de configuration
-2. [medium] Vérifier que la config fonctionne
-3. [medium] Mise à jour mémoire (classification: config)
-4. [low] Next steps
-```
-
-## Workflow
-
-### Step 1: Analyze the Request
-
-Read the user's message and extract:
-- **Goal**: What does "done" look like?
-- **Category**: What type of request is this? (from Step 0 classification)
-- **Scope**: How many files, systems, or domains are touched?
-- **Risks**: What could go wrong? (breaking changes, missing dependencies, edge cases)
-- **Constraints**: Time, tools, environment limitations
-
-### Step 2: Check Existing Context
-
-Before creating new todos:
-- Run `todoread` to check if there are existing tasks
-- Avoid duplicating in-progress or completed items
-- Build on existing structure if it exists
-
-### Step 3: Decompose into Atomic Tasks
-
-Break the work into tasks that are:
-- **Single-action**: One clear action per task (not "implement feature X")
-- **Testable**: Each task has a verifiable completion criteria
-- **Ordered**: Dependencies are explicit (task B depends on task A)
-- **Prioritized**: high/critical for blockers, medium for core work, low for polish
-
-### Step 4: Create the Todo List
-
-Use `todowrite` with this structure for each task:
+## Loi d'entrée
 
 ```
-content: "[ACTION] [OBJECT] — [EXPECTED RESULT]"
-status: pending
-priority: high | medium | low
+SI la catégorie n'est ni research ni general ET qu'aucune tâche n'est ouverte :
+  -> ARRÊT. Aucune édition, aucune commande.
+  -> Ouvre le pipeline, puis exécute.
 ```
 
-### Step 5: Confirm with User (if complex)
+## Le pipeline
 
-For tasks with 7+ items or significant risk, briefly present the plan:
-"Voici le plan décomposé : [summary]. Je commence ?"
+| # | Étape | Skill | Produit | Ferme quand | Écrit ? |
+|---|---|---|---|---|---|
+| 1 | Plan | `novahiz-plan` | direction, périmètre, ordre de dépendances, stratégie de découpage, risques | le plan tient et l'utilisateur l'a vu | non |
+| 2 | Clarification | `novahiz-clarify` | familles d'ambiguïté, salves de questions, décisions figées | les éléments ouverts ne changent plus ni architecture, ni données, ni tâches, ni tests, ni UX, ni exploitation | non |
+| 3 | Tâches | `novahiz-task` | tâches atomiques avec critères d'acceptation et preuve | chaque tâche a un critère et une preuve, et l'ordre tient | registre seul |
+| 4 | Analyse | `novahiz-analyse` | fichiers, symboles, chemins de données, inconnues | le périmètre utile est compris et les inconnues nommées | non |
+| 5 | Implémentation | `novahiz-implement` | incréments qui gardent le système utilisable | les tranches sont terminées et vertes | oui |
+| 6 | Convergence | `novahiz-converge` | inventaire d'intention, écart classé, restes tracés | la liste ouverte est vide ou explicitement acceptée | registre seul |
 
-Then proceed only after confirmation (or immediately if the request is straightforward).
+Deux retours en arrière prévus : la clarification renvoie au plan quand une réponse change l'architecture ; la convergence renvoie aux tâches quand un reste apparaît.
 
-## Task Naming Convention
+## Ce que le gate applique vraiment
 
-Use imperative mood + specific object:
+Le gate (voir `novahiz-gate`) ne bloque que sur les étapes de type `skill`. Dans le roadmap `code`, ce sont `novahiz-plan`, `novahiz-clarify`, `novahiz-task`, `novahiz-analyse` et `code-reviewer`. Les étapes `implement` et `converge` figurent dans `requiredSkills` mais ne refusent aucune édition.
 
-| Bad | Good |
-|-----|------|
-| "Fix the bug" | "Identifier la cause racine du bug de login" |
-| "Add feature" | "Créer le composant Button avec variants" |
-| "Update config" | "Modifier next.config.js pour activer i18n" |
-| "Test" | "Écrire 3 tests unitaires pour UserService.create" |
+Conséquence pratique : si l'implémentation ou la convergence n'ont pas lieu, rien ne s'y oppose mécaniquement. Le pipeline tient donc aussi parce qu'il est suivi, pas seulement parce qu'il est programmé.
 
-## Priority Rules
+## Lecture seule
 
-- **high**: Blocks other work, breaks existing functionality, or is explicitly urgent
-- **medium**: Core implementation tasks, standard feature work
-- **low**: Polish, documentation, optimization, nice-to-haves
+Les étapes 1, 2 et 4 ne modifient aucun fichier. L'étape 3 n'écrit que dans le registre d'exécution. L'écriture de code commence à l'étape 5.
 
-## Completion Criteria
+## Les 14 catégories
 
-Mark a task `completed` ONLY when:
-1. The code change is made
-2. It's verified (test passes, lint passes, manual check done)
-3. No regressions introduced
+code, debug, review, audit, test, research, browser, design-ui, database-supabase, docs-writing, planning, devops, data, general.
 
-## Anti-Patterns to Avoid
+Le pipeline complet s'applique à `code`, `debug`, `browser`, `design-ui`, `database-supabase`, `planning`, `devops` et `data`. `review`, `audit` et `test` gardent leurs étapes métier et se terminent par une convergence. `research` et `general` n'imposent aucune étape.
 
-- Don't create tasks for "think about X" — think, then create a concrete task
-- Don't skip the planning phase because "it's a small task" — even small tasks benefit from structure
-- Don't create 20+ micro-tasks — group related work into logical units
-- Don't forget documentation/memory update as a final task (for applicable categories)
-- Don't include code review for text/config/devops/browser/i18n categories
-- Don't include tech debt for non-code categories
+## Étapes annexes selon la catégorie
 
-## Final Tasks (Category-Dependent)
+| Catégorie | Pipeline 1 à 6 | Code review | Mémoire | Audit | Next steps |
+|---|---|---|---|---|---|
+| `code` | oui | oui | oui | oui | oui |
+| `debug` | oui | oui | oui | oui | oui |
+| `database-supabase` | oui | oui | oui | oui | oui |
+| `browser` | oui | non | oui | oui | oui |
+| `design-ui` | oui | non | oui | oui | oui |
+| `planning` | oui | non | oui | oui | oui |
+| `devops` | oui | non | oui | oui | oui |
+| `data` | oui | non | oui | oui | oui |
+| `review` | étapes métier | oui | oui | oui | oui |
+| `audit` | étapes métier | non | oui | oui | oui |
+| `test` | étapes métier | non | oui | oui | oui |
+| `docs-writing` | non | non | oui | oui | oui |
+| `research` | non | non | non | non | oui |
+| `general` | non | non | oui | oui | oui |
 
-### For code-producing categories (code, debugging, database, audit):
-```
-content: "Code review — analyser les changements"
-status: pending
-priority: medium
+## Règles transverses
 
-content: "Tech debt detection — vérifier la dette technique"
-status: pending
-priority: medium
+- **Choix par l'interface** : toute décision posée à l'utilisateur passe par l'outil `question` du harness. Tableau interactif, options décrites par leur conséquence, option recommandée en tête. Aucune question et aucune demande de confirmation en prose dans le chat. Le chat porte le contexte et le contenu, l'interface porte les choix.
+- **humanizer** sur toute prose : textes, documentation, messages d'interface, commentaires.
+- **impeccable** sur tout ce qui touche le style visuel.
+- **Skills Supabase** (`supabase`, `supabase-postgres-best-practices`) sur la catégorie `database-supabase`.
+- **Honnêteté** : aucune exécution affirmée sans sortie réelle. Une incertitude se dit.
+- **Critique** : une demande incohérente, ambiguë, risquée ou sous-optimale se contredit, avec une alternative.
+- **Suite** : à la fin, une prochaine étape utile est proposée, même si c'est de ne rien faire.
+- **Mémoire** : la fin d'une tâche complexe passe par `novahiz-memory`.
 
-content: "Mettre à jour la mémoire projet (MEMORY.md + Obsidian)"
-status: pending
-priority: medium
+## Comportement bloquant
 
-content: "Next steps — suggestions honnêtes"
-status: pending
-priority: low
-```
+Quand aucune tâche n'est ouverte et que la catégorie n'est ni `research` ni `general` :
 
-### For non-code categories (text, i18n, config, devops, browser, opencode-config, planning):
-```
-content: "Mettre à jour la mémoire projet (MEMORY.md + Obsidian)"
-status: pending
-priority: medium
+1. ARRÊT : aucune édition, aucune commande.
+2. ANALYSE : `novahiz_classify` puis `novahiz_roadmap` donnent la catégorie et les étapes.
+3. PIPELINE : ouvre les étapes dans l'ordre, en commençant par le plan.
+4. ÉCRIS : `novahiz_task action="new"` puis `action="plan"`, et `todowrite` pour le suivi visible.
+5. PRÉSENTE : pour une tâche complexe, montre le plan avant d'exécuter.
+6. EXÉCUTE : une seule étape `in_progress`, mise à jour en temps réel, `done` seulement avec preuve.
+7. CLÔTURE : `novahiz-converge`, puis `novahiz-audit`.
 
-content: "Next steps — suggestions honnêtes"
-status: pending
-priority: low
-```
+## Dérogation utilisateur
 
-### For research/trivial:
-No Todo needed — answer directly.
+Si l'utilisateur dit « fais-le sans plan » ou « pas besoin de plan » :
 
-## Blocking Behavior
-
-When the planner detects no Todo list exists (and category is not trivial/research):
-
-1. **STOP** — Do not write code, do not edit files, do not make changes
-2. **ANALYZE** — Parse the user's request into atomic tasks
-3. **CREATE** — Write the Todo list with `todowrite`
-4. **CONFIRM** — Present the plan to the user (for complex tasks)
-5. **PROCEED** — Only now start working
-
-### User Override
-
-If the user says "juste fais-le" or "pas besoin de plan":
-1. Create a minimal Todo with 1 task
-2. Proceed with a warning: "Plan minimal créé. Pour les prochaines tâches, un plan complet sera généré."
-3. Log the override for the audit
+1. crée une tâche minimale d'une étape ;
+2. préviens : « Plan minimal créé. Les prochaines tâches recevront un plan complet. » ;
+3. garde la dérogation visible pour l'audit.

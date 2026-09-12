@@ -1,11 +1,11 @@
 ---
 name: novahiz-audit
 description: |
-  End-of-session self-audit for Novahiz agent. CATEGORY-AWARE: only checks rules
-  relevant to the categories encountered during the session. Produces a compliance
-  report: rules followed, rules skipped, issues found, fixes applied.
-  Use at the END of every session or when the user says "audit" or "vérifie". This is the
-  accountability mechanism — if something was missed, it gets flagged and can be fixed.
+  Audit de fin de session pour Novahiz. CATEGORY-AWARE : ne contrôle que les règles des
+  catégories réellement rencontrées. S'appuie sur l'état vérifiable (registre d'exécution,
+  journal du gate, skills chargées, diff de la session) et jamais sur la mémoire de l'agent.
+  Use at the END of a session, or when the user says "audit" or "vérifie".
+  Triggers on: "audit", "vérifie", fin de session, compliance check, ce qu'on a oublié.
 license: MIT
 compatibility: opencode
 allowed-tools:
@@ -13,172 +13,68 @@ allowed-tools:
   - Read
   - Glob
   - Grep
-  - obsidian_write_note
-  - obsidian_read_note
-  - obsidian_list_directory
-  - obsidian_patch_note
 ---
 
-# Novahiz Audit — Session Accountability (Category-Aware)
+# novahiz-audit : contrôle de fin de session
 
-You are the session auditor. At the end of every session, you verify that ALL applicable Novahiz rules were followed. The audit is CATEGORY-AWARE — it only checks rules relevant to the categories encountered during the session.
+Tu audites à partir de faits vérifiables. Une case cochée de mémoire ne vaut rien.
 
-## Category-Aware Audit Matrix
+## Les 14 catégories réelles
 
-| Rule | code | audit | research | browser | text | config | planning | trivial | debugging | devops | database | opencode-config | i18n |
-|------|------|-------|----------|---------|------|--------|----------|---------|-----------|--------|----------|-----------------|------|
-| 1. Todo exists | ✅ | ✅ | ❌ | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| 2. PW headed | — | — | ❌ | ✅ | — | — | — | — | — | — | — | — | — |
-| 3. Humanizer | ✅ | ✅ | ❌ | ❌ | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ |
-| 4. Code review | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ✅ | ❌ | ❌ |
-| 5. Memory | ✅ | ⚠️ | ❌ | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| 6. Tech debt | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ | ✅ | ❌ | ❌ |
-| 7. INVENTORY | ✅ | ✅ | ❌ | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ | ✅ | ✅ | ❌ | ✅ |
-| 8. No manual | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+code, debug, review, audit, test, research, browser, design-ui, database-supabase, docs-writing, planning, devops, data, general.
 
-**Legend**: ✅ = must check, ❌ = skip (not applicable), — = N/A (category doesn't use this)
+`general` est la catégorie de repli. Il n'y a pas de catégorie `trivial` dans le catalogue.
 
-## How to Determine Categories Encountered
+## Ce qui se vérifie vraiment
 
-1. Read `novahiz-compliance.json` via `novahiz_log(rule="session_audit")` or check `novahiz-session-state.json`
-2. Collect all `requestCategory` values logged during the session
-3. Build the set of unique categories encountered
-4. Apply the audit matrix for ONLY those categories
+| Contrôle | Source de preuve | S'applique à |
+|---|---|---|
+| Plan et registre ouverts | `novahiz_task status` ou `todoread` | tout sauf research |
+| Étapes de la catégorie parcourues | `novahiz_roadmap --category X` puis `novahiz_step` | tout sauf research et general |
+| Skills requises chargées | journal du gate, table `enforcement_log` | tout |
+| humanizer appliqué sur la prose | règles R1 déclenchées, ou skill chargée | docs-writing, code, audit, planning, design-ui |
+| impeccable appliqué au style | règles R2 déclenchées, ou skill chargée | design-ui |
+| Revue de code faite | étape `review` du roadmap, skill `code-reviewer` | code, review, debug |
+| Scan de sécurité | étape `scan`, skill `security-guidance` | audit |
+| Preuve sur les étapes de vérification | `novahiz_task` refuse `done` sans `proof` | tout |
+| Mémoire à jour | `MEMORY.md` plus page vault, via `novahiz-memory` | tout sauf research |
+| Aucune simulation | affirmations recoupées avec des sorties réelles | tout |
 
-## Audit Checklist (Adapted Per Category)
+## Méthode
 
-### 1. Planner Was Used (skip for trivial, research)
+1. Récupère la catégorie primaire et les catégories rencontrées.
+2. Pour chaque contrôle applicable, cherche la preuve. Pas de preuve, pas de validation.
+3. Note `conforme`, `manquant` ou `non applicable`.
+4. Score : conformes sur applicables, en pourcentage. Sous 70 %, propose des correctifs précis. À 90 % et plus, conclus « session conforme ».
+
+## Sortie
+
+Un rapport court dans la conversation :
+
 ```
-Check: Was a Todo list created BEFORE work started?
-Evidence: todoread shows tasks created before first edit
-Status: ✅ PASS / ❌ FAIL / ⚠️ N/A (trivial/research)
-Fix: Log as missed — "Le planner n'a pas été utilisé"
-```
+## Audit de session
+Catégories : code, test
+| Contrôle | Statut | Preuve |
+|---|---|---|
+| Registre | conforme | 6 étapes, 1 bloquée |
+| humanizer | conforme | chargée avant rédaction |
+| Revue de code | manquant | étape review non exécutée |
+Score : 67 %
 
-### 2. Playwright Was Headed (only if browser category)
-```
-Check: Any Playwright usage had headless: false?
-Evidence: chrome-devtools-mcp via Edge headed by default (no --headless flag)
-Status: ✅ PASS / ❌ FAIL / ⚠️ N/A (no browser category)
-Fix: If headless was used → flag as violation
-```
+## À corriger
+- Lancer code-reviewer sur les fichiers modifiés
 
-### 3. Humanizer Was Used (only for text-producing categories)
-```
-Applies to: code, text, i18n, planning, audit
-Check: All generated/edited text was humanized?
-Evidence: humanizer skill was loaded or AI patterns checked
-Status: ✅ PASS / ❌ FAIL / ⚠️ N/A (non-text category)
-Fix: Re-run humanizer on generated text
-```
-
-### 4. Code Review Was Performed (only for code-producing categories)
-```
-Applies to: code, debugging, database, audit
-Check: Was code review done before marking tasks complete?
-Evidence: code-review-excellence was invoked or review output exists
-Status: ✅ PASS / ❌ FAIL / ⚠️ N/A (non-code category)
-Fix: Run code review now on modified files
+## À retenir
+- ...
 ```
 
-### 5. Tech Debt Detection (only for code-producing categories)
-```
-Applies to: code, debugging, database, audit
-Check: Was tech debt detected during code review?
-Evidence: tech-debt-detector was invoked
-Status: ✅ PASS / ❌ FAIL / ⚠️ N/A (non-code category)
-Fix: Run tech debt detection now
-```
+## Pièges
 
-### 6. Memory Was Updated (skip for research, trivial)
-```
-Check: Was project MEMORY.md updated?
-Check: Was Obsidian vault updated?
-Evidence: MEMORY.md has recent entry, Obsidian notes modified
-Status: ✅ PASS / ❌ FAIL / ⚠️ N/A (research/trivial)
-Fix: Update memory now
-```
+- Cocher une règle sans preuve.
+- Inventer un journal de conformité, un fichier de session ou un script de validation : ils n'existent pas dans ce système.
+- Auditer des catégories qui n'ont pas été rencontrées.
+- Confondre absence de preuve et conformité.
 
-### 7. INVENTORY Was Consulted (skip for trivial, opencode-config)
-```
-Check: Was skills/INVENTORY.md read before selecting skills?
-Evidence: inventoryConsulted = true in session state
-Status: ✅ PASS / ❌ FAIL / ⚠️ N/A (trivial/opencode-config)
-Fix: Log as missed — "L'inventaire des skills n'a pas été consulté"
-```
+## Suite
 
-### 8. No Manual Requests (always checked)
-```
-Check: Did agent ask user to do something manually?
-Evidence: No messages like "va sur le site", "clique sur", "ouvre le fichier"
-Status: ✅ PASS / ❌ FAIL
-Fix: Log as behavioral violation
-```
-
-## Audit Report Format
-
-```markdown
-# 🔍 Novahiz Audit Report — {date}
-
-## Session Summary
-- Catégories rencontrées: {list of unique categories}
-- Tâches créées: X
-- Tâches complétées: X
-- Fichiers modifiés: X
-- Durée: X
-
-## Compliance
-
-| Règle | Statut | Détail |
-|-------|--------|--------|
-| Planner | ✅/❌/⚠️ | {detail} |
-| Playwright headed | ✅/❌/⚠️ | {detail} |
-| Humanizer | ✅/❌/⚠️ | {detail} |
-| Code review | ✅/❌/⚠️ | {detail} |
-| Tech debt | ✅/❌/⚠️ | {detail} |
-| Memory update | ✅/❌/⚠️ | {detail} |
-| INVENTORY | ✅/❌/⚠️ | {detail} |
-| Pas de manuel | ✅/❌ | {detail} |
-
-## Score: X/8 (adapté aux catégories)
-
-## Issues Found
-- {issue 1}: {description}
-- {issue 2}: {description}
-
-## Fixes Applied
-- {fix 1}: {what was done}
-
-## Recommendations
-- {recommendation for next session}
-```
-
-## Scoring
-
-- Maximum score = 8 (all rules)
-- Score is normalized: `actual_score / applicable_rules * 100`
-- Example: If only `browser` category was used, only rules 1, 2, 5, 7, 8 apply (5 rules max)
-- Score < 70% → suggest specific improvements
-- Score ≥ 90% → confirm "Session conforme — zéro simulation"
-
-## Output
-
-1. Display the audit report in the conversation
-2. Save to Obsidian: `08-System/log.md` (append)
-3. Log audit completion: `novahiz_log(rule="session_audit", status="pass")`
-
-## Post-Audit Actions
-
-If issues were found:
-1. Fix what can be fixed automatically (add missing memory updates, run humanizer)
-2. Log unfixed issues for next session
-3. Update `08-System/log.md` with audit results
-
-## Weekly Rollup
-
-On Mondays, aggregate the week's audits:
-- Total sessions: X
-- Average compliance: X% (normalized)
-- Most common failure: {rule}
-- Categories most used: {top 3 categories}
-- Improvement trend: {up/down/stable}
+Ce qui se répare se répare tout de suite : relancer humanizer, lancer la revue, écrire la mémoire. Le reste est consigné pour la session suivante.

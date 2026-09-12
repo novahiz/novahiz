@@ -1,47 +1,536 @@
 {
   "skills": {
-    "humanizer": { "power": 5, "stars": null, "tags": ["text", "quality"], "categories": ["code", "docs-writing"] },
-    "impeccable": { "power": 5, "stars": null, "tags": ["design", "ui"], "categories": ["design-ui"] },
-    "supabase": { "power": 5, "stars": null, "tags": ["database", "supabase"], "categories": ["database-supabase"] },
-    "supabase-postgres-best-practices": { "power": 5, "stars": null, "tags": ["database", "postgres"], "categories": ["database-supabase"] },
-    "gate": { "power": 5, "stars": null, "tags": ["novahiz", "workflow"], "categories": ["general"] },
-    "novahiz-gate": { "power": 5, "stars": null, "tags": ["novahiz", "workflow"], "categories": ["general"] },
-    "novahiz-audit": { "power": 4, "stars": null, "tags": ["novahiz", "audit"], "categories": ["audit"] },
-    "novahiz-memory": { "power": 4, "stars": null, "tags": ["novahiz", "memory"], "categories": ["general"] },
-    "novahiz-planner": { "power": 4, "stars": null, "tags": ["novahiz", "planning"], "categories": ["planning"] },
-    "novahiz-browser": { "power": 4, "stars": null, "tags": ["novahiz", "browser"], "categories": ["browser"] },
-    "memory": { "power": 4, "stars": null, "tags": ["memory"], "categories": ["general"] },
-    "planner": { "power": 4, "stars": null, "tags": ["planning"], "categories": ["planning"] },
-    "migrate": { "power": 3, "stars": null, "tags": ["migration"], "categories": ["code", "devops"] },
-    "fix": { "power": 4, "stars": null, "tags": ["debug"], "categories": ["debug"] },
-    "anti-AI-design": { "power": 5, "stars": null, "tags": ["design", "quality"], "categories": ["design-ui"] },
-    "anti-pattern-detector": { "power": 4, "stars": null, "tags": ["quality", "audit"], "categories": ["code", "audit"] },
-    "clean-code": { "power": 4, "stars": null, "tags": ["quality"], "categories": ["code"] },
-    "engineering-standards": { "power": 4, "stars": null, "tags": ["quality", "architecture"], "categories": ["code", "planning"] },
-    "zero-hallucination-coder": { "power": 5, "stars": null, "tags": ["quality", "code"], "categories": ["code"] },
-    "code-reviewer": { "power": 4, "stars": null, "tags": ["review"], "categories": ["review"] },
-    "adversarial-reviewer": { "power": 4, "stars": null, "tags": ["review"], "categories": ["review"] },
-    "api-design-reviewer": { "power": 4, "stars": null, "tags": ["review", "api"], "categories": ["review", "code"] },
-    "design-taste-frontend": { "power": 5, "stars": null, "tags": ["design", "frontend"], "categories": ["design-ui"] },
-    "ui-design-system": { "power": 4, "stars": null, "tags": ["design", "system"], "categories": ["design-ui"] },
-    "apple-hig-expert": { "power": 4, "stars": null, "tags": ["design", "apple"], "categories": ["design-ui"] },
-    "a11y-audit": { "power": 4, "stars": null, "tags": ["accessibility", "audit"], "categories": ["design-ui", "audit"] },
-    "security-guidance": { "power": 4, "stars": null, "tags": ["security"], "categories": ["audit"] },
-    "ai-security": { "power": 4, "stars": null, "tags": ["security", "ai"], "categories": ["audit"] },
-    "senior-secops": { "power": 4, "stars": null, "tags": ["security", "devops"], "categories": ["audit", "devops"] },
-    "dependency-auditor": { "power": 3, "stars": null, "tags": ["security", "dependencies"], "categories": ["audit"] },
-    "env-secrets-manager": { "power": 3, "stars": null, "tags": ["security", "secrets"], "categories": ["devops", "audit"] },
-    "senior-architect": { "power": 5, "stars": null, "tags": ["architecture"], "categories": ["planning", "code"] },
-    "senior-backend": { "power": 4, "stars": null, "tags": ["backend"], "categories": ["code"] },
-    "database-designer": { "power": 4, "stars": null, "tags": ["database"], "categories": ["database-supabase"] },
-    "postgresql-optimization": { "power": 4, "stars": null, "tags": ["database", "postgres"], "categories": ["database-supabase"] },
-    "typescript-expert": { "power": 4, "stars": null, "tags": ["typescript"], "categories": ["code"] },
-    "spec-driven-workflow": { "power": 4, "stars": null, "tags": ["spec", "planning"], "categories": ["planning"] },
-    "skill-creator": { "power": 3, "stars": null, "tags": ["skills"], "categories": ["general"] },
-    "write-a-skill": { "power": 3, "stars": null, "tags": ["skills"], "categories": ["general"] },
-    "mcp-server-builder": { "power": 4, "stars": null, "tags": ["mcp"], "categories": ["code", "planning"] },
-    "code-understand": { "power": 4, "stars": null, "tags": ["architecture", "code"], "categories": ["code", "debug", "review"] },
-    "review-changes": { "power": 4, "stars": null, "tags": ["review"], "categories": ["review"] },
-    "defuddle": { "power": 3, "stars": null, "tags": ["research", "web"], "categories": ["research"] }
+    "humanizer": {
+      "power": 5,
+      "stars": null,
+      "tags": [
+        "text",
+        "quality"
+      ],
+      "categories": [
+        "code",
+        "docs-writing"
+      ]
+    },
+    "impeccable": {
+      "power": 5,
+      "stars": null,
+      "tags": [
+        "design",
+        "ui"
+      ],
+      "categories": [
+        "design-ui"
+      ]
+    },
+    "supabase": {
+      "power": 5,
+      "stars": null,
+      "tags": [
+        "database",
+        "supabase"
+      ],
+      "categories": [
+        "database-supabase"
+      ]
+    },
+    "supabase-postgres-best-practices": {
+      "power": 5,
+      "stars": null,
+      "tags": [
+        "database",
+        "postgres"
+      ],
+      "categories": [
+        "database-supabase"
+      ]
+    },
+    "gate": {
+      "power": 5,
+      "stars": null,
+      "tags": [
+        "novahiz",
+        "workflow"
+      ],
+      "categories": [
+        "general"
+      ]
+    },
+    "novahiz-gate": {
+      "power": 5,
+      "stars": null,
+      "tags": [
+        "novahiz",
+        "workflow"
+      ],
+      "categories": [
+        "general"
+      ]
+    },
+    "novahiz-audit": {
+      "power": 4,
+      "stars": null,
+      "tags": [
+        "novahiz",
+        "audit"
+      ],
+      "categories": [
+        "audit"
+      ]
+    },
+    "novahiz-memory": {
+      "power": 4,
+      "stars": null,
+      "tags": [
+        "novahiz",
+        "memory"
+      ],
+      "categories": [
+        "general"
+      ]
+    },
+    "novahiz-planner": {
+      "power": 5,
+      "stars": null,
+      "tags": [
+        "novahiz",
+        "workflow"
+      ],
+      "categories": [
+        "planning",
+        "general"
+      ]
+    },
+    "novahiz-browser": {
+      "power": 4,
+      "stars": null,
+      "tags": [
+        "novahiz",
+        "browser"
+      ],
+      "categories": [
+        "browser"
+      ]
+    },
+    "memory": {
+      "power": 4,
+      "stars": null,
+      "tags": [
+        "memory"
+      ],
+      "categories": [
+        "general"
+      ]
+    },
+    "migrate": {
+      "power": 3,
+      "stars": null,
+      "tags": [
+        "migration"
+      ],
+      "categories": [
+        "code",
+        "devops"
+      ]
+    },
+    "fix": {
+      "power": 4,
+      "stars": null,
+      "tags": [
+        "debug"
+      ],
+      "categories": [
+        "debug"
+      ]
+    },
+    "anti-AI-design": {
+      "power": 5,
+      "stars": null,
+      "tags": [
+        "design",
+        "quality"
+      ],
+      "categories": [
+        "design-ui"
+      ]
+    },
+    "anti-pattern-detector": {
+      "power": 4,
+      "stars": null,
+      "tags": [
+        "quality",
+        "audit"
+      ],
+      "categories": [
+        "code",
+        "audit"
+      ]
+    },
+    "clean-code": {
+      "power": 4,
+      "stars": null,
+      "tags": [
+        "quality"
+      ],
+      "categories": [
+        "code"
+      ]
+    },
+    "engineering-standards": {
+      "power": 4,
+      "stars": null,
+      "tags": [
+        "quality",
+        "architecture"
+      ],
+      "categories": [
+        "code",
+        "planning"
+      ]
+    },
+    "zero-hallucination-coder": {
+      "power": 5,
+      "stars": null,
+      "tags": [
+        "quality",
+        "code"
+      ],
+      "categories": [
+        "code"
+      ]
+    },
+    "code-reviewer": {
+      "power": 4,
+      "stars": null,
+      "tags": [
+        "review"
+      ],
+      "categories": [
+        "review"
+      ]
+    },
+    "adversarial-reviewer": {
+      "power": 4,
+      "stars": null,
+      "tags": [
+        "review"
+      ],
+      "categories": [
+        "review"
+      ]
+    },
+    "api-design-reviewer": {
+      "power": 4,
+      "stars": null,
+      "tags": [
+        "review",
+        "api"
+      ],
+      "categories": [
+        "review",
+        "code"
+      ]
+    },
+    "design-taste-frontend": {
+      "power": 5,
+      "stars": null,
+      "tags": [
+        "design",
+        "frontend"
+      ],
+      "categories": [
+        "design-ui"
+      ]
+    },
+    "ui-design-system": {
+      "power": 4,
+      "stars": null,
+      "tags": [
+        "design",
+        "system"
+      ],
+      "categories": [
+        "design-ui"
+      ]
+    },
+    "apple-hig-expert": {
+      "power": 4,
+      "stars": null,
+      "tags": [
+        "design",
+        "apple"
+      ],
+      "categories": [
+        "design-ui"
+      ]
+    },
+    "a11y-audit": {
+      "power": 4,
+      "stars": null,
+      "tags": [
+        "accessibility",
+        "audit"
+      ],
+      "categories": [
+        "design-ui",
+        "audit"
+      ]
+    },
+    "security-guidance": {
+      "power": 4,
+      "stars": null,
+      "tags": [
+        "security"
+      ],
+      "categories": [
+        "audit"
+      ]
+    },
+    "ai-security": {
+      "power": 4,
+      "stars": null,
+      "tags": [
+        "security",
+        "ai"
+      ],
+      "categories": [
+        "audit"
+      ]
+    },
+    "senior-secops": {
+      "power": 4,
+      "stars": null,
+      "tags": [
+        "security",
+        "devops"
+      ],
+      "categories": [
+        "audit",
+        "devops"
+      ]
+    },
+    "dependency-auditor": {
+      "power": 3,
+      "stars": null,
+      "tags": [
+        "security",
+        "dependencies"
+      ],
+      "categories": [
+        "audit"
+      ]
+    },
+    "env-secrets-manager": {
+      "power": 3,
+      "stars": null,
+      "tags": [
+        "security",
+        "secrets"
+      ],
+      "categories": [
+        "devops",
+        "audit"
+      ]
+    },
+    "senior-architect": {
+      "power": 5,
+      "stars": null,
+      "tags": [
+        "architecture"
+      ],
+      "categories": [
+        "planning",
+        "code"
+      ]
+    },
+    "senior-backend": {
+      "power": 4,
+      "stars": null,
+      "tags": [
+        "backend"
+      ],
+      "categories": [
+        "code"
+      ]
+    },
+    "database-designer": {
+      "power": 4,
+      "stars": null,
+      "tags": [
+        "database"
+      ],
+      "categories": [
+        "database-supabase"
+      ]
+    },
+    "postgresql-optimization": {
+      "power": 4,
+      "stars": null,
+      "tags": [
+        "database",
+        "postgres"
+      ],
+      "categories": [
+        "database-supabase"
+      ]
+    },
+    "typescript-expert": {
+      "power": 4,
+      "stars": null,
+      "tags": [
+        "typescript"
+      ],
+      "categories": [
+        "code"
+      ]
+    },
+    "spec-driven-workflow": {
+      "power": 4,
+      "stars": null,
+      "tags": [
+        "spec",
+        "planning"
+      ],
+      "categories": [
+        "planning"
+      ]
+    },
+    "skill-creator": {
+      "power": 3,
+      "stars": null,
+      "tags": [
+        "skills"
+      ],
+      "categories": [
+        "general"
+      ]
+    },
+    "write-a-skill": {
+      "power": 3,
+      "stars": null,
+      "tags": [
+        "skills"
+      ],
+      "categories": [
+        "general"
+      ]
+    },
+    "mcp-server-builder": {
+      "power": 4,
+      "stars": null,
+      "tags": [
+        "mcp"
+      ],
+      "categories": [
+        "code",
+        "planning"
+      ]
+    },
+    "code-understand": {
+      "power": 4,
+      "stars": null,
+      "tags": [
+        "architecture",
+        "code"
+      ],
+      "categories": [
+        "code",
+        "debug",
+        "review"
+      ]
+    },
+    "review-changes": {
+      "power": 4,
+      "stars": null,
+      "tags": [
+        "review"
+      ],
+      "categories": [
+        "review"
+      ]
+    },
+    "defuddle": {
+      "power": 3,
+      "stars": null,
+      "tags": [
+        "research",
+        "web"
+      ],
+      "categories": [
+        "research"
+      ]
+    },
+    "novahiz-plan": {
+      "power": 5,
+      "stars": null,
+      "tags": [
+        "novahiz",
+        "planning"
+      ],
+      "categories": [
+        "planning",
+        "code"
+      ]
+    },
+    "novahiz-clarify": {
+      "power": 5,
+      "stars": null,
+      "tags": [
+        "novahiz",
+        "planning"
+      ],
+      "categories": [
+        "planning",
+        "general"
+      ]
+    },
+    "novahiz-task": {
+      "power": 5,
+      "stars": null,
+      "tags": [
+        "novahiz",
+        "planning"
+      ],
+      "categories": [
+        "planning",
+        "code"
+      ]
+    },
+    "novahiz-analyse": {
+      "power": 4,
+      "stars": null,
+      "tags": [
+        "novahiz",
+        "analysis"
+      ],
+      "categories": [
+        "code",
+        "debug",
+        "review"
+      ]
+    },
+    "novahiz-implement": {
+      "power": 5,
+      "stars": null,
+      "tags": [
+        "novahiz",
+        "code"
+      ],
+      "categories": [
+        "code"
+      ]
+    },
+    "novahiz-converge": {
+      "power": 5,
+      "stars": null,
+      "tags": [
+        "novahiz",
+        "verify"
+      ],
+      "categories": [
+        "planning",
+        "code"
+      ]
+    }
   }
 }

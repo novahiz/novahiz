@@ -110,7 +110,7 @@ test("applies the primary roadmap skill steps", () => {
     content: "const x = 1;"
   });
   assert.equal(result.roadmap, "feature");
-  assert.ok(result.requiredSkills.includes("planner"));
+  assert.ok(result.requiredSkills.includes("novahiz-plan"));
   assert.ok(result.requiredSkills.includes("code-reviewer"));
 });
 
