@@ -203,6 +203,19 @@ async function main() {
     }
   }
 
+  const commandsSource = existsSync(join(home, "adapters", "opencode", "commands"))
+    ? join(home, "adapters", "opencode", "commands")
+    : join(root, "adapters", "opencode", "commands");
+  const commandsTarget = join(configDir, "commands");
+  if (existsSync(commandsSource)) {
+    note(`Installation des commandes Novahiz dans ${commandsTarget}`);
+    if (!dryRun) {
+      const result = copyInto(commandsSource, commandsTarget, true);
+      created.push(...result.created);
+      backups.push(...result.backups);
+    }
+  }
+
   const configPath = join(home, "novahiz.config.json");
   if (force || !existsSync(configPath)) {
     note(`Ecriture de ${configPath}`);
