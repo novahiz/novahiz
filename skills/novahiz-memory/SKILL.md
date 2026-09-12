@@ -9,11 +9,6 @@ description: |
   Triggers on: "mémoire", "MEMORY.md", obsidian, vault, sauvegarde, "note ça", routing.
 license: MIT
 compatibility: opencode
-allowed-tools:
-  - todoread
-  - Read
-  - Glob
-  - Grep
 ---
 
 # novahiz-memory : mémoire double

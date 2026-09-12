@@ -11,14 +11,6 @@ description: |
   migration, refactoring, changement multi-fichiers.
 license: MIT
 compatibility: opencode
-allowed-tools:
-  - Read
-  - Grep
-  - Glob
-  - todowrite
-  - todoread
-  - novahiz_task
-  - question
 ---
 
 # novahiz-plan : décider la direction

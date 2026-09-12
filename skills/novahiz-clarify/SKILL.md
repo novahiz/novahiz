@@ -11,11 +11,6 @@ description: |
   manquantes, "deux lectures possibles", questions ouvertes.
 license: MIT
 compatibility: opencode
-allowed-tools:
-  - Read
-  - Grep
-  - Glob
-  - question
 ---
 
 # novahiz-clarify : lever les ambiguïtés

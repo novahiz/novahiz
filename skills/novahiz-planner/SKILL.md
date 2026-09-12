@@ -10,17 +10,6 @@ description: |
   migrations, architecture work, "plan this", "break this down", "where do I start".
 license: MIT
 compatibility: opencode
-allowed-tools:
-  - todowrite
-  - todoread
-  - Read
-  - Grep
-  - Glob
-  - novahiz_task
-  - novahiz_gate
-  - novahiz_roadmap
-  - novahiz_classify
-  - question
 ---
 
 # novahiz-planner : orchestrateur du pipeline

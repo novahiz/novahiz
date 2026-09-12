@@ -11,11 +11,6 @@ description: |
   "pourquoi mon edition est refusee".
 license: MIT
 compatibility: opencode
-allowed-tools:
-  - todoread
-  - Read
-  - Glob
-  - Grep
 ---
 
 # novahiz-gate : lire et satisfaire le gate

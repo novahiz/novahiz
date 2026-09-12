@@ -10,11 +10,6 @@ description: |
   analyse d'impact, cause racine, point d'entrée.
 license: MIT
 compatibility: opencode
-allowed-tools:
-  - Read
-  - Grep
-  - Glob
-  - novahiz_task
 ---
 
 # novahiz-analyse : comprendre avant de modifier

@@ -10,14 +10,6 @@ description: |
   priorisation, "par quoi je commence".
 license: MIT
 compatibility: opencode
-allowed-tools:
-  - todowrite
-  - todoread
-  - Read
-  - Grep
-  - Glob
-  - novahiz_task
-  - question
 ---
 
 # novahiz-task : découper en tâches vérifiables

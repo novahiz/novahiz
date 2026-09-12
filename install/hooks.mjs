@@ -31,7 +31,7 @@ function claudeHooks(home) {
     hooks: {
       PreToolUse: [
         {
-          matcher: "Read|Edit|Write|MultiEdit|NotebookEdit|Bash|PowerShell",
+          matcher: "Skill|Read|Edit|Write|MultiEdit|NotebookEdit|Bash|PowerShell",
           hooks: [
             {
               type: "command",

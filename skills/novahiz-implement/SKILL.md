@@ -9,15 +9,6 @@ description: |
   composant, appliquer le changement, faire passer le test.
 license: MIT
 compatibility: opencode
-allowed-tools:
-  - Read
-  - Edit
-  - Write
-  - Grep
-  - Glob
-  - Bash
-  - novahiz_task
-  - question
 ---
 
 # novahiz-implement : écrire par incréments propres

@@ -11,14 +11,6 @@ description: |
   "qu'est-ce qui reste", clôture.
 license: MIT
 compatibility: opencode
-allowed-tools:
-  - Read
-  - Grep
-  - Glob
-  - todowrite
-  - todoread
-  - novahiz_task
-  - question
 ---
 
 # novahiz-converge : fermer l'écart

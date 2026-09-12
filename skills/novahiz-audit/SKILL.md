@@ -8,11 +8,6 @@ description: |
   Triggers on: "audit", "vérifie", fin de session, compliance check, ce qu'on a oublié.
 license: MIT
 compatibility: opencode
-allowed-tools:
-  - todoread
-  - Read
-  - Glob
-  - Grep
 ---
 
 # novahiz-audit : contrôle de fin de session
