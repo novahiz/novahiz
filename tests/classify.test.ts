@@ -29,6 +29,13 @@ test("classification is deterministic", () => {
   assert.deepEqual(first, second);
 });
 
+test("classifies a refactor prompt as code", () => {
+  const result = classify(spec, "Decouper src/cli.ts (1435 lignes) en modules dans src/commands/ sans changer le comportement du CLI");
+  assert.equal(result.primary, "code");
+  assert.ok(result.requiredSkills.includes("novahiz-plan"));
+  assert.ok(result.requiredSkills.includes("novahiz-analyse"));
+});
+
 test("falls back to general and injects the general roadmap skill", () => {
   const result = classify(spec, "bonjour, comment vas tu ?");
   assert.equal(result.categories[0].id, "general");

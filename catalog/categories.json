@@ -3,7 +3,7 @@
     "id": "code",
     "label": "Code",
     "priority": 60,
-    "keywords": ["code", "coder", "fonction", "function", "methode", "method", "classe", "class", "module", "composant", "component", "api", "endpoint", "script", "implemente", "implement", "feature", "fonctionnalite", "refactor", "refactoring", "refactorise", "typescript", "javascript", "python", "rust", "golang", "java", "kotlin", "swift", "php", "dart", "flutter", "react", "vue", "angular", "svelte", "node", "backend", "frontend"],
+    "keywords": ["code", "coder", "fonction", "function", "methode", "method", "classe", "class", "module", "composant", "component", "api", "endpoint", "script", "implemente", "implement", "feature", "fonctionnalite", "refactor", "refactoring", "refactorise", "typescript", "javascript", "python", "rust", "golang", "java", "kotlin", "swift", "php", "dart", "flutter", "react", "vue", "angular", "svelte", "node", "backend", "frontend", "decoupe", "decouper", "decoupage", "extraire", "extraction", "isoler", "modules", "split", "cli", "refactorisation"],
     "defaultSkills": [],
     "roadmap": {
       "id": "feature",
