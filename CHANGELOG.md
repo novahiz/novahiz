@@ -14,6 +14,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - Terminal renderer (`src/render.ts`) with colour, tables, and byte formatting, plus `--pretty` and `--json` output modes.
 - Slash commands `novahiz-plan`, `novahiz-clean`, `novahiz-doctor`, and `novahiz-status`, installed with the opencode command directory.
 - `/novahiz-plan` produces the plan read-only: it classifies the request, asks its questions through the interface, traces the plan in the ledger, and writes nothing.
+- The installer installs the bundled skills into `~/.claude/skills/`, the four slash commands into `~/.claude/commands/`, and the agent into `~/.claude/agents/novahiz.md` when `~/.claude` exists. `--no-claude` skips the block.
+- `scripts/capture-cli.mjs` records the JSON output of every CLI invocation and diffs two runs, ignoring timestamp fields, so a refactor can be proven neutral.
 - The gate reports required skills that are absent from the installed index, in `unmatchedRequired` and in a `warnings` array.
 - `CHANGELOG.md` and a rewritten `NOTICE.md` that records the licence of every bundled third-party skill.
 
@@ -28,6 +30,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 - Test suites that opened the real ledger database now use a temporary one and clean up after themselves.
 - `clean --dry-run` exits zero.
+- Claude Code and Codex could never satisfy the gate. Neither has a skill tool, so no skill was ever recorded as loaded and every gated edit was denied with no way back. The hook now treats a read of a `SKILL.md` as the load, and the Claude matcher includes `Read`.
+- `novahiz classify` scored zero on a refactor prompt: `decouper`, `decoupage`, `extraire`, `extraction`, `isoler`, `modules`, `split`, `cli`, and `refactorisation` are now keywords of the `code` category.
+- Adding a todo to a completed ledger task left it marked `done`. The task is reopened as `active`.
 
 ### Removed
 
