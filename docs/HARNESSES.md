@@ -5,8 +5,11 @@ Novahiz keeps its decisions in the CLI. Every harness integration is a thin adap
 ## opencode
 
 - Skill and plugin: `~/.config/opencode/skills/` and `~/.config/opencode/plugins/`.
+- Slash commands: `~/.config/opencode/commands/` (`novahiz-clean`, `novahiz-doctor`, `novahiz-status`).
 - MCP: the plugin registers the Novahiz server through the plugin `config` hook, so `opencode.jsonc` is not edited.
 - Gate: the plugin calls `novahiz gate` on `edit`, `write`, `patch`, `apply_patch`, `bash`, and `shell`.
+
+The plugin exists twice. `adapters/opencode/novahiz.ts` in the repository is the source; `~/.config/opencode/plugins/novahiz.ts` is what opencode runs. Editing the source changes nothing until the installer recopies it, and a stale copy keeps the old behaviour without an error. After an update, run the installer and restart opencode. `novahiz doctor` reports this as the `adapter` check.
 
 Source: opencode plugin docs (`~/.config/opencode/plugins/`).
 

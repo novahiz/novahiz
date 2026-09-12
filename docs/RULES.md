@@ -47,7 +47,7 @@ For an edit, the gate collects skills from two places:
 
 Duplicates collapse. The result is filtered against the installed skills index:
 
-- When the index is available, a required skill that is not installed is reported separately and does not block.
+- When the index is available, a required skill that is not installed is reported in `unmatchedRequired` and in the `warnings` array, and it does not block. This is deliberate: an installation gap should not make a whole category uneditable. A harness that wants the stricter behaviour can treat a non-empty `unmatchedRequired` as a failure.
 - When the index is missing or unreadable, the gate fails closed and enforces every required skill. Run `novahiz sync` to rebuild the index.
 - Files that match `gate.ignoreFiles` are skipped entirely.
 

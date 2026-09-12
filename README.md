@@ -17,14 +17,34 @@ The decisions run in code. The same prompt and the same rule set always produce 
 - **Enforcer** injects the detected categories, the roadmap checklist, and the expected skills into the system prompt.
 - **Ledger** keeps a long task in SQLite: atomic todos with an acceptance criterion and a proof, a per-todo iteration budget, work packets with exclusive file ownership, and a living plan the gate forces you to revise every few edits. The current plan is injected into the system prompt each turn, so it survives context compaction.
 
+## Pipeline
+
+Non-trivial work follows six stages, in order, each with its own skill:
+
+| # | Stage | Skill | Produces |
+|---|-------|-------|----------|
+| 1 | Plan | `novahiz-plan` | direction, boundaries, dependency order, slicing strategy, risks |
+| 2 | Clarify | `novahiz-clarify` | ambiguity families, question rounds, settled decisions |
+| 3 | Tasks | `novahiz-task` | atomic tasks with acceptance criteria and a proof |
+| 4 | Analyse | `novahiz-analyse` | the files, symbols, and unknowns that matter for the task |
+| 5 | Implement | `novahiz-implement` | increments that keep the system working |
+| 6 | Converge | `novahiz-converge` | the gap between intent and code, closed or left explicit |
+
+`novahiz-planner` orchestrates them and carries the entry rule: no non-trivial edit before a written plan. Stages 1 to 4 write nothing to the application.
+
+The clarification and planning stages ask their questions through the harness question interface, so the agent presents choices and waits for an answer instead of listing questions in prose.
+
 ## Status
 
 Phase 1. The core (catalog, classifier, gate, CLI), the bundled skills, the installer, the MCP server, and the opencode adapter work and are covered by tests. Other harness adapters are next. The public interface may change before 1.0.
+
+The package exposes no programmatic import surface. It ships a CLI and an MCP server, so `package.json` declares no `main` and no `exports`.
 
 ## Requirements
 
 - Node.js 22.18 or later. Node runs the TypeScript sources directly through type stripping.
 - No runtime dependencies. SQLite comes from `node:sqlite`.
+- `defuddle`, for the web extraction in the `research` roadmap step. `novahiz doctor` reports whether it is present.
 
 ## Install
 
@@ -69,9 +89,14 @@ node src/cli.ts task done --id <todo> --proof "node --test tests/export.test.ts 
 node src/cli.ts task status --session <id>
 node src/cli.ts dispatch --task <id>
 node src/cli.ts tokens --calibrate --format text
+node src/cli.ts clean --days 30 --dry-run
+node src/cli.ts clean --days 30 --apply --vacuum
+node src/cli.ts doctor
 ```
 
 `gate` prints a JSON verdict and exits `0` when the edit is allowed, `2` when it is blocked. Adapters rely on that exit code.
+
+Output follows the terminal by default, and `--pretty` or `--json` forces a mode. `clean` prunes old enforcement logs, roadmap progress, sessions, and closed tasks; without `--apply` it shows the plan and, on an interactive terminal, asks for confirmation. `doctor` runs the preflight checks and exits non-zero on a blocking finding.
 
 Run `node src/cli.ts` with no arguments for the full command list, including `categories`, `rules`, `session-load`, `session-state`, `hook`, `providers`, `deps`, and every `task` subcommand.
 
@@ -80,6 +105,8 @@ The adapter also trims tool output and deduplicates stale reads to keep long ses
 ## opencode adapter
 
 Copy `adapters/opencode/novahiz.ts` and `adapters/opencode/tokens.ts` into `~/.config/opencode/plugins/` (the plugin imports `./tokens.ts`), or run the installer, which copies both. It loads automatically at startup. The adapter classifies each user message, injects the roadmap checklist and expected skills, tracks loaded skills, and calls the CLI gate on `edit`, `write`, `patch`, `apply_patch`, `bash`, and `shell`.
+
+The installer also drops three slash commands into the opencode command directory: `/novahiz-clean`, `/novahiz-doctor`, and `/novahiz-status`.
 
 Set `NOVAHIZ_GATE=off` to disable gating for a session. Set `NOVAHIZ_HOME` when the repo is not at `~/.config/novahiz`. Set `NOVAHIZ_DB` to override the database path, which keeps tests and scratch runs off your real ledger.
 

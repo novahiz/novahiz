@@ -2,6 +2,23 @@
 
 A roadmap is an ordered list of steps attached to a category. The classifier picks the categories for a prompt, and the primary category drives the roadmap that the agent follows.
 
+## The six-stage pipeline
+
+Eight categories run the same pipeline: `code`, `debug`, `browser`, `design-ui`, `database-supabase`, `planning`, `devops`, and `data`. Every stage is a skill, and `novahiz-planner` is the orchestrator that fixes the order.
+
+| # | Stage | Skill | Produces |
+|---|---|---|---|
+| 1 | Plan | `novahiz-plan` | direction, scope, dependency order, slicing strategy, risks |
+| 2 | Clarify | `novahiz-clarify` | the open questions, answered, and the decisions they freeze |
+| 3 | Tasks | `novahiz-task` | atomic tasks, each with acceptance criteria and proof |
+| 4 | Analyse | `novahiz-analyse` | the files and symbols that carry the logic, and the unknowns |
+| 5 | Implement | `novahiz-implement` | increments that leave the system working |
+| 6 | Converge | `novahiz-converge` | the gap between intent and code, as traceable remaining tasks |
+
+Stages 1 to 4 write no application file; they produce a plan and decisions. Clarify sends you back to plan when an answer changes the architecture, and converge sends you back to tasks when it finds a gap.
+
+`review` runs analyse and then the diff review. `audit` and `test` keep their own steps and end on a converge. `research` drives a single gather step.
+
 ## Model
 
 Roadmaps live inline in `catalog/categories.json`:

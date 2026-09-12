@@ -20,7 +20,7 @@ node /path/to/novahiz/install/install.mjs --home ~/.config/novahiz
 The installer runs `git`-free and never deletes your files. When run in a terminal it is interactive: it prints the plan and the provider list, then asks before writing anything or installing packages. It:
 
 1. Copies the core, the bundled skills, and the plugin into place.
-2. Merges `skills/` into your opencode skills directory.
+2. Merges `skills/` into your opencode skills directory, skipping any skill that another scanned root already provides.
 3. Drops the opencode plugin into the plugins directory.
 4. Writes `novahiz.config.json` only if it does not exist.
 5. Builds the catalog with `sync`.
@@ -35,6 +35,7 @@ Restart opencode afterward. The plugin registers the Novahiz MCP server automati
 - `--scope project` targets `./.opencode` instead of the global config.
 - `--dry-run` prints the actions and writes nothing.
 - `--no-skills` skips the bundled skills.
+- `--force-skills` recopies a bundled skill even when another scanned root already provides it.
 - `--install-providers` runs the provider dependency bootstrap and install commands.
 - `--harness claude,codex` configures the named harnesses without prompting.
 - `--force` rewrites `novahiz.config.json` (the previous file is backed up as `novahiz.config.json.novahiz-bak`).
@@ -43,7 +44,24 @@ Restart opencode afterward. The plugin registers the Novahiz MCP server automati
 
 ## What it touches
 
-The installer merges `skills/` into your opencode skills directory and writes the plugin. Any file it overwrites is copied first to `<file>.novahiz-bak`, and the list is stored in `.novahiz-install.json`. It never deletes a file it did not create.
+The installer merges `skills/` into your opencode skills directory and writes the plugin. It skips a skill that already exists in `~/.claude/skills`, `~/.agents/skills`, or another root the catalog scans, because two copies of one skill make the catalog describe one version while the harness loads the other. Pass `--force-skills` to copy anyway. Any file it overwrites is copied first to `<file>.novahiz-bak`, and the list is stored in `.novahiz-install.json`. It never deletes a file it did not create.
+
+## Maintenance
+
+Two commands keep the install healthy:
+
+```
+node ~/.config/novahiz/src/cli.ts doctor
+node ~/.config/novahiz/src/cli.ts clean --dry-run
+```
+
+`doctor` runs eight checks: Node version, `npx`, the installed-skills index, the referenced skills, the external CLIs the skills call, a gate smoke test, the ledger database, and whether the installed plugin copy matches the source. It exits non-zero when a blocking check fails, so it works as a pre-flight in scripts.
+
+`clean` trims old rows from the ledger, `novahiz.sqlite`. Targets are `logs` (default), `roadmap`, `sessions`, `tasks`, and `all`; flags are `--days N` (default 30), `--dry-run`, `--apply`, `--vacuum`, and `--json`. Without `--apply` on a terminal it prints the plan and asks; without a terminal it prints the plan and exits 1, so a script cannot delete by accident.
+
+Both accept `--json` for a machine-readable result and `--pretty` to force the human layout; with neither, they detect a terminal.
+
+Any key you omit from `novahiz.config.json` falls back to its default, so a file that sets only `skillRoots` is valid. `novahiz.config.example.json` lists every key with its default and stays a superset of what you normally write.
 
 ## Verify
 
