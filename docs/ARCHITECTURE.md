@@ -31,7 +31,7 @@ Three versioned JSON files under `catalog/`:
 
 ### CLI
 
-`src/cli.ts` exposes the core as commands that return JSON. This is the only integration surface an adapter needs.
+`src/cli.ts` is the entry point: it parses `argv`, resolves the `--home` override, and dispatches. The commands themselves live in `src/commands/`, one module for the large ones (`clean`, `doctor`, `gate`, `hook`, `report`, `task`, `tokens`) and `inspect.ts` for the read-only ones. The primitives they all share (`Parsed`, `parse`, `print`, `emit`, `flagOn`, `humanMode`, `confirm`, `dbPathFor`) live in `src/commands/context.ts`, a leaf module that imports nothing from the command modules. Commands return JSON, which is the only integration surface an adapter needs.
 
 ### opencode adapter
 
