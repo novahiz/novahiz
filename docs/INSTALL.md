@@ -25,7 +25,8 @@ The installer runs `git`-free and never deletes your files. When run in a termin
 4. Writes `novahiz.config.json` only if it does not exist.
 5. Builds the catalog with `sync`.
 6. Verifies provider dependencies, and installs them when you confirm or `--install-providers` is set.
-7. Detects Claude Code and Codex and, after your confirmation, installs their hooks and registers the Novahiz MCP server.
+7. When `~/.claude` exists, installs the bundled skills into `~/.claude/skills/`, the slash commands into `~/.claude/commands/`, and the agent into `~/.claude/agents/novahiz.md`.
+8. Detects Claude Code and Codex and, after your confirmation, installs their hooks and registers the Novahiz MCP server.
 
 Restart opencode afterward. The plugin registers the Novahiz MCP server automatically, so you do not edit `opencode.jsonc` by hand. See [HARNESSES.md](HARNESSES.md) for the exact paths per harness.
 
@@ -35,6 +36,7 @@ Restart opencode afterward. The plugin registers the Novahiz MCP server automati
 - `--scope project` targets `./.opencode` instead of the global config.
 - `--dry-run` prints the actions and writes nothing.
 - `--no-skills` skips the bundled skills.
+- `--no-claude` skips the Claude Code skills, slash commands, and agent.
 - `--force-skills` recopies a bundled skill even when another scanned root already provides it.
 - `--install-providers` runs the provider dependency bootstrap and install commands.
 - `--harness claude,codex` configures the named harnesses without prompting.
@@ -44,7 +46,7 @@ Restart opencode afterward. The plugin registers the Novahiz MCP server automati
 
 ## What it touches
 
-The installer merges `skills/` into your opencode skills directory and writes the plugin. It skips a skill that already exists in `~/.claude/skills`, `~/.agents/skills`, or another root the catalog scans, because two copies of one skill make the catalog describe one version while the harness loads the other. Pass `--force-skills` to copy anyway. Any file it overwrites is copied first to `<file>.novahiz-bak`, and the list is stored in `.novahiz-install.json`. It never deletes a file it did not create.
+The installer merges `skills/` into your opencode skills directory and writes the plugin. It skips a skill that already exists in `~/.claude/skills`, `~/.agents/skills`, or another root the catalog scans, because two copies of one skill make the catalog describe one version while the harness loads the other. Pass `--force-skills` to copy anyway. When `~/.claude` exists it installs the same skills there, plus the four slash commands and the agent, so Claude Code runs the same pipeline; `--no-claude` skips that part. The Claude copy only skips a skill already present in `~/.agents/skills`, because Claude Code does not read the opencode skills directory. Any file it overwrites is copied first to `<file>.novahiz-bak`, and the list is stored in `.novahiz-install.json`. It never deletes a file it did not create.
 
 ## Maintenance
 

@@ -15,7 +15,8 @@ Source: opencode plugin docs (`~/.config/opencode/plugins/`).
 
 ## Claude Code
 
-- Hooks: `~/.claude/settings.json` (user) or `.claude/settings.json` (project). A `PreToolUse` group matches the edit and shell tools and runs `novahiz hook --harness claude --event PreToolUse`. The hook prints a `permissionDecision: "deny"` payload, which blocks the call.
+- Skills, commands, agent: `~/.claude/skills/`, `~/.claude/commands/` (`novahiz-plan`, `novahiz-clean`, `novahiz-doctor`, `novahiz-status`), and `~/.claude/agents/novahiz.md`.
+- Hooks: `~/.claude/settings.json` (user) or `.claude/settings.json` (project). A `PreToolUse` group matches `Read`, the edit tools, and the shell tools, then runs `novahiz hook --harness claude --event PreToolUse`. On an edit it prints a `permissionDecision: "deny"` payload, which blocks the call. `Read` is in the matcher because it is the only skill-load signal Claude Code produces: the agent opens `<...>/skills/<name>/SKILL.md`, and the hook records that as the load.
 - MCP: register the server once with the CLI:
 
 ```
@@ -54,7 +55,7 @@ Any harness with a stdio MCP client can use the same server, `mcp/novahiz-tools/
 
 `node install/install.mjs` detects the harnesses present on the machine and, after your confirmation, configures them:
 
-- Claude Code, when `~/.claude` exists: merges the `PreToolUse` hook into `~/.claude/settings.json` and runs `claude mcp add --scope user`.
+- Claude Code, when `~/.claude` exists: copies the bundled skills to `~/.claude/skills/`, the slash commands to `~/.claude/commands/`, the agent to `~/.claude/agents/novahiz.md`, merges the `PreToolUse` hook into `~/.claude/settings.json`, and runs `claude mcp add --scope user`. `--no-claude` skips the whole block.
 - Codex, when `~/.codex` exists: writes `~/.codex/hooks.json` and runs `codex mcp add`.
 
 Run it non-interactively with an explicit list:
