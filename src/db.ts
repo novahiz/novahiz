@@ -123,7 +123,7 @@ function ensureColumn(db: DatabaseSync, table: string, column: string, definitio
   db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition};`);
 }
 
-const SCHEMA_VERSION = 1;
+export const SCHEMA_VERSION = 1;
 
 function migrate(db: DatabaseSync): void {
   ensureColumn(db, "tasks", "revision", "INTEGER NOT NULL DEFAULT 0");

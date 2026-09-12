@@ -17,6 +17,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - `scripts/capture-cli.mjs` records the JSON output of every CLI invocation and diffs two runs, ignoring timestamp fields, so a refactor can be proven neutral.
 - The gate reports required skills that are absent from the installed index, in `unmatchedRequired` and in a `warnings` array.
 - `CHANGELOG.md` and a rewritten `NOTICE.md` that records the licence of every bundled third-party skill.
+- `novahiz-uninstall --only <directory>` confines the removal to one directory and lists the entries it left in place.
 
 ### Changed
 
@@ -24,6 +25,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - The planning pipeline asks its questions through the harness question interface instead of writing them in the chat.
 - The installer skips a skill that already exists in another scanned root (`~/.agents/skills`) and reports what it skipped. `--force-skills` overrides.
 - The opencode adapter persists skill invocations, so `report` and `clean --logs` see them under that harness.
+- The CLI validates its numeric flags (`--min-score`, `--max-categories`, `--limit`, `--days`, `--max-iterations`) and rejects a value out of range instead of falling back to the default in silence.
+- `novahiz check` reports the stored `last_sync` timestamp, which nothing read before.
+- `novahiz doctor` reports the schema version as a tenth check.
+- `enforcement_log` gained indexes on `session_id` and `logged_at`, and `PRAGMA user_version` marks the schema generation.
+- `commandTask` split into thirteen helpers; 59 exports with no reader outside their own file lost the keyword; the unused `bullet` and `emphasize` are gone.
 
 ### Fixed
 
@@ -33,6 +39,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - The `question` tool was missing under opencode. opencode denies it to every agent by default and only the built-in `build` and `plan` agents re-allow it, so the custom `novahiz-agent` inherited the denial and the pipeline could not ask a clarifying question. The agent now grants `question` and `plan_enter`, and the new `agent` doctor check fails when the installed copy loses the grant.
 - `novahiz classify` scored zero on a refactor prompt: `decouper`, `decoupage`, `extraire`, `extraction`, `isoler`, `modules`, `split`, `cli`, and `refactorisation` are now keywords of the `code` category.
 - Adding a todo to a completed ledger task left it marked `done`. The task is reopened as `active`.
+- An error at the top of the CLI printed a Node stack trace of up to sixteen lines. It now prints one line, `novahiz: <message>`, on stderr. An unknown command likewise exits 1 with `unknown command <name>` instead of printing help and exiting 0.
 
 ### Removed
 

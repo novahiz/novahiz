@@ -72,6 +72,10 @@ node ~/.config/novahiz/src/cli.ts gate --file src/hero.css --tool edit
 
 The last command should report missing skills and exit with code 2.
 
+### Exit codes
+
+`novahiz` uses three. `0` means success. `1` means the command failed, and the reason goes to stderr on a single line prefixed with `novahiz:`, whether the cause is a missing config, a corrupt database, an unknown command, or a numeric flag out of range. `2` means the gate refused an edit and listed the skills it wants loaded.
+
 ## Update
 
 ```

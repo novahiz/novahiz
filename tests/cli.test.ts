@@ -203,11 +203,28 @@ test("clean --apply removes only the rows older than the cutoff", () => {
   assert.equal(fresh.n, 1);
 });
 
-test("doctor reports its checks and a blocking verdict", () => {
+  test("a numeric flag out of range is rejected instead of falling back", () => {
+    const cases: [string[], RegExp][] = [
+      [["clean", "--days", "0", "--dry-run"], /at least 1/],
+      [["catalog", "gate", "--limit", "2.5"], /whole number/],
+      [["classify", "texte", "--min-score", "-1"], /at least 0/]
+    ];
+    for (const [args, expected] of cases) {
+      const result = spawnSync(process.execPath, [cli, ...args], {
+        encoding: "utf8",
+        input: "",
+        env: { ...process.env, NOVAHIZ_HOME: root, NOVAHIZ_DB: testDb }
+      });
+      assert.equal(result.status, 1, `${args.join(" ")} should fail`);
+      assert.match(result.stderr, expected);
+    }
+  });
+
+  test("doctor reports its checks and a blocking verdict", () => {
   const parsed = JSON.parse(run(["doctor", "--json"]));
   assert.ok(Array.isArray(parsed.checks));
   const ids = parsed.checks.map((check: { id: string }) => check.id);
-  for (const expected of ["node", "npx", "index", "referenced", "gate", "db", "adapter", "agent"]) {
+    for (const expected of ["node", "npx", "index", "referenced", "cli", "gate", "db", "schema", "adapter", "agent"]) {
     assert.ok(ids.includes(expected), `doctor should report the ${expected} check`);
   }
   assert.ok(Array.isArray(parsed.blocking));

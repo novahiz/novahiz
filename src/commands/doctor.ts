@@ -4,7 +4,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { dbPathFor, emit, type Parsed } from "./context.ts";
 import { loadSpec, novahizHome } from "../spec.ts";
-import { openDb } from "../db.ts";
+import { openDb, SCHEMA_VERSION } from "../db.ts";
 import { loadInstalledSkills } from "../catalog.ts";
 import { evaluateGate } from "../gate.ts";
 import * as ui from "../render.ts";
@@ -109,6 +109,21 @@ export function commandDoctor(parsed: Parsed): void {
     dbDetail = `illisible: ${(error as Error).message}`;
   }
   checks.push({ id: "db", label: "Base du registre", ok: dbOk, detail: dbDetail, blocking: false });
+
+  // Informational only: openDb migrates on open, so the stored version always
+  // matches by the time this reads it. The value is read so a future migration
+  // has something to branch on, and so a database from an older build shows up.
+  let schemaDetail = "base illisible";
+  try {
+    const db = openDb(dbFile);
+    const row = db.prepare("PRAGMA user_version").get() as { user_version?: number } | undefined;
+    const version = Number(row?.user_version ?? 0);
+    db.close();
+    schemaDetail = `version ${version} (attendue ${SCHEMA_VERSION})`;
+  } catch (error) {
+    schemaDetail = `illisible: ${(error as Error).message}`;
+  }
+  checks.push({ id: "schema", label: "Version du schema", ok: true, detail: schemaDetail, blocking: false });
 
   const adapterSource = join(root, "adapters", "opencode", "novahiz.ts");
   const opencodeDir =

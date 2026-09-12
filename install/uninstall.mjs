@@ -38,10 +38,11 @@ function main() {
   }
 
   const removed = [];
+    const skipped = [];
 
   for (const entry of backups) {
     if (!entry || !entry.backup || !existsSync(entry.backup)) continue;
-    if (!inScope(entry.path)) continue;
+    if (!inScope(entry.path)) { skipped.push(entry.path); continue; }
     if (!underHome(entry.backup) || !underHome(entry.path)) {
       process.stdout.write(`skip out-of-scope backup: ${entry.path}\n`);
       continue;
@@ -58,7 +59,7 @@ function main() {
   const keepCore = Boolean(manifest.coreCopied) && !purge;
   for (const item of created) {
     if (!existsSync(item)) continue;
-    if (!inScope(item)) continue;
+    if (!inScope(item)) { skipped.push(item); continue; }
     if (!underHome(item)) {
       process.stdout.write(`skip out-of-scope entry: ${item}\n`);
       continue;
@@ -92,9 +93,16 @@ function main() {
         process.stdout.write(`Fichiers d'integration supprimes; core conserve dans ${home}. Utilise --purge pour le supprimer.\n`);
       }
     }
-    process.stdout.write(`\nDesinstallation terminee (${removed.length} entrees traitees).\n`);
+    if (skipped.length > 0) {
+        process.stdout.write(`${skipped.length} entree(s) hors perimetre, laissees en place:\n`);
+        for (const item of skipped) process.stdout.write(`  ${item}\n`);
+      }
+      process.stdout.write(`\nDesinstallation terminee (${removed.length} entrees traitees).\n`);
   } else {
-    process.stdout.write("\nDry-run termine, rien supprime.\n");
+    if (skipped.length > 0) {
+        process.stdout.write(`${skipped.length} entree(s) hors perimetre, laissees en place.\n`);
+      }
+      process.stdout.write("\nDry-run termine, rien supprime.\n");
   }
 }
 

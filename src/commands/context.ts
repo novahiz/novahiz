@@ -104,7 +104,9 @@ export function readStdin(): string {
   }
 }
 
-export function numberFlag(parsed: Parsed, name: string): number | undefined {
+export type NumberFlagBounds = { min?: number; max?: number; integer?: boolean };
+
+export function numberFlag(parsed: Parsed, name: string, bounds: NumberFlagBounds = {}): number | undefined {
   const raw = parsed.flags[name];
   if (raw === undefined || typeof raw === "boolean") return undefined;
   const text = asString(raw).trim();
@@ -112,6 +114,15 @@ export function numberFlag(parsed: Parsed, name: string): number | undefined {
   const value = Number(text);
   if (!Number.isFinite(value)) {
     throw new Error(`--${name} expects a number, got "${text}"`);
+  }
+  if (bounds.integer && !Number.isInteger(value)) {
+    throw new Error(`--${name} expects a whole number, got "${text}"`);
+  }
+  if (bounds.min !== undefined && value < bounds.min) {
+    throw new Error(`--${name} expects at least ${bounds.min}, got "${text}"`);
+  }
+  if (bounds.max !== undefined && value > bounds.max) {
+    throw new Error(`--${name} expects at most ${bounds.max}, got "${text}"`);
   }
   return value;
 }

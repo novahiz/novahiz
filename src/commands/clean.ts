@@ -23,7 +23,7 @@ export function commandClean(parsed: Parsed): void {
   const root = novahizHome();
   const spec = loadSpec(root);
   const path = dbPathFor(root, spec);
-  const daysRaw = numberFlag(parsed, "days");
+  const daysRaw = numberFlag(parsed, "days", { min: 1, integer: true });
   const days = daysRaw !== undefined && daysRaw > 0 ? Math.floor(daysRaw) : 30;
   const targetRaw = (asString(parsed.flags.target) || "logs").toLowerCase();
   if (!CLEAN_CHOICES.includes(targetRaw)) {

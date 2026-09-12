@@ -53,8 +53,8 @@ export function commandClassify(parsed: Parsed): void {
     throw new Error("classify needs a prompt: pass it as an argument or with --text");
   }
   const result = classify(spec, text, {
-    minScore: numberFlag(parsed, "min-score"),
-    maxCategories: numberFlag(parsed, "max-categories")
+    minScore: numberFlag(parsed, "min-score", { min: 0 }),
+    maxCategories: numberFlag(parsed, "max-categories", { min: 1, integer: true })
   });
   print({ prompt: text, ...result });
 }
@@ -134,7 +134,7 @@ export function commandSessionState(parsed: Parsed): void {
 export function commandCatalog(parsed: Parsed): void {
   const spec = loadSpec();
   const query = parsed.positionals.slice(1).join(" ") || asString(parsed.flags.query);
-  const limitRaw = numberFlag(parsed, "limit");
+  const limitRaw = numberFlag(parsed, "limit", { min: 1, integer: true });
   const limit = limitRaw !== undefined && limitRaw > 0 ? limitRaw : 10;
   const catalog = loadCatalog(spec);
   const results = rankSkills(catalog, query, limit);

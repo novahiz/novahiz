@@ -129,7 +129,7 @@ function taskInsert(parsed: Parsed, db: ReturnType<typeof openDb>, session: stri
     kind: asString(parsed.flags.kind) || "edit",
     acceptance: asString(parsed.flags.acceptance) || undefined,
     owner: splitList(parsed.flags.owner),
-    maxIterations: numberFlag(parsed, "max-iterations") || undefined
+    maxIterations: numberFlag(parsed, "max-iterations", { min: 1, integer: true }) || undefined
   });
   const positionRaw = asString(parsed.flags.position);
   const position = positionRaw === "" ? "end" : /^\d+$/.test(positionRaw) ? Number(positionRaw) : (positionRaw as "start" | "end");
@@ -152,7 +152,7 @@ function taskAmend(parsed: Parsed, db: ReturnType<typeof openDb>, session: strin
   if (parsed.flags.acceptance !== undefined) patch.acceptance = asString(parsed.flags.acceptance);
   const owners = splitList(parsed.flags.owner);
   if (owners.length > 0) patch.owner = owners.join(",");
-  const maxIterations = numberFlag(parsed, "max-iterations");
+  const maxIterations = numberFlag(parsed, "max-iterations", { min: 1, integer: true });
   if (maxIterations !== undefined && maxIterations > 0) patch.maxIterations = maxIterations;
   print({ todo: amendTodo(db, id, patch) });
   return;
@@ -252,7 +252,7 @@ function taskTodo(parsed: Parsed, db: ReturnType<typeof openDb>, session: string
     process.exitCode = 1;
     return;
   }
-  const maxIterations = numberFlag(parsed, "max-iterations");
+  const maxIterations = numberFlag(parsed, "max-iterations", { min: 1, integer: true });
   const owners = splitList(parsed.flags.owner);
   const todos = addTodos(db, taskId, [
     {
