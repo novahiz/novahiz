@@ -38,15 +38,6 @@ const CORE_ITEMS = [
   "novahiz.config.example.json"
 ];
 
-// The harnesses present on this machine. Used to configure hooks without a flag,
-// so `--yes` on a fresh machine still wires every harness it finds.
-function detectedHarnesses() {
-  const found = [];
-  if (existsSync(process.env.CLAUDE_CONFIG_DIR || join(homedir(), ".claude"))) found.push("claude");
-  if (existsSync(process.env.CODEX_HOME || join(homedir(), ".codex"))) found.push("codex");
-  return found;
-}
-
 function defaultConfig(skillsDir) {
   return {
     dbPath: "novahiz.sqlite",
@@ -99,7 +90,6 @@ async function main() {
   const yes = Boolean(flags.yes) || Boolean(flags["yes"]);
   const interactive = !yes && !dryRun && (Boolean(flags.interactive) || process.stdin.isTTY === true);
   let providersChoice = null;
-  let harnessesChoice = "";
 
   if (interactive) {
     const prompt = createPrompt();
@@ -123,11 +113,6 @@ async function main() {
       return;
     }
     providersChoice = await prompt.confirm("Install provider packages and their prerequisites now?", false);
-    const detected = detectedHarnesses();
-    if (detected.length > 0) {
-      const answer = await prompt.confirm(`Configure ${detected.join(" and ")} (hooks + Novahiz MCP)?`, true);
-      harnessesChoice = answer ? detected.join(",") : "";
-    }
     prompt.close();
   }
 
@@ -164,10 +149,7 @@ async function main() {
   if (withSkills) {
     const skillsSource = existsSync(join(home, "skills")) ? join(home, "skills") : join(root, "skills");
     if (existsSync(skillsSource)) {
-      const externalRoots = [
-        process.env.CLAUDE_CONFIG_DIR ? join(process.env.CLAUDE_CONFIG_DIR, "skills") : join(homedir(), ".claude", "skills"),
-        join(homedir(), ".agents", "skills")
-      ];
+      const externalRoots = [join(homedir(), ".agents", "skills")];
       const alreadyInstalled = skillNamesIn(externalRoots);
       const force = Boolean(flags["force-skills"]);
       const entries = readdirSync(skillsSource, { withFileTypes: true })
@@ -249,58 +231,6 @@ async function main() {
     }
   }
 
-  const claudeDir = process.env.CLAUDE_CONFIG_DIR || join(homedir(), ".claude");
-  let claudeInstalled = false;
-  if (!flags["no-claude"] && existsSync(claudeDir)) {
-    const claudeSkillsDir = join(claudeDir, "skills");
-    if (withSkills) {
-      const claudeSkillsSource = existsSync(join(home, "skills")) ? join(home, "skills") : join(root, "skills");
-      if (existsSync(claudeSkillsSource)) {
-        const otherRoots = [join(homedir(), ".agents", "skills")];
-        const alreadyInstalled = flags["force-skills"] ? new Set() : skillNamesIn(otherRoots);
-        const entries = readdirSync(claudeSkillsSource, { withFileTypes: true })
-          .filter((entry) => entry.isDirectory())
-          .sort((a, b) => (a.name < b.name ? -1 : 1));
-        const toCopy = entries.filter((entry) => !alreadyInstalled.has(entry.name));
-        note(`Installation des skills Claude dans ${claudeSkillsDir} (${toCopy.length} a copier, ${entries.length - toCopy.length} deja presents ailleurs)`);
-        if (!dryRun) {
-          for (const entry of toCopy) {
-            const result = copyInto(join(claudeSkillsSource, entry.name), join(claudeSkillsDir, entry.name), true);
-            created.push(...result.created);
-            backups.push(...result.backups);
-          }
-        }
-      }
-    }
-
-    const claudeCommandsSource = existsSync(join(home, "adapters", "opencode", "commands"))
-      ? join(home, "adapters", "opencode", "commands")
-      : join(root, "adapters", "opencode", "commands");
-    if (existsSync(claudeCommandsSource)) {
-      const claudeCommandsTarget = join(claudeDir, "commands");
-      note(`Installation des commandes Claude dans ${claudeCommandsTarget}`);
-      if (!dryRun) {
-        const result = copyInto(claudeCommandsSource, claudeCommandsTarget, true);
-        created.push(...result.created);
-        backups.push(...result.backups);
-      }
-    }
-
-    const claudeAgentSource = existsSync(join(home, "adapters", "claude", "agent", "novahiz.md"))
-      ? join(home, "adapters", "claude", "agent", "novahiz.md")
-      : join(root, "adapters", "claude", "agent", "novahiz.md");
-    if (existsSync(claudeAgentSource)) {
-      const claudeAgentTarget = join(claudeDir, "agents", "novahiz.md");
-      note(`Installation de l'agent Claude dans ${claudeAgentTarget}`);
-      if (!dryRun) {
-        const result = copyFileWithBackup(claudeAgentSource, claudeAgentTarget, true);
-        if (result.created) created.push(result.created);
-        if (result.backup) backups.push(result.backup);
-      }
-    }
-    claudeInstalled = true;
-  }
-
   const configPath = join(home, "novahiz.config.json");
   if (force || !existsSync(configPath)) {
     note(`Ecriture de ${configPath}`);
@@ -318,20 +248,13 @@ async function main() {
     note(`Config existante conservee: ${configPath}`);
   }
 
-  const configuredHarnesses = (
-    typeof flags.harness === "string" ? flags.harness : harnessesChoice || detectedHarnesses().join(",")
-  )
-    .split(",")
-    .map((value) => value.trim())
-    .filter(Boolean);
-
   if (!dryRun) {
     const previous = loadManifest(home);
     saveManifest(home, {
       version: "0.1.0",
       installedAt: new Date().toISOString(),
       harness: "opencode",
-      harnesses: ["opencode", ...configuredHarnesses],
+      harnesses: ["opencode"],
       configDir,
       home,
       coreCopied: previous.coreCopied || coreCopied,
@@ -379,24 +302,8 @@ async function main() {
   }
 
   if (!dryRun) {
-    const harnessList = configuredHarnesses.join(",");
-    if (harnessList.length > 0) {
-      note(`Configuration des harness (${harnessList})`);
-      const result = spawnSync(process.execPath, [join(home, "install", "hooks.mjs"), "--harness", harnessList, "--home", home], {
-        encoding: "utf8",
-        env: { ...process.env, NOVAHIZ_HOME: home }
-      });
-      if (result.stdout) process.stdout.write(result.stdout);
-      if (result.status !== 0 && result.stderr) process.stderr.write(result.stderr);
-    }
-  }
-
-  if (!dryRun) {
     process.stdout.write(`\nNovahiz installe dans ${home}.\n`);
-    const names = ["opencode", ...configuredHarnesses].map((name) =>
-      name === "claude" ? "Claude Code" : name === "codex" ? "Codex" : "opencode"
-    );
-    process.stdout.write(`Redemarre ${names.join(" et ")} pour activer les hooks et le serveur MCP.\n`);
+    process.stdout.write("Redemarre opencode pour activer le plugin et le serveur MCP.\n");
     process.stdout.write("Gate desactivable avec la variable d'environnement NOVAHIZ_GATE=off.\n");
   } else {
     process.stdout.write("\nDry-run termine, aucune modification ecrite.\n");
