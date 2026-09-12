@@ -1,9 +1,10 @@
-import { readFileSync } from "node:fs";
+import { readFileSync, readSync, statSync } from "node:fs";
+import { spawnSync } from "node:child_process";
 import { resolve } from "node:path";
 import { classify } from "./classify.ts";
 import { changeText } from "./content.ts";
 import { evaluateGate } from "./gate.ts";
-import { claudeDenyOutput, decideHook, missingMessage, normalizeTool, type Harness } from "./hook.ts";
+import { claudeDenyOutput, decideHook, missingMessage, normalizeTool, unmatchedMessage, type Harness } from "./hook.ts";
 import { extractTargetPaths } from "./targets.ts";
 import { runCommand, runScript } from "./exec.ts";
 import { loadSpec, novahizHome, expandHome } from "./spec.ts";
@@ -13,6 +14,7 @@ import { rankSkills } from "./relevance.ts";
 import { buildMcpEntries, enabledProviders, installCommands } from "./providers.ts";
 import { bootstrapFor, checkDependencies, missingPrerequisites } from "./deps.ts";
 import { buildCalibration, filterSavings, parseSavings, savingsPath, summarizeSavings } from "../adapters/opencode/tokens.ts";
+import * as ui from "./render.ts";
 import {
   activeTask,
   addTodos,
@@ -84,6 +86,39 @@ function splitList(value: string | boolean | undefined): string[] {
 
 function print(value: unknown): void {
   process.stdout.write(`${JSON.stringify(value, null, 2)}\n`);
+}
+
+function flagOn(parsed: Parsed, name: string): boolean {
+  const value = parsed.flags[name];
+  if (value === undefined || value === null) return false;
+  if (value === true) return true;
+  return !["false", "0", "no", "off", ""].includes(String(value).toLowerCase());
+}
+
+function humanMode(parsed: Parsed): boolean {
+  if (flagOn(parsed, "json")) return false;
+  if (flagOn(parsed, "pretty")) return true;
+  return ui.isTty();
+}
+
+function emit(parsed: Parsed, value: unknown, render: () => string): void {
+  if (humanMode(parsed)) {
+    process.stdout.write(`${render()}\n`);
+    return;
+  }
+  print(value);
+}
+
+function confirm(question: string): boolean {
+  process.stdout.write(`${question} [o/N] `);
+  const buffer = Buffer.alloc(64);
+  try {
+    const read = readSync(0, buffer, 0, buffer.length, null);
+    const answer = buffer.subarray(0, read).toString("utf8").trim().toLowerCase();
+    return ["o", "oui", "y", "yes"].includes(answer);
+  } catch {
+    return false;
+  }
 }
 
 function safeJsonArray(value: string): string[] {
@@ -278,7 +313,18 @@ function commandGate(parsed: Parsed): void {
   const allow = results.every((entry) => entry.allow);
   const requiredSkills = [...new Set(results.flatMap((entry) => entry.requiredSkills))];
   const missingSkills = [...new Set(results.flatMap((entry) => entry.missingSkills))];
+  const unmatchedRequired = [...new Set(results.flatMap((entry) => entry.unmatchedRequired))];
   const indexMissing = results.some((entry) => entry.indexMissing);
+
+  const warnings: string[] = [];
+  if (unmatchedRequired.length > 0) {
+    warnings.push(
+      `skills requises absentes de l'index, donc non appliquees : ${unmatchedRequired.join(", ")}. Relance novahiz sync pour realigner l'index.`
+    );
+  }
+  if (indexMissing) {
+    warnings.push("index des skills illisible : toutes les skills requises sont exigees.");
+  }
 
   if (session.length > 0) {
     const db = openDb(dbPathFor(root, spec));
@@ -304,6 +350,8 @@ function commandGate(parsed: Parsed): void {
     indexMissing,
     requiredSkills,
     missingSkills,
+    unmatchedRequired,
+    warnings,
     reasons,
     targets: results.map((entry) => ({
       path: entry.path,
@@ -312,6 +360,7 @@ function commandGate(parsed: Parsed): void {
       roadmap: entry.roadmap,
       requiredSkills: entry.requiredSkills,
       missingSkills: entry.missingSkills,
+      unmatchedRequired: entry.unmatchedRequired,
       placeholder: entry.placeholder,
       reasons: entry.reasons,
       matchedRules: entry.matchedRules
@@ -479,6 +528,8 @@ function commandHook(parsed: Parsed): void {
   );
   db.close();
 
+  if (decision.unmatched.length > 0) process.stderr.write(`${unmatchedMessage(decision)}\n`);
+
   if (harness === "claude" && event === "PreToolUse") {
     if (block) process.stdout.write(`${claudeDenyOutput(missingMessage(decision))}\n`);
     return;
@@ -540,7 +591,29 @@ function commandReport(parsed: Parsed): void {
     return;
   }
 
-  print(report);
+  emit(parsed, report, () =>
+    [
+      ui.heading("Novahiz report"),
+      ui.kv([
+        ["Journal d'enforcement", String(total)],
+        ["Invocations de skills", String(invocations)],
+        ["Etapes de roadmap faites", String(roadmapDone)],
+        ["Providers", String(spec.providers.length)]
+      ]),
+      "",
+      ui.heading("Decisions"),
+      ui.table(["decision", "n"], decisions.map((row) => [(row as { decision: string }).decision, String((row as { n: number }).n)])),
+      "",
+      ui.heading("Outils"),
+      ui.table(["outil", "n"], byTool.map((row) => [String((row as { tool: string }).tool), String((row as { n: number }).n)])),
+      "",
+      ui.heading("Skills les plus attendues"),
+      ui.table(["skill", "n"], topMissing.map((entry) => [entry.skill, String(entry.n)])),
+      "",
+      ui.heading("Skills les plus chargees"),
+      ui.table(["skill", "n"], topSkills.map((row) => [(row as { skill: string }).skill, String((row as { n: number }).n)]))
+    ].join("\n")
+  );
 }
 
 function commandCatalog(parsed: Parsed): void {
@@ -1015,6 +1088,243 @@ function commandTokens(parsed: Parsed): void {
   print({ path, ...summary });
 }
 
+type CleanScope = { table: string; column: string; where?: string; label: string };
+
+const CLEAN_SCOPES: Record<string, CleanScope[]> = {
+  logs: [
+    { table: "enforcement_log", column: "logged_at", label: "journal d'enforcement" },
+    { table: "skill_invocations", column: "invoked_at", label: "invocations de skills" }
+  ],
+  roadmap: [{ table: "roadmap_progress", column: "updated_at", label: "progression de roadmap" }],
+  sessions: [{ table: "sessions", column: "updated_at", label: "sessions" }],
+  tasks: [{ table: "tasks", column: "created_at", where: "status <> 'active'", label: "taches terminees" }]
+};
+
+const CLEAN_CHOICES = ["logs", "roadmap", "sessions", "tasks", "all"];
+
+function commandClean(parsed: Parsed): void {
+  const root = novahizHome();
+  const spec = loadSpec(root);
+  const path = dbPathFor(root, spec);
+  const daysRaw = Number(asString(parsed.flags.days));
+  const days = Number.isFinite(daysRaw) && daysRaw > 0 ? Math.floor(daysRaw) : 30;
+  const targetRaw = (asString(parsed.flags.target) || "logs").toLowerCase();
+  if (!CLEAN_CHOICES.includes(targetRaw)) {
+    print({ error: `cible inconnue: ${targetRaw}`, choices: CLEAN_CHOICES });
+    process.exitCode = 1;
+    return;
+  }
+  const scopes = targetRaw === "all" ? Object.values(CLEAN_SCOPES).flat() : CLEAN_SCOPES[targetRaw];
+  const vacuum = flagOn(parsed, "vacuum");
+  const apply = flagOn(parsed, "apply");
+  const cutoff = new Date(Date.now() - days * 86_400_000).toISOString();
+
+  const db = openDb(path);
+  const before = statSync(path).size;
+  const plan = scopes.map((scope) => {
+    const where = `${scope.column} < ?${scope.where ? ` AND ${scope.where}` : ""}`;
+    const rows = (db.prepare(`SELECT COUNT(*) AS n FROM ${scope.table}`).get() as { n: number }).n;
+    const deletable = (db.prepare(`SELECT COUNT(*) AS n FROM ${scope.table} WHERE ${where}`).get(cutoff) as { n: number }).n;
+    return { table: scope.table, label: scope.label, rows, deletable };
+  });
+  const total = plan.reduce((sum, entry) => sum + entry.deletable, 0);
+
+  const renderPlan = (): string => {
+    const lines = [
+      ui.heading("Novahiz clean"),
+      ui.kv([
+        ["Base", `${path} (${ui.bytes(before)})`],
+        ["Cible", targetRaw],
+        ["Anciennete", `plus de ${days} jours, anterieur a ${cutoff}`],
+        ["A retirer", `${total} ligne(s)`]
+      ]),
+      "",
+      ui.table(["table", "lignes", "a supprimer"], plan.map((entry) => [entry.table, String(entry.rows), String(entry.deletable)])),
+      ""
+    ];
+    if (targetRaw === "tasks" || targetRaw === "all") {
+      lines.push(ui.style("dim", "Les todos orphelins des taches supprimees partent avec elles."));
+    }
+    return lines.join("\n");
+  };
+
+  if (!apply) {
+    const interactive = process.stdin.isTTY === true;
+    const explicitDryRun = flagOn(parsed, "dry-run");
+    if (!interactive) {
+      db.close();
+      emit(parsed, { path, days, cutoff, target: targetRaw, vacuum, applied: false, bytesBefore: before, bytesAfter: before, deleted: 0, tables: plan }, () =>
+        [renderPlan(), ui.style("dim", "Mode plan. Relance avec --apply pour supprimer.")].join("\n")
+      );
+      if (!explicitDryRun) {
+        process.stderr.write("Entree non interactive : ajoute --apply pour supprimer, ou --dry-run pour garder seulement l'apercu.\n");
+        process.exitCode = 1;
+      }
+      return;
+    }
+    process.stdout.write(`${renderPlan()}\n`);
+    if (!confirm("Supprimer ces lignes ?")) {
+      db.close();
+      process.stdout.write(`${ui.style("yellow", "Annule.")}\n`);
+      return;
+    }
+  }
+
+  let deleted = 0;
+  for (const scope of scopes) {
+    const where = `${scope.column} < ?${scope.where ? ` AND ${scope.where}` : ""}`;
+    deleted += Number(db.prepare(`DELETE FROM ${scope.table} WHERE ${where}`).run(cutoff).changes);
+  }
+  if (targetRaw === "tasks" || targetRaw === "all") {
+    deleted += Number(db.prepare("DELETE FROM todos WHERE task_id NOT IN (SELECT id FROM tasks)").run().changes);
+  }
+  if (vacuum) db.exec("VACUUM");
+  db.close();
+  const after = statSync(path).size;
+
+  const value = { path, days, cutoff, target: targetRaw, vacuum, applied: true, bytesBefore: before, bytesAfter: after, deleted, tables: plan };
+  emit(parsed, value, () =>
+    [
+      renderPlan(),
+      ui.kv([
+        ["Supprime", `${deleted} ligne(s)`],
+        ["Taille", `${ui.bytes(before)} vers ${ui.bytes(after)}`],
+        ["Vacuum", vacuum ? "oui" : "non"]
+      ])
+    ].join("\n")
+  );
+}
+
+type DoctorCheck = { id: string; label: string; ok: boolean; detail: string; blocking: boolean };
+
+const SKILL_CLI: Record<string, string> = { defuddle: "defuddle" };
+
+function hasCommand(name: string): boolean {
+  const probe = process.platform === "win32" ? "where" : "which";
+  const result = spawnSync(probe, [name], { encoding: "utf8", shell: false });
+  return result.status === 0;
+}
+
+function referencedSkills(spec: ReturnType<typeof loadSpec>): string[] {
+  const ids = new Set<string>();
+  for (const category of spec.categories) {
+    for (const skill of category.defaultSkills ?? []) ids.add(skill);
+    for (const step of category.roadmap?.steps ?? []) {
+      for (const skill of step.requireSkills ?? []) ids.add(skill);
+    }
+  }
+  for (const rule of spec.rules) for (const skill of rule.require) ids.add(skill);
+  for (const provider of spec.providers) if (provider.kind === "skill") ids.add(provider.id);
+  return [...ids].sort();
+}
+
+function commandDoctor(parsed: Parsed): void {
+  const root = novahizHome();
+  const spec = loadSpec(root);
+  const checks: DoctorCheck[] = [];
+
+  const parts = process.versions.node.split(".").map((value) => Number(value));
+  const nodeOk = parts[0] > 22 || (parts[0] === 22 && parts[1] >= 18);
+  checks.push({ id: "node", label: "Node 22.18+", ok: nodeOk, detail: `v${process.versions.node}`, blocking: true });
+  checks.push({ id: "npx", label: "npx disponible", ok: hasCommand("npx"), detail: "requis par les providers MCP", blocking: true });
+
+  const index = loadInstalledSkills(spec);
+  checks.push({
+    id: "index",
+    label: "Index des skills",
+    ok: index.available,
+    detail: index.available ? `${index.skills.size} skills` : "build/installed-skills.json illisible, lance novahiz sync",
+    blocking: true
+  });
+
+  const referenced = referencedSkills(spec);
+  const absent = index.available ? referenced.filter((id) => !index.skills.has(id)) : [];
+  checks.push({
+    id: "referenced",
+    label: "Skills referencees",
+    ok: absent.length === 0,
+    detail: absent.length === 0 ? `${referenced.length} presentes` : `absentes de l'index: ${absent.join(", ")}`,
+    blocking: absent.length > 0
+  });
+
+  const missingCli = Object.entries(SKILL_CLI)
+    .filter(([skill]) => referenced.includes(skill) && !hasCommand(skill))
+    .map(([, cli]) => cli);
+  checks.push({
+    id: "cli",
+    label: "CLI externes requises",
+    ok: missingCli.length === 0,
+    detail: missingCli.length === 0 ? "toutes presentes" : `introuvables: ${missingCli.join(", ")}`,
+    blocking: missingCli.length > 0
+  });
+
+  const probe = evaluateGate({
+    tool: "edit",
+    filePath: "README.md",
+    content: "texte",
+    categories: [],
+    loadedSkills: [],
+    installedSkills: index.skills,
+    installedIndexAvailable: index.available,
+    spec
+  });
+  const gateOk = spec.rules.length > 0 && probe.allow === false && probe.missingSkills.length > 0;
+  checks.push({
+    id: "gate",
+    label: "Gate operationnel",
+    ok: gateOk,
+    detail: gateOk ? `bloque une ecriture sans skill chargee (${probe.missingSkills.join(", ")})` : "n'a pas bloque une ecriture sans skill chargee",
+    blocking: true
+  });
+
+  const dbFile = dbPathFor(root, spec);
+  let dbOk = false;
+  let dbDetail = "absente";
+  try {
+    const size = statSync(dbFile).size;
+    const db = openDb(dbFile);
+    db.prepare("SELECT COUNT(*) AS n FROM enforcement_log").get();
+    db.close();
+    dbOk = true;
+    dbDetail = ui.bytes(size);
+  } catch (error) {
+    dbDetail = `illisible: ${(error as Error).message}`;
+  }
+  checks.push({ id: "db", label: "Base du registre", ok: dbOk, detail: dbDetail, blocking: false });
+
+  const failing = checks.filter((check) => !check.ok);
+  const blocking = failing.filter((check) => check.blocking);
+  const value = {
+    home: root,
+    node: process.versions.node,
+    platform: process.platform,
+    checks,
+    failing: failing.map((check) => check.id),
+    blocking: blocking.map((check) => check.id)
+  };
+
+  emit(parsed, value, () =>
+    [
+      ui.heading("Novahiz doctor"),
+      ui.kv([
+        ["Maison", root],
+        ["Plateforme", process.platform]
+      ]),
+      "",
+      ui.table(
+        ["controle", "etat", "detail"],
+        checks.map((check) => [check.label, check.ok ? ui.status(true) : ui.status(false), check.detail])
+      ),
+      "",
+      blocking.length > 0
+        ? ui.style("red", `${blocking.length} anomalie(s) bloquante(s): ${blocking.map((check) => check.id).join(", ")}`)
+        : ui.style("green", "Aucune anomalie bloquante.")
+    ].join("\n")
+  );
+
+  if (blocking.length > 0) process.exitCode = 1;
+}
+
 function usage(): void {
   print({
     name: "novahiz",
@@ -1047,7 +1357,9 @@ function usage(): void {
       "task signals [--task id]",
       "task status|resume|current [--session id]",
       "dispatch [--task id] [--session id]",
-      "tokens [--format json|text] [--since <Nd|Nh|ISO>] [--session id] [--calibrate]"
+      "tokens [--format json|text] [--since <Nd|Nh|ISO>] [--session id] [--calibrate]",
+      "clean [--target logs|roadmap|sessions|tasks|all] [--days N] [--dry-run|--apply] [--vacuum] [--json]",
+      "doctor [--json]"
     ]
   });}
 
@@ -1080,6 +1392,10 @@ function main(argv: string[]): void {
       return commandHook(parsed);
     case "report":
       return commandReport(parsed);
+    case "clean":
+      return commandClean(parsed);
+    case "doctor":
+      return commandDoctor(parsed);
     case "catalog":
       return commandCatalog(parsed);
     case "roadmap":

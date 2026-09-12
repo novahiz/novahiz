@@ -1,13 +1,27 @@
-import { test, before } from "node:test";
+import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
+import { rmSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 import { loadSpec } from "../src/spec.ts";
+import { openDb } from "../src/db.ts";
 import { scanSkills, writeCatalog, writeSkillIndex } from "../src/catalog.ts";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
 const cli = join(root, "src", "cli.ts");
+const testDb = join(tmpdir(), `novahiz-cli-${Date.now().toString(36)}.sqlite`);
+
+after(() => {
+  for (const suffix of ["", "-wal", "-shm"]) {
+    try {
+      rmSync(`${testDb}${suffix}`, { force: true });
+    } catch {
+      // best effort cleanup
+    }
+  }
+});
 
 before(() => {
   const spec = loadSpec(root);
@@ -20,7 +34,7 @@ function run(args: string[], env: Record<string, string> = {}): string {
   const result = spawnSync(process.execPath, [cli, ...args], {
     encoding: "utf8",
     input: "",
-    env: { ...process.env, NOVAHIZ_HOME: root, ...env }
+    env: { ...process.env, NOVAHIZ_HOME: root, NOVAHIZ_DB: testDb, ...env }
   });
   return result.stdout.trim();
 }
@@ -29,7 +43,7 @@ function runWithInput(args: string[], input: object): string {
   const result = spawnSync(process.execPath, [cli, ...args], {
     encoding: "utf8",
     input: JSON.stringify(input),
-    env: { ...process.env, NOVAHIZ_HOME: root }
+    env: { ...process.env, NOVAHIZ_HOME: root, NOVAHIZ_DB: testDb }
   });
   return result.stdout.trim();
 }
@@ -44,7 +58,7 @@ test("gate errors without a file or stdin", () => {
   const result = spawnSync(process.execPath, [cli, "gate", "--tool", "edit"], {
     encoding: "utf8",
     input: "",
-    env: { ...process.env, NOVAHIZ_HOME: root }
+    env: { ...process.env, NOVAHIZ_HOME: root, NOVAHIZ_DB: testDb }
   });
   assert.equal(result.status, 1);
 });
@@ -59,6 +73,12 @@ test("does not gate a tool that is not in gate.tools", () => {
   const parsed = JSON.parse(run(["gate", "--tool", "read", "--file", "README.md"]));
   assert.equal(parsed.allow, true);
   assert.equal(parsed.reason, "tool is not gated");
+});
+
+test("gate surfaces required skills that are absent from the installed index", () => {
+  const parsed = JSON.parse(run(["gate", "--tool", "edit", "--file", "README.md", "--categories", "docs-writing"]));
+  assert.ok(Array.isArray(parsed.unmatchedRequired));
+  assert.ok(Array.isArray(parsed.warnings));
 });
 
 test("classify output carries a primary and a roadmap", () => {
@@ -116,6 +136,54 @@ test("report renders JSON and markdown", () => {
   assert.equal(typeof asJson, "object");
   const asMarkdown = run(["report", "--format", "markdown"]);
   assert.ok(asMarkdown.length > 0);
+});
+
+test("clean reports a plan without deleting when not applied", () => {
+  const parsed = JSON.parse(run(["clean", "--dry-run", "--json"]));
+  assert.equal(parsed.applied, false);
+  assert.equal(parsed.deleted, 0);
+  assert.ok(Array.isArray(parsed.tables));
+  assert.ok(parsed.tables.length > 0);
+});
+
+test("clean refuses to delete on a non interactive stdin without --apply", () => {
+  const result = spawnSync(process.execPath, [cli, "clean", "--json"], {
+    encoding: "utf8",
+    input: "",
+    env: { ...process.env, NOVAHIZ_HOME: root, NOVAHIZ_DB: testDb }
+  });
+  assert.equal(result.status, 1);
+});
+
+test("clean --apply removes only the rows older than the cutoff", () => {
+  const seed = openDb(testDb);
+  const insert = seed.prepare(
+    "INSERT INTO enforcement_log (session_id, tool, file_path, file_class, decision, missing, matched_rules, logged_at) VALUES (?, ?, ?, ?, ?, '[]', '[]', ?)"
+  );
+  insert.run("clean-old", "edit", "a.md", "text", "allow", new Date(Date.now() - 40 * 86_400_000).toISOString());
+  insert.run("clean-fresh", "edit", "b.md", "text", "allow", new Date().toISOString());
+  seed.close();
+
+  const parsed = JSON.parse(run(["clean", "--apply", "--days", "30", "--target", "logs", "--json"]));
+  assert.equal(parsed.applied, true);
+  assert.equal(parsed.deleted, 1);
+
+  const check = openDb(testDb);
+  const old = check.prepare("SELECT COUNT(*) AS n FROM enforcement_log WHERE session_id = ?").get("clean-old") as { n: number };
+  const fresh = check.prepare("SELECT COUNT(*) AS n FROM enforcement_log WHERE session_id = ?").get("clean-fresh") as { n: number };
+  check.close();
+  assert.equal(old.n, 0);
+  assert.equal(fresh.n, 1);
+});
+
+test("doctor reports its checks and a blocking verdict", () => {
+  const parsed = JSON.parse(run(["doctor", "--json"]));
+  assert.ok(Array.isArray(parsed.checks));
+  const ids = parsed.checks.map((check: { id: string }) => check.id);
+  for (const expected of ["node", "npx", "index", "referenced", "gate"]) {
+    assert.ok(ids.includes(expected), `doctor should report the ${expected} check`);
+  }
+  assert.ok(Array.isArray(parsed.blocking));
 });
 
 test("tokens reports savings in JSON and text", () => {

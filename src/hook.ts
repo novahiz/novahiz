@@ -42,6 +42,7 @@ export type EvaluateDecision = {
   results: (GateResult & { path: string })[];
   block: boolean;
   missing: string[];
+  unmatched: string[];
 };
 
 export type HookDecision =
@@ -88,7 +89,8 @@ export function decideHook(
   }));
   const block = results.some((entry) => !entry.allow);
   const missing = [...new Set(results.flatMap((entry) => entry.missingSkills))];
-  return { kind: "evaluate", tool, paths, results, block, missing };
+  const unmatched = [...new Set(results.flatMap((entry) => entry.unmatchedRequired))];
+  return { kind: "evaluate", tool, paths, results, block, missing, unmatched };
 }
 
 export function claudeDenyOutput(reason: string): string {
@@ -104,4 +106,8 @@ export function claudeDenyOutput(reason: string): string {
 export function missingMessage(decision: EvaluateDecision): string {
   const targets = decision.results.map((entry) => entry.path).join(", ");
   return `Novahiz: charge ${decision.missing.join(", ")} avant de modifier ${targets}`;
+}
+
+export function unmatchedMessage(decision: EvaluateDecision): string {
+  return `Novahiz: skills requises absentes de l'index, donc non appliquees : ${decision.unmatched.join(", ")}. Relance novahiz sync pour realigner l'index.`;
 }
