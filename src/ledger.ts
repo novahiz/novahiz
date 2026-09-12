@@ -190,7 +190,7 @@ export function addTodos(db: DatabaseSync, taskId: string, items: TodoInput[]): 
     );
     ids.push(todoId);
   }
-  db.prepare("UPDATE tasks SET updated_at = ? WHERE id = ?").run(nowIso(), taskId);
+  reopenTask(db, taskId);
   return ids.map((id) => getTodo(db, id) as TodoRow);
 }
 
@@ -238,6 +238,10 @@ function maybeCompleteTask(db: DatabaseSync, taskId: string): void {
   if (open.count === 0) {
     db.prepare("UPDATE tasks SET status = 'done', updated_at = ? WHERE id = ?").run(nowIso(), taskId);
   }
+}
+
+function reopenTask(db: DatabaseSync, taskId: string): void {
+  db.prepare("UPDATE tasks SET status = CASE WHEN status = 'done' THEN 'active' ELSE status END, updated_at = ? WHERE id = ?").run(nowIso(), taskId);
 }
 
 export function resume(db: DatabaseSync, sessionId?: string): LedgerState {

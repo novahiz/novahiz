@@ -213,6 +213,15 @@ test("drops a todo without blocking task completion", () => {
   assert.equal(getTask(db, task.id)?.status, "done");
 });
 
+test("reopens a completed task when work is added to it", () => {
+  const task = makeTask("Reopen");
+  const [only] = addTodos(db, task.id, [{ label: "only" }]);
+  completeTodo(db, only.id, "done");
+  assert.equal(getTask(db, task.id)?.status, "done");
+  addTodos(db, task.id, [{ label: "more" }]);
+  assert.equal(getTask(db, task.id)?.status, "active");
+});
+
 test("reorders todos and rejects a partial list", () => {
   const task = makeTask("Reorder");
   const [a, b] = addTodos(db, task.id, [{ label: "a" }, { label: "b" }]);
