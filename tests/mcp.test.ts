@@ -1,6 +1,7 @@
-import { test, before } from "node:test";
+import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
+import { rmSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
@@ -10,6 +11,16 @@ import { scanSkills, writeCatalog, writeSkillIndex } from "../src/catalog.ts";
 const root = fileURLToPath(new URL("..", import.meta.url));
 const server = join(root, "mcp", "novahiz-tools", "index.mjs");
 const testDb = join(tmpdir(), `novahiz-mcp-${Date.now().toString(36)}.sqlite`);
+
+after(() => {
+  for (const suffix of ["", "-wal", "-shm"]) {
+    try {
+      rmSync(`${testDb}${suffix}`, { force: true });
+    } catch {
+      // best effort cleanup
+    }
+  }
+});
 
 before(() => {
   const spec = loadSpec(root);

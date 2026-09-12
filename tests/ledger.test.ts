@@ -2,6 +2,7 @@ import { test, after } from "node:test";
 import assert from "node:assert/strict";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { rmSync } from "node:fs";
 import { openDb } from "../src/db.ts";
 import {
   activeTask,
@@ -29,7 +30,8 @@ import {
   traceCheck
 } from "../src/ledger.ts";
 
-const db = openDb(join(tmpdir(), `novahiz-ledger-${Date.now().toString(36)}.sqlite`));
+const dbPath = join(tmpdir(), `novahiz-ledger-${Date.now().toString(36)}.sqlite`);
+const db = openDb(dbPath);
 let counter = 0;
 
 function makeTask(title: string) {
@@ -38,7 +40,16 @@ function makeTask(title: string) {
   return createTask(db, { title, id, sessionId: `s_${id}` });
 }
 
-after(() => db.close());
+after(() => {
+  db.close();
+  for (const suffix of ["", "-wal", "-shm"]) {
+    try {
+      rmSync(`${dbPath}${suffix}`, { force: true });
+    } catch {
+      // best effort cleanup
+    }
+  }
+});
 
 test("creates a task and finds it as active", () => {
   const task = makeTask("Ship the ledger");

@@ -1,10 +1,19 @@
 import assert from "node:assert/strict";
-import { mkdtempSync } from "node:fs";
+import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { test } from "node:test";
+import { test, after } from "node:test";
 
-process.env.NOVAHIZ_HOME = mkdtempSync(join(tmpdir(), "novahiz-plugin-"));
+const pluginHome = mkdtempSync(join(tmpdir(), "novahiz-plugin-"));
+process.env.NOVAHIZ_HOME = pluginHome;
+
+after(() => {
+  try {
+    rmSync(pluginHome, { recursive: true, force: true });
+  } catch {
+    // best effort cleanup
+  }
+});
 
 const { NovahizPlugin } = await import("../adapters/opencode/novahiz.ts");
 
