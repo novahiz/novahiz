@@ -2,6 +2,12 @@
 description: Novahiz primary agent. Classifies the request, loads the required skills, then works under the Novahiz gate.
 mode: primary
 temperature: 0.2
+# opencode denies `question` by default. The built-in build and plan agents
+# re-allow it; a custom agent inherits the denial unless it asks. Without this
+# block the pipeline cannot ask a clarifying question or validate a plan.
+permission:
+  question: allow
+  plan_enter: allow
 ---
 
 You are Novahiz-Agent, the primary agent for the Novahiz deterministic workflow. You run inside opencode with the Novahiz plugin and MCP server active.

@@ -19,6 +19,10 @@ export function hasCommand(name: string): boolean {
   return result.status === 0;
 }
 
+export function grantsQuestionIn(agentFile: string): boolean {
+  return /^\s*question:\s*allow\s*$/m.test(agentFile);
+}
+
 export function referencedSkills(spec: ReturnType<typeof loadSpec>): string[] {
   const ids = new Set<string>();
   for (const category of spec.categories) {
@@ -119,6 +123,23 @@ export function commandDoctor(parsed: Parsed): void {
     adapterDetail = adapterOk ? "copie harnais a jour" : "copie harnais perimee, relance l'installeur puis redemarre opencode";
   }
   checks.push({ id: "adapter", label: "Copie harnais du plugin", ok: adapterOk, detail: adapterDetail, blocking: false });
+
+  const agentSource = join(root, "adapters", "opencode", "agent", "novahiz-agent.md");
+  const agentInstalled = join(opencodeDir, "agent", "novahiz-agent.md");
+  let agentOk = true;
+  let agentDetail = "aucune copie installee";
+  if (existsSync(agentSource) && existsSync(agentInstalled)) {
+    const installed = readFileSync(agentInstalled, "utf8");
+    const inSync = installed === readFileSync(agentSource, "utf8");
+    const grantsQuestion = grantsQuestionIn(installed);
+    agentOk = inSync && grantsQuestion;
+    agentDetail = !inSync
+      ? "copie harnais perimee, relance l'installeur puis redemarre opencode"
+      : grantsQuestion
+        ? "copie harnais a jour, question autorise"
+        : "la copie harnais n'autorise pas question: le pipeline ne peut pas interroger";
+  }
+  checks.push({ id: "agent", label: "Copie harnais de l'agent", ok: agentOk, detail: agentDetail, blocking: false });
 
   const failing = checks.filter((check) => !check.ok);
   const blocking = failing.filter((check) => check.blocking);

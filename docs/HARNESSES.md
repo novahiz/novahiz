@@ -11,12 +11,16 @@ Novahiz keeps its decisions in the CLI. Every harness integration is a thin adap
 
 The plugin exists twice. `adapters/opencode/novahiz.ts` in the repository is the source; `~/.config/opencode/plugins/novahiz.ts` is what opencode runs. Editing the source changes nothing until the installer recopies it, and a stale copy keeps the old behaviour without an error. After an update, run the installer and restart opencode. `novahiz doctor` reports this as the `adapter` check.
 
+The agent exists twice as well: `adapters/opencode/agent/novahiz-agent.md` is the source and `~/.config/opencode/agent/novahiz-agent.md` is what opencode loads. Both are compared by the `agent` check.
+
+opencode denies the `question` tool to every agent by default. Only the built-in `build` and `plan` agents re-allow it, so a custom primary agent inherits the denial unless it asks. `novahiz-agent` therefore carries `permission: { question: allow, plan_enter: allow }`. Drop that block and the pipeline can no longer ask a clarifying question or validate a plan, and the `agent` check fails.
+
 Source: opencode plugin docs (`~/.config/opencode/plugins/`).
 
 ## Claude Code
 
 - Skills, commands, agent: `~/.claude/skills/`, `~/.claude/commands/` (`novahiz-plan`, `novahiz-clean`, `novahiz-doctor`, `novahiz-status`), and `~/.claude/agents/novahiz.md`.
-- Hooks: `~/.claude/settings.json` (user) or `.claude/settings.json` (project). A `PreToolUse` group matches `Read`, the edit tools, and the shell tools, then runs `novahiz hook --harness claude --event PreToolUse`. On an edit it prints a `permissionDecision: "deny"` payload, which blocks the call. `Read` is in the matcher because it is the only skill-load signal Claude Code produces: the agent opens `<...>/skills/<name>/SKILL.md`, and the hook records that as the load.
+- Hooks: `~/.claude/settings.json` (user) or `.claude/settings.json` (project). A `PreToolUse` group matches `Skill|Read|Edit|Write|MultiEdit|NotebookEdit|Bash|PowerShell`, then runs `novahiz hook --harness claude --event PreToolUse`. On an edit it prints a `permissionDecision: "deny"` payload, which blocks the call. `Skill` is the primary load signal: when the model launches a bundled skill the hook records the load. `Read` stays in the matcher as the fallback, because an agent that opens `<...>/skills/<name>/SKILL.md` directly also counts as loading it.
 - MCP: register the server once with the CLI:
 
 ```
