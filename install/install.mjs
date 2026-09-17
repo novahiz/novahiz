@@ -28,6 +28,7 @@ const CORE_ITEMS = [
   "mcp",
   "adapters",
   "skills",
+  "bundled-skills",
   "docs",
   "package.json",
   "tsconfig.json",
@@ -40,7 +41,7 @@ const CORE_ITEMS = [
 function defaultConfig(skillsDir) {
   return {
     dbPath: "novahiz.sqlite",
-    skillRoots: ["./skills", skillsDir.replace(/\\/g, "/"), "~/.agents/skills"],
+    skillRoots: ["./skills", "./bundled-skills"],
     gate: {
       enabled: true,
       mode: "block",
@@ -175,6 +176,19 @@ async function main() {
     } else {
       note(`Aucun dossier skills trouve a ${skillsSource}`);
     }
+
+    // Copy bundled-skills
+    const bundledSource = existsSync(join(home, "bundled-skills")) ? join(home, "bundled-skills") : join(root, "bundled-skills");
+    if (existsSync(bundledSource)) {
+      const bundledTarget = join(home, "bundled-skills");
+      note(`Installation des bundled-skills dans ${bundledTarget}`);
+      if (!dryRun) {
+        const result = copyInto(bundledSource, bundledTarget, true);
+        created.push(...result.created);
+        backups.push(...result.backups);
+        note(`  ${result.total} fichiers copies`);
+      }
+    }
   }
 
   const pluginSource = join(home, "adapters", "opencode", "novahiz.ts");
@@ -287,6 +301,30 @@ async function main() {
     process.stdout.write(`\nNovahiz installe dans ${home}.\n`);
     process.stdout.write("Redemarre opencode pour activer le plugin et le serveur MCP.\n");
     process.stdout.write("Gate desactivable avec la variable d'environnement NOVAHIZ_GATE=off.\n");
+    
+    // Auto-update dependencies
+    note("Verification des mises a jour des dependances...");
+    const pkgPath = join(home, "package.json");
+    if (existsSync(pkgPath)) {
+      const npmCheck = spawnSync("npm", ["outdated", "--json"], {
+        encoding: "utf8",
+        cwd: home,
+        env: { ...process.env, NOVAHIZ_HOME: home }
+      });
+      if (npmCheck.stdout && npmCheck.stdout.trim().length > 2) {
+        note("Mises a jour disponibles, installation en cours...");
+        const npmUpdate = spawnSync("npm", ["update"], {
+          encoding: "utf8",
+          cwd: home,
+          env: { ...process.env, NOVAHIZ_HOME: home }
+        });
+        if (npmUpdate.stdout) process.stdout.write(npmUpdate.stdout);
+        if (npmUpdate.status !== 0 && npmUpdate.stderr) process.stderr.write(npmUpdate.stderr);
+        note("Dependances mises a jour.");
+      } else {
+        note("Dependances a jour.");
+      }
+    }
   } else {
     process.stdout.write("\nDry-run termine, aucune modification ecrite.\n");
   }
