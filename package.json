@@ -24,8 +24,7 @@
     "gate"
   ],
   "publishConfig": {
-    "access": "public",
-    "provenance": true
+    "access": "public"
   },
   "bin": {
     "novahiz": "./bin/novahiz.mjs",
