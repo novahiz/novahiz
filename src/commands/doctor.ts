@@ -51,7 +51,7 @@ export function commandDoctor(parsed: Parsed): void {
     id: "index",
     label: "Index des skills",
     ok: index.available,
-    detail: index.available ? `${index.skills.size} skills` : "build/installed-skills.json illisible, lance novahiz sync",
+    detail: index.available ? `${index.skills.size} skills` : "build/installed-skills.json illisible, lance skillenforce sync",
     blocking: true
   });
 

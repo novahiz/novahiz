@@ -1,7 +1,7 @@
 {
-  "name": "novahiz",
-  "version": "0.1.1",
-  "description": "Deterministic agentic layer for coding harnesses: skill catalog, prompt classifier, and a pre-edit enforcement gate.",
+  "name": "skillenforce",
+  "version": "0.2.0",
+  "description": "Enforce AI agent skills before every file edit: prompt classifier, skill catalog, and pre-edit gate.",
   "type": "module",
   "license": "Apache-2.0",
   "author": "Novahiz",
@@ -27,7 +27,7 @@
     "access": "public"
   },
   "bin": {
-    "novahiz": "./bin/novahiz.mjs",
+    "skillenforce": "./bin/skillenforce.mjs",
     "novahiz-bootstrap": "./install/bootstrap.mjs",
     "novahiz-install": "./install/install.mjs",
     "novahiz-uninstall": "./install/uninstall.mjs",

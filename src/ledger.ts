@@ -275,7 +275,7 @@ export function traceCheck(db: DatabaseSync, options: { sessionId?: string; file
   if (match) return { required: true, ok: true, todo: match, reason: "" };
   const reason =
     inProgress.length === 0
-      ? "no todo is in progress. Start one with `novahiz task start --id <todo>` before editing."
+      ? "no todo is in progress. Start one with `skillenforce task start --id <todo>` before editing."
       : `no in-progress todo owns ${options.filePath}. Active todos own: ${inProgress.map((todo) => todo.owner || "(any file)").join("; ")}`;
   return { required: true, ok: false, todo: null, reason };
 }
@@ -374,7 +374,7 @@ export function reviewDue(db: DatabaseSync, taskId: string, policy: ReviewPolicy
   if (!task) throw new Error(`unknown task: ${taskId}`);
   const due = task.edits_since_review >= policy.edits || task.todos_since_review >= policy.todos;
   const reason = due
-    ? `plan review due (${task.edits_since_review} edits, ${task.todos_since_review} todos since last review; cadence ${policy.edits} edits / ${policy.todos} todos). Reconcile with \`novahiz task review\`.`
+    ? `plan review due (${task.edits_since_review} edits, ${task.todos_since_review} todos since last review; cadence ${policy.edits} edits / ${policy.todos} todos). Reconcile with \`skillenforce task review\`.`
     : "";
   return { due, edits: task.edits_since_review, todos: task.todos_since_review, policy, reason };
 }

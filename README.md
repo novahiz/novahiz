@@ -1,10 +1,10 @@
-# Novahiz
+# Skillenforce
 
-[![ci](https://github.com/novahiz/novahiz/actions/workflows/ci.yml/badge.svg)](https://github.com/novahiz/novahiz/actions/workflows/ci.yml)
+[![ci](https://github.com/novahiz/skillenforce/actions/workflows/ci.yml/badge.svg)](https://github.com/novahiz/skillenforce/actions/workflows/ci.yml)
 [![license](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 [![node](https://img.shields.io/badge/node-%3E%3D22.18-brightgreen.svg)](https://nodejs.org)
 
-A deterministic layer for AI coding harnesses. It catalogs your skills, classifies a prompt into categories, attaches an execution roadmap, and blocks file edits until the required skills are loaded.
+Enforce AI agent skills before every file edit. Skillenforce catalogs your skills, classifies prompts, attaches execution roadmaps, and blocks edits until required skills are loaded.
 
 The decisions run in code. The same prompt and the same rule set always produce the same result. No model vote, no random sampling, no hidden state.
 
@@ -44,19 +44,19 @@ The package exposes no programmatic import surface. It ships a CLI and an MCP se
 
 - Node.js 22.18 or later. Node runs the TypeScript sources directly through type stripping.
 - No runtime dependencies. SQLite comes from `node:sqlite`.
-- `defuddle`, for the web extraction in the `research` roadmap step. `novahiz doctor` reports whether it is present.
+- `defuddle`, for the web extraction in the `research` roadmap step. `skillenforce doctor` reports whether it is present.
 
 ## Install
 
 ```
-npm install -g novahiz
-novahiz init
+npm install -g skillenforce
+skillenforce init
 ```
 
 Or from source:
 
 ```
-git clone https://github.com/novahiz/novahiz ~/.config/novahiz
+git clone https://github.com/novahiz/skillenforce ~/.config/novahiz
 node ~/.config/novahiz/install/install.mjs
 ```
 
@@ -77,34 +77,34 @@ Machine-specific settings live in `novahiz.config.json`, which is gitignored: th
 ## CLI
 
 ```
-novahiz init                    # one-shot setup (config, skills, catalog)
-novahiz doctor                  # health check
-novahiz status                  # classification and gate state
-novahiz task new "Add CSV"      # start a tracked task
-novahiz task status             # show task progress
-novahiz task done <id>          # mark a todo complete
-novahiz report                  # session report
-novahiz clean                   # remove old logs and sessions
-novahiz upgrade                 # pull latest and rebuild catalog
-novahiz version                 # show version
+skillenforce init                    # one-shot setup (config, skills, catalog)
+skillenforce doctor                  # health check
+skillenforce status                  # classification and gate state
+skillenforce task new "Add CSV"      # start a tracked task
+skillenforce task status             # show task progress
+skillenforce task done <id>          # mark a todo complete
+skillenforce report                  # session report
+skillenforce clean                   # remove old logs and sessions
+skillenforce upgrade                 # pull latest and rebuild catalog
+skillenforce version                 # show version
 ```
 
 Advanced (for power users and adapters):
 
 ```
-novahiz classify "ajoute une migration supabase"
-novahiz gate --file src/hero.css --tool edit
-novahiz skills --category design-ui
-novahiz catalog "design frontend landing" --limit 5
-novahiz roadmap --category code
-novahiz dispatch --task <id>
-novahiz tokens --calibrate
-novahiz clean --days 30 --apply --vacuum
+skillenforce classify "ajoute une migration supabase"
+skillenforce gate --file src/hero.css --tool edit
+skillenforce skills --category design-ui
+skillenforce catalog "design frontend landing" --limit 5
+skillenforce roadmap --category code
+skillenforce dispatch --task <id>
+skillenforce tokens --calibrate
+skillenforce clean --days 30 --apply --vacuum
 ```
 
 `gate` prints a JSON verdict and exits `0` when the edit is allowed, `2` when it is blocked. Adapters rely on that exit code.
 
-Run `novahiz` with no arguments for the full command list.
+Run `skillenforce` with no arguments for the full command list.
 
 ## opencode adapter
 
@@ -116,7 +116,7 @@ Set `NOVAHIZ_GATE=off` to disable gating for a session. Set `NOVAHIZ_HOME` when 
 
 ## Execution ledger
 
-For work that spans more than a few steps, `novahiz task` keeps the plan in SQLite instead of in the conversation. A todo carries its own acceptance criterion, an iteration budget, and, for a `verify` step, a proof that must be present before it can close. `novahiz dispatch` turns the open todos into work packets with exclusive file ownership, so parallel sub-agents do not edit the same file. The gate forces a review every three edits or two finished todos, and the enriched summary is injected on every turn. See [docs/EXECUTION.md](docs/EXECUTION.md).
+For work that spans more than a few steps, `skillenforce task` keeps the plan in SQLite instead of in the conversation. A todo carries its own acceptance criterion, an iteration budget, and, for a `verify` step, a proof that must be present before it can close. `skillenforce dispatch` turns the open todos into work packets with exclusive file ownership, so parallel sub-agents do not edit the same file. The gate forces a review every three edits or two finished todos, and the enriched summary is injected on every turn. See [docs/EXECUTION.md](docs/EXECUTION.md).
 
 ## Harnesses
 

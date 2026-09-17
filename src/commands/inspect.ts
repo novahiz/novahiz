@@ -138,7 +138,7 @@ export function commandCatalog(parsed: Parsed): void {
   const limit = limitRaw !== undefined && limitRaw > 0 ? limitRaw : 10;
   const catalog = loadCatalog(spec);
   const results = rankSkills(catalog, query, limit);
-  const hint = catalog.length === 0 ? "catalog is empty; run `novahiz sync` to build it" : undefined;
+  const hint = catalog.length === 0 ? "catalog is empty; run `skillenforce sync` to build it" : undefined;
   print({ query, total: catalog.length, results, ...(hint ? { hint } : {}) });
 }
 

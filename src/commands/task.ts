@@ -78,7 +78,7 @@ function taskRead(parsed: Parsed, db: ReturnType<typeof openDb>, session: string
     summary.push(
       `  review: ${review.due ? "DUE" : "ok"} (edits ${review.edits}/${review.policy.edits}, todos ${review.todos}/${review.policy.todos})`
     );
-    if (review.due) summary.push(`  -> reconcile with: novahiz task review --task ${state.task.id} --reason "<what changed>"`);
+    if (review.due) summary.push(`  -> reconcile with: skillenforce task review --task ${state.task.id} --reason "<what changed>"`);
     for (const signal of signals) summary.push(`  signal ${signal.type}: ${signal.detail}`);
   }
   print({ ...state, summary, review, signals });

@@ -29,7 +29,7 @@ function runSync(): void {
 
 function usage(): void {
   print({
-    name: "novahiz",
+    name: "skillenforce",
     commands: [
       "init                    Set up Novahiz (config, skills, catalog)",
       "doctor                  Check that everything works",
@@ -57,7 +57,7 @@ function usage(): void {
 function printVersion(): void {
   try {
     const pkg = JSON.parse(readFileSync(join(__dirname, "..", "package.json"), "utf8"));
-    process.stdout.write(`novahiz ${pkg.version}\n`);
+    process.stdout.write(`skillenforce ${pkg.version}\n`);
   } catch {
     process.stdout.write("novahiz (unknown version)\n");
   }
@@ -73,7 +73,7 @@ function runInit(): void {
       env: { ...process.env, NOVAHIZ_HOME: HOME }
     });
     if (result.status !== 0) {
-      process.stderr.write("Installation failed. Run `novahiz doctor` for details.\n");
+      process.stderr.write("Installation failed. Run `skillenforce doctor` for details.\n");
       process.exitCode = 1;
       return;
     }
@@ -159,7 +159,7 @@ function main(argv: string[]): void {
     case "tokens":
       return commandTokens(parsed);
     default:
-      process.stderr.write(`novahiz: unknown command "${command}"\n\n`);
+      process.stderr.write(`skillenforce: unknown command "${command}"\n\n`);
       usage();
       process.exitCode = 1;
       return;
@@ -170,6 +170,6 @@ try {
   main(process.argv.slice(2));
 } catch (error) {
   const message = error instanceof Error ? error.message : String(error);
-  process.stderr.write(`novahiz: ${message}\n`);
+  process.stderr.write(`skillenforce: ${message}\n`);
   process.exitCode = 1;
 }

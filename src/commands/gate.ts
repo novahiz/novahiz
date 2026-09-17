@@ -139,7 +139,7 @@ export function commandGate(parsed: Parsed): void {
   const warnings: string[] = [];
   if (unmatchedRequired.length > 0) {
     warnings.push(
-      `skills requises absentes de l'index, donc non appliquees : ${unmatchedRequired.join(", ")}. Relance novahiz sync pour realigner l'index.`
+      `skills requises absentes de l'index, donc non appliquees : ${unmatchedRequired.join(", ")}. Relance skillenforce sync pour realigner l'index.`
     );
   }
   if (indexMissing) {
