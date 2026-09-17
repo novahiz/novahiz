@@ -4,8 +4,8 @@
     "label": "Playwright browser",
     "kind": "mcp",
     "transport": "local",
-    "command": ["npx", "-y", "@playwright/mcp@0.0.80"],
-    "install": ["npx", "-y", "@playwright/mcp@0.0.80", "--help"],
+    "command": ["npx", "-y", "@playwright/mcp@0.0.81"],
+    "install": ["npx", "-y", "@playwright/mcp@0.0.81", "--help"],
     "requires": ["npx"],
     "purpose": "Navigate, screenshot, and interact with web pages in a real browser.",
     "categories": ["browser", "design-ui"],
@@ -43,8 +43,8 @@
     "label": "Library docs",
     "kind": "mcp",
     "transport": "local",
-    "command": ["npx", "-y", "@upstash/context7-mcp@4.1.0"],
-    "install": ["npx", "-y", "@upstash/context7-mcp@4.1.0", "--help"],
+    "command": ["npx", "-y", "@upstash/context7-mcp@4.1.1"],
+    "install": ["npx", "-y", "@upstash/context7-mcp@4.1.1", "--help"],
     "requires": ["npx"],
     "purpose": "Up-to-date documentation for libraries, frameworks, and SDKs.",
     "categories": ["code", "research"],
@@ -87,5 +87,59 @@
     "categories": ["design-ui"],
     "source": "https://github.com/pbakaus/impeccable",
     "license": "Apache-2.0"
+  },
+  {
+    "id": "obsidian",
+    "label": "Obsidian vaults",
+    "kind": "mcp",
+    "transport": "local",
+    "command": ["npx", "-y", "obsidian-mcp@2.0.1", "serve", "--vault", "notes=C:/Users/hiz/Documents/novahiz"],
+    "install": ["npx", "-y", "obsidian-mcp@2.0.1", "--help"],
+    "requires": ["npx"],
+    "purpose": "Read and write the Obsidian second memory vault.",
+    "categories": ["general", "research"]
+  },
+  {
+    "id": "dart",
+    "label": "Dart and Flutter",
+    "kind": "mcp",
+    "transport": "local",
+    "command": ["C:/Users/hiz/flutter-sdk/flutter/bin/dart.bat", "mcp-server"],
+    "requires": ["dart"],
+    "purpose": "Dart language intelligence for Flutter projects. Provided by the local Flutter SDK, nothing to install.",
+    "categories": ["code"],
+    "source": "https://github.com/dart-lang/sdk",
+    "license": "BSD-3-Clause"
+  },
+  {
+    "id": "expo",
+    "label": "Expo services",
+    "kind": "mcp",
+    "transport": "remote",
+    "url": "https://mcp.expo.dev/mcp",
+    "purpose": "Expo and EAS services. Remote OAuth, declared here for inventory; auth happens at runtime.",
+    "categories": ["general"],
+    "source": "https://mcp.expo.dev/mcp"
+  },
+  {
+    "id": "supabase",
+    "label": "Supabase platform",
+    "kind": "mcp",
+    "transport": "remote",
+    "url": "https://mcp.supabase.com/mcp?features=docs%2Caccount%2Cdatabase%2Cdebugging%2Cdevelopment%2Cfunctions%2Cbranching",
+    "purpose": "Supabase database, auth, functions and debugging. Remote OAuth, declared here for inventory; auth happens at runtime.",
+    "categories": ["database-supabase"],
+    "source": "https://mcp.supabase.com/mcp"
+  },
+  {
+    "id": "novahiz",
+    "label": "Novahiz workflow tools",
+    "kind": "mcp",
+    "transport": "local",
+    "command": ["node", "C:/Users/hiz/.config/novahiz/mcp/novahiz-tools/index.mjs"],
+    "requires": ["node"],
+    "purpose": "Deterministic workflow tools injected by the opencode plugin: classify, gate, tasks. Part of this repo, nothing to install.",
+    "categories": ["general", "planning"],
+    "source": "C:/Users/hiz/.config/novahiz/mcp/novahiz-tools/index.mjs"
   }
 ]

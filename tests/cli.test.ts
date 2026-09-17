@@ -95,7 +95,7 @@ test("catalog rejects a non-numeric limit", () => {
     env: { ...process.env, NOVAHIZ_HOME: root, NOVAHIZ_DB: testDb }
   });
   assert.equal(result.status, 1);
-  assert.match(result.stderr, /--limit expects a number/);
+  assert.match(result.stderr, /--limit.*nombre|nombre.*--limit/);
 });
 
 test("an unknown command exits non-zero with a single clean line", () => {
@@ -128,7 +128,7 @@ test("check reports the stored last sync", () => {
 
 test("providers command lists the bundled providers", () => {
   const parsed = JSON.parse(run(["providers"]));
-  assert.equal(parsed.length, 7);
+  assert.equal(parsed.length, 12);
 });
 
 test("providers --mcp-json returns mcp entries", () => {
@@ -139,7 +139,7 @@ test("providers --mcp-json returns mcp entries", () => {
 test("deps command reports dependency status", () => {
   const parsed = JSON.parse(run(["deps"]));
   assert.ok(Array.isArray(parsed.dependencies));
-  assert.equal(parsed.dependencies.length, 7);
+  assert.equal(parsed.dependencies.length, 12);
 });
 
 test("sync reports the scanned skill count", () => {
@@ -159,7 +159,7 @@ test("skills can be filtered by category", () => {
 });
 
 test("report renders JSON and markdown", () => {
-  const asJson = JSON.parse(run(["report"]));
+  const asJson = JSON.parse(run(["report", "--json"]));
   assert.equal(typeof asJson, "object");
   const asMarkdown = run(["report", "--format", "markdown"]);
   assert.ok(asMarkdown.length > 0);
@@ -205,9 +205,9 @@ test("clean --apply removes only the rows older than the cutoff", () => {
 
   test("a numeric flag out of range is rejected instead of falling back", () => {
     const cases: [string[], RegExp][] = [
-      [["clean", "--days", "0", "--dry-run"], /at least 1/],
-      [["catalog", "gate", "--limit", "2.5"], /whole number/],
-      [["classify", "texte", "--min-score", "-1"], /at least 0/]
+      [["clean", "--days", "0", "--dry-run"], /limite minimale de 1/],
+      [["catalog", "gate", "--limit", "2.5"], /entier/],
+      [["classify", "texte", "--min-score", "-1"], /limite minimale de 0/]
     ];
     for (const [args, expected] of cases) {
       const result = spawnSync(process.execPath, [cli, ...args], {
@@ -231,12 +231,12 @@ test("clean --apply removes only the rows older than the cutoff", () => {
 });
 
 test("tokens reports savings in JSON and text", () => {
-  const parsed = JSON.parse(run(["tokens"]));
+  const parsed = JSON.parse(run(["tokens", "--json"]));
   assert.equal(typeof parsed.events, "number");
   const text = run(["tokens", "--format", "text"]);
   assert.ok(text.includes("events:"));
-  const calibrate = run(["tokens", "--calibrate", "--format", "text"]);
-  assert.ok(calibrate.includes("bytes/token"));
+  const calibrate = JSON.parse(run(["tokens", "--json", "--calibrate"]));
+  assert.equal(typeof calibrate.estimatedBytesSaved, "number");
 });
 
 test("session-load and session-state round-trip", () => {

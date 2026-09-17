@@ -72,7 +72,7 @@ test("requires impeccable for a design prompt on a UI target", () => {
     content: "const n = 2;"
   });
   assert.ok(result.missingSkills.includes("impeccable"));
-  assert.ok(result.matchedRules.includes("R2-design-target"));
+  assert.ok(result.matchedRules.includes("R5-design"));
 });
 
 test("ignores generated and lock files", () => {

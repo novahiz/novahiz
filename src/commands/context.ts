@@ -35,18 +35,21 @@ export function parse(argv: string[]): Parsed {
 }
 
 export function asString(value: unknown): string {
+  if (value === undefined || value === null) return "";
+  if (typeof value === "string") return value;
   return String(value);
 }
 
-export function splitList(value: string | undefined): string[] {
+export function splitList(value: string | boolean | undefined): string[] {
   if (typeof value !== "string" || value.length === 0) return [];
   return value.split(",").map((v) => v.trim()).filter(Boolean);
 }
 
-export function print(output: Record<string, unknown>): void {
-  if (typeof output.name === "string" && Array.isArray(output.commands)) {
-    console.log(output.name);
-    for (const cmd of output.commands) console.log("  " + cmd);
+export function print(output: unknown): void {
+  const record = (typeof output === "object" && output !== null ? output : {}) as Record<string, unknown>;
+  if (typeof record.name === "string" && Array.isArray(record.commands)) {
+    console.log(record.name);
+    for (const cmd of record.commands) console.log("  " + cmd);
   } else {
     process.stdout.write(JSON.stringify(output) + "\n");
   }
@@ -67,7 +70,8 @@ export function humanMode(parsed: Parsed): boolean {
 
 export function emit(parsed: Parsed, value: unknown, textFn: () => string): void {
   const format = String(parsed.flags.format ?? "").toLowerCase();
-  if (format === "json") {
+  const asJson = format === "json" || parsed.flags.json === true;
+  if (asJson) {
     process.stdout.write(JSON.stringify(value, null, 2) + "\n");
   } else {
     process.stdout.write(textFn() + "\n");
@@ -89,19 +93,38 @@ export function dbPathFor(root: string, spec: Spec): string {
 }
 
 export function readStdin(): string {
-  return process.stdin.read()?.toString() ?? "";
+  // A single synchronous stdin read races with pipe delivery and can return null even when input was provided.
+  if (process.stdin.isTTY) return "";
+  try {
+    return readFileSync(0, 'utf8');
+  } catch {
+    return "";
+  }
 }
 
 export function numberFlag(
   parsed: Parsed,
   name: string,
-  opts: { min?: number; integer?: boolean } = {},
+  opts: { min?: number; integer?: boolean; label?: string } = {},
 ): number | undefined {
   const raw = parsed.flags[name];
   if (raw === undefined || raw === false) return undefined;
+  const label = opts.label ?? name;
   const num = Number(raw);
-  if (Number.isNaN(num)) return undefined;
-  if (opts.integer && !Number.isInteger(num)) return undefined;
-  if (opts.min !== undefined && num < opts.min) return undefined;
+  if (Number.isNaN(num)) {
+    process.stderr.write(`Valeur invalide pour --${label}: "${raw}" n'est pas un nombre.\n`);
+    process.exitCode = 1;
+    return undefined;
+  }
+  if (opts.integer && !Number.isInteger(num)) {
+    process.stderr.write(`Valeur invalide pour --${label}: un nombre entier est requis, pas "${raw}".\n`);
+    process.exitCode = 1;
+    return undefined;
+  }
+  if (opts.min !== undefined && num < opts.min) {
+    process.stderr.write(`Valeur invalide pour --${label}: ${num} est inferieur a la limite minimale de ${opts.min}.\n`);
+    process.exitCode = 1;
+    return undefined;
+  }
   return num;
 }

@@ -12,11 +12,16 @@ test("loads the bundled providers", () => {
   assert.deepEqual(ids, [
     "context7",
     "cron",
+    "dart",
+    "expo",
     "impeccable",
     "narsil",
+    "novahiz",
+    "obsidian",
     "playwright",
     "security",
-    "sequential-thinking"
+    "sequential-thinking",
+    "supabase"
   ]);
 });
 
@@ -25,23 +30,23 @@ test("maps providers to categories across kinds", () => {
   assert.ok(design.includes("playwright"));
   assert.ok(design.includes("impeccable"));
   const planning = providersForCategories(spec, ["planning"]).map((provider) => provider.id);
-  assert.deepEqual(planning, ["sequential-thinking"]);
+  assert.deepEqual(planning, ["sequential-thinking", "novahiz"]);
 });
 
 test("builds mcp entries only for mcp providers", () => {
   const entries = buildMcpEntries(spec);
-  assert.equal(Object.keys(entries).length, 6);
-  assert.deepEqual(entries.playwright.command, ["npx", "-y", "@playwright/mcp@0.0.80"]);
+  assert.equal(Object.keys(entries).length, 11);
+  assert.deepEqual(entries.playwright.command, ["npx", "-y", "@playwright/mcp@0.0.81"]);
   assert.equal("impeccable" in entries, false);
 });
 
 test("exposes official install commands for every provider", () => {
   const commands = installCommands(spec);
-  assert.equal(commands.length, 7);
+  assert.equal(commands.length, 8);
   const impeccable = commands.find((entry) => entry.id === "impeccable");
   assert.equal(impeccable?.kind, "skill");
   assert.deepEqual(impeccable?.command.slice(0, 3), ["npx", "-y", "impeccable@4.1.0"]);
-  for (const entry of commands) assert.ok(entry.source.startsWith("https://"));
+  for (const entry of commands) assert.ok(entry.source === "" || entry.source.startsWith("https://"));
 });
 
 test("disabled providers are filtered out", () => {

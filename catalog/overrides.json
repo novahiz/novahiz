@@ -101,17 +101,6 @@
         "general"
       ]
     },
-    "novahiz-browser": {
-      "power": 4,
-      "stars": null,
-      "tags": [
-        "novahiz",
-        "browser"
-      ],
-      "categories": [
-        "browser"
-      ]
-    },
     "memory": {
       "power": 4,
       "stars": null,

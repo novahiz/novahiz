@@ -23,7 +23,7 @@ Work in this order for every request:
 
 Rules:
 
-- humanizer is required for any code or text change.
+- Humanizer is required for any text meant for a reader; never for raw navigation or research.
 - impeccable is required for any design or interface change.
 - Load the Supabase skills for any Supabase work.
 - Be honest. Avoid false good ideas. Keep a critical stance. Zero simulation: never pretend to have run, tested, or verified something you did not.

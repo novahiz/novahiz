@@ -1,0 +1,22 @@
+Ô£ö the plugin exposes the enforcement hooks (1.4424ms)
+Ô£ö config hook injects the novahiz MCP server (44.1181ms)
+Ô£ö tool.execute.before lets non-gated tools through (0.2762ms)
+Ô£ö tool.execute.before records a loaded skill without throwing (41.8745ms)
+Ô£ö tool.execute.before surfaces an unavailable gate instead of failing open (39.9651ms)
+Ô£ö chat.message with no text injects nothing (0.6779ms)
+Ô£ö chat.message with a failed classify injects nothing but does not throw (39.4284ms)
+Ô£ö event forgets a deleted session without throwing (0.1748ms)
+Ô£ö loads the bundled providers (1.0886ms)
+Ô£ö maps providers to categories across kinds (0.8931ms)
+Ô£ö builds mcp entries only for mcp providers (0.2424ms)
+Ô£ö exposes official install commands for every provider (0.2446ms)
+Ô£ö disabled providers are filtered out (0.1878ms)
+Ô£ö autoRegister false returns no entries (0.1288ms)
+Ôä╣ tests 14
+Ôä╣ suites 0
+Ôä╣ pass 14
+Ôä╣ fail 0
+Ôä╣ cancelled 0
+Ôä╣ skipped 0
+Ôä╣ todo 0
+Ôä╣ duration_ms 284.277

@@ -25,11 +25,8 @@ const hooks = (await NovahizPlugin({
   client: fakeClient
 } as unknown as Parameters<typeof NovahizPlugin>[0])) as unknown as HookMap;
 
-test("the plugin exposes the token-economy and enforcement hooks", () => {
+test("the plugin exposes the enforcement hooks", () => {
   for (const name of [
-    "tool.execute.after",
-    "experimental.chat.messages.transform",
-    "chat.params",
     "config",
     "event",
     "chat.message",
@@ -40,44 +37,64 @@ test("the plugin exposes the token-economy and enforcement hooks", () => {
   }
 });
 
-test("tool.execute.after trims a large read output", async () => {
-  const output = {
-    title: "read",
-    output: Array.from({ length: 600 }, (_, index) => `line ${index}`).join("\n"),
-    metadata: {}
-  };
-  await hooks["tool.execute.after"]({ tool: "read", sessionID: "s1", callID: "c1", args: {} }, output);
-  assert.match(output.output, /novahiz: \d+ lines elided/);
+test("config hook injects the novahiz MCP server", async () => {
+  const config: any = {};
+  await hooks["config"](config, {});
+  assert.equal(config.mcp.novahiz.type, "local");
+  assert.equal(config.mcp.novahiz.enabled, true);
+  assert.ok(Array.isArray(config.mcp.novahiz.command));
 });
 
-test("experimental.chat.messages.transform stubs a stale earlier read", async () => {
-  const messages = [
+test("tool.execute.before lets non-gated tools through", async () => {
+  await hooks["tool.execute.before"](
+    { tool: "read", sessionID: "s-read", callID: "c1" },
+    { args: { filePath: "/tmp/x.ts" } }
+  );
+});
+
+test("tool.execute.before records a loaded skill without throwing", async () => {
+  await hooks["tool.execute.before"](
+    { tool: "skill", sessionID: "s-skill", callID: "c2" },
+    { args: { name: "humanizer" } }
+  );
+});
+
+test("tool.execute.before surfaces an unavailable gate instead of failing open", async () => {
+  // NOVAHIZ_HOME points at an empty temp dir, so the CLI is missing and the
+  // gate exits nonzero. The plugin must throw, never silently allow.
+  await assert.rejects(
+    hooks["tool.execute.before"](
+      { tool: "write", sessionID: "s-gate", callID: "c3" },
+      { args: { filePath: "/tmp/y.ts", content: "hello" } }
+    ),
+    /Novahiz gate/
+  );
+});
+
+test("chat.message with no text injects nothing", async () => {
+  await hooks["chat.message"]({ sessionID: "s-empty" }, { parts: [] });
+  const output: any = { system: [] };
+  await hooks["experimental.chat.system.transform"]({ sessionID: "s-empty" }, output);
+  assert.deepEqual(output.system, []);
+});
+
+test("chat.message with a failed classify injects nothing but does not throw", async () => {
+  // The CLI is missing in this temp HOME, so classify fails and the hook
+  // logs a warning and returns without enforcement.
+  await hooks["chat.message"](
+    { sessionID: "s-fail" },
+    { parts: [{ type: "text", text: "fix the login bug" }] }
+  );
+  const output: any = { system: [] };
+  await hooks["experimental.chat.system.transform"]({ sessionID: "s-fail" }, output);
+  assert.deepEqual(output.system, []);
+});
+
+test("event forgets a deleted session without throwing", async () => {
+  await hooks["event"](
     {
-      parts: [
-        {
-          type: "tool",
-          tool: "read",
-          state: { status: "completed", input: { filePath: "/tmp/same.ts" }, output: "a".repeat(900) }
-        }
-      ]
+      event: { type: "session.deleted", properties: { sessionID: "s-gone" } }
     },
-    {
-      parts: [
-        {
-          type: "tool",
-          tool: "read",
-          state: { status: "completed", input: { filePath: "/tmp/same.ts" }, output: "b".repeat(900) }
-        }
-      ]
-    }
-  ];
-  await hooks["experimental.chat.messages.transform"]({}, { messages });
-  assert.match(messages[0].parts[0].state.output, /superseded by a later read/);
-  assert.equal(messages[1].parts[0].state.output, "b".repeat(900));
-});
-
-test("chat.params stays inert while capOutputTokens is 0", async () => {
-  const params = { maxOutputTokens: undefined as number | undefined };
-  await hooks["chat.params"]({}, params);
-  assert.equal(params.maxOutputTokens, undefined);
+    {}
+  );
 });

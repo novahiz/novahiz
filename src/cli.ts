@@ -8,6 +8,7 @@ import { commandReport } from "./commands/report.ts";
 import { commandTask } from "./commands/task.ts";
 import { commandClean } from "./commands/clean.ts";
 import { commandDoctor } from "./commands/doctor.ts";
+import { commandTokens } from "./commands/tokens.ts";
 
 function usage(): void {
   print({
@@ -41,7 +42,8 @@ function usage(): void {
       "task status|resume|current [--session id]",
       "dispatch [--task id] [--session id]",
       "clean [--target logs|roadmap|sessions|tasks|all] [--days N] [--dry-run|--apply] [--vacuum] [--json]",
-      "doctor [--json]"
+      "doctor [--json]",
+      "tokens [--json] [--calibrate]"
     ]
   });}
 
@@ -80,6 +82,8 @@ function main(argv: string[]): void {
       return commandClean(parsed);
     case "doctor":
       return commandDoctor(parsed);
+    case "tokens":
+      return commandTokens(parsed);
     case "catalog":
       return commandCatalog(parsed);
     case "roadmap":

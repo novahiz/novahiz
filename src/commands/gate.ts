@@ -29,7 +29,7 @@ export function commandGate(parsed: Parsed): void {
   }
   const escapeValue = (process.env[gateConfig.envEscape] || "").toLowerCase();
   if (["off", "0", "false", "no", "disabled"].includes(escapeValue)) {
-    print({ allow: true });
+    print({ allow: true, disabled: true });
     return;
   }
 

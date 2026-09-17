@@ -30,7 +30,10 @@ const CONFIG = readConfig();
 const GATE = CONFIG.gate ?? {};
 const ENV_ESCAPE = typeof GATE.envEscape === "string" && GATE.envEscape.length > 0 ? GATE.envEscape : "NOVAHIZ_GATE";
 const ESCAPE = (process.env[ENV_ESCAPE] || "").toLowerCase();
-const DISABLED = ["off", "0", "false", "no", "disabled"].includes(ESCAPE);
+// gate.enabled=false disables the plugin the same way the CLI gate does (see src/commands/gate.ts).
+// gate.mode (block/warn/audit) stays owned by the CLI: the plugin only forwards the gate exit code.
+const DISABLED =
+  ["off", "0", "false", "no", "disabled"].includes(ESCAPE) || GATE.enabled === false;
 const GATE_TOOLS = new Set(
   (Array.isArray(GATE.tools) && GATE.tools.length > 0 ? GATE.tools : ["edit", "write", "patch", "apply_patch", "bash", "shell"]).map((tool) => tool.toLowerCase())
 );
@@ -57,6 +60,8 @@ export const NovahizPlugin: Plugin = async ({ client }) => {
   const loadedBySession = new Map<string, Set<string>>();
   const categoriesBySession = new Map<string, string[]>();
   const enforcementBySession = new Map<string, string>();
+  const lastSeenBySession = new Map<string, number>();
+  const SESSION_TTL_MS = 4 * 60 * 60 * 1000;
 
   const log = async (level: "info" | "warn", message: string): Promise<void> => {
     try {
@@ -70,9 +75,22 @@ export const NovahizPlugin: Plugin = async ({ client }) => {
     loadedBySession.delete(sessionID);
     categoriesBySession.delete(sessionID);
     enforcementBySession.delete(sessionID);
+    lastSeenBySession.delete(sessionID);
   };
 
-  if (DISABLED) await log("info", "Gate disabled via environment escape");
+  // Sessions only vanish from memory on session.deleted, which may never arrive.
+  // Prune entries idle for longer than SESSION_TTL_MS once the map grows.
+  const touch = (sessionID: string): void => {
+    lastSeenBySession.set(sessionID, Date.now());
+    if (lastSeenBySession.size < 50) return;
+    const cutoff = Date.now() - SESSION_TTL_MS;
+    for (const [id, seen] of lastSeenBySession) {
+      if (seen < cutoff) forget(id);
+    }
+  };
+
+  if (DISABLED)
+    await log("info", GATE.enabled === false ? "Gate disabled via config (gate.enabled=false)" : "Gate disabled via environment escape");
 
   return {
     config: async (input) => {
@@ -88,12 +106,19 @@ export const NovahizPlugin: Plugin = async ({ client }) => {
         }
         const providers = run(["providers", "--mcp-json"]);
         if (providers.status === 0 && providers.stdout.trim().length > 0) {
-          const entries = JSON.parse(providers.stdout) as Record<string, unknown>;
-          for (const [id, entry] of Object.entries(entries)) {
-            if (!config.mcp[id]) config.mcp[id] = entry;
+          try {
+            const entries = JSON.parse(providers.stdout) as Record<string, unknown>;
+            for (const [id, entry] of Object.entries(entries)) {
+              if (!config.mcp[id]) config.mcp[id] = entry;
+            }
+          } catch {
+            await log("warn", "Providers returned invalid JSON, MCP auto-register skipped");
           }
+        } else if (providers.status !== 0) {
+          await log("warn", `Providers command failed (exit ${providers.status}), MCP auto-register skipped`);
         }
-      } catch {
+      } catch (error) {
+        await log("warn", `Config hook failed: ${String(error).slice(0, 200)}`);
         return;
       }
     },
@@ -108,11 +133,15 @@ export const NovahizPlugin: Plugin = async ({ client }) => {
 
     "chat.message": async (input, output) => {
       try {
+        touch(input.sessionID);
         const text = textFromParts(output.parts);
         if (text.length === 0) return;
         const result = run(["classify", text]);
-        if (result.status !== 0) return;
-        const parsed = JSON.parse(result.stdout) as {
+        if (result.status !== 0) {
+          await log("warn", `Classify failed (exit ${result.status}), no enforcement injected: ${result.stderr.trim().slice(0, 200)}`);
+          return;
+        }
+        let parsed: {
           categories?: { id: string }[];
           primary?: string | null;
           requiredSkills?: string[];
@@ -120,6 +149,12 @@ export const NovahizPlugin: Plugin = async ({ client }) => {
           providers?: string[];
           roadmaps?: { id: string; steps: { label: string; kind: string; requireSkills?: string[] }[] }[];
         };
+        try {
+          parsed = JSON.parse(result.stdout) as typeof parsed;
+        } catch {
+          await log("warn", "Classify returned invalid JSON, no enforcement injected");
+          return;
+        }
         const categories = (parsed.categories ?? []).map((entry) => entry.id);
         categoriesBySession.set(input.sessionID, categories);
         const primary = parsed.primary ?? categories[0] ?? null;
@@ -144,13 +179,19 @@ export const NovahizPlugin: Plugin = async ({ client }) => {
         if (providers.length > 0) lines.push(`Outils pour cette tache: ${providers.join(", ")}`);
         const ledger = run(["task", "current", "--session", input.sessionID]);
         if (ledger.status === 0 && ledger.stdout.trim().length > 0) {
-          const state = JSON.parse(ledger.stdout) as { task?: unknown; summary?: string[] };
-          if (state.task && Array.isArray(state.summary) && state.summary.length > 0) lines.push(...state.summary);
+          try {
+            const state = JSON.parse(ledger.stdout) as { task?: unknown; summary?: string[] };
+            if (state.task && Array.isArray(state.summary) && state.summary.length > 0) lines.push(...state.summary);
+          } catch {
+            await log("warn", "Ledger state is invalid JSON, enforcement injected without the task summary");
+          }
         }
-        lines.push("Le gate bloque edit/write/patch/bash tant que les skills requis ne sont pas charges via skill({name:\"...\"}).");
+        lines.push("Le gate bloque edit/write/patch/apply_patch/bash/shell tant que les skills requis ne sont pas charges via skill({name:\"...\"}).");
         lines.push("Le gate est sensible au contenu: humanizer pour la prose, impeccable pour le style.");
+        lines.push("Config editee = redemarrage d'opencode requis (config lue a l'import).");
         enforcementBySession.set(input.sessionID, lines.join("\n"));
-      } catch {
+      } catch (error) {
+        await log("warn", `chat.message hook failed, no enforcement injected: ${String(error).slice(0, 200)}`);
         return;
       }
     },
@@ -165,6 +206,7 @@ export const NovahizPlugin: Plugin = async ({ client }) => {
 
     "tool.execute.before": async (input, output) => {
       try {
+        touch(input.sessionID);
         if (!loadedBySession.has(input.sessionID)) loadedBySession.set(input.sessionID, new Set());
         const loaded = loadedBySession.get(input.sessionID)!;
 
