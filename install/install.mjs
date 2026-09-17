@@ -1,4 +1,4 @@
-import { cpSync, existsSync, mkdirSync, readdirSync, statSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
@@ -294,6 +294,136 @@ async function main() {
       });
       if (result.stdout) process.stdout.write(result.stdout);
       if (result.status !== 0 && result.stderr) process.stderr.write(result.stderr);
+    }
+  }
+
+  // Install MCP servers globally
+  const mcpServers = [
+    { pkg: "@upstash/context7-mcp", bin: "context7-mcp", name: "context7" },
+    { pkg: "@anthropic-ai/narsil-mcp", bin: "narsil-mcp", name: "narsil" },
+    { pkg: "@anthropic-ai/mcp-cron", bin: "mcp-cron", name: "cron" },
+  ];
+
+  if (!dryRun) {
+    note("\nInstallation des MCP servers...");
+    for (const server of mcpServers) {
+      const check = spawnSync(process.platform === "win32" ? "where" : "which", [server.bin], {
+        encoding: "utf8",
+        stdio: "pipe"
+      });
+      if (check.status !== 0) {
+        note(`  Installation de ${server.pkg}...`);
+        const result = spawnSync("npm", ["install", "-g", server.pkg], {
+          encoding: "utf8",
+          stdio: "inherit"
+        });
+        if (result.status !== 0) {
+          note(`  ATTENTION: Echec installation ${server.pkg} (non bloquant)`);
+        } else {
+          note(`  ${server.pkg} installe`);
+        }
+      } else {
+        note(`  ${server.name} deja installe`);
+      }
+    }
+  }
+
+  // Install opencode plugins globally
+  const plugins = [
+    "@mohak34/opencode-notifier@0.2.8",
+    "@tarquinen/opencode-dcp@latest",
+  ];
+
+  if (!dryRun) {
+    note("\nInstallation des plugins opencode...");
+    for (const plugin of plugins) {
+      const pkgName = plugin.includes("@") ? plugin.split("@").slice(0, -1).join("@") || plugin.split("@")[1] : plugin;
+      note(`  Installation de ${plugin}...`);
+      const result = spawnSync("npm", ["install", "-g", plugin], {
+        encoding: "utf8",
+        stdio: "inherit"
+      });
+      if (result.status !== 0) {
+        note(`  ATTENTION: Echec installation ${plugin} (non bloquant)`);
+      } else {
+        note(`  ${plugin} installe`);
+      }
+    }
+  }
+
+  // Generate opencode.jsonc
+  if (!dryRun) {
+    const configPath = join(configDir, "opencode.jsonc");
+    if (!existsSync(configPath)) {
+      note(`\nCreation de ${configPath}`);
+      const bundledDir = join(home, "bundled-skills");
+      const agentsSkillsDir = join(homedir(), ".config", ".agents", "skills");
+      
+      const openCodeConfig = {
+        "$schema": "https://opencode.ai/config.json",
+        "mcp": {
+          "context7": {
+            "type": "local",
+            "command": ["context7-mcp", "--transport", "stdio"],
+            "enabled": true
+          },
+          "narsil": {
+            "type": "local",
+            "command": ["narsil-mcp", "--repos", ".", "--git", "--persist"],
+            "timeout": 120000,
+            "enabled": true
+          },
+          "cron": {
+            "type": "local",
+            "command": ["mcp-cron", "--transport", "stdio"],
+            "enabled": true
+          },
+          "playwright": {
+            "type": "local",
+            "command": ["npx", "@playwright/mcp@latest", "--browser=msedge"],
+            "enabled": true
+          },
+          "supabase": {
+            "type": "remote",
+            "url": "https://mcp.supabase.com/mcp?features=docs%2Caccount%2Cdatabase%2Cdebugging%2Cdevelopment%2Cfunctions%2Cbranching",
+            "enabled": true
+          },
+          "expo": {
+            "type": "remote",
+            "url": "https://mcp.expo.dev/mcp",
+            "enabled": true
+          }
+        },
+        "skills": {
+          "paths": [skillsDir]
+        },
+        "plugin": [
+          "@mohak34/opencode-notifier@0.2.8",
+          "@tarquinen/opencode-dcp@latest",
+          join(home, "adapters", "opencode", "novahiz.ts")
+        ],
+        "compaction": {
+          "auto": true,
+          "prune": true,
+          "reserved": 10000
+        },
+        "shell": process.platform === "win32" ? "pwsh" : "bash"
+      };
+
+      // Add bundled-skills if it exists
+      if (existsSync(bundledDir)) {
+        openCodeConfig.skills.paths.push(bundledDir);
+      }
+
+      // Add .agents/skills if it exists
+      if (existsSync(agentsSkillsDir)) {
+        openCodeConfig.skills.paths.push(agentsSkillsDir);
+      }
+
+      writeFileSync(configPath, JSON.stringify(openCodeConfig, null, 2) + "\n", "utf8");
+      note(`  ${configPath} cree`);
+    } else {
+      note(`\n${join(configDir, "opencode.jsonc")} existe deja, non ecrase`);
     }
   }
 

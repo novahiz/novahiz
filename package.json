@@ -29,6 +29,7 @@
   },
   "bin": {
     "novahiz": "./bin/novahiz.mjs",
+    "novahiz-bootstrap": "./install/bootstrap.mjs",
     "novahiz-install": "./install/install.mjs",
     "novahiz-uninstall": "./install/uninstall.mjs",
     "novahiz-mcp": "./mcp/novahiz-tools/index.mjs"
@@ -44,6 +45,8 @@
     "report": "node src/cli.ts report",
     "setup": "node install/install.mjs",
     "setup:dry": "node install/install.mjs --dry-run",
+    "bootstrap": "node install/bootstrap.mjs",
+    "bootstrap:dry": "node install/bootstrap.mjs --dry-run",
     "test": "node --test",
     "typecheck": "tsc --noEmit"
   },
@@ -55,6 +58,7 @@
     "install",
     "mcp",
     "skills",
+    "bundled-skills",
     "docs",
     "README.md",
     "NOTICE.md",
