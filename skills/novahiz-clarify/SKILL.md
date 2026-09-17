@@ -1,94 +1,94 @@
 ---
 name: novahiz-clarify
 description: |
-  Étape 2 du pipeline Novahiz : lever les ambiguïtés avant de figer le plan.
-  Deux mécanismes combinés : un balayage d'ambiguïté par familles de risque, et des salves
-  de questions ordonnées par dépendances (la frontière), chaque question numérotée avec une
-  réponse recommandée.
+  Step 2 of the Novahiz pipeline: remove ambiguities before locking the plan.
+  Two combined mechanisms: an ambiguity sweep across risk families, and batches of
+  questions ordered by dependencies (the frontier), each question numbered with a
+  recommended answer.
   Use when the request is vague, underspecified, contradictory, or when several plausible
   readings lead to different work.
-  Triggers on: "clarifier", ambigu, "je ne sais pas encore", périmètre flou, exigences
-  manquantes, "deux lectures possibles", questions ouvertes.
+  Triggers on: "clarify", ambiguous, "not sure yet", fuzzy scope, missing requirements,
+  "two possible readings", open questions.
 license: MIT
 compatibility: opencode
 ---
 
-# novahiz-clarify : lever les ambiguïtés
+# novahiz-clarify: remove ambiguities
 
-**Étape 2 sur 6** du pipeline. Tu interroges avant que le plan ne soit figé.
+**Step 2 of 6** in the pipeline. You ask before the plan is locked.
 
-Étape précédente : `novahiz-plan`. Étape suivante : `novahiz-task`.
+Previous step: `novahiz-plan`. Next step: `novahiz-task`.
 
-## Entrée
+## Entry
 
-Demande ambiguë, contradictoire, ou assez large pour que deux lectures produisent deux travaux différents.
+Ambiguous, contradictory, or broad enough that two readings produce two different works.
 
-## A. Balayage par familles
+## A. Sweep by families
 
-Passe la demande au crible de dix familles de risque. Note chacune `claire`, `partielle` ou `manquante`.
+Run the request through ten risk families. Mark each `clear`, `partial`, or `missing`.
 
-1. Comportement et portée fonctionnelle
-2. Domaine et modèle de données
-3. Parcours et interactions
-4. Qualités non fonctionnelles : performance, charge, disponibilité, sécurité, accessibilité, internationalisation
-5. Intégrations et dépendances externes
-6. Cas limites et gestion des échecs
-7. Contraintes et compromis
-8. Terminologie et cohérence
-9. Signaux de complétion : ce qui prouve que c'est fini
-10. Zones de remplissage et valeurs provisoires
+1. Behavior and functional scope
+2. Domain and data model
+3. Flows and interactions
+4. Non-functional qualities: performance, load, availability, security, accessibility, internationalization
+5. External integrations and dependencies
+6. Edge cases and failure handling
+7. Constraints and tradeoffs
+8. Terminology and consistency
+9. Completion signals: what proves it is done
+10. Fill zones and placeholder values
 
-Une famille laissée `manquante` sur la portée, les données, le découpage, les tests, l'UX ou l'exploitation devient une question. Le reste attend.
+Any family left `missing` on scope, data, splitting, tests, UX, or operations becomes a question. The rest waits.
 
-## B. Salves par frontière, posées dans l'interface
+## B. Frontier batches, posed in the interface
 
-Modélise les décisions comme un arbre : chaque décision ouvre celles qui en dépendent.
+Model decisions as a tree: each decision opens the ones that depend on it.
 
-La **frontière** est l'ensemble des décisions dont les prérequis sont déjà tranchés, donc posables maintenant sans deviner. Une salve est **un seul appel** à l'outil `question` du harness, avec une entrée par décision de la frontière.
+The **frontier** is the set of decisions whose prerequisites are already resolved, so they can be asked now without guessing. A batch is **one call** to the `question` tool, with one entry per frontier decision.
 
 ```
 question({
   questions: [
     {
-      header: "<titre court, 30 caracteres au plus>",
-      question: "<la decision, une phrase, avec son enjeu>",
+      header: "<short title, 30 chars max>",
+      question: "<the decision, one sentence, with its stakes>",
       options: [
-        { label: "<option recommandee> (Recommandé)", description: "<consequence concrete>" },
-        { label: "<option>", description: "<consequence concrete>" },
-        { label: "<option>", description: "<consequence concrete>" }
+        { label: "<recommended option> (Recommended)", description: "<concrete consequence>" },
+        { label: "<option>", description: "<concrete consequence>" },
+        { label: "<option>", description: "<concrete consequence>" }
       ]
     }
   ]
 })
 ```
 
-Règles de salve :
+Batch rules:
 
-- **Aucune question en prose dans le chat.** Le tableau interactif est le seul canal. Le chat porte le contexte, jamais la liste des questions.
-- Cinq questions au maximum, classées par impact croisé avec incertitude.
-- Deux à cinq options par question, exclusives entre elles, chacune décrite par ce qu'elle implique.
-- L'option que tu recommandes passe en premier et porte le suffixe `(Recommandé)`. L'interface ajoute une réponse libre toute seule : n'ajoute ni « Autre » ni option fourre-tout.
-- `multiple: true` seulement quand plusieurs réponses peuvent coexister.
-- Une question qui dépend d'une autre question encore ouverte appartient à une salve ultérieure.
-- Chaque réponse déplace la frontière : recalcule-la, relance un appel.
-- Tu attends le retour de l'appel avant de continuer.
+- **No prose questions in chat.** The interactive table is the only channel. Chat carries context, never the question list.
+- Five questions maximum, ranked by cross-impact with uncertainty.
+- Two to five options per question, mutually exclusive, each described by what it implies.
+- The recommended option goes first and carries the `(Recommended)` suffix. The interface adds a free-response option automatically: do not add "Other" or a catch-all.
+- `multiple: true` only when multiple answers can coexist.
+- A question that depends on another still-open question belongs to a later batch.
+- Each answer moves the frontier: recalculate it, then issue another call.
+- Wait for the call return before continuing.
 
-Si le harness courant n'expose pas d'outil `question`, tu poses **une** question par tour, la recommandation en tête, et tu attends. Tu ne déverses jamais une liste de questions d'un coup.
+If the current harness does not expose a `question` tool, ask **one** question per turn, recommended option first, and wait. Never dump a list of questions at once.
 
-Tu réponds toi-même à tout ce que deux fichiers lus suffisent à trancher.
+Answer everything yourself that two read files can settle.
 
-## Devoir de critique
+## Duty of critique
 
-Si la demande est incohérente, ambiguë, risquée ou sous-optimale, dis-le et propose une alternative. Garder le silence laisse une erreur en place.
+If the request is inconsistent, ambiguous, risky, or suboptimal, say so and propose an alternative. Staying silent leaves an error in place.
 
-## Sortie
+## Exit
 
-Une courte liste : familles ouvertes, questions posées, réponses obtenues, décisions figées. Tu passes à `novahiz-task` quand les éléments encore ouverts ne changent plus ni l'architecture, ni les données, ni les tâches, ni les tests, ni l'UX, ni l'exploitation.
+A short list: open families, questions asked, answers received, decisions locked. Move to `novahiz-task` when the remaining open items no longer change architecture, data, tasks, tests, UX, or operations.
 
-## Pièges
+## Pitfalls
 
-- Poser une question de confort sur ce qui est déjà écrit dans la demande.
-- Poser six questions là où la frontière en autorise cinq.
-- Interroger sur le style ou sur le détail d'exécution.
-- Enchaîner les salves sans relire les réponses pour recalculer la frontière.
-- Écrire les questions en prose au lieu d'ouvrir le tableau interactif.
+- Ask a comfort question about what is already stated in the request.
+- Ask six questions when the frontier allows five.
+- Ask about style or execution detail.
+- Chain batches without re-reading answers to recalculate the frontier.
+- Write questions in prose instead of opening the interactive table.

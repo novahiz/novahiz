@@ -1,13 +1,11 @@
 ---
-description: Etat de Novahiz : sante de l'installation, base, index des skills, rapport d'enforcement.
-agent: build
+description: Report Novahiz status. Arguments: $ARGUMENTS
 ---
 
-Rapporte l'état de Novahiz. Arguments : $ARGUMENTS
+1. Locate the Novahiz home: `NOVAHIZ_HOME` if set, otherwise `~/.config/novahiz`. The CLI is `<home>/src/cli.ts`.
 
-1. Localise la maison Novahiz : `NOVAHIZ_HOME` si définie, sinon `~/.config/novahiz`. Le CLI est `<maison>/src/cli.ts`.
-2. Lance `node <maison>/src/cli.ts doctor --json` et `node <maison>/src/cli.ts report --json`.
-3. Mesure la taille de `novahiz.sqlite` et la date de dernière écriture de `build/installed-skills.json`.
-4. Présente un résumé court : les anomalies bloquantes d'abord, puis les chiffres clés (lignes du journal, invocations, taille de la base, skills indexées).
+2. Run `node src/cli.ts doctor` from the Novahiz home. If it fails, report the error and stop.
 
-Lecture seule. Ne modifie rien.
+3. Measure the size of `novahiz.sqlite` and the last write date of `build/installed-skills.json`.
+
+4. Present a short summary: blocking anomalies first, then key numbers (journal rows, invocations, database size, indexed skills).

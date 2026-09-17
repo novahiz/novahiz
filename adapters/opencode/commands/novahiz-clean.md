@@ -1,16 +1,15 @@
 ---
-description: Nettoie partiellement les anciennes donnees de novahiz.sqlite (journal, progression, sessions, taches terminees).
-agent: build
+description: Clean up old Novahiz database data. Arguments: $ARGUMENTS
 ---
 
-Nettoie les anciennes données de la base Novahiz. Arguments : $ARGUMENTS
+1. Locate the Novahiz home: `NOVAHIZ_HOME` if set, otherwise `~/.config/novahiz`. The CLI is `<home>/src/cli.ts`.
 
-1. Localise la maison Novahiz : `NOVAHIZ_HOME` si la variable est définie, sinon `~/.config/novahiz`. Le CLI est `<maison>/src/cli.ts`.
-2. Lance le mode plan : `node <maison>/src/cli.ts clean $ARGUMENTS --dry-run --json`.
-3. Présente le tableau : cible, ancienneté, lignes par table, total à retirer.
-4. Demande une confirmation explicite avec l'outil `question` (appliquer, changer la cible, annuler).
-5. Si l'utilisateur confirme, relance la même commande avec `--apply` à la place de `--dry-run`, puis rapporte les lignes réellement supprimées et la taille avant et après.
+2. Default to `--dry-run` if no arguments are provided.
 
-Ne supprime jamais sans confirmation dans ce tour. Lancer la commande ne vaut pas accord.
+3. Present a table: target, age, rows per table, total to remove.
 
-Cibles : `logs` (défaut), `roadmap`, `sessions`, `tasks`, `all`. Drapeaux : `--days N` (défaut 30), `--vacuum`, `--target <cible>`.
+4. Ask the user for explicit confirmation before proceeding.
+
+5. If confirmed, re-run the same command with `--apply` instead of `--dry-run`, then report the rows actually removed and the size before and after.
+
+Targets: `logs` (default), `roadmap`, `sessions`, `tasks`, `all`. Flags: `--days N` (default 30), `--vacuum`, `--target <target>`.

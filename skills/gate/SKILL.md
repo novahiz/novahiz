@@ -1,13 +1,13 @@
 ---
 name: gate
-description: Le gardien du système Novahiz
+description: The guardian of the Novahiz system
 ---
 
 # Novahiz Gate Skill
 
-Ce skill est OBLIGATOIRE avant et après l'exécution d'une tâche.
+This skill is MANDATORY before and after task execution.
 
-1. Appelez l'outil MCP `novahiz_gate`.
-2. Si le Gate échoue (FAIL), résolvez les violations de règles affichées.
-3. Ne procédez JAMAIS à des modifications de code tant que le Gate n'est pas PASS.
-4. Une fois validé, vous pouvez exécuter le plan ou passer au post-task.
+1. Call the MCP tool `novahiz_gate`.
+2. If the gate fails (FAIL), resolve the displayed rule violations.
+3. Never proceed with code modifications until the gate passes.
+4. Once validated, execute the plan or move to post-task.

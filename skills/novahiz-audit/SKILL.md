@@ -1,75 +1,75 @@
 ---
 name: novahiz-audit
 description: |
-  Audit de fin de session pour Novahiz. CATEGORY-AWARE : ne contrôle que les règles des
-  catégories réellement rencontrées. S'appuie sur l'état vérifiable (registre d'exécution,
-  journal du gate, skills chargées, diff de la session) et jamais sur la mémoire de l'agent.
-  Use at the END of a session, or when the user says "audit" or "vérifie".
-  Triggers on: "audit", "vérifie", fin de session, compliance check, ce qu'on a oublié.
+  End-of-session audit for Novahiz. CATEGORY-AWARE: only checks rules for
+  categories actually encountered. Relies on verifiable state (execution ledger,
+  gate journal, loaded skills, session diff) and never on agent memory.
+  Use at the END of a session, or when the user says "audit" or "verify".
+  Triggers on: "audit", "verify", end of session, compliance check, what we forgot.
 license: MIT
 compatibility: opencode
 ---
 
-# novahiz-audit : contrôle de fin de session
+# novahiz-audit: end-of-session check
 
-Tu audites à partir de faits vérifiables. Une case cochée de mémoire ne vaut rien.
+Audit from verifiable facts. A memory-check has no value.
 
-## Les 14 catégories réelles
+## The 14 real categories
 
 code, debug, review, audit, test, research, browser, design-ui, database-supabase, docs-writing, planning, devops, data, general.
 
-`general` est la catégorie de repli. Il n'y a pas de catégorie `trivial` dans le catalogue.
+`general` is the fallback category. There is no `trivial` category in the catalog.
 
-## Ce qui se vérifie vraiment
+## What is actually checked
 
-| Contrôle | Source de preuve | S'applique à |
+| Check | Proof source | Applies to |
 |---|---|---|
-| Plan et registre ouverts | `novahiz_task status` ou `todoread` | tout sauf research |
-| Étapes de la catégorie parcourues | `novahiz_roadmap --category X` puis `novahiz_step` | tout sauf research et general |
-| Skills requises chargées | journal du gate, table `enforcement_log` | tout |
-| humanizer appliqué sur la prose | règles R1 déclenchées, ou skill chargée | docs-writing, code, audit, planning, design-ui |
-| impeccable appliqué au style | règles R2 déclenchées, ou skill chargée | design-ui |
-| Revue de code faite | étape `review` du roadmap, skill `code-reviewer` | code, review, debug |
-| Scan de sécurité | étape `scan`, skill `security-guidance` | audit |
-| Preuve sur les étapes de vérification | `novahiz_task` refuse `done` sans `proof` | tout |
-| Mémoire à jour | `MEMORY.md` plus page vault, via `novahiz-memory` | tout sauf research |
-| Aucune simulation | affirmations recoupées avec des sorties réelles | tout |
+| Plan and ledger open | `novahiz_task status` or `todoread` | all except research |
+| Category steps traversed | `novahiz_roadmap --category X` then `novahiz_step` | all except research and general |
+| Required skills loaded | gate journal, `enforcement_log` table | all |
+| humanizer applied on prose | R1 rules triggered, or skill loaded | docs-writing, code, audit, planning, design-ui |
+| impeccable applied to style | R2 rules triggered, or skill loaded | design-ui |
+| Code review done | `review` step in roadmap, `code-reviewer` skill | code, review, debug |
+| Security scan | `scan` step, `security-guidance` skill | audit |
+| Proof on verification steps | `novahiz_task` rejects `done` without `proof` | all |
+| Memory up to date | `MEMORY.md` plus vault page, via `novahiz-memory` | all except research |
+| No simulation | claims cross-checked with real outputs | all |
 
-## Méthode
+## Method
 
-1. Récupère la catégorie primaire et les catégories rencontrées.
-2. Pour chaque contrôle applicable, cherche la preuve. Pas de preuve, pas de validation.
-3. Note `conforme`, `manquant` ou `non applicable`.
-4. Score : conformes sur applicables, en pourcentage. Sous 70 %, propose des correctifs précis. À 90 % et plus, conclus « session conforme ».
+1. Retrieve the primary category and encountered categories.
+2. For each applicable check, look for proof. No proof, no pass.
+3. Mark `compliant`, `missing`, or `not applicable`.
+4. Score: compliant over applicable, as percentage. Below 70%, propose precise fixes. At 90% and above, conclude "session compliant".
 
-## Sortie
+## Exit
 
-Un rapport court dans la conversation :
+A short report in the conversation:
 
 ```
-## Audit de session
-Catégories : code, test
-| Contrôle | Statut | Preuve |
+## Session audit
+Categories: code, test
+| Check | Status | Proof |
 |---|---|---|
-| Registre | conforme | 6 étapes, 1 bloquée |
-| humanizer | conforme | chargée avant rédaction |
-| Revue de code | manquant | étape review non exécutée |
-Score : 67 %
+| Ledger | compliant | 6 steps, 1 blocked |
+| humanizer | compliant | loaded before writing |
+| Code review | missing | review step not executed |
+Score: 67%
 
-## À corriger
-- Lancer code-reviewer sur les fichiers modifiés
+## To fix
+- Run code-reviewer on modified files
 
-## À retenir
+## To remember
 - ...
 ```
 
-## Pièges
+## Pitfalls
 
-- Cocher une règle sans preuve.
-- Inventer un journal de conformité, un fichier de session ou un script de validation : ils n'existent pas dans ce système.
-- Auditer des catégories qui n'ont pas été rencontrées.
-- Confondre absence de preuve et conformité.
+- Check a rule without proof.
+- Invent a compliance log, session file, or validation script: they do not exist in this system.
+- Audit categories that were not encountered.
+- Confuse absence of proof with compliance.
 
-## Suite
+## Next
 
-Ce qui se répare se répare tout de suite : relancer humanizer, lancer la revue, écrire la mémoire. Le reste est consigné pour la session suivante.
+What can be fixed is fixed now: reload humanizer, run the review, write the memory. The rest is logged for the next session.

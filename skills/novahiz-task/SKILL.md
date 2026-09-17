@@ -1,105 +1,105 @@
 ---
 name: novahiz-task
 description: |
-  Étape 3 du pipeline Novahiz : convertir un plan en tâches atomiques, ordonnées et
-  vérifiables. Chaque tâche porte un objectif, des critères d'acceptation testables, une
-  preuve, ses dépendances, les fichiers qu'elle possède et sa taille (XS à XL).
+  Step 3 of the Novahiz pipeline: convert a plan into atomic, ordered, verifiable tasks.
+  Each task carries an objective, testable acceptance criteria, proof, dependencies,
+  owned files, and size (XS to XL).
   Use when a plan must become an ordered task list, or when work must be split across
   sessions or agents.
-  Triggers on: "découpe", liste de tâches, todo, sous-tâches, critères d'acceptation,
-  priorisation, "par quoi je commence".
+  Triggers on: "break down", task list, todo, subtasks, acceptance criteria,
+  prioritization, "what do I start with".
 license: MIT
 compatibility: opencode
 ---
 
-# novahiz-task : découper en tâches vérifiables
+# novahiz-task: split into verifiable tasks
 
-**Étape 3 sur 6** du pipeline. Le plan dit où l'on va ; cette étape dit par quels pas, dans quel ordre, et comment chaque pas se ferme.
+**Step 3 of 6** in the pipeline. The plan says where we go; this step says by what steps, in what order, and how each step closes.
 
-Étape précédente : `novahiz-clarify`. Étape suivante : `novahiz-analyse`.
+Previous step: `novahiz-clarify`. Next step: `novahiz-analyse`.
 
-## Contrat de tâche
+## Task contract
 
-Toutes les tâches prennent la même forme. Une tâche sans critère d'acceptation et sans preuve reste une intention.
+All tasks take the same shape. A task without acceptance criteria and proof remains an intention.
 
 ```markdown
-## Tâche N : <titre court, à l'impératif>
+## Task N: <short title, imperative mood>
 
-Objectif : une phrase.
-Critères d'acceptation :
-- [ ] condition testable
-- [ ] condition testable
-Preuve : la commande, le test ou l'observation qui ferme la tâche
-Dépend de : #A, #B (ou Aucune)
-Fichiers concernés : chemin/a, chemin/b
-Taille : XS | S | M | L | XL
+Objective: one sentence.
+Acceptance criteria:
+- [ ] testable condition
+- [ ] testable condition
+Proof: the command, test, or observation that closes the task
+Depends on: #A, #B (or None)
+Files involved: path/a, path/b
+Size: XS | S | M | L | XL
 ```
 
-## Le registre refuse une étape `verify` sans preuve
+## The ledger rejects a `verify` step without proof
 
-`novahiz_task` applique cette règle : une étape de nature `verify` ne se ferme pas sans `proof`. La preuve se décide donc au moment du plan, pas au moment du doute.
+`novahiz_task` enforces this rule: a step of kind `verify` cannot close without `proof`. Proof is decided at plan time, not at doubt time.
 
 | Action | Usage |
 |---|---|
-| `plan` | déposer la liste complète d'un coup |
-| `todo` | ajouter une étape (`kind` : read, edit, verify, delegate) |
-| `start` / `done` | ouvrir, fermer (`done` exige `proof` sur une étape verify) |
-| `block` | bloquer, avec `reason` |
-| `review` | réviser le plan entre deux étapes |
-| `amend` / `insert` / `drop` / `reorder` | corriger la liste sans la réécrire |
-| `signals` / `status` / `resume` | relire l'état |
+| `plan` | deposit the full list at once |
+| `todo` | add a step (`kind`: read, edit, verify, delegate) |
+| `start` / `done` | open, close (`done` requires `proof` on a verify step) |
+| `block` | block, with `reason` |
+| `review` | revise the plan between steps |
+| `amend` / `insert` / `drop` / `reorder` | fix the list without rewriting it |
+| `signals` / `status` / `resume` | read state |
 
-## Taille
+## Size
 
-| Taille | Fichiers | Exemple |
+| Size | Files | Example |
 |---|---|---|
-| XS | 1 | ajouter une règle de validation |
-| S | 1 à 2 | un endpoint |
-| M | 3 à 5 | un parcours complet |
-| L | 5 à 8 | fonctionnalité touchant plusieurs composants |
-| XL | 8 et plus | à redécouper, sans exception |
+| XS | 1 | add a validation rule |
+| S | 1 to 2 | one endpoint |
+| M | 3 to 5 | one complete flow |
+| L | 5 to 8 | feature touching multiple components |
+| XL | 8 and above | must be split, no exception |
 
-Redécoupe encore si le travail dépasse une session suivie, si les critères ne tiennent pas en trois puces, si deux sous-systèmes indépendants sont touchés, ou si le titre contient « et ». Ce « et » signale deux tâches collées.
+Split again if the work exceeds one focused session, if criteria do not fit in three bullets, if two independent subsystems are touched, or if the title contains "and". That "and" signals two tasks glued together.
 
-## Ordre
+## Order
 
-- Les dépendances d'abord.
-- Chaque tâche laisse le système fonctionnel.
-- Les tâches risquées passent tôt : échouer vite coûte moins cher.
-- Un point de contrôle tous les deux ou trois pas. Il sert à prouver, puis à décider de continuer, corriger ou abandonner.
+- Dependencies first.
+- Each task leaves the system functional.
+- Risky tasks go early: failing fast costs less.
+- One checkpoint every two or three steps. It serves to prove, then to decide whether to continue, fix, or abort.
 
-## Catégories qui exigent cette étape
+## Categories that require this step
 
-`code`, `browser`, `design-ui` et `planning`.
+`code`, `browser`, `design-ui`, and `planning`.
 
 ## Discipline
 
-- Une seule étape `in_progress` à la fois.
-- Mise à jour en temps réel, pas de complétion groupée.
-- `completed` seulement après vérification, jamais sur intention.
-- Une étape bloquée reste `in_progress` et une tâche de suivi décrit le blocage.
-- Le vocabulaire de l'utilisateur est repris tel quel : commandes, options, arguments, ordre.
+- One `in_progress` step at a time.
+- Real-time updates, no batch completion.
+- `completed` only after verification, never based on intention.
+- A blocked step stays `in_progress` and a follow-up task describes the blockage.
+- Reuse the user's vocabulary exactly: commands, options, arguments, order.
 
-## Conflit de plan
+## Plan conflict
 
-Avant d'écrire, regarde s'il existe un plan encore ouvert. Même travail : mise à jour en place. Travail différent : arrêt, et tu poses la décision dans l'outil `question` du harness (reprendre, remplacer, créer à côté), jamais en prose. Tu ne supprimes, n'écrases et ne renommes jamais un plan ouvert de ta propre initiative.
+Before writing, check whether an open plan exists. Same work: update in place. Different work: stop, and present the decision through the `question` tool (resume, replace, create alongside), never in prose. Never delete, overwrite, or rename an open plan on your own initiative.
 
-## Rationnalisations
+## Rationalizations
 
-| Rationnalisation | Réalité |
+| Rationalization | Reality |
 |---|---|
-| « je verrai en avançant » | c'est ainsi qu'on obtient un enchevêtrement et du travail refait |
-| « les tâches sont évidentes » | écris-les : l'écrit révèle les dépendances et les cas limites oubliés |
-| « planifier, c'est du temps perdu » | la planification fait partie du travail |
-| « je garde tout en tête » | la fenêtre de contexte est finie, un plan écrit traverse les sessions |
-| « l'ancien plan est périmé » | les tâches non cochées portent un état qui n'existe nulle part ailleurs |
+| "I'll see as I go" | that is how you get entanglement and rework |
+| "the tasks are obvious" | write them: writing reveals dependencies and forgotten edge cases |
+| "planning is wasted time" | planning is part of the work |
+| "I'll keep it all in context" | the context window is finite; a written plan survives sessions |
+| "the old plan is stale" | unchecked tasks carry state that exists nowhere else |
 
-## Drapeaux rouges
+## Red flags
 
-- implémentation lancée sans liste de tâches
-- tâche « implémenter la fonctionnalité » sans critère d'acceptation
-- plan sans étape de vérification
-- toutes les tâches en XL
-- aucun point de contrôle
-- ordre de dépendance ignoré
-- plan écrasé sans confirmation
+- Implementation started without a task list
+- Task "implement the feature" without acceptance criteria
+- Plan without a verification step
+- All tasks in XL
+- No checkpoints
+- Dependency order ignored
+- Plan overwritten without confirmation

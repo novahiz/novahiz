@@ -1,76 +1,76 @@
 ---
 name: novahiz-converge
 description: |
-  Étape 6 du pipeline Novahiz : fermer l'écart entre l'intention et le code.
-  Construit l'inventaire d'intention (demande, plan, critères d'acceptation, étapes du
-  registre, principes du projet), évalue l'état présent du code, classe chaque élément
-  satisfait, partiel ou non satisfait, et ajoute les restes comme étapes tracées.
-  En ajout seul : ne réécrit rien, ne supprime aucune étape, ne touche pas au code.
+  Step 6 of the Novahiz pipeline: close the gap between intent and code.
+  Build the intent inventory (request, plan, acceptance criteria, ledger steps,
+  project principles), evaluate the current code state, classify each element as
+  satisfied, partial, or unsatisfied, and add remainders as traced steps.
+  Add-only: rewrite nothing, delete no step, do not touch the code.
   Use at the end of an implementation, before declaring work done.
-  Triggers on: "c'est fini ?", vérifier la feature, convergence, analyse d'écart,
-  "qu'est-ce qui reste", clôture.
+  Triggers on: "is it done?", verify the feature, convergence, gap analysis,
+  "what remains", closure.
 license: MIT
 compatibility: opencode
 ---
 
-# novahiz-converge : fermer l'écart
+# novahiz-converge: close the gap
 
-**Étape 6 sur 6** du pipeline. Elle tourne après l'implémentation, jamais pendant.
+**Step 6 of 6** in the pipeline. It runs after implementation, never during.
 
-Étape précédente : `novahiz-implement`.
+Previous step: `novahiz-implement`.
 
-## Ne pas confondre avec l'audit
+## Do not confuse with audit
 
-`novahiz-converge` mesure l'écart entre ce qui était demandé et ce que le code fait. `novahiz-audit` mesure la conformité de la session aux règles. Le premier porte sur le travail, le second sur la méthode.
+`novahiz-converge` measures the gap between what was requested and what the code does. `novahiz-audit` measures session compliance with rules. The first is about work; the second is about method.
 
-## Source d'intention
+## Intent source
 
-L'intention vient des artefacts, pas de ta mémoire :
+Intent comes from artifacts, not from your memory:
 
-- la demande initiale,
-- le plan,
-- les critères d'acceptation des tâches,
-- le registre d'exécution : `novahiz_task action="status"` et `action="signals"`,
-- les principes du projet, à commencer par `AGENTS.md`.
+- the original request,
+- the plan,
+- task acceptance criteria,
+- the execution ledger: `novahiz_task action="status"` and `action="signals"`,
+- project principles, starting with `AGENTS.md`.
 
-Constitue l'inventaire : chaque élément identifié et traçable.
+Build the inventory: every identified and traceable element.
 
-## Évaluation
+## Evaluation
 
-Regarde l'état présent du code. Ce n'est pas un diff : ni git, ni branche, ni historique. Tu évalues ce que le code fait maintenant.
+Look at the current state of the code. This is not a diff: no git, no branch, no history. You evaluate what the code does now.
 
-Classe chaque élément :
+Classify each element:
 
-- **satisfait** : le code fait ce qui est demandé, et la preuve le montre.
-- **partiel** : une partie tient, le reste manque ou ne se prouve pas.
-- **non satisfait** : rien ne couvre l'élément.
+- **satisfied**: the code does what is requested, and the proof shows it.
+- **partial**: part holds, the rest is missing or unproven.
+- **unsatisfied**: nothing covers the element.
 
-Une étape fermée sans preuve ne compte pas comme satisfaite, même si le registre la dit `done`.
+A closed step without proof does not count as satisfied, even if the ledger says `done`.
 
-## Écriture en ajout seul
+## Add-only writing
 
-- La seule écriture autorisée est l'ajout des restes au registre, chacun devenant une étape traçable : `novahiz_task action="insert"`.
-- Tu ne modifies ni le plan, ni les critères, ni les étapes existantes.
-- Tu ne renommes, ne renumérotes, ne réordonnes et ne supprimes aucune étape.
-- L'acceptation du reste ouvert se demande par l'outil `question` du harness : accepter le reste, le traiter maintenant, ou le tracer pour plus tard. Un reste non explicitement accepté garde la clôture ouverte.
-- Tu ne touches pas au code applicatif.
+- The only permitted writing is adding remainders to the ledger, each becoming a traced step: `novahiz_task action="insert"`.
+- You modify neither the plan, nor the criteria, nor existing steps.
+- You rename, renumber, reorder, and delete no step.
+- Acceptance of open remainders is asked through the `question` tool: accept the remainders, handle them now, or trace them for later. A remainder not explicitly accepted keeps the closure open.
+- You do not touch application code.
 
-Si tout est satisfait, tu ne touches à rien et tu rapportes un résultat propre. Un rapport vide n'est pas un résultat propre.
+If everything is satisfied, you touch nothing and report a clean result. An empty report is not a clean result.
 
-## Sévérité
+## Severity
 
-La violation d'un principe MUST d'`AGENTS.md` est le niveau le plus haut et produit une étape de remédiation. Si les principes sont absents, tu le dis et tu continues.
+A violation of a MUST principle in `AGENTS.md` is the highest level and produces a remediation step. If principles are absent, state it and continue.
 
-## Clôture
+## Closure
 
-Rapporte trois listes : ce qui est satisfait et prouvé, ce qui reste ouvert, ce qui n'a pas pu être évalué et pourquoi. Le travail est terminé quand la liste ouverte est vide, ou quand l'utilisateur accepte explicitement le reste.
+Report three lists: what is satisfied and proven, what remains open, what could not be evaluated and why. Work is finished when the open list is empty, or when the user explicitly accepts the remainders.
 
-## Catégories concernées
+## Categories involved
 
-L'étape de convergence apparaît dans `code`, `debug`, `test`, `audit`, `browser`, `design-ui`, `database-supabase`, `docs-writing`, `planning`, `devops` et `data`.
+The convergence step appears in `code`, `debug`, `test`, `audit`, `browser`, `design-ui`, `database-supabase`, `docs-writing`, `planning`, `devops`, and `data`.
 
-## Pièges
+## Pitfalls
 
-- Déclarer satisfait ce qui n'a jamais été exécuté.
-- Confondre « l'étape est cochée » et « le comportement existe ».
-- Réécrire le plan pour qu'il colle au résultat obtenu.
+- Declare as satisfied what was never executed.
+- Confuse "the step is checked" with "the behavior exists".
+- Rewrite the plan to match the obtained result.

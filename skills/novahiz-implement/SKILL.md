@@ -1,80 +1,80 @@
 ---
 name: novahiz-implement
 description: |
-  Étape 5 du pipeline Novahiz : écrire le code par incréments qui laissent le système
-  utilisable. Cycle implémenter, tester, vérifier, commit, tranche suivante.
-  Règles de simplicité, de discipline de périmètre, de défauts sûrs et de réversibilité.
+  Step 5 of the Novahiz pipeline: write code in increments that leave the system usable.
+  Cycle: implement, test, verify, commit, next slice.
+  Rules of simplicity, scope discipline, safe defaults, and reversibility.
   Use when writing or changing code for an approved task.
-  Triggers on: implémenter, coder, écrire le code, ajouter l'endpoint, construire le
-  composant, appliquer le changement, faire passer le test.
+  Triggers on: implement, code, write the code, add the endpoint, build the
+  component, apply the change, make the test pass.
 license: MIT
 compatibility: opencode
 ---
 
-# novahiz-implement : écrire par incréments propres
+# novahiz-implement: write in clean increments
 
-**Étape 5 sur 6** du pipeline. Tu écris ce que la tâche demande, ni plus ni moins.
+**Step 5 of 6** in the pipeline. You write what the task asks, no more, no less.
 
-Étape précédente : `novahiz-analyse`. Étape suivante : `novahiz-converge`.
+Previous step: `novahiz-analyse`. Next step: `novahiz-converge`.
 
-## Cycle d'incrément
+## Increment cycle
 
 ```
-implémenter -> tester -> vérifier -> commit -> tranche suivante
+implement -> test -> verify -> commit -> next slice
 ```
 
-Tu ne repars pas de zéro à chaque tranche. Chaque tranche laisse un système qui compile et dont les tests passent.
+Do not start from scratch at each slice. Each slice leaves a system that compiles and whose tests pass.
 
-## Ouvre et ferme l'étape
+## Open and close the step
 
 ```
 novahiz_task action="start" id="<todo>"
-... travail ...
-novahiz_task action="done"  id="<todo>" proof="<commande et résultat>"
+... work ...
+novahiz_task action="done"  id="<todo>" proof="<command and result>"
 ```
 
-`done` sur une étape de nature `verify` exige la preuve. Sans preuve, l'étape reste ouverte.
+`done` on a step of kind `verify` requires proof. Without proof, the step stays open.
 
-## Choisir la première tranche
+## Choose the first slice
 
-- Verticale par défaut : elle traverse les couches pour être observable de bout en bout.
-- Contrat d'abord : fige types et interfaces, puis les deux côtés avancent en parallèle.
-- Risque d'abord : prouve le morceau dont la réussite est la moins certaine.
+- Vertical by default: it crosses layers to be observable end-to-end.
+- Contract-first: freeze types and interfaces, then both sides advance in parallel.
+- Risk-first: prove the least certain piece.
 
-## Le gate va se déclencher
+## The gate will trigger
 
-Écrire du code fait tomber les règles : R1-code-prose exige `humanizer` dès que le contenu porte de la prose (commentaires, messages, libellés), R2 exige `impeccable` dès qu'un fichier de style est touché. Charge-les avant d'écrire, pas après le refus.
+Writing code fires rules: R1-code-prose requires `humanizer` when the content carries prose (comments, messages, labels); R2 requires `impeccable` when a style file is touched. Load them before writing, not after the refusal.
 
-## Règles d'écriture
+## Writing rules
 
-**Simplicité.** Quelle est la chose la plus simple qui puisse marcher ? Moins de lignes. Une abstraction doit gagner sa complexité. Trois lignes similaires valent mieux qu'une abstraction prématurée. Écris la version naïve et évidemment correcte, puis optimise après preuve par les tests.
+**Simplicity.** What is the simplest thing that could work? Fewer lines. An abstraction must earn its complexity. Three similar lines are better than a premature abstraction. Write the naive and obviously correct version, then optimize after proof by tests.
 
-**Périmètre.** Ne touche que ce que la tâche exige. Pas de nettoyage du code adjacent, pas de refactor d'imports d'autres fichiers, pas de suppression d'un commentaire non compris, pas de fonctionnalité hors périmètre. Ce que tu vois sans y toucher se note « vu mais non touché » et devient une proposition : `novahiz_task action="insert"`, jamais une modification surprise.
+**Scope.** Touch only what the task requires. No adjacent code cleanup, no import refactoring of other files, no deletion of an misunderstood comment, no out-of-scope feature. What you see without touching it is noted "seen but untouched" and becomes a proposal: `novahiz_task action="insert"`, never a surprise modification.
 
-**Une chose à la fois.** Pas de composant plus refactor plus configuration de build dans le même pas.
+**One thing at a time.** No component refactor plus build config in the same step.
 
-**Garder compilable.** Le build et les tests existants passent après chaque incrément.
+**Keep compilable.** The build and existing tests pass after each increment.
 
-**Défauts sûrs.** Nouveau comportement en opt-in, valeur conservatrice. Une option absente vaut faux.
+**Safe defaults.** New behavior is opt-in, conservative value. An absent option defaults to false.
 
-**Réversible.** Changements additifs, modifications minimales, migration avec retour arrière, et jamais supprimer puis remplacer dans le même commit.
+**Reversible.** Additive changes, minimal modifications, rollback-capable migration, and never delete-then-replace in the same commit.
 
-## Confirmer avant l'irréversible
+## Confirm before irreversible
 
-Une action qui détruit de la donnée, casse une compatibilité ou ne se défait pas passe par l'outil `question` du harness avant d'être lancée. Les options sont concrètes : lancer, sauvegarder d'abord, renoncer. Une migration sans retour arrière et une suppression de données en font partie. Le feu vert se demande, il ne se suppose pas.
+An action that destroys data, breaks compatibility, or cannot be undone goes through the `question` tool before being launched. Options are concrete: proceed, back up first, abort. A no-rollback migration and a data deletion are in this category. The green light is asked, never assumed.
 
-## Ne rien inventer
+## Never invent
 
-N'écris pas d'API, de fonction ou d'import dont tu n'as pas vérifié l'existence. Trois recours réels : le code lui-même, la documentation de la version installée via `context7`, et la skill `zero-hallucination-coder`. Un symbole supposé devient une dette immédiate.
+Do not write an API, function, or import whose existence you have not verified. Three real sources: the code itself, the installed version's documentation via `context7`, and the `zero-hallucination-coder` skill. A presumed symbol becomes immediate debt.
 
-## Quand la preuve est rouge
+## When proof is red
 
-Corrige, ou bloque l'étape avec `novahiz_task action="block"` et une raison. Tu ne masques pas un test en le désactivant, et tu ne contournes pas un échec par un bloc d'erreur silencieux.
+Fix it, or block the step with `novahiz_task action="block"` and a reason. Do not mask a test by disabling it, and do not bypass a failure with a silent error block.
 
-## Catégories concernées
+## Categories involved
 
-L'étape d'implémentation apparaît dans `code`, `debug`, `test`, `design-ui`, `database-supabase`, `devops` et `data`.
+The implementation step appears in `code`, `debug`, `test`, `design-ui`, `database-supabase`, `devops`, and `data`.
 
-## Sortie
+## Exit
 
-Chaque incrément produit les fichiers modifiés, la preuve exécutée et son résultat. Tu passes à `novahiz-converge` quand les tranches sont terminées.
+Each increment produces the modified files, the executed proof, and its result. Move to `novahiz-converge` when the slices are complete.

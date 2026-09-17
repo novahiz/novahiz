@@ -1,10 +1,10 @@
 ---
 name: novahiz-planner
 description: |
-  Orchestrateur du pipeline Novahiz. CATEGORY-AWARE et BLOQUANT : aucun travail non
-  trivial ne commence sans plan écrit.
-  Le pipeline suit six étapes dans l'ordre : plan, clarification, tâches, analyse,
-  implémentation, convergence. Chaque étape a sa skill dédiée.
+  Novahiz pipeline orchestrator. CATEGORY-AWARE and BLOCKING: no non-trivial work
+  starts without a written plan.
+  The pipeline follows six steps in order: plan, clarification, tasks, analysis,
+  implementation, convergence. Each step has its dedicated skill.
   Use at the START of any request with 3+ steps, several files, or an unclear scope.
   Triggers on: multi-step tasks, feature implementation, refactoring, debugging sessions,
   migrations, architecture work, "plan this", "break this down", "where do I start".
@@ -12,93 +12,93 @@ license: MIT
 compatibility: opencode
 ---
 
-# novahiz-planner : orchestrateur du pipeline
+# novahiz-planner: pipeline orchestrator
 
-Tu ouvres le travail. Toute tâche non triviale suit la même séquence.
+You open the work. Every non-trivial task follows the same sequence.
 
-## Loi d'entrée
+## Entry law
 
 ```
-SI la catégorie n'est ni research ni general ET qu'aucune tâche n'est ouverte :
-  -> ARRÊT. Aucune édition, aucune commande.
-  -> Ouvre le pipeline, puis exécute.
+IF the category is neither research nor general AND no task is open:
+  -> STOP. No edits, no commands.
+  -> Open the pipeline, then execute.
 ```
 
-## Le pipeline
+## The pipeline
 
-| # | Étape | Skill | Produit | Ferme quand | Écrit ? |
+| # | Step | Skill | Produces | Closes when | Writes? |
 |---|---|---|---|---|---|
-| 1 | Plan | `novahiz-plan` | direction, périmètre, ordre de dépendances, stratégie de découpage, risques | le plan tient et l'utilisateur l'a vu | non |
-| 2 | Clarification | `novahiz-clarify` | familles d'ambiguïté, salves de questions, décisions figées | les éléments ouverts ne changent plus ni architecture, ni données, ni tâches, ni tests, ni UX, ni exploitation | non |
-| 3 | Tâches | `novahiz-task` | tâches atomiques avec critères d'acceptation et preuve | chaque tâche a un critère et une preuve, et l'ordre tient | registre seul |
-| 4 | Analyse | `novahiz-analyse` | fichiers, symboles, chemins de données, inconnues | le périmètre utile est compris et les inconnues nommées | non |
-| 5 | Implémentation | `novahiz-implement` | incréments qui gardent le système utilisable | les tranches sont terminées et vertes | oui |
-| 6 | Convergence | `novahiz-converge` | inventaire d'intention, écart classé, restes tracés | la liste ouverte est vide ou explicitement acceptée | registre seul |
+| 1 | Plan | `novahiz-plan` | direction, scope, dependency order, splitting strategy, risks | the plan holds and the user has seen it | no |
+| 2 | Clarification | `novahiz-clarify` | ambiguity families, question batches, locked decisions | open items no longer change architecture, data, tasks, tests, UX, or operations | no |
+| 3 | Tasks | `novahiz-task` | atomic tasks with acceptance criteria and proof | every task has criteria and proof, and the order holds | ledger only |
+| 4 | Analysis | `novahiz-analyse` | files, symbols, data paths, unknowns | the useful scope is understood and unknowns are named | no |
+| 5 | Implementation | `novahiz-implement` | increments that keep the system usable | slices are complete and green | yes |
+| 6 | Convergence | `novahiz-converge` | intent inventory, classified gap, traced remainders | the open list is empty or explicitly accepted | ledger only |
 
-Deux retours en arrière prévus : la clarification renvoie au plan quand une réponse change l'architecture ; la convergence renvoie aux tâches quand un reste apparaît.
+Two back-loops are provided: clarification returns to plan when an answer changes architecture; convergence returns to tasks when a remainder appears.
 
-## Ce que le gate applique vraiment
+## What the gate actually enforces
 
-Le gate (voir `novahiz-gate`) ne bloque que sur les étapes de type `skill`. Dans le roadmap `code`, ce sont `novahiz-plan`, `novahiz-clarify`, `novahiz-task`, `novahiz-analyse` et `code-reviewer`. Les étapes `implement` et `converge` figurent dans `requiredSkills` mais ne refusent aucune édition.
+The gate (see `novahiz-gate`) blocks only on steps of kind `skill`. In the `code` roadmap, these are `novahiz-plan`, `novahiz-clarify`, `novahiz-task`, `novahiz-analyse`, and `code-reviewer`. Steps `implement` and `converge` appear in `requiredSkills` but refuse no edits.
 
-Conséquence pratique : si l'implémentation ou la convergence n'ont pas lieu, rien ne s'y oppose mécaniquement. Le pipeline tient donc aussi parce qu'il est suivi, pas seulement parce qu'il est programmé.
+Practical consequence: if implementation or convergence do not happen, nothing mechanically opposes them. The pipeline holds because it is followed, not only because it is programmed.
 
-## Lecture seule
+## Read-only
 
-Les étapes 1, 2 et 4 ne modifient aucun fichier. L'étape 3 n'écrit que dans le registre d'exécution. L'écriture de code commence à l'étape 5.
+Steps 1, 2, and 4 modify no files. Step 3 writes only to the execution ledger. Code writing begins at step 5.
 
-## Les 14 catégories
+## The 14 categories
 
 code, debug, review, audit, test, research, browser, design-ui, database-supabase, docs-writing, planning, devops, data, general.
 
-Le pipeline complet s'applique à `code`, `debug`, `browser`, `design-ui`, `database-supabase`, `planning`, `devops` et `data`. `review`, `audit` et `test` gardent leurs étapes métier et se terminent par une convergence. `research` et `general` n'imposent aucune étape.
+The full pipeline applies to `code`, `debug`, `browser`, `design-ui`, `database-supabase`, `planning`, `devops`, and `data`. `review`, `audit`, and `test` keep their business steps and end with convergence. `research` and `general` enforce no steps.
 
-## Étapes annexes selon la catégorie
+## Additional steps by category
 
-| Catégorie | Pipeline 1 à 6 | Code review | Mémoire | Audit | Next steps |
+| Category | Pipeline 1 to 6 | Code review | Memory | Audit | Next steps |
 |---|---|---|---|---|---|
-| `code` | oui | oui | oui | oui | oui |
-| `debug` | oui | oui | oui | oui | oui |
-| `database-supabase` | oui | oui | oui | oui | oui |
-| `browser` | oui | non | oui | oui | oui |
-| `design-ui` | oui | non | oui | oui | oui |
-| `planning` | oui | non | oui | oui | oui |
-| `devops` | oui | non | oui | oui | oui |
-| `data` | oui | non | oui | oui | oui |
-| `review` | étapes métier | oui | oui | oui | oui |
-| `audit` | étapes métier | non | oui | oui | oui |
-| `test` | étapes métier | non | oui | oui | oui |
-| `docs-writing` | non | non | oui | oui | oui |
-| `research` | non | non | non | non | oui |
-| `general` | non | non | oui | oui | oui |
+| `code` | yes | yes | yes | yes | yes |
+| `debug` | yes | yes | yes | yes | yes |
+| `database-supabase` | yes | yes | yes | yes | yes |
+| `browser` | yes | no | yes | yes | yes |
+| `design-ui` | yes | no | yes | yes | yes |
+| `planning` | yes | no | yes | yes | yes |
+| `devops` | yes | no | yes | yes | yes |
+| `data` | yes | no | yes | yes | yes |
+| `review` | business steps | yes | yes | yes | yes |
+| `audit` | business steps | no | yes | yes | yes |
+| `test` | business steps | no | yes | yes | yes |
+| `docs-writing` | no | no | yes | yes | yes |
+| `research` | no | no | no | no | yes |
+| `general` | no | no | yes | yes | yes |
 
-## Règles transverses
+## Cross-cutting rules
 
-- **Choix par l'interface** : toute décision posée à l'utilisateur passe par l'outil `question` du harness. Tableau interactif, options décrites par leur conséquence, option recommandée en tête. Aucune question et aucune demande de confirmation en prose dans le chat. Le chat porte le contexte et le contenu, l'interface porte les choix.
-- **humanizer** sur toute prose : textes, documentation, messages d'interface, commentaires.
-- **impeccable** sur tout ce qui touche le style visuel.
-- **Skills Supabase** (`supabase`, `supabase-postgres-best-practices`) sur la catégorie `database-supabase`.
-- **Honnêteté** : aucune exécution affirmée sans sortie réelle. Une incertitude se dit.
-- **Critique** : une demande incohérente, ambiguë, risquée ou sous-optimale se contredit, avec une alternative.
-- **Suite** : à la fin, une prochaine étape utile est proposée, même si c'est de ne rien faire.
-- **Mémoire** : la fin d'une tâche complexe passe par `novahiz-memory`.
+- **Choices through the interface**: every user-facing decision goes through the `question` tool. Interactive table, options described by consequence, recommended option first. No prose questions or confirmation requests in chat. Chat carries context and content; the interface carries choices.
+- **humanizer** on all prose: text, documentation, interface messages, comments.
+- **impeccable** on everything that touches visual style.
+- **Supabase skills** (`supabase`, `supabase-postgres-best-practices`) on the `database-supabase` category.
+- **Honesty**: no claimed execution without real output. Uncertainty is stated.
+- **Critique**: an inconsistent, ambiguous, risky, or suboptimal request is challenged, with an alternative.
+- **Next steps**: at the end, a useful next step is proposed, even if it is to do nothing.
+- **Memory**: the end of a complex task goes through `novahiz-memory`.
 
-## Comportement bloquant
+## Blocking behavior
 
-Quand aucune tâche n'est ouverte et que la catégorie n'est ni `research` ni `general` :
+When no task is open and the category is neither `research` nor `general`:
 
-1. ARRÊT : aucune édition, aucune commande.
-2. ANALYSE : `novahiz_classify` puis `novahiz_roadmap` donnent la catégorie et les étapes.
-3. PIPELINE : ouvre les étapes dans l'ordre, en commençant par le plan.
-4. ÉCRIS : `novahiz_task action="new"` puis `action="plan"`, et `todowrite` pour le suivi visible.
-5. PRÉSENTE : pour une tâche complexe, montre le plan avant d'exécuter.
-6. EXÉCUTE : une seule étape `in_progress`, mise à jour en temps réel, `done` seulement avec preuve.
-7. CLÔTURE : `novahiz-converge`, puis `novahiz-audit`.
+1. STOP: no edits, no commands.
+2. ANALYZE: `novahiz_classify` then `novahiz_roadmap` provide the category and steps.
+3. PIPELINE: open the steps in order, starting with the plan.
+4. WRITE: `novahiz_task action="new"` then `action="plan"`, and `todowrite` for visible tracking.
+5. PRESENT: for complex tasks, show the plan before executing.
+6. EXECUTE: one `in_progress` step at a time, real-time updates, `done` only with proof.
+7. CLOSE: `novahiz-converge`, then `novahiz-audit`.
 
-## Dérogation utilisateur
+## User override
 
-Si l'utilisateur dit « fais-le sans plan » ou « pas besoin de plan » :
+If the user says "do it without a plan" or "no plan needed":
 
-1. crée une tâche minimale d'une étape ;
-2. préviens : « Plan minimal créé. Les prochaines tâches recevront un plan complet. » ;
-3. garde la dérogation visible pour l'audit.
+1. create a minimal one-step task;
+2. warn: "Minimal plan created. Future tasks will receive a full plan.";
+3. keep the override visible for audit.
