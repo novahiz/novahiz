@@ -20,10 +20,11 @@ Playwright uses a **persistent profile** that preserves data across sessions (co
 **Profile folder:** `C:\Users\hiz\.opencode\playwright-profile`
 
 ### Rules
-1. Never disable `--user-data-dir` in the Playwright MCP config. The profile must always point to `C:/Users/hiz/.opencode/playwright-profile`.
-2. Never purge this folder without explicit user consent.
-3. Never launch Playwright with an ephemeral context (without user-data-dir) for tasks requiring persistence.
-4. If the profile is corrupted or causes issues, inform the user and propose a backup before any reset.
+1. **NEVER use Chrome or Chromium** — Use only Microsoft Edge via the Playwright MCP server (`--browser=msedge`). Never launch `chrome.exe`, `chromium`, or any Chromium-based process manually or programmatically. All browser automation goes through the MCP tools (`playwright_browser_*`). If Edge is not installed, fall back to another non-Chromium browser (Firefox, WebKit) via the Playwright MCP server.
+2. Never disable `--user-data-dir` in the Playwright MCP config. The profile must always point to `C:/Users/hiz/.opencode/playwright-profile`.
+3. Never purge this folder without explicit user consent.
+4. Never launch Playwright with an ephemeral context (without user-data-dir) for tasks requiring persistence.
+5. If the profile is corrupted or causes issues, inform the user and propose a backup before any reset.
 
 ## Behavioral & Quality Rules
 
