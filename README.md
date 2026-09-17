@@ -48,14 +48,19 @@ The package exposes no programmatic import surface. It ships a CLI and an MCP se
 
 ## Install
 
-Clone into the Novahiz home and run the installer:
+```
+npm install -g novahiz
+novahiz init
+```
+
+Or from source:
 
 ```
 git clone https://github.com/novahiz/novahiz ~/.config/novahiz
 node ~/.config/novahiz/install/install.mjs
 ```
 
-The installer copies the bundled skills, drops the opencode plugin, writes `novahiz.config.json` if missing, and builds the catalog. It never deletes your files. Restart opencode afterward. The plugin registers the MCP server on its own.
+Restart opencode afterward. The plugin registers the MCP server on its own.
 
 Full options and the uninstall steps are in [docs/INSTALL.md](docs/INSTALL.md).
 
@@ -72,35 +77,34 @@ Machine-specific settings live in `novahiz.config.json`, which is gitignored: th
 ## CLI
 
 ```
-node src/cli.ts sync
-node src/cli.ts check
-node src/cli.ts classify "ajoute une migration supabase avec une policy rls"
-node src/cli.ts gate --file src/hero.css --tool edit
-node src/cli.ts gate --file src/hero.css --tool edit --loaded humanizer,impeccable
-node src/cli.ts skills --category design-ui
-node src/cli.ts catalog "design frontend landing" --limit 5
-node src/cli.ts roadmap --category code
-node src/cli.ts step --session my-session --done plan
-node src/cli.ts report --format markdown
-node src/cli.ts task new --title "Add the CSV export"
-node src/cli.ts task plan --task <id> --json '[{"label":"read the parser","kind":"read"},{"label":"write the exporter","kind":"edit","acceptance":"csv round-trips","owner":"src/export.ts"}]'
-node src/cli.ts task start --id <todo>
-node src/cli.ts task done --id <todo> --proof "node --test tests/export.test.ts -> 4 pass"
-node src/cli.ts task status --session <id>
-node src/cli.ts dispatch --task <id>
-node src/cli.ts tokens --calibrate --format text
-node src/cli.ts clean --days 30 --dry-run
-node src/cli.ts clean --days 30 --apply --vacuum
-node src/cli.ts doctor
+novahiz init                    # one-shot setup (config, skills, catalog)
+novahiz doctor                  # health check
+novahiz status                  # classification and gate state
+novahiz task new "Add CSV"      # start a tracked task
+novahiz task status             # show task progress
+novahiz task done <id>          # mark a todo complete
+novahiz report                  # session report
+novahiz clean                   # remove old logs and sessions
+novahiz upgrade                 # pull latest and rebuild catalog
+novahiz version                 # show version
+```
+
+Advanced (for power users and adapters):
+
+```
+novahiz classify "ajoute une migration supabase"
+novahiz gate --file src/hero.css --tool edit
+novahiz skills --category design-ui
+novahiz catalog "design frontend landing" --limit 5
+novahiz roadmap --category code
+novahiz dispatch --task <id>
+novahiz tokens --calibrate
+novahiz clean --days 30 --apply --vacuum
 ```
 
 `gate` prints a JSON verdict and exits `0` when the edit is allowed, `2` when it is blocked. Adapters rely on that exit code.
 
-Output follows the terminal by default, and `--pretty` or `--json` forces a mode. `clean` prunes old enforcement logs, roadmap progress, sessions, and closed tasks; without `--apply` it shows the plan and, on an interactive terminal, asks for confirmation. `doctor` runs the preflight checks and exits non-zero on a blocking finding.
-
-Run `node src/cli.ts` with no arguments for the full command list, including `categories`, `rules`, `session-load`, `session-state`, `hook`, `providers`, `deps`, and every `task` subcommand.
-
-The adapter also trims tool output and deduplicates stale reads to keep long sessions cheap.
+Run `novahiz` with no arguments for the full command list.
 
 ## opencode adapter
 
