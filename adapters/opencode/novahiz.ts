@@ -94,6 +94,7 @@ export const NovahizPlugin: Plugin = async ({ client }) => {
 
   return {
     config: async (input) => {
+      if (DISABLED) return;
       try {
         const config = input as { mcp?: Record<string, unknown> };
         if (!config.mcp) config.mcp = {};
@@ -132,6 +133,7 @@ export const NovahizPlugin: Plugin = async ({ client }) => {
     },
 
     "chat.message": async (input, output) => {
+      if (DISABLED) return;
       try {
         touch(input.sessionID);
         const text = textFromParts(output.parts);
