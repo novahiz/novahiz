@@ -6,7 +6,6 @@ import { commandCheck, commandSync, commandClassify, commandSkills, commandCateg
 import { commandGate } from "./commands/gate.ts";
 import { commandReport } from "./commands/report.ts";
 import { commandTask } from "./commands/task.ts";
-import { commandTokens } from "./commands/tokens.ts";
 import { commandClean } from "./commands/clean.ts";
 import { commandDoctor } from "./commands/doctor.ts";
 
@@ -41,7 +40,6 @@ function usage(): void {
       "task signals [--task id]",
       "task status|resume|current [--session id]",
       "dispatch [--task id] [--session id]",
-      "tokens [--format json|text] [--since <Nd|Nh|ISO>] [--session id] [--calibrate]",
       "clean [--target logs|roadmap|sessions|tasks|all] [--days N] [--dry-run|--apply] [--vacuum] [--json]",
       "doctor [--json]"
     ]
@@ -96,8 +94,6 @@ function main(argv: string[]): void {
       return commandTask(parsed);
     case "dispatch":
       return commandDispatch(parsed);
-    case "tokens":
-      return commandTokens(parsed);
     default:
       process.stderr.write(`novahiz: unknown command ${command}\n`);
       usage();

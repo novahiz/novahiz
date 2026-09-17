@@ -1,56 +1,9 @@
 [
-  {
-    "id": "R1-docs",
-    "description": "Charger humanizer sur les textes, la documentation et les donnees redigees.",
-    "when": {
-      "fileClasses": ["text", "data", "config"],
-      "promptCategories": ["docs-writing"]
-    },
-    "require": ["humanizer"]
-  },
-  {
-    "id": "R1-code-prose",
-    "description": "Charger humanizer sur le code ou le design dont le changement contient de la prose.",
-    "when": {
-      "fileClasses": ["code", "design"],
-      "contentMatches": ["prose"]
-    },
-    "require": ["humanizer"]
-  },
-  {
-    "id": "R2-style",
-    "description": "Charger impeccable sur les fichiers de style visuel.",
-    "when": {
-      "pathGlobs": ["**/*.css", "**/*.scss", "**/*.sass", "**/*.less", "**/*.styl", "**/*.html", "**/*.vue", "**/*.svelte", "**/*.astro"]
-    },
-    "require": ["impeccable"]
-  },
-  {
-    "id": "R2-styled-component",
-    "description": "Charger impeccable sur un composant dont le changement touche le style.",
-    "when": {
-      "pathGlobs": ["**/*.jsx", "**/*.tsx"],
-      "contentMatches": ["style"]
-    },
-    "require": ["impeccable"]
-  },
-  {
-    "id": "R2-design-target",
-    "description": "Charger impeccable sur une demande de design visant une cible UI.",
-    "when": {
-      "match": "all",
-      "promptCategories": ["design-ui"],
-      "fileClasses": ["design"]
-    },
-    "require": ["impeccable"]
-  },
-  {
-    "id": "R3-supabase",
-    "description": "Charger les skills Supabase sur une tache Supabase.",
-    "when": {
-      "pathGlobs": ["**/supabase/**", "**/migrations/**"],
-      "promptCategories": ["database-supabase"]
-    },
-    "require": ["supabase", "supabase-postgres-best-practices"]
-  }
+  {"id":"R1-docs","description":"Charger humanizer sur les textes, la documentation et les donnees redigees.","when":{"fileClasses":["text","data","config"],"promptCategories":["docs-writing"]},"require":["humanizer"]},
+  {"id":"R1-code-prose","description":"Charger humanizer sur le code ou le design dont le changement contient de la prose.","when":{"fileClasses":["code","design"],"contentMatches":["prose"]},"require":["humanizer"]},
+  {"id":"R2-style","description":"Charger impeccable sur les fichiers de style visuel.","when":{"pathGlobs":["**/*.css","**/*.scss","**/*.sass","**/*.less","**/*.styl","**/*.html","**/*.vue","**/*.svelte","**/*.astro"]},"require":["impeccable"]},
+  {"id":"R2-styled-component","description":"Charger impeccable sur un composant dont le changement touche le style.","when":{"pathGlobs":["**/*.jsx","**/*.tsx"],"contentMatches":["style"]},"require":["impeccable"]},
+  {"id":"R2-design-target","description":"Charger impeccable sur une demande de design visant une cible UI.","when":{"match":"all","promptCategories":["design-ui"],"fileClasses":["design"]},"require":["impeccable"]},
+  {"id":"R3-supabase","description":"Charger les skills Supabase sur une tache Supabase.","when":{"pathGlobs":["**/supabase/**","**/migrations/**"],"promptCategories":["database-supabase"]},"require":["supabase","supabase-postgres-best-practices"]},
+  {"id":"R4-playwright","description":"Charger playwright-agent sur toute tache utilisant Playwright ou naviguant vers un serveur local.","when":{"promptCategories":["browser"]},"require":["playwright-agent"]}
 ]

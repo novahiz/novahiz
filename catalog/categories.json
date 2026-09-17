@@ -111,16 +111,17 @@
     "id": "browser",
     "label": "Browser",
     "priority": 48,
-    "keywords": ["browser", "navigateur", "playwright", "scrape", "scraping", "screenshot", "capture d ecran", "page web", "webpage", "url", "site web", "website", "dom", "selenium", "puppeteer", "clic", "click", "formulaire web"],
-    "defaultSkills": [],
+    "keywords": ["browser", "navigateur", "playwright", "scrape", "scraping", "screenshot", "capture d ecran", "page web", "webpage", "url", "site web", "website", "dom", "selenium", "puppeteer", "clic", "click", "formulaire web", "localhost", "dev server", "serveur"],
+    "defaultSkills": ["playwright-agent"],
     "roadmap": {
       "id": "browse",
       "steps": [
         { "id": "goal", "label": "Cadrer l'objectif", "kind": "skill", "requireSkills": ["novahiz-plan"] },
         { "id": "tasks", "label": "Decouper les etapes", "kind": "skill", "requireSkills": ["novahiz-task"] },
-        { "id": "navigate", "label": "Naviguer", "kind": "advisory" },
-        { "id": "interact", "label": "Interagir", "kind": "advisory" },
-        { "id": "capture", "label": "Capturer", "kind": "advisory" },
+        { "id": "server", "label": "Demarrer le serveur externe", "kind": "advisory", "requireSkills": ["playwright-agent"] },
+        { "id": "navigate", "label": "Naviguer", "kind": "advisory", "requireSkills": ["playwright-agent"] },
+        { "id": "interact", "label": "Interagir", "kind": "advisory", "requireSkills": ["playwright-agent"] },
+        { "id": "capture", "label": "Capturer", "kind": "advisory", "requireSkills": ["playwright-agent"] },
         { "id": "converge", "label": "Verifier la cible atteinte", "kind": "verify", "requireSkills": ["novahiz-converge"] },
         { "id": "report", "label": "Rapporter", "kind": "advisory" }
       ]

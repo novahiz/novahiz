@@ -188,6 +188,12 @@ function normalizeTodo(item) {
 }
 
 function callTool(name, args) {
+  if (typeof name !== "string" || name.length === 0) {
+    return toolResult("Invalid tool name: expected a non-empty string", true);
+  }
+  if (args !== null && args !== undefined && typeof args !== "object") {
+    return toolResult("Invalid arguments: expected an object", true);
+  }
   const spec = loadSpec();
   if (name === "novahiz_classify") {
     const prompt = String(args?.prompt ?? "");

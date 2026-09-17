@@ -14,11 +14,11 @@ An enforcement and execution layer for coding agents. It classifies a request in
 - **The ledger requires proof.** A `verify` todo does not close without `proof` (`src/ledger.ts`).
 - **Providers are referenced, never vendored** (`catalog/providers.json`).
 - **Every Novahiz skill exists twice**: the source under `skills/` and the installed copy in the harness config directory. When several scanned roots carry the same skill id, the catalog keeps the copy whose `sourcePath` sorts first alphabetically. `~/.config/humanizer` beats `skills/humanizer`, and `skills/` beats `~/.config/opencode/skills`. That is why `sync` has to run after a skill changes.
-- **The opencode adapter exists twice as well**: `adapters/opencode/novahiz.ts` and `adapters/opencode/tokens.ts` in the repository, and their copies in `~/.config/opencode/plugins/`. opencode runs the installed copy, so editing the repository file changes nothing until that copy is refreshed (the installer does it) and opencode restarts.
+- **The opencode adapter exists twice**: `adapters/opencode/novahiz.ts` in the repository, and its copy in `~/.config/opencode/plugins/`. opencode runs the installed copy, so editing the repository file changes nothing until that copy is refreshed (the installer does it) and opencode restarts.
 
 ## Configuration
 
-- `novahiz.config.json` holds `dbPath`, `skillRoots`, `gate` (enabled, mode, envEscape, tools), `classify`, `providers`, `ledger`, and `tokens`.
+- `novahiz.config.json` holds `dbPath`, `skillRoots`, `gate` (enabled, mode, envEscape, tools), `classify`, `providers`, and `ledger`.
 - `NOVAHIZ_HOME` relocates the home directory. `NOVAHIZ_DB` overrides the database path, which is how the tests stay off the real ledger.
 - `NOVAHIZ_GATE=off` disables the gate for a session.
 

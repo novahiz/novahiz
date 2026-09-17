@@ -100,11 +100,11 @@ Output follows the terminal by default, and `--pretty` or `--json` forces a mode
 
 Run `node src/cli.ts` with no arguments for the full command list, including `categories`, `rules`, `session-load`, `session-state`, `hook`, `providers`, `deps`, and every `task` subcommand.
 
-The adapter also trims tool output and deduplicates stale reads to keep long sessions cheap, and `novahiz tokens` reports what it removed (`--since`, `--session`, `--calibrate`). See [docs/TOKENS.md](docs/TOKENS.md).
+The adapter also trims tool output and deduplicates stale reads to keep long sessions cheap.
 
 ## opencode adapter
 
-Copy `adapters/opencode/novahiz.ts` and `adapters/opencode/tokens.ts` into `~/.config/opencode/plugins/` (the plugin imports `./tokens.ts`), or run the installer, which copies both. It loads automatically at startup. The adapter classifies each user message, injects the roadmap checklist and expected skills, tracks loaded skills, and calls the CLI gate on `edit`, `write`, `patch`, `apply_patch`, `bash`, and `shell`.
+Copy `adapters/opencode/novahiz.ts` into `~/.config/opencode/plugins/`, or run the installer, which copies it. It loads automatically at startup. The adapter classifies each user message, injects the roadmap checklist and expected skills, tracks loaded skills, and calls the CLI gate on `edit`, `write`, `patch`, `apply_patch`, `bash`, and `shell`.
 
 The installer also drops four slash commands into the opencode command directory: `/novahiz-plan`, `/novahiz-clean`, `/novahiz-doctor`, and `/novahiz-status`. `/novahiz-plan` runs the pipeline read-only and produces the plan without writing a file.
 

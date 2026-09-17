@@ -1,7 +1,6 @@
 import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { DEFAULT_TOKENS, mergeTokensConfig, type TokensConfig } from "../adapters/opencode/tokens.ts";
 
 type Keyword = { term: string; weight?: number };
 export type CategoryKeyword = string | Keyword;
@@ -121,7 +120,6 @@ export type NovahizConfig = {
   classify: ClassifyConfig;
   providers: ProvidersConfig;
   ledger: LedgerConfig;
-  tokens: TokensConfig;
 };
 
 export type Spec = {
@@ -181,11 +179,6 @@ export const DEFAULT_CONFIG: NovahizConfig = {
       edits: 3,
       todos: 2
     }
-  },
-  tokens: {
-    ...DEFAULT_TOKENS,
-    trimTools: [...DEFAULT_TOKENS.trimTools],
-    readTools: [...DEFAULT_TOKENS.readTools]
   }
 };
 
@@ -262,8 +255,7 @@ export function mergeConfig(raw: Partial<NovahizConfig> | null | undefined): Nov
     gate,
     classify,
     providers,
-    ledger,
-    tokens: mergeTokensConfig(source.tokens)
+    ledger
   };
 }
 

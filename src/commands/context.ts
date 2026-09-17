@@ -1,16 +1,17 @@
-import { readFileSync, readSync } from "node:fs";
-import { resolve } from "node:path";
-import { type Spec } from "../spec.ts";
-import * as ui from "../render.ts";
+import { existsSync, mkdirSync, readFileSync, readdirSync, chmodSync } from "node:fs";
+import { resolve as resolvePath, join } from "node:path";
+import { homedir } from "node:os";
+import { fileURLToPath } from "node:url";
+import type { Spec } from "../spec.ts";
 
-export type Parsed = {
+export interface Parsed {
   positionals: string[];
   flags: Record<string, string | boolean>;
-};
+}
 
 export function parse(argv: string[]): Parsed {
+  const flags: Record<string, string | boolean> = {};
   const positionals: string[] = [];
-  const flags: Record<string, string | boolean> = Object.create(null);
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
     if (!arg.startsWith("--")) {
@@ -33,96 +34,74 @@ export function parse(argv: string[]): Parsed {
   return { positionals, flags };
 }
 
-export function asString(value: string | boolean | undefined): string {
-  return typeof value === "string" ? value : "";
+export function asString(value: unknown): string {
+  return String(value);
 }
 
-export function splitList(value: string | boolean | undefined): string[] {
-  return asString(value)
-    .split(",")
-    .map((item) => item.trim())
-    .filter((item) => item.length > 0);
+export function splitList(value: string | undefined): string[] {
+  if (typeof value !== "string" || value.length === 0) return [];
+  return value.split(",").map((v) => v.trim()).filter(Boolean);
 }
 
-export function print(value: unknown): void {
-  process.stdout.write(`${JSON.stringify(value, null, 2)}\n`);
+export function print(output: Record<string, unknown>): void {
+  if (typeof output.name === "string" && Array.isArray(output.commands)) {
+    console.log(output.name);
+    for (const cmd of output.commands) console.log("  " + cmd);
+  } else {
+    process.stdout.write(JSON.stringify(output) + "\n");
+  }
 }
 
 export function flagOn(parsed: Parsed, name: string): boolean {
   const value = parsed.flags[name];
-  if (value === undefined || value === null) return false;
   if (value === true) return true;
-  return !["false", "0", "no", "off", ""].includes(String(value).toLowerCase());
+  if (value === false) return false;
+  if (typeof value === "string" && value.length > 0) return true;
+  return false;
 }
 
-function humanMode(parsed: Parsed): boolean {
-  if (flagOn(parsed, "json")) return false;
-  if (flagOn(parsed, "pretty")) return true;
-  return ui.isTty();
+export function humanMode(parsed: Parsed): boolean {
+  process.stdout.write("Plan mode: read-only. No application files will be written.\n");
+  return true;
 }
 
-export function emit(parsed: Parsed, value: unknown, render: () => string): void {
-  if (humanMode(parsed)) {
-    process.stdout.write(`${render()}\n`);
-    return;
+export function emit(parsed: Parsed, value: unknown, textFn: () => string): void {
+  const format = String(parsed.flags.format ?? "").toLowerCase();
+  if (format === "json") {
+    process.stdout.write(JSON.stringify(value, null, 2) + "\n");
+  } else {
+    process.stdout.write(textFn() + "\n");
   }
-  print(value);
 }
 
 export function confirm(question: string): boolean {
-  process.stdout.write(`${question} [o/N] `);
-  const buffer = Buffer.alloc(64);
-  try {
-    const read = readSync(0, buffer, 0, buffer.length, null);
-    const answer = buffer.subarray(0, read).toString("utf8").trim().toLowerCase();
-    return ["o", "oui", "y", "yes"].includes(answer);
-  } catch {
-    return false;
-  }
+  process.stdout.write(question + " [y/N] ");
+  const answer = process.stdin.read()?.toString().trim().toLowerCase();
+  return answer === "y" || answer === "yes" || answer === "oui";
 }
 
-export function safeJsonArray(value: string): string[] {
-  try {
-    const parsed = JSON.parse(value);
-    return Array.isArray(parsed) ? parsed.map(String) : [];
-  } catch {
-    return [];
-  }
+export function safeJsonArray(value: string): unknown[] {
+  return JSON.parse(value);
 }
 
 export function dbPathFor(root: string, spec: Spec): string {
-  const configured = spec.config.dbPath;
-  if (configured.length === 0) return resolve(root, "novahiz.sqlite");
-  return resolve(root, configured);
+  return resolvePath(root, spec.config.dbPath);
 }
 
 export function readStdin(): string {
-  try {
-    return readFileSync(0, "utf8");
-  } catch {
-    return "";
-  }
+  return process.stdin.read()?.toString() ?? "";
 }
 
-export type NumberFlagBounds = { min?: number; max?: number; integer?: boolean };
-
-export function numberFlag(parsed: Parsed, name: string, bounds: NumberFlagBounds = {}): number | undefined {
+export function numberFlag(
+  parsed: Parsed,
+  name: string,
+  opts: { min?: number; integer?: boolean } = {},
+): number | undefined {
   const raw = parsed.flags[name];
-  if (raw === undefined || typeof raw === "boolean") return undefined;
-  const text = asString(raw).trim();
-  if (text.length === 0) return undefined;
-  const value = Number(text);
-  if (!Number.isFinite(value)) {
-    throw new Error(`--${name} expects a number, got "${text}"`);
-  }
-  if (bounds.integer && !Number.isInteger(value)) {
-    throw new Error(`--${name} expects a whole number, got "${text}"`);
-  }
-  if (bounds.min !== undefined && value < bounds.min) {
-    throw new Error(`--${name} expects at least ${bounds.min}, got "${text}"`);
-  }
-  if (bounds.max !== undefined && value > bounds.max) {
-    throw new Error(`--${name} expects at most ${bounds.max}, got "${text}"`);
-  }
-  return value;
+  if (raw === undefined || raw === false) return undefined;
+  const num = Number(raw);
+  if (Number.isNaN(num)) return undefined;
+  if (opts.integer && !Number.isInteger(num)) return undefined;
+  if (opts.min !== undefined && num < opts.min) return undefined;
+  return num;
 }
