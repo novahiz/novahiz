@@ -1,6 +1,6 @@
 {
   "name": "novahiz",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Deterministic agentic layer for coding harnesses: skill catalog, prompt classifier, and a pre-edit enforcement gate.",
   "type": "module",
   "license": "Apache-2.0",
