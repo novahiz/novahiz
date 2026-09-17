@@ -5,5 +5,10 @@
   {"id":"R2-styled-component","description":"Charger impeccable sur un composant dont le changement touche le style.","when":{"pathGlobs":["**/*.jsx","**/*.tsx"],"contentMatches":["style"]},"require":["impeccable"]},
   {"id":"R2-design-target","description":"Charger impeccable sur une demande de design visant une cible UI.","when":{"match":"all","promptCategories":["design-ui"],"fileClasses":["design"]},"require":["impeccable"]},
   {"id":"R3-supabase","description":"Charger les skills Supabase sur une tache Supabase.","when":{"pathGlobs":["**/supabase/**","**/migrations/**"],"promptCategories":["database-supabase"]},"require":["supabase","supabase-postgres-best-practices"]},
-  {"id":"R4-playwright","description":"Charger playwright-agent sur toute tache utilisant Playwright ou naviguant vers un serveur local.","when":{"promptCategories":["browser"]},"require":["playwright-agent"]}
+  {"id":"R4-playwright","description":"Charger playwright-agent sur toute tache utilisant Playwright ou naviguant vers un serveur local.","when":{"promptCategories":["browser"]},"require":["playwright-agent"]},
+  {"id":"R5-design-create","description":"Creer un design → invoquer /impeccable shape.","when":{"promptCategories":["design-create"]},"require":["impeccable"]},
+  {"id":"R5-design-fix","description":"Corriger/reparer un design → invoquer impeccable audit + /impeccable critique.","when":{"promptCategories":["design-fix"]},"require":["impeccable"]},
+  {"id":"R5-design-improve","description":"Ameliorer un design → invoquer /impeccable polish.","when":{"promptCategories":["design-improve"]},"require":["impeccable"]},
+  {"id":"R5-design-review","description":"Verifier un design apres tache importante → invoquer /impeccable critique (+ audit si necessaire).","when":{"promptCategories":["design-review"]},"require":["impeccable"]},
+  {"id":"R5-ai-pattern","description":"Pattern IA detecte → corriger immediatement (pas de triades, contrastes pas X mais Y, tirets abusifs, formules creuses).","when":{"contentMatches":["ai-pattern"]},"require":["humanizer"]}
 ]

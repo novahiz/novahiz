@@ -141,11 +141,13 @@
         { "id": "brief", "label": "Clarifier le brief", "kind": "skill", "requireSkills": ["novahiz-clarify"] },
         { "id": "tasks", "label": "Decouper", "kind": "skill", "requireSkills": ["novahiz-task"] },
         { "id": "load", "label": "Charger impeccable", "kind": "advisory", "requireSkills": ["impeccable"] },
+        { "id": "shape", "label": "Creer/Donner la forme (/impeccable shape)", "kind": "edit", "requireSkills": ["impeccable"] },
         { "id": "implement", "label": "Implementer", "kind": "edit", "requireSkills": ["novahiz-implement"] },
         { "id": "responsive", "label": "Verifier le responsive", "kind": "verify" },
         { "id": "a11y", "label": "Verifier l'accessibilite", "kind": "skill", "requireSkills": ["a11y-audit"], "optional": true },
         { "id": "converge", "label": "Converger", "kind": "verify", "requireSkills": ["novahiz-converge"] },
-        { "id": "polish", "label": "Polish", "kind": "advisory", "requireSkills": ["impeccable"] }
+        { "id": "critique", "label": "Critique finale (/impeccable critique)", "kind": "verify", "requireSkills": ["impeccable"] },
+        { "id": "polish", "label": "Polish (/impeccable polish)", "kind": "advisory", "requireSkills": ["impeccable"] }
       ]
     }
   },
