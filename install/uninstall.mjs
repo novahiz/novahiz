@@ -1,7 +1,7 @@
 import { cpSync, existsSync, rmSync } from "node:fs";
 import { homedir } from "node:os";
 import { join, resolve, sep } from "node:path";
-import { loadManifest, novahizHome, parseArgs, pruneEmptyDirs, saveManifest } from "./lib.mjs";
+import { loadManifest, skillenforceHome, parseArgs, pruneEmptyDirs, saveManifest } from "./lib.mjs";
 
 export function underHome(value) {
   const root = resolve(homedir());
@@ -26,11 +26,11 @@ function main() {
   const purge = Boolean(flags.purge);
   const only = typeof flags.only === "string" ? resolve(flags.only) : null;
   const inScope = (value) => (only ? withinDir(value, only) : true);
-  const home = novahizHome(flags);
+  const home = skillenforceHome(flags);
   const manifest = loadManifest(home);
   const created = manifest.created ?? [];
   const backups = manifest.backups ?? [];
-  const configPath = join(home, "novahiz.config.json");
+  const configPath = join(home, "skillenforce.config.json");
 
   if (created.length === 0 && backups.length === 0 && !manifest.configCreated && !manifest.coreCopied) {
     process.stdout.write(`Rien a desinstaller pour ${home}.\n`);
@@ -64,7 +64,7 @@ function main() {
       process.stdout.write(`skip out-of-scope entry: ${item}\n`);
       continue;
     }
-    if (keepConfig && item.endsWith("novahiz.config.json")) continue;
+    if (keepConfig && item.endsWith("skillenforce.config.json")) continue;
     if (keepCore && item.startsWith(homePrefix)) continue;
     process.stdout.write(`${dryRun ? "[dry-run] " : ""}suppression ${item}\n`);
     if (!dryRun) rmSync(item, { force: true });

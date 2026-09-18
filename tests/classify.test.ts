@@ -32,8 +32,8 @@ test("classification is deterministic", () => {
 test("classifies a refactor prompt as code", () => {
   const result = classify(spec, "Decouper src/cli.ts (1435 lignes) en modules dans src/commands/ sans changer le comportement du CLI");
   assert.equal(result.primary, "code");
-  assert.ok(result.requiredSkills.includes("novahiz-plan"));
-  assert.ok(result.requiredSkills.includes("novahiz-analyse"));
+  assert.ok(result.requiredSkills.includes("skillenforce-plan"));
+  assert.ok(result.requiredSkills.includes("skillenforce-analyse"));
 });
 
 test("falls back to general and injects the general roadmap skill", () => {
@@ -70,7 +70,7 @@ test("exposes skill invocations with their roadmap step", () => {
   const result = classify(spec, "refactor le module de paiement et corrige le total");
   const skills = result.invocations.flatMap((entry) => entry.skills);
   assert.ok(result.invocations.length > 0);
-  assert.ok(skills.includes("novahiz-plan"));
+  assert.ok(skills.includes("skillenforce-plan"));
   assert.ok(result.invocations.every((entry) => entry.kind === "skill"));
 });
 

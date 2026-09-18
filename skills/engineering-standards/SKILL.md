@@ -1,7 +1,7 @@
 ---
 name: engineering-standards
 description: |
-  Engineering standards reference for Novahiz code-producing tasks. Load ON DEMAND for
+  Engineering standards reference for skillenforce code-producing tasks. Load ON DEMAND for
   code, debugging, database, devops, and audit categories — never kept in context permanently.
   Covers: architecture & design patterns (SOLID, DRY, KISS, YAGNI), OWASP security,
   performance optimization, testing strategy, API design, database best practices,
@@ -21,12 +21,12 @@ compatibility: opencode
 
 # ENGINEERING STANDARDS
 
-> On-demand reference extracted from the Novahiz agent rules. The agent loads this skill
+> On-demand reference extracted from the skillenforce agent rules. The agent loads this skill
 > for `code`, `debugging`, `database`, `devops`, and `audit` tasks only.
 > Apply ONLY the sections relevant to the current task. These are defaults: explicit user
-> instructions and existing project conventions override them (see agent/novahiz-engine.md §4).
+> instructions and existing project conventions override them (see agent/skillenforce-engine.md §4).
 > Numbering is preserved from the legacy layout — standards 20 (memory), 41 (token economy),
-> and 42 (Obsidian protocol) live in `agent/novahiz-engine.md`, not here.
+> and 42 (Obsidian protocol) live in `agent/skillenforce-engine.md`, not here.
 
 ---
 

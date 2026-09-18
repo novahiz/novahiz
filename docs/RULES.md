@@ -48,7 +48,7 @@ For an edit, the gate collects skills from two places:
 Duplicates collapse. The result is filtered against the installed skills index:
 
 - When the index is available, a required skill that is not installed is reported in `unmatchedRequired` and in the `warnings` array, and it does not block. This is deliberate: an installation gap should not make a whole category uneditable. A harness that wants the stricter behaviour can treat a non-empty `unmatchedRequired` as a failure.
-- When the index is missing or unreadable, the gate fails closed and enforces every required skill. Run `novahiz sync` to rebuild the index.
+- When the index is missing or unreadable, the gate fails closed and enforces every required skill. Run `skillenforce sync` to rebuild the index.
 - Files that match `gate.ignoreFiles` are skipped entirely.
 
 A required skill that is installed but not loaded in the session blocks the call. In `block` mode the gate exits with code 2. In `warn` and `audit` modes it reports and exits 0.
@@ -57,20 +57,20 @@ A required skill that is installed but not loaded in the session blocks the call
 
 The harness records the load, not the gate.
 
-- opencode calls the `skill` tool, and the adapter records it by running `novahiz session-load --session <id> --skill <name>`.
-- A harness that reads skills some other way records the load itself, by calling `novahiz session-load` before its edit.
+- opencode calls the `skill` tool, and the adapter records it by running `skillenforce session-load --session <id> --skill <name>`.
+- A harness that reads skills some other way records the load itself, by calling `skillenforce session-load` before its edit.
 
 Anything else leaves the skill unloaded.
 
-A skill whose frontmatter names an `allowed-tools` entry the harness does not recognize fails to launch at all. That is why the bundled `novahiz-*` skills declare no `allowed-tools`.
+A skill whose frontmatter names an `allowed-tools` entry the harness does not recognize fails to launch at all. That is why the bundled `skillenforce-*` skills declare no `allowed-tools`.
 
 ## Modes and configuration
 
-The `gate` block in `novahiz.config.json` controls behavior:
+The `gate` block in `skillenforce.config.json` controls behavior:
 
 - `enabled`: disable the whole gate.
 - `mode`: `block`, `warn`, or `audit`.
-- `envEscape`: the variable that disables the gate for one session. Defaults to `NOVAHIZ_GATE`; values `off`, `0`, `false`, `no`, `disabled` disable it. Read by the CLI, the hook mode, the MCP gate tool, and the opencode plugin.
+- `envEscape`: the variable that disables the gate for one session. Defaults to `skillenforce_GATE`; values `off`, `0`, `false`, `no`, `disabled` disable it. Read by the CLI, the hook mode, the MCP gate tool, and the opencode plugin.
 - `tools`: the tool names the gate intercepts.
 - `ignoreFiles`: globs skipped by the gate.
 

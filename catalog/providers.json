@@ -93,7 +93,7 @@
     "label": "Obsidian vaults",
     "kind": "mcp",
     "transport": "local",
-    "command": ["npx", "-y", "obsidian-mcp@2.0.1", "serve", "--vault", "notes=C:/Users/hiz/Documents/novahiz"],
+    "command": ["npx", "-y", "obsidian-mcp@2.0.1", "serve", "--vault", "notes=C:/Users/hiz/Documents/skillenforce"],
     "install": ["npx", "-y", "obsidian-mcp@2.0.1", "--help"],
     "requires": ["npx"],
     "purpose": "Read and write the Obsidian second memory vault.",
@@ -132,14 +132,14 @@
     "source": "https://mcp.supabase.com/mcp"
   },
   {
-    "id": "novahiz",
+    "id": "skillenforce",
     "label": "Novahiz workflow tools",
     "kind": "mcp",
     "transport": "local",
-    "command": ["node", "C:/Users/hiz/.config/novahiz/mcp/novahiz-tools/index.mjs"],
+    "command": ["node", "C:/Users/hiz/.config/skillenforce/mcp/skillenforce-tools/index.mjs"],
     "requires": ["node"],
     "purpose": "Deterministic workflow tools injected by the opencode plugin: classify, gate, tasks. Part of this repo, nothing to install.",
     "categories": ["general", "planning"],
-    "source": "C:/Users/hiz/.config/novahiz/mcp/novahiz-tools/index.mjs"
+    "source": "C:/Users/hiz/.config/skillenforce/mcp/skillenforce-tools/index.mjs"
   }
 ]

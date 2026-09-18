@@ -1,6 +1,6 @@
 import { join } from "node:path";
 import { asString, dbPathFor, numberFlag, print, safeJsonArray, type Parsed } from "./context.ts";
-import { loadSpec, novahizHome } from "../spec.ts";
+import { loadSpec, skillenforceHome } from "../spec.ts";
 import { getMeta, openDb, setMeta } from "../db.ts";
 import { loadCatalog, loadInstalledSkills, persistCatalog, scanSkills, writeCatalog, writeSkillIndex } from "../catalog.ts";
 import { rankSkills } from "../relevance.ts";
@@ -11,7 +11,7 @@ import { runCommand, runScript } from "../exec.ts";
 import { activeTask, buildWorkPackets, getTask } from "../ledger.ts";
 
 export function commandCheck(): void {
-  const root = novahizHome();
+  const root = skillenforceHome();
   const spec = loadSpec(root);
   const index = loadInstalledSkills(spec);
   const db = openDb(dbPathFor(root, spec));
@@ -31,7 +31,7 @@ export function commandCheck(): void {
 }
 
 export function commandSync(): void {
-  const root = novahizHome();
+  const root = skillenforceHome();
   const spec = loadSpec(root);
   const scanErrors: string[] = [];
   const skills = scanSkills(spec, scanErrors);
@@ -46,7 +46,7 @@ export function commandSync(): void {
 }
 
 export function commandClassify(parsed: Parsed): void {
-  const root = novahizHome();
+  const root = skillenforceHome();
   const spec = loadSpec(root);
   const text = (parsed.positionals.slice(1).join(" ") || asString(parsed.flags.text)).trim();
   if (text.length === 0) {
@@ -61,7 +61,7 @@ export function commandClassify(parsed: Parsed): void {
 
 
 export function commandSkills(parsed: Parsed): void {
-  const root = novahizHome();
+  const root = skillenforceHome();
   const spec = loadSpec(root);
   const db = openDb(dbPathFor(root, spec));
   const rows = db.prepare("SELECT id, name, power, stars, tags, categories FROM skills ORDER BY power DESC, id ASC").all() as {
@@ -96,7 +96,7 @@ export function commandRules(): void {
 }
 
 export function commandSessionLoad(parsed: Parsed): void {
-  const root = novahizHome();
+  const root = skillenforceHome();
   const spec = loadSpec(root);
   const session = asString(parsed.flags.session);
   const skill = asString(parsed.flags.skill);
@@ -116,7 +116,7 @@ export function commandSessionLoad(parsed: Parsed): void {
 }
 
 export function commandSessionState(parsed: Parsed): void {
-  const root = novahizHome();
+  const root = skillenforceHome();
   const spec = loadSpec(root);
   const session = asString(parsed.flags.session);
   const db = openDb(dbPathFor(root, spec));
@@ -160,7 +160,7 @@ export function commandRoadmap(parsed: Parsed): void {
 }
 
 export function commandStep(parsed: Parsed): void {
-  const root = novahizHome();
+  const root = skillenforceHome();
   const spec = loadSpec(root);
   const session = asString(parsed.flags.session);
   const done = asString(parsed.flags.done);
@@ -264,7 +264,7 @@ export function commandDeps(parsed: Parsed): void {
 
 
 export function commandDispatch(parsed: Parsed): void {
-  const root = novahizHome();
+  const root = skillenforceHome();
   const spec = loadSpec(root);
   const session = asString(parsed.flags.session);
   const db = openDb(dbPathFor(root, spec));

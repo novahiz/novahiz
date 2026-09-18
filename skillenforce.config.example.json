@@ -1,0 +1,39 @@
+{
+  "dbPath": "skillenforce.sqlite",
+  "skillRoots": [
+    "./skills",
+    "~/.config/opencode/skills",
+    "~/.agents/skills",
+    "~/.config/.agents/skills",
+    "~/.config/marketingskills/skills",
+    "~/.config/humanizer"
+  ],
+  "gate": {
+    "enabled": true,
+    "mode": "block",
+    "envEscape": "NOVAHIZ_GATE",
+    "tools": ["edit", "write", "patch", "apply_patch", "bash", "shell"]
+  },
+  "classify": {
+    "minScore": 1,
+    "maxCategories": 3,
+    "fallbackCategory": "general"
+  },
+  "providers": {
+    "autoRegister": true,
+    "autoInstall": false,
+    "disabled": []
+  },
+  "tokens": {
+    "enabled": true,
+    "trimOutputs": true,
+    "maxOutputBytes": 40000,
+    "keepHeadLines": 120,
+    "keepTailLines": 40,
+    "keepErrorLines": 40,
+    "dedupeReads": true,
+    "capOutputTokens": 0,
+    "trimTools": ["read", "bash", "shell"],
+    "readTools": ["read"]
+  }
+}

@@ -4,8 +4,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test, after } from "node:test";
 
-const pluginHome = mkdtempSync(join(tmpdir(), "novahiz-plugin-"));
-process.env.NOVAHIZ_HOME = pluginHome;
+const pluginHome = mkdtempSync(join(tmpdir(), "skillenforce-plugin-"));
+process.env.skillenforce_HOME = pluginHome;
 
 after(() => {
   try {
@@ -15,15 +15,15 @@ after(() => {
   }
 });
 
-const { NovahizPlugin } = await import("../adapters/opencode/novahiz.ts");
+const { skillenforcePlugin } = await import("../adapters/opencode/skillenforce.ts");
 
 type HookMap = Record<string, (input: any, output: any) => Promise<void>>;
 
 // Any client method the plugin might touch at load time resolves to a no-op.
 const fakeClient: any = new Proxy({}, { get: () => async () => undefined });
-const hooks = (await NovahizPlugin({
+const hooks = (await skillenforcePlugin({
   client: fakeClient
-} as unknown as Parameters<typeof NovahizPlugin>[0])) as unknown as HookMap;
+} as unknown as Parameters<typeof skillenforcePlugin>[0])) as unknown as HookMap;
 
 test("the plugin exposes the enforcement hooks", () => {
   for (const name of [
@@ -37,12 +37,12 @@ test("the plugin exposes the enforcement hooks", () => {
   }
 });
 
-test("config hook injects the novahiz MCP server", async () => {
+test("config hook injects the skillenforce MCP server", async () => {
   const config: any = {};
   await hooks["config"](config, {});
-  assert.equal(config.mcp.novahiz.type, "local");
-  assert.equal(config.mcp.novahiz.enabled, true);
-  assert.ok(Array.isArray(config.mcp.novahiz.command));
+  assert.equal(config.mcp.skillenforce.type, "local");
+  assert.equal(config.mcp.skillenforce.enabled, true);
+  assert.ok(Array.isArray(config.mcp.skillenforce.command));
 });
 
 test("tool.execute.before lets non-gated tools through", async () => {
@@ -60,14 +60,14 @@ test("tool.execute.before records a loaded skill without throwing", async () => 
 });
 
 test("tool.execute.before surfaces an unavailable gate instead of failing open", async () => {
-  // NOVAHIZ_HOME points at an empty temp dir, so the CLI is missing and the
+  // skillenforce_HOME points at an empty temp dir, so the CLI is missing and the
   // gate exits nonzero. The plugin must throw, never silently allow.
   await assert.rejects(
     hooks["tool.execute.before"](
       { tool: "write", sessionID: "s-gate", callID: "c3" },
       { args: { filePath: "/tmp/y.ts", content: "hello" } }
     ),
-    /Novahiz gate/
+    /skillenforce gate/
   );
 });
 

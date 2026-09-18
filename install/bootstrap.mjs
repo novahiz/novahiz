@@ -7,15 +7,15 @@ import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { nodeVersionOk, opencodeConfigDir } from "./lib.mjs";
 
-const REPO_URL = "https://github.com/novahiz/novahiz.git";
-const NOVAHIZ_HOME = join(homedir(), ".config", "novahiz");
+const REPO_URL = "https://github.com/skillenforce/skillenforce.git";
+const NOVAHIZ_HOME = join(homedir(), ".config", "skillenforce");
 
 function log(msg) {
-  process.stdout.write(`[novahiz] ${msg}\n`);
+  process.stdout.write(`[skillenforce] ${msg}\n`);
 }
 
 function error(msg) {
-  process.stderr.write(`[novahiz] ERROR: ${msg}\n`);
+  process.stderr.write(`[skillenforce] ERROR: ${msg}\n`);
 }
 
 function run(cmd, args, opts = {}) {
@@ -59,9 +59,9 @@ function detectShell() {
   return "bash";
 }
 
-function generateOpenCodeJson(configDir, novahizHome) {
+function generateOpenCodeJson(configDir, skillenforceHome) {
   const skillsDir = join(configDir, "skills");
-  const bundledDir = join(novahizHome, "bundled-skills");
+  const bundledDir = join(skillenforceHome, "bundled-skills");
   const agentsSkillsDir = join(homedir(), ".config", ".agents", "skills");
 
   const config = {
@@ -105,7 +105,7 @@ function generateOpenCodeJson(configDir, novahizHome) {
     plugin: [
       "@mohak34/opencode-notifier@0.2.8",
       "@tarquinen/opencode-dcp@latest",
-      join(novahizHome, "adapters", "opencode", "novahiz.ts"),
+      join(skillenforceHome, "adapters", "opencode", "skillenforce.ts"),
     ],
     compaction: {
       auto: true,
@@ -245,8 +245,8 @@ async function main() {
   }
 
   // 9. Copy plugin to opencode plugins dir
-  const pluginSource = join(NOVAHIZ_HOME, "adapters", "opencode", "novahiz.ts");
-  const pluginTarget = join(configDir, "plugins", "novahiz.ts");
+  const pluginSource = join(NOVAHIZ_HOME, "adapters", "opencode", "skillenforce.ts");
+  const pluginTarget = join(configDir, "plugins", "skillenforce.ts");
   if (existsSync(pluginSource)) {
     mkdirSync(join(configDir, "plugins"), { recursive: true });
     const { cpSync } = await import("node:fs");

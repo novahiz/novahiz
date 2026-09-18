@@ -1,6 +1,6 @@
 # Token economy
 
-Novahiz trims what the model reads, so a long session spends fewer tokens without losing the content that matters. The layer runs in the opencode adapter through three hooks and reports what it removed.
+skillenforce trims what the model reads, so a long session spends fewer tokens without losing the content that matters. The layer runs in the opencode adapter through three hooks and reports what it removed.
 
 ## What it does
 
@@ -10,7 +10,7 @@ Novahiz trims what the model reads, so a long session spends fewer tokens withou
 
 ## Configuration
 
-The `tokens` block of `novahiz.config.json`:
+The `tokens` block of `skillenforce.config.json`:
 
 ```json
 {
@@ -29,12 +29,12 @@ The `tokens` block of `novahiz.config.json`:
 }
 ```
 
-`NOVAHIZ_TOKENS=off` disables the whole layer for a session.
+`skillenforce_TOKENS=off` disables the whole layer for a session.
 
 ## Reading the savings
 
 ```
-novahiz tokens [--format json|text] [--since <Nd|Nh|ISO>] [--session id] [--calibrate]
+skillenforce tokens [--format json|text] [--since <Nd|Nh|ISO>] [--session id] [--calibrate]
 ```
 
 - Default output is JSON. `--format text` prints a short summary.

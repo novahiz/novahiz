@@ -41,10 +41,10 @@ export function opencodeConfigDir(env = process.env) {
   return join(homedir(), ".config", "opencode");
 }
 
-export function novahizHome(flags = {}, env = process.env) {
+export function skillenforceHome(flags = {}, env = process.env) {
   if (typeof flags.home === "string") return resolve(expandHome(flags.home));
   if (env.NOVAHIZ_HOME) return resolve(env.NOVAHIZ_HOME);
-  return join(homedir(), ".config", "novahiz");
+  return join(homedir(), ".config", "skillenforce");
 }
 
 export function listFiles(root) {
@@ -92,7 +92,7 @@ export function copyFileWithBackup(srcPath, destPath, useBackup = true) {
   if (sameContent(srcPath, destPath)) return { created: null, backup: null };
   let backup = null;
   if (useBackup) {
-    backup = `${destPath}.novahiz-bak`;
+    backup = `${destPath}.skillenforce-bak`;
     if (!existsSync(backup)) cpSync(destPath, backup);
   }
   cpSync(srcPath, destPath);
@@ -139,11 +139,11 @@ export function writeJson(path, value) {
 }
 
 export function loadManifest(home) {
-  return readJson(join(home, ".novahiz-install.json"), { created: [], backups: [] });
+  return readJson(join(home, ".skillenforce-install.json"), { created: [], backups: [] });
 }
 
 export function saveManifest(home, manifest) {
-  writeJson(join(home, ".novahiz-install.json"), manifest);
+  writeJson(join(home, ".skillenforce-install.json"), manifest);
 }
 
 export function mergeCreated(previous = [], next = []) {

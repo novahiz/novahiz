@@ -30,7 +30,7 @@ import {
   traceCheck
 } from "../src/ledger.ts";
 
-const dbPath = join(tmpdir(), `novahiz-ledger-${Date.now().toString(36)}.sqlite`);
+const dbPath = join(tmpdir(), `skillenforce-ledger-${Date.now().toString(36)}.sqlite`);
 const db = openDb(dbPath);
 let counter = 0;
 

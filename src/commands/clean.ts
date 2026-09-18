@@ -1,7 +1,7 @@
 import { statSync } from "node:fs";
 import { join } from "node:path";
 import { asString, confirm, dbPathFor, emit, flagOn, numberFlag, print, type Parsed } from "./context.ts";
-import { loadSpec, novahizHome } from "../spec.ts";
+import { loadSpec, skillenforceHome } from "../spec.ts";
 import { openDb } from "../db.ts";
 import * as ui from "../render.ts";
 
@@ -20,7 +20,7 @@ const CLEAN_SCOPES: Record<string, CleanScope[]> = {
 const CLEAN_CHOICES = ["logs", "roadmap", "sessions", "tasks", "all"];
 
 export function commandClean(parsed: Parsed): void {
-  const root = novahizHome();
+  const root = skillenforceHome();
   const spec = loadSpec(root);
   const path = dbPathFor(root, spec);
   const daysRaw = numberFlag(parsed, "days", { min: 1, integer: true });

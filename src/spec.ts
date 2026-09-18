@@ -149,7 +149,7 @@ const DEFAULT_IGNORE_FILES = [
 ];
 
 export const DEFAULT_CONFIG: NovahizConfig = {
-  dbPath: "novahiz.sqlite",
+  dbPath: "skillenforce.sqlite",
   skillRoots: [],
   gate: {
     enabled: true,
@@ -182,8 +182,8 @@ export const DEFAULT_CONFIG: NovahizConfig = {
   }
 };
 
-export function novahizHome(): string {
-  const fromEnv = process.env.NOVAHIZ_HOME;
+export function skillenforceHome(): string {
+  const fromEnv = process.env.SKILLEFORCE_HOME;
   if (fromEnv && fromEnv.length > 0) return fromEnv;
   return join(homedir(), ".config", "novahiz");
 }
@@ -259,15 +259,15 @@ export function mergeConfig(raw: Partial<NovahizConfig> | null | undefined): Nov
   };
 }
 
-function loadConfig(root: string = novahizHome()): NovahizConfig {
+function loadConfig(root: string = skillenforceHome()): NovahizConfig {
   const config = readUserConfig(root);
-  const dbOverride = process.env.NOVAHIZ_DB;
+  const dbOverride = process.env.SKILLEFORCE_DB;
   if (dbOverride && dbOverride.length > 0) config.dbPath = dbOverride;
   return config;
 }
 
 function readUserConfig(root: string): NovahizConfig {
-  const userPath = join(root, "novahiz.config.json");
+  const userPath = join(root, "skillenforce.config.json");
   if (existsSync(userPath)) {
     try {
       return mergeConfig(JSON.parse(stripBom(readFileSync(userPath, "utf8"))) as Partial<NovahizConfig>);
@@ -275,7 +275,7 @@ function readUserConfig(root: string): NovahizConfig {
       throw new Error(`Invalid JSON in ${userPath}: ${(error as Error).message}`);
     }
   }
-  const examplePath = join(root, "novahiz.config.example.json");
+  const examplePath = join(root, "skillenforce.config.example.json");
   if (existsSync(examplePath)) return mergeConfig(readJson<Partial<NovahizConfig>>(examplePath));
   return mergeConfig(null);
 }
@@ -288,7 +288,7 @@ function readCatalog<T>(path: string): T {
   }
 }
 
-export function loadSpec(root: string = novahizHome()): Spec {
+export function loadSpec(root: string = skillenforceHome()): Spec {
   const categories = readCatalog<Category[]>(join(root, "catalog", "categories.json"));
   const rules = readCatalog<Rule[]>(join(root, "catalog", "rules.json"));
   const overrides = readCatalog<Overrides>(join(root, "catalog", "overrides.json"));

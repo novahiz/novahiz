@@ -11,7 +11,7 @@ import { scanSkills, writeCatalog, writeSkillIndex } from "../src/catalog.ts";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
 const cli = join(root, "src", "cli.ts");
-const testDb = join(tmpdir(), `novahiz-cli-${Date.now().toString(36)}.sqlite`);
+const testDb = join(tmpdir(), `skillenforce-cli-${Date.now().toString(36)}.sqlite`);
 
 after(() => {
   for (const suffix of ["", "-wal", "-shm"]) {
@@ -34,7 +34,7 @@ function run(args: string[], env: Record<string, string> = {}): string {
   const result = spawnSync(process.execPath, [cli, ...args], {
     encoding: "utf8",
     input: "",
-    env: { ...process.env, NOVAHIZ_HOME: root, NOVAHIZ_DB: testDb, ...env }
+    env: { ...process.env, skillenforce_HOME: root, skillenforce_DB: testDb, ...env }
   });
   return result.stdout.trim();
 }
@@ -43,13 +43,13 @@ function runWithInput(args: string[], input: object): string {
   const result = spawnSync(process.execPath, [cli, ...args], {
     encoding: "utf8",
     input: JSON.stringify(input),
-    env: { ...process.env, NOVAHIZ_HOME: root, NOVAHIZ_DB: testDb }
+    env: { ...process.env, skillenforce_HOME: root, skillenforce_DB: testDb }
   });
   return result.stdout.trim();
 }
 
-test("NOVAHIZ_GATE=off disables the gate", () => {
-  const parsed = JSON.parse(run(["gate", "--file", "README.md", "--tool", "edit"], { NOVAHIZ_GATE: "off" }));
+test("skillenforce_GATE=off disables the gate", () => {
+  const parsed = JSON.parse(run(["gate", "--file", "README.md", "--tool", "edit"], { skillenforce_GATE: "off" }));
   assert.equal(parsed.allow, true);
   assert.equal(parsed.disabled, true);
 });
@@ -58,7 +58,7 @@ test("gate errors without a file or stdin", () => {
   const result = spawnSync(process.execPath, [cli, "gate", "--tool", "edit"], {
     encoding: "utf8",
     input: "",
-    env: { ...process.env, NOVAHIZ_HOME: root, NOVAHIZ_DB: testDb }
+    env: { ...process.env, skillenforce_HOME: root, skillenforce_DB: testDb }
   });
   assert.equal(result.status, 1);
 });
@@ -92,7 +92,7 @@ test("catalog rejects a non-numeric limit", () => {
   const result = spawnSync(process.execPath, [cli, "catalog", "design", "--limit", "abc"], {
     encoding: "utf8",
     input: "",
-    env: { ...process.env, NOVAHIZ_HOME: root, NOVAHIZ_DB: testDb }
+    env: { ...process.env, skillenforce_HOME: root, skillenforce_DB: testDb }
   });
   assert.equal(result.status, 1);
   assert.match(result.stderr, /--limit.*nombre|nombre.*--limit/);
@@ -102,7 +102,7 @@ test("an unknown command exits non-zero with a single clean line", () => {
   const result = spawnSync(process.execPath, [cli, "bogus"], {
     encoding: "utf8",
     input: "",
-    env: { ...process.env, NOVAHIZ_HOME: root, NOVAHIZ_DB: testDb }
+    env: { ...process.env, skillenforce_HOME: root, skillenforce_DB: testDb }
   });
   assert.equal(result.status, 1);
   assert.equal(result.stderr.trim().split("\n").length, 1);
@@ -110,15 +110,15 @@ test("an unknown command exits non-zero with a single clean line", () => {
 });
 
 test("a missing install reports one clean line instead of a stack trace", () => {
-  const missing = join(tmpdir(), `novahiz-absent-${Date.now().toString(36)}`);
+  const missing = join(tmpdir(), `skillenforce-absent-${Date.now().toString(36)}`);
   const result = spawnSync(process.execPath, [cli, "check"], {
     encoding: "utf8",
     input: "",
-    env: { ...process.env, NOVAHIZ_HOME: missing }
+    env: { ...process.env, skillenforce_HOME: missing }
   });
   assert.equal(result.status, 1);
   assert.equal(result.stderr.trim().split("\n").length, 1);
-  assert.match(result.stderr, /^novahiz: /);
+  assert.match(result.stderr, /^skillenforce: /);
 });
 
 test("check reports the stored last sync", () => {
@@ -177,7 +177,7 @@ test("clean refuses to delete on a non interactive stdin without --apply", () =>
   const result = spawnSync(process.execPath, [cli, "clean", "--json"], {
     encoding: "utf8",
     input: "",
-    env: { ...process.env, NOVAHIZ_HOME: root, NOVAHIZ_DB: testDb }
+    env: { ...process.env, skillenforce_HOME: root, skillenforce_DB: testDb }
   });
   assert.equal(result.status, 1);
 });
@@ -213,7 +213,7 @@ test("clean --apply removes only the rows older than the cutoff", () => {
       const result = spawnSync(process.execPath, [cli, ...args], {
         encoding: "utf8",
         input: "",
-        env: { ...process.env, NOVAHIZ_HOME: root, NOVAHIZ_DB: testDb }
+        env: { ...process.env, skillenforce_HOME: root, skillenforce_DB: testDb }
       });
       assert.equal(result.status, 1, `${args.join(" ")} should fail`);
       assert.match(result.stderr, expected);

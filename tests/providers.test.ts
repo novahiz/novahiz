@@ -16,7 +16,7 @@ test("loads the bundled providers", () => {
     "expo",
     "impeccable",
     "narsil",
-    "novahiz",
+    "skillenforce",
     "obsidian",
     "playwright",
     "security",
@@ -30,7 +30,7 @@ test("maps providers to categories across kinds", () => {
   assert.ok(design.includes("playwright"));
   assert.ok(design.includes("impeccable"));
   const planning = providersForCategories(spec, ["planning"]).map((provider) => provider.id);
-  assert.deepEqual(planning, ["sequential-thinking", "novahiz"]);
+  assert.deepEqual(planning, ["sequential-thinking", "skillenforce"]);
 });
 
 test("builds mcp entries only for mcp providers", () => {

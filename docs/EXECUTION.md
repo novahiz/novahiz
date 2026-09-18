@@ -43,7 +43,7 @@ Signals are the reasons to revise, computed from the ledger and not from a model
 
 ## Configuration
 
-In `novahiz.config.json`:
+In `skillenforce.config.json`:
 
 ```json
 "ledger": { "enabled": true, "review": { "edits": 3, "todos": 2 } }
@@ -72,7 +72,7 @@ node src/cli.ts dispatch --task <id>
 
 ## MCP
 
-`novahiz_task` exposes the same actions over stdio, and `novahiz_dispatch` returns the work packets and conflicts. Both open the same database.
+`skillenforce_task` exposes the same actions over stdio, and `skillenforce_dispatch` returns the work packets and conflicts. Both open the same database.
 
 ## What it does not do
 

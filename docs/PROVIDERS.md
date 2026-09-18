@@ -1,10 +1,10 @@
 # Providers
 
-A provider is an external component Novahiz can provision and reference: an MCP server, a skill pack, or a command pack. Novahiz does not vendor them. It stores the official install command and, when you ask, runs it during installation.
+A provider is an external component skillenforce can provision and reference: an MCP server, a skill pack, or a command pack. skillenforce does not vendor them. It stores the official install command and, when you ask, runs it during installation.
 
 ## Licensing
 
-Novahiz references providers, it never vendors them. Each entry lists the upstream `license`, and the installer runs the official install command on your machine, so you install the upstream package under its own terms. That holds for every open-source license, copyleft included.
+skillenforce references providers, it never vendors them. Each entry lists the upstream `license`, and the installer runs the official install command on your machine, so you install the upstream package under its own terms. That holds for every open-source license, copyleft included.
 
 ## Registry
 
@@ -62,10 +62,10 @@ node src/cli.ts providers --category design-ui
 
 ## Registration and install
 
-- MCP servers: the opencode plugin registers every enabled `mcp` provider through the plugin `config` hook, calling `novahiz providers --mcp-json` and merging any server whose key is missing. Existing configuration always wins, so host-specific settings (a Chrome profile path, for example) are preserved.
-- Skill and command packs: Novahiz runs their official `install` command, it does not reimplement it.
+- MCP servers: the opencode plugin registers every enabled `mcp` provider through the plugin `config` hook, calling `skillenforce providers --mcp-json` and merging any server whose key is missing. Existing configuration always wins, so host-specific settings (a Chrome profile path, for example) are preserved.
+- Skill and command packs: skillenforce runs their official `install` command, it does not reimplement it.
 
-Control it in `novahiz.config.json`:
+Control it in `skillenforce.config.json`:
 
 ```json
 {
@@ -92,11 +92,11 @@ Installation is opt-in on purpose. The commands download third-party packages, i
 
 ## Dependencies
 
-Each provider declares its prerequisites in `requires` (the executable it needs) and, when it can be bootstrapped, a per-platform `bootstrap` command. No provider currently declares a `bootstrap`; `novahiz deps --install` supports the field for future entries.
+Each provider declares its prerequisites in `requires` (the executable it needs) and, when it can be bootstrapped, a per-platform `bootstrap` command. No provider currently declares a `bootstrap`; `skillenforce deps --install` supports the field for future entries.
 
 - `npx` based providers need `npx`, which ships with Node.
 
-`novahiz deps` checks every prerequisite and reports what is missing. `novahiz deps --install` first bootstraps a missing prerequisite through its official installer, then runs each provider's install command. The installer runs the check on every install and, when `providers.autoInstall` is true or `--install-providers` is passed, runs the installs too.
+`skillenforce deps` checks every prerequisite and reports what is missing. `skillenforce deps --install` first bootstraps a missing prerequisite through its official installer, then runs each provider's install command. The installer runs the check on every install and, when `providers.autoInstall` is true or `--install-providers` is passed, runs the installs too.
 
 ## Troubleshooting
 
@@ -116,13 +116,13 @@ Common fixes:
 - Cache noise while debugging: `--no-cache` skips the cache, and `--cache-ttl <seconds>` moves the default 1800 second window.
 - Slow startup: `--preset minimal` trims the tool surface. The default preset exposes the full set.
 
-Confirm the tool count with `narsil-mcp tools list` afterwards, then rerun `novahiz deps` to recheck the prerequisite.
+Confirm the tool count with `narsil-mcp tools list` afterwards, then rerun `skillenforce deps` to recheck the prerequisite.
 
 ## Tools
 
-- `novahiz providers` lists providers, optionally by `--category` or a query.
-- `novahiz providers --mcp-json` prints the MCP entry map.
-- `novahiz providers --install` runs the official install commands.
-- `novahiz deps [--install]` checks prerequisites and bootstraps or installs missing ones.
-- MCP `novahiz_providers` and `novahiz_deps` expose the list and the dependency status over stdio.
-- `novahiz report` lists the provider ids.
+- `skillenforce providers` lists providers, optionally by `--category` or a query.
+- `skillenforce providers --mcp-json` prints the MCP entry map.
+- `skillenforce providers --install` runs the official install commands.
+- `skillenforce deps [--install]` checks prerequisites and bootstraps or installs missing ones.
+- MCP `skillenforce_providers` and `skillenforce_deps` expose the list and the dependency status over stdio.
+- `skillenforce report` lists the provider ids.

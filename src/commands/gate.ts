@@ -1,6 +1,6 @@
 import { join } from "node:path";
 import { asString, dbPathFor, parse, print, readStdin, splitList, type Parsed } from "./context.ts";
-import { loadSpec, novahizHome } from "../spec.ts";
+import { loadSpec, skillenforceHome } from "../spec.ts";
 import { openDb } from "../db.ts";
 import { loadInstalledSkills } from "../catalog.ts";
 import { changeText } from "../content.ts";
@@ -9,7 +9,7 @@ import { extractTargetPaths } from "../targets.ts";
 import { activeTask, recordEdit, reviewDue, traceCheck } from "../ledger.ts";
 
 export function commandGate(parsed: Parsed): void {
-  const root = novahizHome();
+  const root = skillenforceHome();
   const spec = loadSpec(root);
   const gateConfig = spec.config.gate;
   const tool = asString(parsed.flags.tool) || "edit";

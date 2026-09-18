@@ -1,6 +1,6 @@
 # Skillenforce
 
-[![ci](https://github.com/novahiz/skillenforce/actions/workflows/ci.yml/badge.svg)](https://github.com/novahiz/skillenforce/actions/workflows/ci.yml)
+[![ci](https://github.com/skillenforce/skillenforce/actions/workflows/ci.yml/badge.svg)](https://github.com/skillenforce/skillenforce/actions/workflows/ci.yml)
 [![license](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 [![node](https://img.shields.io/badge/node-%3E%3D22.18-brightgreen.svg)](https://nodejs.org)
 
@@ -23,14 +23,14 @@ Non-trivial work follows six stages, in order, each with its own skill:
 
 | # | Stage | Skill | Produces |
 |---|-------|-------|----------|
-| 1 | Plan | `novahiz-plan` | direction, boundaries, dependency order, slicing strategy, risks |
-| 2 | Clarify | `novahiz-clarify` | ambiguity families, question rounds, settled decisions |
-| 3 | Tasks | `novahiz-task` | atomic tasks with acceptance criteria and a proof |
-| 4 | Analyse | `novahiz-analyse` | the files, symbols, and unknowns that matter for the task |
-| 5 | Implement | `novahiz-implement` | increments that keep the system working |
-| 6 | Converge | `novahiz-converge` | the gap between intent and code, closed or left explicit |
+| 1 | Plan | `skillenforce-plan` | direction, boundaries, dependency order, slicing strategy, risks |
+| 2 | Clarify | `skillenforce-clarify` | ambiguity families, question rounds, settled decisions |
+| 3 | Tasks | `skillenforce-task` | atomic tasks with acceptance criteria and a proof |
+| 4 | Analyse | `skillenforce-analyse` | the files, symbols, and unknowns that matter for the task |
+| 5 | Implement | `skillenforce-implement` | increments that keep the system working |
+| 6 | Converge | `skillenforce-converge` | the gap between intent and code, closed or left explicit |
 
-`novahiz-planner` orchestrates them and carries the entry rule: no non-trivial edit before a written plan. Stages 1 to 4 write nothing to the application.
+`skillenforce-planner` orchestrates them and carries the entry rule: no non-trivial edit before a written plan. Stages 1 to 4 write nothing to the application.
 
 The clarification and planning stages ask their questions through the harness question interface, so the agent presents choices and waits for an answer instead of listing questions in prose.
 
@@ -56,8 +56,8 @@ skillenforce init
 Or from source:
 
 ```
-git clone https://github.com/novahiz/skillenforce ~/.config/novahiz
-node ~/.config/novahiz/install/install.mjs
+git clone https://github.com/skillenforce/skillenforce ~/.config/skillenforce
+node ~/.config/skillenforce/install/install.mjs
 ```
 
 Restart opencode afterward. The plugin registers the MCP server on its own.
@@ -72,7 +72,7 @@ Generic behavior lives in `catalog/` and is versioned:
 - `catalog/rules.json` defines the pre-edit rules (file classes, path globs, prompt categories, content matches, required skills).
 - `catalog/overrides.json` holds manual curation for skills (power, stars, tags, categories).
 
-Machine-specific settings live in `novahiz.config.json`, which is gitignored: the database path, the skill roots, and gate behavior. Copy the example file to create it.
+Machine-specific settings live in `skillenforce.config.json`, which is gitignored: the database path, the skill roots, and gate behavior. Copy the example file to create it.
 
 ## CLI
 
@@ -108,11 +108,11 @@ Run `skillenforce` with no arguments for the full command list.
 
 ## opencode adapter
 
-Copy `adapters/opencode/novahiz.ts` into `~/.config/opencode/plugins/`, or run the installer, which copies it. It loads automatically at startup. The adapter classifies each user message, injects the roadmap checklist and expected skills, tracks loaded skills, and calls the CLI gate on `edit`, `write`, `patch`, `apply_patch`, `bash`, and `shell`.
+Copy `adapters/opencode/skillenforce.ts` into `~/.config/opencode/plugins/`, or run the installer, which copies it. It loads automatically at startup. The adapter classifies each user message, injects the roadmap checklist and expected skills, tracks loaded skills, and calls the CLI gate on `edit`, `write`, `patch`, `apply_patch`, `bash`, and `shell`.
 
-The installer also drops four slash commands into the opencode command directory: `/novahiz-plan`, `/novahiz-clean`, `/novahiz-doctor`, and `/novahiz-status`. `/novahiz-plan` runs the pipeline read-only and produces the plan without writing a file.
+The installer also drops four slash commands into the opencode command directory: `/skillenforce-plan`, `/skillenforce-clean`, `/skillenforce-doctor`, and `/skillenforce-status`. `/skillenforce-plan` runs the pipeline read-only and produces the plan without writing a file.
 
-Set `NOVAHIZ_GATE=off` to disable gating for a session. Set `NOVAHIZ_HOME` when the repo is not at `~/.config/novahiz`. Set `NOVAHIZ_DB` to override the database path, which keeps tests and scratch runs off your real ledger.
+Set `NOVAHIZ_GATE=off` to disable gating for a session. Set `NOVAHIZ_HOME` when the repo is not at `~/.config/skillenforce`. Set `NOVAHIZ_DB` to override the database path, which keeps tests and scratch runs off your real ledger.
 
 ## Execution ledger
 
@@ -120,7 +120,7 @@ For work that spans more than a few steps, `skillenforce task` keeps the plan in
 
 ## Harnesses
 
-The adapter is thin on purpose: the gate logic lives in the CLI. opencode is the supported harness, through the plugin in `adapters/opencode/`. Any harness with a stdio MCP client can use `novahiz_classify`, `novahiz_catalog`, `novahiz_roadmap`, `novahiz_providers`, `novahiz_deps`, `novahiz_step`, `novahiz_list_skills`, `novahiz_gate`, `novahiz_task`, and `novahiz_dispatch`, but the gate only blocks inside opencode. Novahiz also catalogues external components as providers: MCP servers (playwright, security, narsil, context7, sequential-thinking, cron), and skill packs (impeccable), and can run their official install commands. See [docs/HARNESSES.md](docs/HARNESSES.md), [adapters/README.md](adapters/README.md), and [docs/PROVIDERS.md](docs/PROVIDERS.md).
+The adapter is thin on purpose: the gate logic lives in the CLI. opencode is the supported harness, through the plugin in `adapters/opencode/`. Any harness with a stdio MCP client can use `skillenforce_classify`, `skillenforce_catalog`, `skillenforce_roadmap`, `skillenforce_providers`, `skillenforce_deps`, `skillenforce_step`, `skillenforce_list_skills`, `skillenforce_gate`, `skillenforce_task`, and `skillenforce_dispatch`, but the gate only blocks inside opencode. Novahiz also catalogues external components as providers: MCP servers (playwright, security, narsil, context7, sequential-thinking, cron), and skill packs (impeccable), and can run their official install commands. See [docs/HARNESSES.md](docs/HARNESSES.md), [adapters/README.md](adapters/README.md), and [docs/PROVIDERS.md](docs/PROVIDERS.md).
 
 ## License
 

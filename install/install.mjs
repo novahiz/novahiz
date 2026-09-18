@@ -9,7 +9,7 @@ import {
   mergeBackups,
   mergeCreated,
   nodeVersionOk,
-  novahizHome,
+  skillenforceHome,
   opencodeConfigDir,
   parseArgs,
   readJson,
@@ -35,12 +35,12 @@ const CORE_ITEMS = [
   "LICENSE",
   "README.md",
   "NOTICE.md",
-  "novahiz.config.example.json"
+  "skillenforce.config.example.json"
 ];
 
 function defaultConfig(skillsDir) {
   return {
-    dbPath: "novahiz.sqlite",
+    dbPath: "skillenforce.sqlite",
     skillRoots: ["./skills", "./bundled-skills"],
     gate: {
       enabled: true,
@@ -67,7 +67,7 @@ async function main() {
   const force = Boolean(flags.force);
   const withSkills = !flags["no-skills"];
   const root = repoRoot(import.meta.url);
-  const home = novahizHome(flags);
+  const home = skillenforceHome(flags);
   const configDir = flags.scope === "project" ? resolve(".opencode") : opencodeConfigDir();
   const skillsDir = join(configDir, "skills");
   const pluginsDir = join(configDir, "plugins");
@@ -93,8 +93,8 @@ async function main() {
     process.stdout.write(`  Home:            ${home}\n`);
     process.stdout.write(`  opencode config: ${configDir}\n`);
     process.stdout.write(`  Skills:          ${skillsDir}\n`);
-    process.stdout.write(`  Plugin:          ${join(pluginsDir, "novahiz.ts")}\n`);
-    process.stdout.write(`  Agent:           ${join(configDir, "agent", "novahiz-agent.md")}\n`);
+    process.stdout.write(`  Plugin:          ${join(pluginsDir, "skillenforce.ts")}\n`);
+    process.stdout.write(`  Agent:           ${join(configDir, "agent", "skillenforce-agent.md")}\n`);
     process.stdout.write("\nProviders (optional, installed on your machine, never copied into the repo):\n");
     for (const provider of providers) {
       const source = provider.source ? ` ${provider.source}` : "";
@@ -191,8 +191,8 @@ async function main() {
     }
   }
 
-  const pluginSource = join(home, "adapters", "opencode", "novahiz.ts");
-  const pluginTarget = join(pluginsDir, "novahiz.ts");
+  const pluginSource = join(home, "adapters", "opencode", "skillenforce.ts");
+  const pluginTarget = join(pluginsDir, "skillenforce.ts");
   if (existsSync(pluginSource)) {
     note(`Installation du plugin opencode dans ${pluginTarget}`);
     if (!dryRun) {
@@ -202,10 +202,10 @@ async function main() {
     }
   }
 
-  const agentSource = existsSync(join(home, "adapters", "opencode", "agent", "novahiz-agent.md"))
-    ? join(home, "adapters", "opencode", "agent", "novahiz-agent.md")
-    : join(root, "adapters", "opencode", "agent", "novahiz-agent.md");
-  const agentTarget = join(configDir, "agent", "novahiz-agent.md");
+  const agentSource = existsSync(join(home, "adapters", "opencode", "agent", "skillenforce-agent.md"))
+    ? join(home, "adapters", "opencode", "agent", "skillenforce-agent.md")
+    : join(root, "adapters", "opencode", "agent", "skillenforce-agent.md");
+  const agentTarget = join(configDir, "agent", "skillenforce-agent.md");
   if (existsSync(agentSource)) {
     note(`Installation de l'agent Novahiz dans ${agentTarget}`);
     if (!dryRun) {
@@ -228,13 +228,13 @@ async function main() {
     }
   }
 
-  const configPath = join(home, "novahiz.config.json");
+  const configPath = join(home, "skillenforce.config.json");
   if (force || !existsSync(configPath)) {
     note(`Ecriture de ${configPath}`);
     if (!dryRun) {
       const existedBefore = existsSync(configPath);
       if (existedBefore) {
-        const backup = `${configPath}.novahiz-bak`;
+        const backup = `${configPath}.skillenforce-bak`;
         if (!existsSync(backup)) cpSync(configPath, backup);
         backups.push({ path: configPath, backup });
       }
@@ -275,7 +275,7 @@ async function main() {
 
   if (!dryRun) {
     const cli = join(home, "src", "cli.ts");
-    const config = readJson(join(home, "novahiz.config.json"), {});
+    const config = readJson(join(home, "skillenforce.config.json"), {});
     const autoInstall =
       providersChoice !== null
         ? providersChoice
@@ -400,7 +400,7 @@ async function main() {
         "plugin": [
           "@mohak34/opencode-notifier@0.2.8",
           "@tarquinen/opencode-dcp@latest",
-          join(home, "adapters", "opencode", "novahiz.ts")
+          join(home, "adapters", "opencode", "skillenforce.ts")
         ],
         "compaction": {
           "auto": true,

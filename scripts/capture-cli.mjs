@@ -1,13 +1,13 @@
 #!/usr/bin/env node
 
-// Captures the JSON output of the Novahiz CLI so a refactor can be proven neutral.
+// Captures the JSON output of the skillenforce CLI so a refactor can be proven neutral.
 //
 //   node scripts/capture-cli.mjs --label before
 //   ... run the refactor ...
 //   node scripts/capture-cli.mjs --label after
 //   node scripts/capture-cli.mjs --compare before after
 //
-// Every invocation runs with a private database (`NOVAHIZ_DB`) so the output does
+// Every invocation runs with a private database (`skillenforce_DB`) so the output does
 // not depend on the state of the real ledger. `--compare` ignores the timestamp
 // fields listed in IGNORED, which change on every run for reasons unrelated to
 // the code.
@@ -34,7 +34,7 @@ const INVOCATIONS = [
   ["roadmap-audit", ["roadmap", "--category", "audit"]],
   ["providers", ["providers"]],
   ["deps", ["deps"]],
-  ["catalog", ["catalog", "novahiz"]],
+  ["catalog", ["catalog", "skillenforce"]],
   ["classify-bug", ["classify", "corrige un bug de login"]],
   ["classify-refactor", ["classify", "decouper src/cli.ts en modules"]],
   ["doctor", ["doctor"]],
@@ -61,7 +61,7 @@ function parse(argv) {
 }
 
 function outputRoot(flags) {
-  return flags.out && flags.out.length > 0 ? flags.out : join(tmpdir(), "novahiz", "cli-reference");
+  return flags.out && flags.out.length > 0 ? flags.out : join(tmpdir(), "skillenforce", "cli-reference");
 }
 
 function capture(flags) {
@@ -77,7 +77,7 @@ function capture(flags) {
       cwd: root,
       encoding: "utf8",
       input: input ? JSON.stringify(input) : "",
-      env: { ...process.env, NOVAHIZ_DB: dbPath }
+      env: { ...process.env, skillenforce_DB: dbPath }
     });
     writeFileSync(
       join(target, `${name}.json`),

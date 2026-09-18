@@ -1,5 +1,5 @@
 import { dbPathFor, emit, flagOn, type Parsed } from "./context.ts";
-import { loadSpec, novahizHome } from "../spec.ts";
+import { loadSpec, skillenforceHome } from "../spec.ts";
 import { openDb } from "../db.ts";
 import * as ui from "../render.ts";
 
@@ -7,7 +7,7 @@ const AVG_LINE_BYTES = 80;
 const AVG_TOKENS_PER_LINE = 25;
 
 export function commandTokens(parsed: Parsed): void {
-  const root = novahizHome();
+  const root = skillenforceHome();
   const spec = loadSpec(root);
   const db = openDb(dbPathFor(root, spec));
 

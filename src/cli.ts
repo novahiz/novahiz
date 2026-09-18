@@ -14,7 +14,7 @@ import { commandDoctor } from "./commands/doctor.ts";
 import { commandTokens } from "./commands/tokens.ts";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const HOME = process.env.NOVAHIZ_HOME || join(process.env.HOME || process.env.USERPROFILE || "", ".config", "novahiz");
+const HOME = process.env.NOVAHIZ_HOME || join(process.env.HOME || process.env.USERPROFILE || "", ".config", "skillenforce");
 
 function runSync(): void {
   const cli = join(HOME, "src", "cli.ts");
@@ -59,7 +59,7 @@ function printVersion(): void {
     const pkg = JSON.parse(readFileSync(join(__dirname, "..", "package.json"), "utf8"));
     process.stdout.write(`skillenforce ${pkg.version}\n`);
   } catch {
-    process.stdout.write("novahiz (unknown version)\n");
+    process.stdout.write("skillenforce (unknown version)\n");
   }
 }
 

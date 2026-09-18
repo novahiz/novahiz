@@ -1,11 +1,11 @@
 import { join } from "node:path";
 import { asString, dbPathFor, emit, parse, type Parsed } from "./context.ts";
-import { loadSpec, novahizHome } from "../spec.ts";
+import { loadSpec, skillenforceHome } from "../spec.ts";
 import { openDb } from "../db.ts";
 import * as ui from "../render.ts";
 
 export function commandReport(parsed: Parsed): void {
-  const root = novahizHome();
+  const root = skillenforceHome();
   const spec = loadSpec(root);
   const db = openDb(dbPathFor(root, spec));
   const total = (db.prepare("SELECT COUNT(*) AS n FROM enforcement_log").get() as { n: number }).n;

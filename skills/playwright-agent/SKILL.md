@@ -132,11 +132,11 @@ playwright_browser_wait_for(time=3)
 5. **Gérer les popups** — `playwright_browser_handle_dialog(accept=true)` pour les confirmations.
 6. **Screenshot = preuve** — chaque étape importante se termine par un screenshot qui sert de preuve de vérification.
 
-## Intégration Novahiz
+## Intégration skillenforce
 
 Ce skill est invoqué automatiquement quand la catégorie `browser` est détectée. Il complète :
-- `novahiz-plan` (étape 1 : cadrer l'objectif)
-- `novahiz-task` (étape 2 : découper les étapes)
-- `novahiz-converge` (vérification finale)
+- `skillenforce-plan` (étape 1 : cadrer l'objectif)
+- `skillenforce-task` (étape 2 : découper les étapes)
+- `skillenforce-converge` (vérification finale)
 
 Le serveur externe est un prérequis technique, pas une étape du pipeline. Il ne remplace pas la planification.

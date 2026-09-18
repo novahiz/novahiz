@@ -2,11 +2,11 @@
 
 ## Obsidian Memory
 
-Obsidian (`C:\Users\hiz\Documents\novahiz`) is the user's second memory.
+Obsidian (`C:\Users\hiz\Documents\skillenforce`) is the user's second memory.
 
 ### Rules
 1. When the user asks to **save / memorize / update obsidian memory**, load the `memory-save` skill and follow its procedure without exception.
-2. Determine the target folder **only** from the `novahiz\_meta\routing.md` table (source of truth). Never guess. When ambiguous, ask the user.
+2. Determine the target folder **only** from the `skillenforce\_meta\routing.md` table (source of truth). Never guess. When ambiguous, ask the user.
 3. Display the chosen path before writing.
 4. Never write to `index.md`, `log.md`, `hot.md`, `.manifest.json`, `_meta/`, or `.obsidian/` **except through a dedicated maintenance skill** (wiki-ingest/wiki-lint/wiki-status for index/log/hot/manifest; graph-colorize for `.obsidian/graph.json`, with mandatory backup). The `memory-save` skill writes only to the targeted content page.
 5. Never create a root folder on your own. Every new category requires user agreement and an update to `routing.md`.

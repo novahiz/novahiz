@@ -49,51 +49,51 @@
       "power": 5,
       "stars": null,
       "tags": [
-        "novahiz",
+        "skillenforce",
         "workflow"
       ],
       "categories": [
         "general"
       ]
     },
-    "novahiz-gate": {
+    "skillenforce-gate": {
       "power": 5,
       "stars": null,
       "tags": [
-        "novahiz",
+        "skillenforce",
         "workflow"
       ],
       "categories": [
         "general"
       ]
     },
-    "novahiz-audit": {
+    "skillenforce-audit": {
       "power": 4,
       "stars": null,
       "tags": [
-        "novahiz",
+        "skillenforce",
         "audit"
       ],
       "categories": [
         "audit"
       ]
     },
-    "novahiz-memory": {
+    "skillenforce-memory": {
       "power": 4,
       "stars": null,
       "tags": [
-        "novahiz",
+        "skillenforce",
         "memory"
       ],
       "categories": [
         "general"
       ]
     },
-    "novahiz-planner": {
+    "skillenforce-planner": {
       "power": 5,
       "stars": null,
       "tags": [
-        "novahiz",
+        "skillenforce",
         "workflow"
       ],
       "categories": [
@@ -449,11 +449,11 @@
         "research"
       ]
     },
-    "novahiz-plan": {
+    "skillenforce-plan": {
       "power": 5,
       "stars": null,
       "tags": [
-        "novahiz",
+        "skillenforce",
         "planning"
       ],
       "categories": [
@@ -461,11 +461,11 @@
         "code"
       ]
     },
-    "novahiz-clarify": {
+    "skillenforce-clarify": {
       "power": 5,
       "stars": null,
       "tags": [
-        "novahiz",
+        "skillenforce",
         "planning"
       ],
       "categories": [
@@ -473,11 +473,11 @@
         "general"
       ]
     },
-    "novahiz-task": {
+    "skillenforce-task": {
       "power": 5,
       "stars": null,
       "tags": [
-        "novahiz",
+        "skillenforce",
         "planning"
       ],
       "categories": [
@@ -485,11 +485,11 @@
         "code"
       ]
     },
-    "novahiz-analyse": {
+    "skillenforce-analyse": {
       "power": 4,
       "stars": null,
       "tags": [
-        "novahiz",
+        "skillenforce",
         "analysis"
       ],
       "categories": [
@@ -498,22 +498,22 @@
         "review"
       ]
     },
-    "novahiz-implement": {
+    "skillenforce-implement": {
       "power": 5,
       "stars": null,
       "tags": [
-        "novahiz",
+        "skillenforce",
         "code"
       ],
       "categories": [
         "code"
       ]
     },
-    "novahiz-converge": {
+    "skillenforce-converge": {
       "power": 5,
       "stars": null,
       "tags": [
-        "novahiz",
+        "skillenforce",
         "verify"
       ],
       "categories": [

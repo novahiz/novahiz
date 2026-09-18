@@ -3,7 +3,7 @@ import { spawnSync } from "node:child_process";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { dbPathFor, emit, type Parsed } from "./context.ts";
-import { loadSpec, novahizHome } from "../spec.ts";
+import { loadSpec, skillenforceHome } from "../spec.ts";
 import { openDb, SCHEMA_VERSION } from "../db.ts";
 import { loadInstalledSkills } from "../catalog.ts";
 import { evaluateGate } from "../gate.ts";
@@ -37,7 +37,7 @@ function referencedSkills(spec: ReturnType<typeof loadSpec>): string[] {
 }
 
 export function commandDoctor(parsed: Parsed): void {
-  const root = novahizHome();
+  const root = skillenforceHome();
   const spec = loadSpec(root);
   const checks: DoctorCheck[] = [];
 
@@ -125,12 +125,12 @@ export function commandDoctor(parsed: Parsed): void {
   }
   checks.push({ id: "schema", label: "Version du schema", ok: true, detail: schemaDetail, blocking: false });
 
-  const adapterSource = join(root, "adapters", "opencode", "novahiz.ts");
+  const adapterSource = join(root, "adapters", "opencode", "skillenforce.ts");
   const opencodeDir =
     process.env.OPENCODE_CONFIG_DIR && process.env.OPENCODE_CONFIG_DIR.length > 0
       ? process.env.OPENCODE_CONFIG_DIR
       : join(homedir(), ".config", "opencode");
-  const adapterInstalled = join(opencodeDir, "plugins", "novahiz.ts");
+  const adapterInstalled = join(opencodeDir, "plugins", "skillenforce.ts");
   let adapterOk = true;
   let adapterDetail = "aucune copie installee";
   if (existsSync(adapterSource) && existsSync(adapterInstalled)) {
@@ -139,8 +139,8 @@ export function commandDoctor(parsed: Parsed): void {
   }
   checks.push({ id: "adapter", label: "Copie harnais du plugin", ok: adapterOk, detail: adapterDetail, blocking: false });
 
-  const agentSource = join(root, "adapters", "opencode", "agent", "novahiz-agent.md");
-  const agentInstalled = join(opencodeDir, "agent", "novahiz-agent.md");
+  const agentSource = join(root, "adapters", "opencode", "agent", "skillenforce-agent.md");
+  const agentInstalled = join(opencodeDir, "agent", "skillenforce-agent.md");
   let agentOk = true;
   let agentDetail = "aucune copie installee";
   if (existsSync(agentSource) && existsSync(agentInstalled)) {

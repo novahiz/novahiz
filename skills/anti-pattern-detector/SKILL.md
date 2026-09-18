@@ -137,14 +137,14 @@ Load the relevant reference file based on the finding category:
 | Build/Deploy | `references/build-deploy-patterns.md` | Dependency hell, docker bloat, migration safety, unpinned deps |
 | Language-specific | `references/language-specific-patterns.md` | JS/Python/Go/Rust/Java specific pitfalls |
 
-## Novahiz Integration
+## skillenforce Integration
 
 This skill auto-triggers during `code-review-excellence`. The workflow:
 
-1. `novahiz-gate` checks that `anti-pattern-detector` is loaded
+1. `skillenforce-gate` checks that `anti-pattern-detector` is loaded
 2. During code review, findings are added to the review output
 3. Critical/High findings are flagged in the Todo as blockers
-4. `novahiz-audit` verifies all Critical findings were addressed
+4. `skillenforce-audit` verifies all Critical findings were addressed
 
 ## Tool Availability Matrix
 

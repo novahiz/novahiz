@@ -16,7 +16,7 @@ Tu ne devines jamais : tu suis la table de routage `_meta/routing.md`. En cas de
 
 ## Résolution du chemin du vault
 
-`OBSIDIAN_VAULT_PATH` : vault unique connu = `C:\Users\hiz\Documents\novahiz`.
+`OBSIDIAN_VAULT_PATH` : vault unique connu = `C:\Users\hiz\Documents\skillenforce`.
 Si un autre chemin est fourni (`@nom`), vérifie qu'il existe avant tout.
 
 ## Procédure obligatoire (dans l'ordre)
@@ -42,7 +42,7 @@ Si un autre chemin est fourni (`@nom`), vérifie qu'il existe avant tout.
 Toujours afficher, sous forme de bloc :
 
 ```
-→ C:\Users\hiz\Documents\novahiz\<dossier>\<titre-si-pertinent>.md
+→ C:\Users\hiz\Documents\skillenforce\<dossier>\<titre-si-pertinent>.md
 ```
 
 Si l'utilisateur a demandé une sauvegarde directe et que le classement est évident (table sans

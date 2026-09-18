@@ -1,6 +1,6 @@
 # Architecture
 
-Novahiz has one core and thin adapters. The core holds every decision. An adapter only translates between a harness and the core.
+skillenforce has one core and thin adapters. The core holds every decision. An adapter only translates between a harness and the core.
 
 ## Components
 
@@ -35,7 +35,7 @@ Three versioned JSON files under `catalog/`:
 
 ### opencode adapter
 
-`adapters/opencode/novahiz.ts` is a plugin. It runs the CLI for classification and gating, tracks loaded skills per session in memory, and injects enforcement text through `experimental.chat.system.transform`. The gate call runs in `tool.execute.before`, which can throw and cancel the tool call.
+`adapters/opencode/skillenforce.ts` is a plugin. It runs the CLI for classification and gating, tracks loaded skills per session in memory, and injects enforcement text through `experimental.chat.system.transform`. The gate call runs in `tool.execute.before`, which can throw and cancel the tool call.
 
 ### content rules and roadmaps
 
@@ -52,7 +52,7 @@ Each category carries a `roadmap`. The classifier returns the category order, th
 1. The user sends a message. `chat.message` classifies it, stores the categories and required skills for the session, and reads the active ledger task.
 2. `experimental.chat.system.transform` adds a short enforcement block to the system prompt, including the ledger summary and any review signal.
 3. The model calls `skill` to load a skill. The adapter records it for the session.
-4. The model calls `edit`, `write`, or `patch`. The adapter runs `novahiz gate` with the file path, the session categories, and the loaded skills.
+4. The model calls `edit`, `write`, or `patch`. The adapter runs `skillenforce gate` with the file path, the session categories, and the loaded skills.
 5. If the gate blocks, the adapter throws and the model sees the list of missing skills or the review reason.
 
 ## Determinism
@@ -61,15 +61,15 @@ The only inputs to a gate decision are the spec files, the file path, the prompt
 
 ## Portability
 
-The core runs on Node with no dependencies. A new harness adapter needs two things: a way to run `novahiz classify` and `novahiz gate`, and a pre-tool hook that can abort a call. When the harness has no such hook, the classifier and the system-prompt injection still work, but the gate cannot block.
+The core runs on Node with no dependencies. A new harness adapter needs two things: a way to run `skillenforce classify` and `skillenforce gate`, and a pre-tool hook that can abort a call. When the harness has no such hook, the classifier and the system-prompt injection still work, but the gate cannot block.
 
 ## Installer
 
-`install/install.mjs` copies the core, the bundled skills, and the plugin into place. It backs up any user file it overwrites (`*.novahiz-bak`) and records what it created in `.novahiz-install.json`, so `install/uninstall.mjs` can restore and reverse.
+`install/install.mjs` copies the core, the bundled skills, and the plugin into place. It backs up any user file it overwrites (`*.skillenforce-bak`) and records what it created in `.skillenforce-install.json`, so `install/uninstall.mjs` can restore and reverse.
 
 ## MCP server
 
-`mcp/novahiz-tools/index.mjs` exposes `novahiz_classify`, `novahiz_catalog`, `novahiz_roadmap`, `novahiz_providers`, `novahiz_deps`, `novahiz_step`, `novahiz_list_skills`, `novahiz_gate`, `novahiz_task`, and `novahiz_dispatch` over stdio using newline-delimited JSON-RPC. It has no dependencies and reuses the core modules directly. The opencode plugin registers it through the plugin `config` hook.
+`mcp/skillenforce-tools/index.mjs` exposes `skillenforce_classify`, `skillenforce_catalog`, `skillenforce_roadmap`, `skillenforce_providers`, `skillenforce_deps`, `skillenforce_step`, `skillenforce_list_skills`, `skillenforce_gate`, `skillenforce_task`, and `skillenforce_dispatch` over stdio using newline-delimited JSON-RPC. It has no dependencies and reuses the core modules directly. The opencode plugin registers it through the plugin `config` hook.
 
 ## Providers
 
