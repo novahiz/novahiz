@@ -51,7 +51,7 @@ export function commandGate(parsed: Parsed): void {
       try {
         args = JSON.parse(raw);
       } catch {
-        process.stderr.write("Novahiz: invalid JSON on stdin for --args-stdin\n");
+        process.stderr.write("Skillenforce: invalid JSON on stdin for --args-stdin\n");
         process.exitCode = 1;
         return;
       }
@@ -59,7 +59,7 @@ export function commandGate(parsed: Parsed): void {
     paths = extractTargetPaths(tool, args);
     if (content.length === 0) content = changeText(tool, args);
   } else {
-    process.stderr.write("Novahiz: gate requires --file <path> or --args-stdin\n");
+    process.stderr.write("Skillenforce: gate requires --file <path> or --args-stdin\n");
     process.exitCode = 1;
     return;
   }

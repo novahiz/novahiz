@@ -38,7 +38,7 @@ export function commandReport(parsed: Parsed): void {
 
   if (asString(parsed.flags.format) === "markdown") {
     const lines = [
-      "# Novahiz report",
+      "# Skillenforce report",
       "",
       `Enforcement entries: ${total}`,
       `Skill invocations: ${invocations}`,
@@ -60,7 +60,7 @@ export function commandReport(parsed: Parsed): void {
 
   emit(parsed, report, () =>
     [
-      ui.heading("Novahiz report"),
+      ui.heading("Skillenforce report"),
       ui.kv([
         ["Journal d'enforcement", String(total)],
         ["Invocations de skills", String(invocations)],

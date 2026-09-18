@@ -113,7 +113,7 @@ type LedgerConfig = {
   review: LedgerReviewConfig;
 };
 
-export type NovahizConfig = {
+export type SkillenforceConfig = {
   dbPath: string;
   skillRoots: string[];
   gate: GateConfig;
@@ -124,7 +124,7 @@ export type NovahizConfig = {
 
 export type Spec = {
   root: string;
-  config: NovahizConfig;
+  config: SkillenforceConfig;
   categories: Category[];
   rules: Rule[];
   overrides: Overrides;
@@ -148,7 +148,7 @@ const DEFAULT_IGNORE_FILES = [
   "**/*.generated.*"
 ];
 
-export const DEFAULT_CONFIG: NovahizConfig = {
+export const DEFAULT_CONFIG: SkillenforceConfig = {
   dbPath: "skillenforce.sqlite",
   skillRoots: [],
   gate: {
@@ -202,7 +202,7 @@ function readJson<T>(path: string): T {
   return JSON.parse(stripBom(readFileSync(path, "utf8"))) as T;
 }
 
-export function mergeConfig(raw: Partial<NovahizConfig> | null | undefined): NovahizConfig {
+export function mergeConfig(raw: Partial<SkillenforceConfig> | null | undefined): SkillenforceConfig {
   const source = raw && typeof raw === "object" ? raw : {};
   const gateSource: Partial<GateConfig> = source.gate && typeof source.gate === "object" ? source.gate : {};
   const gate: GateConfig = { ...DEFAULT_CONFIG.gate, ...gateSource };
@@ -259,24 +259,24 @@ export function mergeConfig(raw: Partial<NovahizConfig> | null | undefined): Nov
   };
 }
 
-function loadConfig(root: string = skillenforceHome()): NovahizConfig {
+function loadConfig(root: string = skillenforceHome()): SkillenforceConfig {
   const config = readUserConfig(root);
   const dbOverride = process.env.SKILLEFORCE_DB;
   if (dbOverride && dbOverride.length > 0) config.dbPath = dbOverride;
   return config;
 }
 
-function readUserConfig(root: string): NovahizConfig {
+function readUserConfig(root: string): SkillenforceConfig {
   const userPath = join(root, "skillenforce.config.json");
   if (existsSync(userPath)) {
     try {
-      return mergeConfig(JSON.parse(stripBom(readFileSync(userPath, "utf8"))) as Partial<NovahizConfig>);
+      return mergeConfig(JSON.parse(stripBom(readFileSync(userPath, "utf8"))) as Partial<SkillenforceConfig>);
     } catch (error) {
       throw new Error(`Invalid JSON in ${userPath}: ${(error as Error).message}`);
     }
   }
   const examplePath = join(root, "skillenforce.config.example.json");
-  if (existsSync(examplePath)) return mergeConfig(readJson<Partial<NovahizConfig>>(examplePath));
+  if (existsSync(examplePath)) return mergeConfig(readJson<Partial<SkillenforceConfig>>(examplePath));
   return mergeConfig(null);
 }
 

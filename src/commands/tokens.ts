@@ -46,7 +46,7 @@ export function commandTokens(parsed: Parsed): void {
 
   emit(parsed, value, () => {
     const lines = [
-      ui.heading("Novahiz tokens"),
+      ui.heading("Skillenforce tokens"),
       "",
       ui.kv([
         ["events:", String(events)],

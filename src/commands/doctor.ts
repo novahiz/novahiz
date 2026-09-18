@@ -169,7 +169,7 @@ export function commandDoctor(parsed: Parsed): void {
 
   emit(parsed, value, () =>
     [
-      ui.heading("Novahiz doctor"),
+      ui.heading("Skillenforce doctor"),
       ui.kv([
         ["Maison", root],
         ["Plateforme", process.platform]

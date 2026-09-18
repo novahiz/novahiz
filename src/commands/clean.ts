@@ -48,7 +48,7 @@ export function commandClean(parsed: Parsed): void {
 
   const renderPlan = (): string => {
     const lines = [
-      ui.heading("Novahiz clean"),
+      ui.heading("Skillenforce clean"),
       ui.kv([
         ["Base", `${path} (${ui.bytes(before)})`],
         ["Cible", targetRaw],
