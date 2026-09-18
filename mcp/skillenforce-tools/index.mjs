@@ -222,7 +222,7 @@ function callTool(name, args) {
   }
   if (name === "skillenforce_gate") {
     if (spec.config.gate.enabled === false) return toolResult({ allow: true, disabled: true });
-    const escapeValue = (process.env[spec.config.gate.envEscape || "NOVAHIZ_GATE"] || "").toLowerCase();
+    const escapeValue = (process.env[spec.config.gate.envEscape || "SKILLEFORCE_GATE"] || "").toLowerCase();
     if (["off", "0", "false", "no", "disabled"].includes(escapeValue)) {
       return toolResult({ allow: true, disabled: true });
     }
@@ -419,7 +419,8 @@ function handle(message) {
     try {
       return { jsonrpc: "2.0", id, result: callTool(params.name, params.arguments ?? {}) };
     } catch (error) {
-      return { jsonrpc: "2.0", id, result: toolResult(String(error?.message ?? error), true) };
+      const msg = String(error?.message ?? error).replace(/[^a-zA-Z0-9 .:,\-_()/]/g, "").slice(0, 200);
+      return { jsonrpc: "2.0", id, result: toolResult(`internal error: ${msg}`, true) };
     }
   }
   if (method === "ping") return { jsonrpc: "2.0", id, result: {} };

@@ -5,12 +5,14 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 
 const HOME =
-  process.env.NOVAHIZ_HOME && process.env.NOVAHIZ_HOME.length > 0
-    ? process.env.NOVAHIZ_HOME
-    : join(homedir(), ".config", "novahiz");
+  process.env.SKILLEFORCE_HOME && process.env.SKILLEFORCE_HOME.length > 0
+    ? process.env.SKILLEFORCE_HOME
+    : process.env.NOVAHIZ_HOME && process.env.NOVAHIZ_HOME.length > 0
+      ? process.env.NOVAHIZ_HOME
+      : join(homedir(), ".config", "novahiz");
 const CLI = join(HOME, "src", "cli.ts");
 const NODE =
-  process.env.NOVAHIZ_NODE && process.env.NOVAHIZ_NODE.length > 0 ? process.env.NOVAHIZ_NODE : "node";
+  process.env.SKILLEFORCE_NODE && process.env.SKILLEFORCE_NODE.length > 0 ? process.env.SKILLEFORCE_NODE : "node";
 
 type GateConfig = { enabled?: boolean; mode?: string; envEscape?: string; tools?: string[] };
 type SkillenforceConfig = { gate?: GateConfig };
@@ -28,7 +30,7 @@ function readConfig(): SkillenforceConfig {
 
 const CONFIG = readConfig();
 const GATE = CONFIG.gate ?? {};
-const ENV_ESCAPE = typeof GATE.envEscape === "string" && GATE.envEscape.length > 0 ? GATE.envEscape : "NOVAHIZ_GATE";
+const ENV_ESCAPE = typeof GATE.envEscape === "string" && GATE.envEscape.length > 0 ? GATE.envEscape : "SKILLEFORCE_GATE";
 const ESCAPE = (process.env[ENV_ESCAPE] || "").toLowerCase();
 // gate.enabled=false disables the plugin the same way the CLI gate does (see src/commands/gate.ts).
 // gate.mode (block/warn/audit) stays owned by the CLI: the plugin only forwards the gate exit code.

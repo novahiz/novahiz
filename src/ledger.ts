@@ -71,6 +71,7 @@ interface TraceResult {
 export const DEFAULT_MAX_ITERATIONS = 12;
 const DEFAULT_REVIEW_EDITS = 3;
 const DEFAULT_REVIEW_TODOS = 2;
+const SESSION_TTL_MS = 4 * 60 * 60 * 1000;
 
 interface ReviewPolicy {
   edits: number;

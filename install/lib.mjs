@@ -44,8 +44,9 @@ export function opencodeConfigDir(env = process.env) {
 
 export function skillenforceHome(flags = {}, env = process.env) {
   if (typeof flags.home === "string") return resolve(expandHome(flags.home));
+  if (env.SKILLEFORCE_HOME) return resolve(env.SKILLEFORCE_HOME);
   if (env.NOVAHIZ_HOME) return resolve(env.NOVAHIZ_HOME);
-  return join(homedir(), ".config", "skillenforce");
+  return join(homedir(), ".config", "novahiz");
 }
 
 export function listFiles(root) {

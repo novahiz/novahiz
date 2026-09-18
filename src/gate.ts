@@ -105,9 +105,11 @@ export function globToRegExp(glob: string): RegExp {
         index += 1;
         if (source[index + 1] === "/") {
           index += 1;
-          output += "(?:.*/)?";
-        } else {
+          output += "(?:.+/)?";
+        } else if (source[index + 1] === undefined) {
           output += ".*";
+        } else {
+          output += "(?:[^/]+/)*[^/]*";
         }
       } else {
         output += "[^/]*";
@@ -180,11 +182,89 @@ export function evaluateGate(input: GateInput): GateResult {
   const path = input.filePath.replace(/\\/g, "/");
   const content = input.content ?? "";
 
-  const ignored = input.spec.config.gate.ignoreFiles.some((glob) => globToRegExp(glob).test(path));
-  if (ignored) {
+  try {
+    const ignored = input.spec.config.gate.ignoreFiles.some((glob) => globToRegExp(glob).test(path));
+    if (ignored) {
+      return {
+        allow: true,
+        ignored: true,
+        fileClass: classification,
+        roadmap: null,
+        requiredSkills: [],
+        missingSkills: [],
+        unmatchedRequired: [],
+        matchedRules: [],
+        indexMissing: false,
+        placeholder: false,
+        reasons: []
+      };
+    }
+
+    const requiredSkills: string[] = [];
+    const matchedRules: string[] = [];
+
+    for (const rule of input.spec.rules) {
+      if (!selectorMatches(rule, classification, path, categories)) continue;
+      if (rule.when.minChange && isTrivial(content, rule.when.minChange)) continue;
+      if (rule.when.contentExcludes && contentSatisfies(content, rule.when.contentExcludes)) continue;
+      if (rule.when.contentMatches && !contentSatisfies(content, rule.when.contentMatches)) continue;
+      matchedRules.push(rule.id);
+      for (const skill of rule.require) {
+        if (!requiredSkills.includes(skill)) requiredSkills.push(skill);
+      }
+    }
+
+    const primary = categories[0];
+    let roadmap: string | null = null;
+    if (primary) {
+      const category = input.spec.categories.find((entry) => entry.id === primary);
+      if (category?.roadmap) {
+        roadmap = category.roadmap.id;
+        for (const step of category.roadmap.steps) {
+          if (step.kind !== "skill" || step.optional) continue;
+          for (const skill of step.requireSkills ?? []) {
+            if (!requiredSkills.includes(skill)) requiredSkills.push(skill);
+          }
+        }
+      }
+    }
+
+    const installed = input.installedSkills ?? null;
+    const indexAvailable = input.installedIndexAvailable !== false;
+    const effective: string[] = [];
+    const unmatchedRequired: string[] = [];
+    for (const skill of requiredSkills) {
+      if (indexAvailable && installed && !installed.has(skill)) unmatchedRequired.push(skill);
+      else effective.push(skill);
+    }
+
+    const loaded = new Set(input.loadedSkills ?? []);
+    const missingSkills = effective.filter((skill) => !loaded.has(skill));
+
+    const placeholderEligible = input.spec.config.gate.placeholders && (classification === "code" || classification === "design");
+    const placeholder = placeholderEligible && hasPlaceholder(content);
+
+    const reasons: string[] = [];
+    for (const skill of missingSkills) reasons.push(`missing skill: ${skill}`);
+    if (placeholder) reasons.push("placeholder marker found in content");
+
     return {
-      allow: true,
-      ignored: true,
+      allow: missingSkills.length === 0 && !placeholder,
+      ignored: false,
+      fileClass: classification,
+      roadmap,
+      requiredSkills: effective,
+      missingSkills,
+      unmatchedRequired,
+      matchedRules,
+      indexMissing: input.installedIndexAvailable === false,
+      placeholder,
+      reasons
+    };
+  } catch (error) {
+    return {
+      allow: false,
+      ignored: false,
       fileClass: classification,
       roadmap: null,
       requiredSkills: [],
@@ -193,69 +273,7 @@ export function evaluateGate(input: GateInput): GateResult {
       matchedRules: [],
       indexMissing: false,
       placeholder: false,
-      reasons: []
+      reasons: [`gate error: ${String(error?.message ?? error)}`]
     };
   }
-
-  const requiredSkills: string[] = [];
-  const matchedRules: string[] = [];
-
-  for (const rule of input.spec.rules) {
-    if (!selectorMatches(rule, classification, path, categories)) continue;
-    if (rule.when.minChange && isTrivial(content, rule.when.minChange)) continue;
-    if (rule.when.contentExcludes && contentSatisfies(content, rule.when.contentExcludes)) continue;
-    if (rule.when.contentMatches && !contentSatisfies(content, rule.when.contentMatches)) continue;
-    matchedRules.push(rule.id);
-    for (const skill of rule.require) {
-      if (!requiredSkills.includes(skill)) requiredSkills.push(skill);
-    }
-  }
-
-  const primary = categories[0];
-  let roadmap: string | null = null;
-  if (primary) {
-    const category = input.spec.categories.find((entry) => entry.id === primary);
-    if (category?.roadmap) {
-      roadmap = category.roadmap.id;
-      for (const step of category.roadmap.steps) {
-        if (step.kind !== "skill" || step.optional) continue;
-        for (const skill of step.requireSkills ?? []) {
-          if (!requiredSkills.includes(skill)) requiredSkills.push(skill);
-        }
-      }
-    }
-  }
-
-  const installed = input.installedSkills ?? null;
-  const indexAvailable = input.installedIndexAvailable !== false;
-  const effective: string[] = [];
-  const unmatchedRequired: string[] = [];
-  for (const skill of requiredSkills) {
-    if (indexAvailable && installed && !installed.has(skill)) unmatchedRequired.push(skill);
-    else effective.push(skill);
-  }
-
-  const loaded = new Set(input.loadedSkills ?? []);
-  const missingSkills = effective.filter((skill) => !loaded.has(skill));
-
-  const placeholderEligible = input.spec.config.gate.placeholders && (classification === "code" || classification === "design");
-  const placeholder = placeholderEligible && hasPlaceholder(content);
-
-  const reasons: string[] = [];
-  for (const skill of missingSkills) reasons.push(`missing skill: ${skill}`);
-  if (placeholder) reasons.push("placeholder marker found in content");
-
-  return {
-    allow: missingSkills.length === 0 && !placeholder,
-    ignored: false,
-    fileClass: classification,
-    roadmap,
-    requiredSkills: effective,
-    missingSkills,
-    unmatchedRequired,
-    matchedRules,
-    indexMissing: input.installedIndexAvailable === false,
-    placeholder,
-    reasons
-  };
 }

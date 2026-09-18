@@ -46,7 +46,7 @@ function defaultConfig(skillsDir) {
     gate: {
       enabled: true,
       mode: "block",
-      envEscape: "NOVAHIZ_GATE",
+      envEscape: "SKILLEFORCE_GATE",
       tools: ["edit", "write", "patch", "apply_patch", "bash", "shell"]
     },
     classify: {
@@ -283,7 +283,7 @@ async function main() {
       note("Construction du catalogue (sync)");
       const result = spawnSync(process.execPath, [cli, "sync"], {
         encoding: "utf8",
-        env: { ...process.env, NOVAHIZ_HOME: home }
+        env: { ...process.env, SKILLEFORCE_HOME: home }
       });
       if (result.stdout) process.stdout.write(result.stdout);
       if (result.status !== 0 && result.stderr) process.stderr.write(result.stderr);
@@ -300,14 +300,14 @@ async function main() {
     note("Verification des dependances");
     const check = spawnSync(process.execPath, [cli, "deps"], {
       encoding: "utf8",
-      env: { ...process.env, NOVAHIZ_HOME: home }
+      env: { ...process.env, SKILLEFORCE_HOME: home }
     });
     if (check.stdout) process.stdout.write(check.stdout);
     if (autoInstall) {
       note("Installation des dependances et des providers (MCP, skills, commands)");
       const result = spawnSync(process.execPath, [cli, "deps", "--install"], {
         encoding: "utf8",
-        env: { ...process.env, NOVAHIZ_HOME: home }
+        env: { ...process.env, SKILLEFORCE_HOME: home }
       });
       if (result.stdout) process.stdout.write(result.stdout);
       if (result.status !== 0 && result.stderr) process.stderr.write(result.stderr);
@@ -447,7 +447,7 @@ async function main() {
   if (!dryRun) {
     process.stdout.write(`\nSkillenforce installe dans ${home}.\n`);
     process.stdout.write("Redemarre opencode pour activer le plugin et le serveur MCP.\n");
-    process.stdout.write("Gate desactivable avec la variable d'environnement NOVAHIZ_GATE=off.\n");
+    process.stdout.write("Gate desactivable avec la variable d'environnement SKILLEFORCE_GATE=off.\n");
     
     // Auto-update dependencies
     note("Verification des mises a jour des dependances...");
@@ -456,14 +456,14 @@ async function main() {
       const npmCheck = spawnSync("npm", ["outdated", "--json"], {
         encoding: "utf8",
         cwd: home,
-        env: { ...process.env, NOVAHIZ_HOME: home }
+        env: { ...process.env, SKILLEFORCE_HOME: home }
       });
       if (npmCheck.stdout && npmCheck.stdout.trim().length > 2) {
         note("Mises a jour disponibles, installation en cours...");
         const npmUpdate = spawnSync("npm", ["update"], {
           encoding: "utf8",
           cwd: home,
-          env: { ...process.env, NOVAHIZ_HOME: home }
+          env: { ...process.env, SKILLEFORCE_HOME: home }
         });
         if (npmUpdate.stdout) process.stdout.write(npmUpdate.stdout);
         if (npmUpdate.status !== 0 && npmUpdate.stderr) process.stderr.write(npmUpdate.stderr);

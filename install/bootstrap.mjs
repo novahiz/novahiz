@@ -8,7 +8,7 @@ import { fileURLToPath } from "node:url";
 import { nodeVersionOk, opencodeConfigDir } from "./lib.mjs";
 
 const REPO_URL = "https://github.com/skillenforce/skillenforce.git";
-const NOVAHIZ_HOME = join(homedir(), ".config", "skillenforce");
+const SKILLEFORCE_HOME = join(homedir(), ".config", "novahiz");
 
 function log(msg) {
   process.stdout.write(`[skillenforce] ${msg}\n`);
@@ -164,13 +164,13 @@ async function main() {
   }
 
   // 4. Clone or update repo
-  if (existsSync(join(NOVAHIZ_HOME, ".git"))) {
+  if (existsSync(join(SKILLEFORCE_HOME, ".git"))) {
     log("Repo already exists, pulling latest...");
-    run("git", ["-C", NOVAHIZ_HOME, "pull", "--rebase"]);
+    run("git", ["-C", SKILLEFORCE_HOME, "pull", "--rebase"]);
   } else {
-    log(`Cloning repo to ${NOVAHIZ_HOME}...`);
-    mkdirSync(NOVAHIZ_HOME, { recursive: true });
-    if (!run("git", ["clone", REPO_URL, NOVAHIZ_HOME])) {
+    log(`Cloning repo to ${SKILLEFORCE_HOME}...`);
+    mkdirSync(SKILLEFORCE_HOME, { recursive: true });
+    if (!run("git", ["clone", REPO_URL, SKILLEFORCE_HOME])) {
       error("Failed to clone repo");
       process.exit(1);
     }
@@ -220,7 +220,7 @@ async function main() {
   // 7. Run the main installer
   log("");
   log("Running main installer...");
-  const installScript = join(NOVAHIZ_HOME, "install", "install.mjs");
+  const installScript = join(SKILLEFORCE_HOME, "install", "install.mjs");
   if (existsSync(installScript)) {
     if (!run(process.execPath, [installScript, "--yes"])) {
       error("Main installer had issues (non-fatal, check output above)");
@@ -236,7 +236,7 @@ async function main() {
   const configPath = join(configDir, "opencode.jsonc");
 
   if (!existsSync(configPath)) {
-    const config = generateOpenCodeJson(configDir, NOVAHIZ_HOME);
+    const config = generateOpenCodeJson(configDir, SKILLEFORCE_HOME);
     writeFileSync(configPath, JSON.stringify(config, null, 2) + "\n", "utf8");
     log(`Created ${configPath}`);
   } else {
@@ -245,7 +245,7 @@ async function main() {
   }
 
   // 9. Copy plugin to opencode plugins dir
-  const pluginSource = join(NOVAHIZ_HOME, "adapters", "opencode", "skillenforce.ts");
+  const pluginSource = join(SKILLEFORCE_HOME, "adapters", "opencode", "skillenforce.ts");
   const pluginTarget = join(configDir, "plugins", "skillenforce.ts");
   if (existsSync(pluginSource)) {
     mkdirSync(join(configDir, "plugins"), { recursive: true });
@@ -262,7 +262,7 @@ async function main() {
   log("");
   log("Next steps:");
   log("  1. Restart opencode to activate everything");
-  log("  2. Gate is ON by default (disable with NOVAHIZ_GATE=off)");
+  log("  2. Gate is ON by default (disable with SKILLEFORCE_GATE=off)");
   log("");
   log("Enjoy your deterministic agentic layer!");
 }

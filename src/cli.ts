@@ -14,7 +14,7 @@ import { commandDoctor } from "./commands/doctor.ts";
 import { commandTokens } from "./commands/tokens.ts";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const HOME = process.env.NOVAHIZ_HOME || join(process.env.HOME || process.env.USERPROFILE || "", ".config", "novahiz");
+const HOME = process.env.SKILLEFORCE_HOME || process.env.NOVAHIZ_HOME || join(process.env.HOME || process.env.USERPROFILE || "", ".config", "novahiz");
 
 function runSync(): void {
   const cli = join(HOME, "src", "cli.ts");
@@ -22,7 +22,7 @@ function runSync(): void {
     spawnSync(process.execPath, [cli, "sync"], {
       encoding: "utf8",
       stdio: "inherit",
-      env: { ...process.env, NOVAHIZ_HOME: HOME }
+      env: { ...process.env, SKILLEFORCE_HOME: HOME }
     });
   }
 }
@@ -70,7 +70,7 @@ function runInit(): void {
     const result = spawnSync(process.execPath, [installScript, "--yes"], {
       encoding: "utf8",
       stdio: "inherit",
-      env: { ...process.env, NOVAHIZ_HOME: HOME }
+      env: { ...process.env, SKILLEFORCE_HOME: HOME }
     });
     if (result.status !== 0) {
       process.stderr.write("Installation failed. Run `skillenforce doctor` for details.\n");
@@ -99,7 +99,7 @@ function runUpgrade(): void {
 function main(argv: string[]): void {
   const parsed = parse(argv);
   if (typeof parsed.flags.home === "string" && parsed.flags.home.length > 0) {
-    process.env.NOVAHIZ_HOME = resolve(expandHome(parsed.flags.home));
+    process.env.SKILLEFORCE_HOME = resolve(expandHome(parsed.flags.home));
   }
   const command = parsed.positionals[0];
   if (command === undefined) {

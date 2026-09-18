@@ -11,7 +11,7 @@
   "gate": {
     "enabled": true,
     "mode": "block",
-    "envEscape": "NOVAHIZ_GATE",
+    "envEscape": "SKILLEFORCE_GATE",
     "tools": ["edit", "write", "patch", "apply_patch", "bash", "shell"]
   },
   "classify": {
