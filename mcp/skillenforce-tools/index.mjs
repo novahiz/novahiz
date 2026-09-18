@@ -188,11 +188,13 @@ function normalizeTodo(item) {
 }
 
 function callTool(name, args) {
+  // Protocol violations throw: handle() maps "Unknown tool:" to -32601 and
+  // "Invalid params:" to -32602. Only execution failures return isError results.
   if (typeof name !== "string" || name.length === 0) {
-    return toolResult("Invalid tool name: expected a non-empty string", true);
+    throw new Error("Invalid params: tool name must be a non-empty string");
   }
-  if (args !== null && args !== undefined && typeof args !== "object") {
-    return toolResult("Invalid arguments: expected an object", true);
+  if (args !== null && args !== undefined && (typeof args !== "object" || Array.isArray(args))) {
+    throw new Error("Invalid params: arguments must be an object");
   }
   const spec = loadSpec();
   if (name === "skillenforce_classify") {
@@ -226,18 +228,38 @@ function callTool(name, args) {
     if (["off", "0", "false", "no", "disabled"].includes(escapeValue)) {
       return toolResult({ allow: true, disabled: true });
     }
+    // Strict validation: the gate is a security boundary — an empty file or
+    // mistyped arrays must never coerce to allow:true. Missing/empty file and
+    // wrong types are caller bugs → -32602, not silent allow.
+    const file = typeof args?.file === "string" ? args.file : "";
+    if (file.length === 0) {
+      throw new Error("Invalid params: file must be a non-empty string");
+    }
+    if (args?.categories !== undefined && !Array.isArray(args.categories)) {
+      throw new Error("Invalid params: categories must be an array of strings");
+    }
+    if (args?.loaded !== undefined && !Array.isArray(args.loaded)) {
+      throw new Error("Invalid params: loaded must be an array of strings");
+    }
+    if (args?.content !== undefined && typeof args.content !== "string") {
+      throw new Error("Invalid params: content must be a string");
+    }
+    if (args?.tool !== undefined && typeof args.tool !== "string") {
+      throw new Error("Invalid params: tool must be a string");
+    }
     const index = loadInstalledSkills(spec);
     const result = evaluateGate({
       tool: String(args?.tool ?? "edit"),
-      filePath: String(args?.file ?? ""),
+      filePath: file,
       content: typeof args?.content === "string" ? args.content : "",
-      categories: Array.isArray(args?.categories) ? args.categories.map(String) : [],
-      loadedSkills: Array.isArray(args?.loaded) ? args.loaded.map(String) : [],
+      categories: args?.categories ? args.categories.map(String) : [],
+      loadedSkills: args?.loaded ? args.loaded.map(String) : [],
       installedSkills: index.skills,
       installedIndexAvailable: index.available,
       spec
     });
-    return toolResult(result, !result.allow);
+    // A gate refusal is a normal verdict, not an execution error.
+    return toolResult(result, false);
   }
   if (name === "skillenforce_roadmap") {
     const categoryId = args?.category ? String(args.category) : null;
@@ -394,7 +416,7 @@ function callTool(name, args) {
       db.close();
     }
   }
-  return toolResult(`Unknown tool: ${name}`, true);
+  throw new Error(`Unknown tool: ${name}`);
 }
 
 function handle(message) {
@@ -422,7 +444,17 @@ function handle(message) {
       // Printable ASCII only: strips control chars and non-Latin scripts that
       // could smuggle terminal escapes, but keeps paths (C:\...), brackets
       // and symbols that the old [a-zA-Z0-9 ...] class destroyed.
-      const msg = String(error?.message ?? error).replace(/[^\x20-\x7E]/g, "").slice(0, 300);
+      const raw = String(error?.message ?? error);
+      const msg = raw.replace(/[^\x20-\x7E]/g, "").slice(0, 300);
+      // Protocol violations use JSON-RPC error codes, not isError results:
+      // -32601 unknown tool, -32602 invalid params. Only execution failures
+      // surface as isError tool results.
+      if (raw.startsWith("Unknown tool:")) {
+        return { jsonrpc: "2.0", id, error: { code: -32601, message: msg } };
+      }
+      if (raw.startsWith("Invalid params:")) {
+        return { jsonrpc: "2.0", id, error: { code: -32602, message: msg } };
+      }
       return { jsonrpc: "2.0", id, result: toolResult(`internal error: ${msg}`, true) };
     }
   }
