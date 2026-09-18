@@ -108,5 +108,32 @@
     "require": [
       "impeccable"
     ]
+  },
+  {
+    "id": "R6-skillenforce",
+    "description": "Load the Skillenforce pipeline skills (plan, clarify, analyse, implement, converge) for any task that triggers the skillenforce workflow. The gate requires these skills to be loaded before allowing edits.",
+    "when": {
+      "promptCategories": [
+        "code",
+        "debug",
+        "review",
+        "audit",
+        "browser",
+        "design-ui",
+        "database-supabase",
+        "docs-writing",
+        "planning",
+        "devops",
+        "data",
+        "general"
+      ]
+    },
+    "require": [
+      "skillenforce-plan",
+      "skillenforce-clarify",
+      "skillenforce-analyse",
+      "skillenforce-implement",
+      "skillenforce-converge"
+    ]
   }
 ]

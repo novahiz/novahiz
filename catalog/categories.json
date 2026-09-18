@@ -992,32 +992,48 @@
     "label": "General",
     "priority": 0,
     "keywords": [],
-    "defaultSkills": [],
+    "defaultSkills": [
+      "skillenforce-plan",
+      "skillenforce-clarify",
+      "skillenforce-analyse",
+      "skillenforce-implement",
+      "skillenforce-converge"
+    ],
     "roadmap": {
       "id": "general",
       "steps": [
         {
           "id": "plan",
           "label": "Set the direction",
-          "kind": "advisory"
+          "kind": "skill",
+          "requireSkills": [
+            "skillenforce-plan"
+          ]
         },
         {
           "id": "clarify",
           "label": "Remove ambiguities",
-          "kind": "advisory"
+          "kind": "skill",
+          "requireSkills": [
+            "skillenforce-clarify"
+          ]
         },
         {
           "id": "execute",
           "label": "Execute",
           "kind": "advisory",
           "requireSkills": [
-            "humanizer"
+            "humanizer",
+            "skillenforce-implement"
           ]
         },
         {
           "id": "verify",
           "label": "Verify",
-          "kind": "verify"
+          "kind": "verify",
+          "requireSkills": [
+            "skillenforce-converge"
+          ]
         },
         {
           "id": "report",
