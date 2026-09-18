@@ -1,13 +1,13 @@
 ---
 name: gate
-description: Le gardien du système skillenforce
+description: The guard of the skillenforce system
 ---
 
-# skillenforce Gate Skill
+# Skillenforce Gate Skill
 
-Ce skill est OBLIGATOIRE avant et après l'exécution d'une tâche.
+This skill is MANDATORY before and after executing a task.
 
-1. Appelez l'outil MCP `skillenforce_gate`.
-2. Si le Gate échoue (FAIL), résolvez les violations de règles affichées.
-3. Ne procédez JAMAIS à des modifications de code tant que le Gate n'est pas PASS.
-4. Une fois validé, vous pouvez exécuter le plan ou passer au post-task.
+1. Call the `skillenforce_gate` MCP tool.
+2. If the Gate fails (FAIL), resolve the displayed rule violations.
+3. NEVER proceed with code changes until the Gate is PASS.
+4. Once validated, you can execute the plan or move to the post-task.

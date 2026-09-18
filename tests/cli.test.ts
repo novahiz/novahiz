@@ -82,7 +82,7 @@ test("gate surfaces required skills that are absent from the installed index", (
 });
 
 test("classify output carries a primary and a roadmap", () => {
-  const parsed = JSON.parse(run(["classify", "refais le css de la landing page"]));
+  const parsed = JSON.parse(run(["classify", "redo the landing page css"]));
   assert.equal(parsed.primary, "design-ui");
   assert.equal(parsed.roadmaps[0].category, "design-ui");
   assert.ok(Array.isArray(parsed.enforcedSkills));
@@ -95,7 +95,7 @@ test("catalog rejects a non-numeric limit", () => {
     env: { ...process.env, skillenforce_HOME: root, skillenforce_DB: testDb }
   });
   assert.equal(result.status, 1);
-  assert.match(result.stderr, /--limit.*nombre|nombre.*--limit/);
+  assert.match(result.stderr, /--limit.*number|number.*--limit/);
 });
 
 test("an unknown command exits non-zero with a single clean line", () => {
@@ -205,9 +205,9 @@ test("clean --apply removes only the rows older than the cutoff", () => {
 
   test("a numeric flag out of range is rejected instead of falling back", () => {
     const cases: [string[], RegExp][] = [
-      [["clean", "--days", "0", "--dry-run"], /limite minimale de 1/],
-      [["catalog", "gate", "--limit", "2.5"], /entier/],
-      [["classify", "texte", "--min-score", "-1"], /limite minimale de 0/]
+      [["clean", "--days", "0", "--dry-run"], /minimum limit of 1/],
+      [["catalog", "gate", "--limit", "2.5"], /integer/],
+      [["classify", "text", "--min-score", "-1"], /minimum limit of 0/]
     ];
     for (const [args, expected] of cases) {
       const result = spawnSync(process.execPath, [cli, ...args], {

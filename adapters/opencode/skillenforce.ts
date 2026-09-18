@@ -189,7 +189,7 @@ export const SkillenforcePlugin: Plugin = async ({ client }) => {
         const providers = parsed.providers ?? [];
         const lines = [
           "[Skillenforce enforcement]",
-          `Categories detectees: ${categories.join(", ") || "aucune"}${primary ? ` (primaire: ${primary})` : ""}`
+          `Categories detected: ${categories.join(", ") || "none"}${primary ? ` (primary: ${primary})` : ""}`
         ];
         if (roadmap) {
           lines.push(`Roadmap ${roadmap.id}:`);
@@ -198,9 +198,9 @@ export const SkillenforcePlugin: Plugin = async ({ client }) => {
             lines.push(`  ${index + 1}. [${step.kind}] ${step.label}${skills}`);
           });
         }
-        if (enforced.length > 0) lines.push(`Skills requis (roadmap): ${enforced.join(", ")}`);
-        if (suggested.length > 0) lines.push(`Skills suggeres: ${suggested.join(", ")}`);
-        if (providers.length > 0) lines.push(`Outils pour cette tache: ${providers.join(", ")}`);
+        if (enforced.length > 0) lines.push(`Required skills (roadmap): ${enforced.join(", ")}`);
+        if (suggested.length > 0) lines.push(`Suggested skills: ${suggested.join(", ")}`);
+        if (providers.length > 0) lines.push(`Tools for this task: ${providers.join(", ")}`);
         const ledger = run(["task", "current", "--session", input.sessionID]);
         if (ledger.status === 0 && ledger.stdout.trim().length > 0) {
           try {
@@ -210,9 +210,9 @@ export const SkillenforcePlugin: Plugin = async ({ client }) => {
             await log("warn", "Ledger state is invalid JSON, enforcement injected without the task summary");
           }
         }
-        lines.push("Le gate bloque edit/write/patch/apply_patch/bash/shell tant que les skills requis ne sont pas charges via skill({name:\"...\"}).");
-        lines.push("Le gate est sensible au contenu: humanizer pour la prose, impeccable pour le style.");
-        lines.push("Config editee = redemarrage d'opencode requis (config lue a l'import).");
+        lines.push("The gate blocks edit/write/patch/apply_patch/bash/shell until the required skills are loaded via skill({name:\"...\"}).");
+        lines.push("The gate is content-aware: humanizer for prose, impeccable for style.");
+        lines.push("Config edited = opencode restart required (config read at import).");
         enforcementBySession.set(input.sessionID, lines.join("\n"));
       } catch (error) {
         await log("warn", `chat.message hook failed, no enforcement injected: ${String(error).slice(0, 200)}`);

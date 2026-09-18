@@ -6,7 +6,7 @@ import { loadSpec } from "../src/spec.ts";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
 const spec = loadSpec(root);
-const PROSE = "// Ce commentaire explique le calcul du total de la commande pour le client";
+const PROSE = "// This comment explains the total calculation for the client's order";
 const STYLE = "className={styles.card}";
 
 test("maps extensions to file classes", () => {

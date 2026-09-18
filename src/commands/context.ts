@@ -81,7 +81,7 @@ export function emit(parsed: Parsed, value: unknown, textFn: () => string): void
 export function confirm(question: string): boolean {
   process.stdout.write(question + " [y/N] ");
   const answer = process.stdin.read()?.toString().trim().toLowerCase();
-  return answer === "y" || answer === "yes" || answer === "oui";
+  return answer === "y" || answer === "yes" || answer === "o";
 }
 
 // The name promises safety: malformed input returns [] instead of throwing.
@@ -118,17 +118,17 @@ export function numberFlag(
   const label = opts.label ?? name;
   const num = Number(raw);
   if (Number.isNaN(num)) {
-    process.stderr.write(`Valeur invalide pour --${label}: "${raw}" n'est pas un nombre.\n`);
+    process.stderr.write(`Invalid value for --${label}: "${raw}" is not a number.\n`);
     process.exitCode = 1;
     return undefined;
   }
   if (opts.integer && !Number.isInteger(num)) {
-    process.stderr.write(`Valeur invalide pour --${label}: un nombre entier est requis, pas "${raw}".\n`);
+    process.stderr.write(`Invalid value for --${label}: an integer is required, not "${raw}".\n`);
     process.exitCode = 1;
     return undefined;
   }
   if (opts.min !== undefined && num < opts.min) {
-    process.stderr.write(`Valeur invalide pour --${label}: ${num} est inferieur a la limite minimale de ${opts.min}.\n`);
+    process.stderr.write(`Invalid value for --${label}: ${num} is below the minimum limit of ${opts.min}.\n`);
     process.exitCode = 1;
     return undefined;
   }

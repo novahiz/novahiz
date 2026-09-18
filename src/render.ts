@@ -103,5 +103,5 @@ export function table(headers: string[], rows: string[][], options: TableOptions
 }
 
 export function status(ok: boolean): string {
-  return ok ? style("green", "ok") : style("red", "echec");
+  return ok ? style("green", "ok") : style("red", "fail");
 }

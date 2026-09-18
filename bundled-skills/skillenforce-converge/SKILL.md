@@ -1,76 +1,77 @@
 ---
 name: skillenforce-converge
 description: |
-  Étape 6 du pipeline skillenforce : fermer l'écart entre l'intention et le code.
-  Construit l'inventaire d'intention (demande, plan, critères d'acceptation, étapes du
-  registre, principes du projet), évalue l'état présent du code, classe chaque élément
-  satisfait, partiel ou non satisfait, et ajoute les restes comme étapes tracées.
-  En ajout seul : ne réécrit rien, ne supprime aucune étape, ne touche pas au code.
+  Step 6 of the skillenforce pipeline: close the gap between intention and code.
+  Builds the intention inventory (request, plan, acceptance criteria, ledger steps,
+  project principles), evaluates the current code state, classifies each element as
+  satisfied, partial, or unsatisfied, and adds the remaining items as tracked steps.
+  Add-only: does not rewrite anything, does not delete any step, does not touch the
+  application code.
   Use at the end of an implementation, before declaring work done.
-  Triggers on: "c'est fini ?", vérifier la feature, convergence, analyse d'écart,
-  "qu'est-ce qui reste", clôture.
+  Triggers on: "is it done?", verify feature, convergence, gap analysis,
+  "what's left", closure.
 license: MIT
 compatibility: opencode
 ---
 
-# skillenforce-converge : fermer l'écart
+# skillenforce-converge: close the gap
 
-**Étape 6 sur 6** du pipeline. Elle tourne après l'implémentation, jamais pendant.
+**Step 6 of 6** in the pipeline. It runs after implementation, never during.
 
-Étape précédente : `skillenforce-implement`.
+Previous step: `skillenforce-implement`.
 
-## Ne pas confondre avec l'audit
+## Don't confuse with audit
 
-`skillenforce-converge` mesure l'écart entre ce qui était demandé et ce que le code fait. `skillenforce-audit` mesure la conformité de la session aux règles. Le premier porte sur le travail, le second sur la méthode.
+`skillenforce-converge` measures the gap between what was requested and what the code does. `skillenforce-audit` measures session compliance with rules. The first is about the work; the second is about the method.
 
-## Source d'intention
+## Source of intention
 
-L'intention vient des artefacts, pas de ta mémoire :
+Intention comes from artifacts, not from your memory:
 
-- la demande initiale,
-- le plan,
-- les critères d'acceptation des tâches,
-- le registre d'exécution : `skillenforce_task action="status"` et `action="signals"`,
-- les principes du projet, à commencer par `AGENTS.md`.
+- the initial request,
+- the plan,
+- the task acceptance criteria,
+- the execution ledger: `skillenforce_task action="status"` and `action="signals"`,
+- the project principles, starting with `AGENTS.md`.
 
-Constitue l'inventaire : chaque élément identifié et traçable.
+Build the inventory: each item identified and traceable.
 
-## Évaluation
+## Evaluation
 
-Regarde l'état présent du code. Ce n'est pas un diff : ni git, ni branche, ni historique. Tu évalues ce que le code fait maintenant.
+Look at the current code state. This is not a diff: neither git, nor branch, nor history. You evaluate what the code does now.
 
-Classe chaque élément :
+Classify each item:
 
-- **satisfait** : le code fait ce qui est demandé, et la preuve le montre.
-- **partiel** : une partie tient, le reste manque ou ne se prouve pas.
-- **non satisfait** : rien ne couvre l'élément.
+- **satisfied**: the code does what is requested, and the proof shows it.
+- **partial**: part holds, the rest is missing or unproven.
+- **unsatisfied**: nothing covers the item.
 
-Une étape fermée sans preuve ne compte pas comme satisfaite, même si le registre la dit `done`.
+A step closed without proof does not count as satisfied, even if the ledger says `done`.
 
-## Écriture en ajout seul
+## Add-only writing
 
-- La seule écriture autorisée est l'ajout des restes au registre, chacun devenant une étape traçable : `skillenforce_task action="insert"`.
-- Tu ne modifies ni le plan, ni les critères, ni les étapes existantes.
-- Tu ne renommes, ne renumérotes, ne réordonnes et ne supprimes aucune étape.
-- L'acceptation du reste ouvert se demande par l'outil `question` du harness : accepter le reste, le traiter maintenant, ou le tracer pour plus tard. Un reste non explicitement accepté garde la clôture ouverte.
-- Tu ne touches pas au code applicatif.
+- The only allowed writes are adding remaining items to the ledger, each becoming a tracked step: `skillenforce_task action="insert"`.
+- You do not modify the plan, the criteria, or existing steps.
+- You do not rename, renumber, reorder, or delete any step.
+- Acceptance of the open remainder is requested through the harness `question` tool: accept the remainder, handle it now, or track it for later. A remainder not explicitly accepted keeps the closure open.
+- You do not touch the application code.
 
-Si tout est satisfait, tu ne touches à rien et tu rapportes un résultat propre. Un rapport vide n'est pas un résultat propre.
+If everything is satisfied, you touch nothing and report a clean result. An empty report is not a clean result.
 
-## Sévérité
+## Severity
 
-La violation d'un principe MUST d'`AGENTS.md` est le niveau le plus haut et produit une étape de remédiation. Si les principes sont absents, tu le dis et tu continues.
+A violation of an `AGENTS.md` MUST principle is the highest level and produces a remediation step. If the principles are missing, say so and continue.
 
-## Clôture
+## Closure
 
-Rapporte trois listes : ce qui est satisfait et prouvé, ce qui reste ouvert, ce qui n'a pas pu être évalué et pourquoi. Le travail est terminé quand la liste ouverte est vide, ou quand l'utilisateur accepte explicitement le reste.
+Report three lists: what is satisfied and proven, what remains open, and what could not be evaluated and why. The work is finished when the open list is empty, or when the user explicitly accepts the remainder.
 
-## Catégories concernées
+## Categories involved
 
-L'étape de convergence apparaît dans `code`, `debug`, `test`, `audit`, `browser`, `design-ui`, `database-supabase`, `docs-writing`, `planning`, `devops` et `data`.
+The convergence step appears in `code`, `debug`, `test`, `audit`, `browser`, `design-ui`, `database-supabase`, `docs-writing`, `planning`, `devops`, and `data`.
 
-## Pièges
+## Pitfalls
 
-- Déclarer satisfait ce qui n'a jamais été exécuté.
-- Confondre « l'étape est cochée » et « le comportement existe ».
-- Réécrire le plan pour qu'il colle au résultat obtenu.
+- Declaring satisfied what was never executed.
+- Confusing "step is checked" with "behavior exists".
+- Rewriting the plan so it matches the result obtained.

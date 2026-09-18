@@ -33,7 +33,7 @@ function main() {
   const configPath = join(home, "skillenforce.config.json");
 
   if (created.length === 0 && backups.length === 0 && !manifest.configCreated && !manifest.coreCopied) {
-    process.stdout.write(`Rien a desinstaller pour ${home}.\n`);
+    process.stdout.write(`Nothing to uninstall for ${home}.\n`);
     return;
   }
 
@@ -47,7 +47,7 @@ function main() {
       process.stdout.write(`skip out-of-scope backup: ${entry.path}\n`);
       continue;
     }
-    process.stdout.write(`${dryRun ? "[dry-run] " : ""}restauration ${entry.path}\n`);
+    process.stdout.write(`${dryRun ? "[dry-run] " : ""}restoring ${entry.path}\n`);
     if (!dryRun) {
       cpSync(entry.backup, entry.path, { force: true });
       rmSync(entry.backup, { force: true });
@@ -66,7 +66,7 @@ function main() {
     }
     if (keepConfig && item.endsWith("skillenforce.config.json")) continue;
     if (keepCore && item.startsWith(homePrefix)) continue;
-    process.stdout.write(`${dryRun ? "[dry-run] " : ""}suppression ${item}\n`);
+    process.stdout.write(`${dryRun ? "[dry-run] " : ""}deleting ${item}\n`);
     if (!dryRun) rmSync(item, { force: true });
     removed.push(item);
   }
@@ -79,7 +79,7 @@ function main() {
     pruneEmptyDirs(removed, [home, manifest.configDir ?? home, join(homedir(), ".config"), homedir()]);
     if (purge && manifest.coreCopied && existsSync(home)) {
       rmSync(home, { recursive: true, force: true });
-      process.stdout.write(`Dossier Skillenforce supprime: ${home}\n`);
+      process.stdout.write(`Skillenforce folder removed: ${home}\n`);
     } else {
       const untouchedCreated = only ? created.filter((item) => !removed.includes(item)) : [];
       const untouchedBackups = only ? backups.filter((entry) => !removed.includes(entry && entry.backup)) : [];
@@ -90,19 +90,19 @@ function main() {
         configCreated: only ? Boolean(manifest.configCreated) : false
       });
       if (manifest.coreCopied) {
-        process.stdout.write(`Fichiers d'integration supprimes; core conserve dans ${home}. Utilise --purge pour le supprimer.\n`);
+        process.stdout.write(`Integration files removed; core kept in ${home}. Use --purge to remove it.\n`);
       }
     }
     if (skipped.length > 0) {
-        process.stdout.write(`${skipped.length} entree(s) hors perimetre, laissees en place:\n`);
+        process.stdout.write(`${skipped.length} entry/entries out of scope, kept in place:\n`);
         for (const item of skipped) process.stdout.write(`  ${item}\n`);
       }
-      process.stdout.write(`\nDesinstallation terminee (${removed.length} entrees traitees).\n`);
+      process.stdout.write(`\nUninstall complete (${removed.length} entries processed).\n`);
   } else {
     if (skipped.length > 0) {
-        process.stdout.write(`${skipped.length} entree(s) hors perimetre, laissees en place.\n`);
+        process.stdout.write(`${skipped.length} entry/entries out of scope, kept in place.\n`);
       }
-      process.stdout.write("\nDry-run termine, rien supprime.\n");
+      process.stdout.write("\nDry-run complete, nothing deleted.\n");
   }
 }
 

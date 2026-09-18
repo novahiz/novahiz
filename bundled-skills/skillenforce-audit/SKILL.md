@@ -1,75 +1,75 @@
 ---
 name: skillenforce-audit
 description: |
-  Audit de fin de session pour skillenforce. CATEGORY-AWARE : ne contrôle que les règles des
-  catégories réellement rencontrées. S'appuie sur l'état vérifiable (registre d'exécution,
-  journal du gate, skills chargées, diff de la session) et jamais sur la mémoire de l'agent.
-  Use at the END of a session, or when the user says "audit" or "vérifie".
-  Triggers on: "audit", "vérifie", fin de session, compliance check, ce qu'on a oublié.
+  End-of-session audit for skillenforce. CATEGORY-AWARE: only checks the rules of
+  categories actually encountered. Based on verifiable state (execution ledger,
+  gate log, loaded skills, session diff) and never on the agent's memory.
+  Use at the END of a session, or when the user says "audit" or "check".
+  Triggers on: "audit", "verify", end of session, compliance check, "what did I miss".
 license: MIT
 compatibility: opencode
 ---
 
-# skillenforce-audit : contrôle de fin de session
+# skillenforce-audit: end-of-session check
 
-Tu audites à partir de faits vérifiables. Une case cochée de mémoire ne vaut rien.
+You audit from verifiable facts. A checked box from memory is worthless.
 
-## Les 14 catégories réelles
+## The 14 real categories
 
 code, debug, review, audit, test, research, browser, design-ui, database-supabase, docs-writing, planning, devops, data, general.
 
-`general` est la catégorie de repli. Il n'y a pas de catégorie `trivial` dans le catalogue.
+`general` is the fallback category. There is no `trivial` category in the catalog.
 
-## Ce qui se vérifie vraiment
+## What really gets verified
 
-| Contrôle | Source de preuve | S'applique à |
+| Check | Proof source | Applies to |
 |---|---|---|
-| Plan et registre ouverts | `skillenforce_task status` ou `todoread` | tout sauf research |
-| Étapes de la catégorie parcourues | `skillenforce_roadmap --category X` puis `skillenforce_step` | tout sauf research et general |
-| Skills requises chargées | journal du gate, table `enforcement_log` | tout |
-| humanizer appliqué sur la prose | règles R1 déclenchées, ou skill chargée | docs-writing, code, audit, planning, design-ui |
-| impeccable appliqué au style | règles R2 déclenchées, ou skill chargée | design-ui |
-| Revue de code faite | étape `review` du roadmap, skill `code-reviewer` | code, review, debug |
-| Scan de sécurité | étape `scan`, skill `security-guidance` | audit |
-| Preuve sur les étapes de vérification | `skillenforce_task` refuse `done` sans `proof` | tout |
-| Mémoire à jour | `MEMORY.md` plus page vault, via `skillenforce-memory` | tout sauf research |
-| Aucune simulation | affirmations recoupées avec des sorties réelles | tout |
+| Open plan and ledger | `skillenforce_task status` or `todoread` | all except research |
+| Category steps covered | `skillenforce_roadmap --category X` then `skillenforce_step` | all except research and general |
+| Required skills loaded | gate log, `enforcement_log` table | all |
+| humanizer applied to prose | R1 rules triggered, or skill loaded | docs-writing, code, audit, planning, design-ui |
+| impeccable applied to style | R2 rules triggered, or skill loaded | design-ui |
+| Code review done | `review` roadmap step, `code-reviewer` skill | code, review, debug |
+| Security scan | `scan` step, `security-guidance` skill | audit |
+| Proof on verification steps | `skillenforce_task` refuses `done` without `proof` | all |
+| Memory updated | `MEMORY.md` plus vault page, via `skillenforce-memory` | all except research |
+| No simulation | claims cross-checked with real outputs | all |
 
-## Méthode
+## Method
 
-1. Récupère la catégorie primaire et les catégories rencontrées.
-2. Pour chaque contrôle applicable, cherche la preuve. Pas de preuve, pas de validation.
-3. Note `conforme`, `manquant` ou `non applicable`.
-4. Score : conformes sur applicables, en pourcentage. Sous 70 %, propose des correctifs précis. À 90 % et plus, conclus « session conforme ».
+1. Get the primary category and the categories encountered.
+2. For each applicable check, find the proof. No proof, no validation.
+3. Mark `compliant`, `missing`, or `not applicable`.
+4. Score: compliant over applicable, in percent. Below 70%, propose precise fixes. At 90% and above, conclude "compliant session".
 
-## Sortie
+## Output
 
-Un rapport court dans la conversation :
+A short report in the conversation:
 
 ```
-## Audit de session
-Catégories : code, test
-| Contrôle | Statut | Preuve |
+## Session audit
+Categories: code, test
+| Check | Status | Proof |
 |---|---|---|
-| Registre | conforme | 6 étapes, 1 bloquée |
-| humanizer | conforme | chargée avant rédaction |
-| Revue de code | manquant | étape review non exécutée |
-Score : 67 %
+| Ledger | compliant | 6 steps, 1 blocked |
+| humanizer | compliant | loaded before writing |
+| Code review | missing | review step not executed |
+Score: 67%
 
-## À corriger
-- Lancer code-reviewer sur les fichiers modifiés
+## To fix
+- Launch code-reviewer on modified files
 
-## À retenir
+## To keep
 - ...
 ```
 
-## Pièges
+## Pitfalls
 
-- Cocher une règle sans preuve.
-- Inventer un journal de conformité, un fichier de session ou un script de validation : ils n'existent pas dans ce système.
-- Auditer des catégories qui n'ont pas été rencontrées.
-- Confondre absence de preuve et conformité.
+- Checking a rule without proof.
+- Inventing a compliance log, session file, or validation script: they don't exist in this system.
+- Auditing categories that were not encountered.
+- Confusing missing proof with compliance.
 
-## Suite
+## Next
 
-Ce qui se répare se répare tout de suite : relancer humanizer, lancer la revue, écrire la mémoire. Le reste est consigné pour la session suivante.
+What can be fixed gets fixed right away: reload humanizer, launch the review, write the memory. The rest is recorded for the next session.

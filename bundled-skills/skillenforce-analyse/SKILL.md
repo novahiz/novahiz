@@ -1,74 +1,74 @@
 ---
 name: skillenforce-analyse
 description: |
-  Étape 4 du pipeline skillenforce : comprendre le code concerné avant de le modifier.
-  Cinq phases ordonnées (reconnaissance, architecture, qualité, exploitation, synthèse),
-  appuyées sur la carte du code quand elle est disponible. Chaque affirmation cite un
-  chemin de fichier réel ; ce qui n'a pas pu être déterminé est dit explicitement.
+  Step 4 of the skillenforce pipeline: understand the code involved before changing it.
+  Five ordered phases (recognition, architecture, quality, operation, synthesis),
+  supported by the code map when available. Every claim cites a real file path;
+  anything that could not be determined is stated explicitly.
   Use before touching unfamiliar code, before a refactor or a migration, or to locate a bug.
-  Triggers on: "comprendre ce code", "où est", "qui appelle", carte du codebase,
-  analyse d'impact, cause racine, point d'entrée.
+  Triggers on: "understand this code", "where is", "who calls", codebase map,
+  impact analysis, root cause, entry point.
 license: MIT
 compatibility: opencode
 ---
 
-# skillenforce-analyse : comprendre avant de modifier
+# skillenforce-analyse: understand before modifying
 
-**Étape 4 sur 6** du pipeline. L'analyse porte sur ce que la tâche exige, jamais sur tout le dépôt. Profondeur plutôt qu'exhaustivité.
+**Step 4 of 6** in the pipeline. The analysis focuses on what the task requires, never on the whole repository. Depth over exhaustiveness.
 
-Étape précédente : `skillenforce-task`. Étape suivante : `skillenforce-implement`.
+Previous step: `skillenforce-task`. Next step: `skillenforce-implement`.
 
-## Appuie-toi sur la carte du code
+## Rely on the code map
 
-Avant de lire au hasard : la skill `code-understand` construit une carte classée et citée, et le serveur `narsil` expose le graphe d'appels, les symboles, les références et les imports. Une question « qui appelle ça » se règle avec l'outil, pas en devinant.
+Before reading at random: the `code-understand` skill builds a ranked, cited map, and the `narsil` server exposes the call graph, symbols, references, and imports. A "who calls this" question is answered with the tool, not by guessing.
 
-## Phase 1 : reconnaissance
+## Phase 1: recognition
 
-- Arborescence sur deux ou trois niveaux.
-- Manifestes d'abord : package.json, Cargo.toml, go.mod, pyproject.toml, pom.xml, build.gradle, Gemfile, csproj, Podfile, Package.swift.
-- Build et CI : Makefile, Dockerfile, docker-compose, workflows, turbo.json, nx.json.
-- Configs : tsconfig, eslint, modèle d'environnement, bundler, editorconfig.
-- Docs : README, CONTRIBUTING, ARCHITECTURE, dossier docs.
-- Langages, frameworks, présence d'un monorepo.
+- Directory tree at two or three levels.
+- Manifests first: package.json, Cargo.toml, go.mod, pyproject.toml, pom.xml, build.gradle, Gemfile, csproj, Podfile, Package.swift.
+- Build and CI: Makefile, Dockerfile, docker-compose, workflows, turbo.json, nx.json.
+- Configs: tsconfig, eslint, environment model, bundler, editorconfig.
+- Docs: README, CONTRIBUTING, ARCHITECTURE, docs folder.
+- Languages, frameworks, presence of a monorepo.
 
-## Phase 2 : architecture
+## Phase 2: architecture
 
-- Points d'entrée : main, index, server, routes, CLI, AppDelegate, activities.
-- Suis jusqu'à cinq chemins critiques de bout en bout : route vers contrôleur vers service vers données vers réponse.
-- Graphe de dépendances entre modules.
-- Pattern dominant : monolithe, microservices, événementiel, hexagonale, MVC, CQRS.
-- Couche données : schémas, migrations, ORM, modèles, cache.
-- Surface d'API : REST, GraphQL, gRPC, WebSocket, IPC, contrats, authentification.
+- Entry points: main, index, server, routes, CLI, AppDelegate, activities.
+- Follow up to five critical end-to-end paths: route to controller to service to data to response.
+- Dependency graph between modules.
+- Dominant pattern: monolith, microservices, event-driven, hexagonal, MVC, CQRS.
+- Data layer: schemas, migrations, ORM, models, cache.
+- API surface: REST, GraphQL, gRPC, WebSocket, IPC, contracts, authentication.
 
-## Phase 3 : qualité
+## Phase 3: quality
 
-- Tests : structure, frameworks, unités, intégration, bout en bout, fixtures, mocks.
-- Gestion d'erreurs et journalisation.
-- Typage et validation à l'exécution.
-- Posture de sécurité : authentification, autorisation, secrets, assainissement, vulnérabilités de dépendances.
-- Cohérence des motifs, nommage, duplication.
+- Tests: structure, frameworks, unit, integration, end-to-end, fixtures, mocks.
+- Error handling and logging.
+- Typing and runtime validation.
+- Security posture: authentication, authorization, secrets, sanitization, dependency vulnerabilities.
+- Pattern consistency, naming, duplication.
 
-## Phase 4 : exploitation
+## Phase 4: operation
 
-Build, CI/CD, modèle de déploiement, observabilité, gestion des environnements.
+Build, CI/CD, deployment model, observability, environment management.
 
-## Phase 5 : synthèse
+## Phase 5: synthesis
 
-Écris la synthèse après les phases précédentes, jamais avant. Chaque affirmation cite un chemin de fichier réel. Dis ce que tu n'as pas pu déterminer. Un schéma ASCII aide pour l'architecture.
+Write the synthesis after the previous phases, never before. Every claim cites a real file path. State what you could not determine. An ASCII diagram helps for architecture.
 
-Destination : le dossier de documentation du projet s'il en a un, sinon le registre d'exécution. Tu n'inventes pas `docs/analysis/` dans un projet qui n'a aucune convention de ce genre.
+Destination: the project's documentation folder if it has one, otherwise the execution ledger. You do not invent `docs/analysis/` in a project that has no such convention.
 
-## Six catégories réclament cette étape
+## Six categories require this step
 
-`code`, `debug`, `review`, `database-supabase`, `devops` et `data`.
+`code`, `debug`, `review`, `database-supabase`, `devops`, and `data`.
 
-## Règles
+## Rules
 
-- Lire avant d'écrire.
-- Ignorer le code généré, vendoré et le boilerplate.
-- Ne pas redocumenter tout le dépôt à chaque tâche : cible le périmètre utile.
-- Une observation sans chemin de fichier ne vaut rien.
+- Read before writing.
+- Ignore generated, vendored, and boilerplate code.
+- Do not re-document the whole repository for every task: target the useful scope.
+- An observation without a file path is worthless.
 
-## Sortie
+## Output
 
-Les fichiers et symboles qui portent la logique, les chemins de données, les points d'extension, et la liste explicite des inconnues restantes. Cette sortie alimente `skillenforce-implement`.
+The files and symbols that carry the logic, the data paths, the extension points, and the explicit list of remaining unknowns. This output feeds `skillenforce-implement`.

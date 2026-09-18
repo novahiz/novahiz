@@ -1,105 +1,105 @@
 ---
 name: skillenforce-task
 description: |
-  Étape 3 du pipeline skillenforce : convertir un plan en tâches atomiques, ordonnées et
-  vérifiables. Chaque tâche porte un objectif, des critères d'acceptation testables, une
-  preuve, ses dépendances, les fichiers qu'elle possède et sa taille (XS à XL).
+  Step 3 of the skillenforce pipeline: turn a plan into atomic, ordered, verifiable
+  tasks. Each task carries an objective, testable acceptance criteria, proof, its
+  dependencies, the files it owns, and its size (XS to XL).
   Use when a plan must become an ordered task list, or when work must be split across
   sessions or agents.
-  Triggers on: "découpe", liste de tâches, todo, sous-tâches, critères d'acceptation,
-  priorisation, "par quoi je commence".
+  Triggers on: "break down", task list, todo, sub-tasks, acceptance criteria,
+  prioritization, "where do I start".
 license: MIT
 compatibility: opencode
 ---
 
-# skillenforce-task : découper en tâches vérifiables
+# skillenforce-task: break into verifiable tasks
 
-**Étape 3 sur 6** du pipeline. Le plan dit où l'on va ; cette étape dit par quels pas, dans quel ordre, et comment chaque pas se ferme.
+**Step 3 of 6** in the pipeline. The plan says where we're going; this step says by which steps, in what order, and how each step closes.
 
-Étape précédente : `skillenforce-clarify`. Étape suivante : `skillenforce-analyse`.
+Previous step: `skillenforce-clarify`. Next step: `skillenforce-analyse`.
 
-## Contrat de tâche
+## Task contract
 
-Toutes les tâches prennent la même forme. Une tâche sans critère d'acceptation et sans preuve reste une intention.
+Every task takes the same form. A task without an acceptance criterion and without proof remains an intention.
 
 ```markdown
-## Tâche N : <titre court, à l'impératif>
+## Task N: <short title, imperative>
 
-Objectif : une phrase.
-Critères d'acceptation :
-- [ ] condition testable
-- [ ] condition testable
-Preuve : la commande, le test ou l'observation qui ferme la tâche
-Dépend de : #A, #B (ou Aucune)
-Fichiers concernés : chemin/a, chemin/b
-Taille : XS | S | M | L | XL
+Objective: one sentence.
+Acceptance criteria:
+- [ ] testable condition
+- [ ] testable condition
+Proof: the command, test, or observation that closes the task
+Depends on: #A, #B (or None)
+Files involved: path/a, path/b
+Size: XS | S | M | L | XL
 ```
 
-## Le registre refuse une étape `verify` sans preuve
+## The ledger rejects a `verify` step without proof
 
-`skillenforce_task` applique cette règle : une étape de nature `verify` ne se ferme pas sans `proof`. La preuve se décide donc au moment du plan, pas au moment du doute.
+`skillenforce_task` applies this rule: a step of kind `verify` does not close without `proof`. The proof is therefore decided at planning time, not at the moment of doubt.
 
 | Action | Usage |
 |---|---|
-| `plan` | déposer la liste complète d'un coup |
-| `todo` | ajouter une étape (`kind` : read, edit, verify, delegate) |
-| `start` / `done` | ouvrir, fermer (`done` exige `proof` sur une étape verify) |
-| `block` | bloquer, avec `reason` |
-| `review` | réviser le plan entre deux étapes |
-| `amend` / `insert` / `drop` / `reorder` | corriger la liste sans la réécrire |
-| `signals` / `status` / `resume` | relire l'état |
+| `plan` | deposit the full list at once |
+| `todo` | add a step (`kind`: read, edit, verify, delegate) |
+| `start` / `done` | open, close (`done` requires `proof` on a verify step) |
+| `block` | block, with `reason` |
+| `review` | revise the plan between two steps |
+| `amend` / `insert` / `drop` / `reorder` | correct the list without rewriting it |
+| `signals` / `status` / `resume` | read the state |
 
-## Taille
+## Size
 
-| Taille | Fichiers | Exemple |
+| Size | Files | Example |
 |---|---|---|
-| XS | 1 | ajouter une règle de validation |
-| S | 1 à 2 | un endpoint |
-| M | 3 à 5 | un parcours complet |
-| L | 5 à 8 | fonctionnalité touchant plusieurs composants |
-| XL | 8 et plus | à redécouper, sans exception |
+| XS | 1 | add a validation rule |
+| S | 1 to 2 | an endpoint |
+| M | 3 to 5 | a complete flow |
+| L | 5 to 8 | feature touching multiple components |
+| XL | 8 and above | must be split, no exception |
 
-Redécoupe encore si le travail dépasse une session suivie, si les critères ne tiennent pas en trois puces, si deux sous-systèmes indépendants sont touchés, ou si le titre contient « et ». Ce « et » signale deux tâches collées.
+Split further if the work exceeds a tracked session, if the criteria don't fit in three bullets, if two independent subsystems are affected, or if the title contains "and". That "and" signals two tasks stuck together.
 
-## Ordre
+## Order
 
-- Les dépendances d'abord.
-- Chaque tâche laisse le système fonctionnel.
-- Les tâches risquées passent tôt : échouer vite coûte moins cher.
-- Un point de contrôle tous les deux ou trois pas. Il sert à prouver, puis à décider de continuer, corriger ou abandonner.
+- Dependencies first.
+- Each task leaves the system working.
+- Risky tasks go early: failing quickly costs less.
+- A checkpoint every two or three steps. It proves, then decides whether to continue, correct, or abandon.
 
-## Catégories qui exigent cette étape
+## Categories that require this step
 
-`code`, `browser`, `design-ui` et `planning`.
+`code`, `browser`, `design-ui`, and `planning`.
 
 ## Discipline
 
-- Une seule étape `in_progress` à la fois.
-- Mise à jour en temps réel, pas de complétion groupée.
-- `completed` seulement après vérification, jamais sur intention.
-- Une étape bloquée reste `in_progress` et une tâche de suivi décrit le blocage.
-- Le vocabulaire de l'utilisateur est repris tel quel : commandes, options, arguments, ordre.
+- Only one `in_progress` step at a time.
+- Real-time updates, not batch completion.
+- `completed` only after verification, never on intention.
+- A blocked step stays `in_progress` and a follow-up task describes the block.
+- The user's vocabulary is reused exactly: commands, options, arguments, order.
 
-## Conflit de plan
+## Plan conflict
 
-Avant d'écrire, regarde s'il existe un plan encore ouvert. Même travail : mise à jour en place. Travail différent : arrêt, et tu poses la décision dans l'outil `question` du harness (reprendre, remplacer, créer à côté), jamais en prose. Tu ne supprimes, n'écrases et ne renommes jamais un plan ouvert de ta propre initiative.
+Before writing, check whether an open plan exists. Same work: update in place. Different work: stop, and present the decision in the harness `question` tool (continue, replace, create alongside), never in prose. You never delete, overwrite, or rename an open plan on your own initiative.
 
-## Rationnalisations
+## Rationalizations
 
-| Rationnalisation | Réalité |
+| Rationalization | Reality |
 |---|---|
-| « je verrai en avançant » | c'est ainsi qu'on obtient un enchevêtrement et du travail refait |
-| « les tâches sont évidentes » | écris-les : l'écrit révèle les dépendances et les cas limites oubliés |
-| « planifier, c'est du temps perdu » | la planification fait partie du travail |
-| « je garde tout en tête » | la fenêtre de contexte est finie, un plan écrit traverse les sessions |
-| « l'ancien plan est périmé » | les tâches non cochées portent un état qui n'existe nulle part ailleurs |
+| "I'll see as I go" | that's how you get tangles and rework |
+| "the tasks are obvious" | write them: writing reveals forgotten dependencies and edge cases |
+| "planning is lost time" | planning is part of the work |
+| "I keep it all in my head" | the context window is finite; a written plan crosses sessions |
+| "the old plan is outdated" | unchecked tasks carry a state that exists nowhere else |
 
-## Drapeaux rouges
+## Red flags
 
-- implémentation lancée sans liste de tâches
-- tâche « implémenter la fonctionnalité » sans critère d'acceptation
-- plan sans étape de vérification
-- toutes les tâches en XL
-- aucun point de contrôle
-- ordre de dépendance ignoré
-- plan écrasé sans confirmation
+- implementation launched without a task list
+- task "implement the feature" without acceptance criteria
+- plan without a verification step
+- all tasks in XL
+- no checkpoint
+- dependency order ignored
+- plan overwritten without confirmation

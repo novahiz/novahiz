@@ -1,100 +1,99 @@
 ---
 name: skillenforce-plan
 description: |
-  Étape 1 du pipeline skillenforce : décider la direction avant d'écrire du code.
-  Phase en lecture seule qui produit un plan : définition du « terminé », périmètre,
-  approche retenue, ordre de dépendances, stratégie de découpage, risques, positions des
-  points de contrôle.
+  Step 1 of the skillenforce pipeline: decide the direction before writing any code.
+  Read-only phase that produces a plan: definition of "done", scope, chosen approach,
+  dependency order, splitting strategy, risks, and checkpoint positions.
   Use when starting a feature, a refactor, a migration, or any change that spans several
   files or whose approach is not obvious.
-  Triggers on: "plan this", "comment aborder", "par où commencer", feature, architecture,
-  migration, refactoring, changement multi-fichiers.
+  Triggers on: "plan this", "how to approach", "where to start", feature, architecture,
+  migration, refactoring, multi-file change.
 license: MIT
 compatibility: opencode
 ---
 
-# skillenforce-plan : décider la direction
+# skillenforce-plan: decide the direction
 
-**Étape 1 sur 6** du pipeline `skillenforce-planner`. Aucun fichier applicatif n'est modifié ici. Le livrable est un plan.
+**Step 1 of 6** in the `skillenforce-planner` pipeline. No application file is modified here. The deliverable is a plan.
 
-Étapes suivantes : `skillenforce-clarify`, puis `skillenforce-task`.
+Next steps: `skillenforce-clarify`, then `skillenforce-task`.
 
-## Entrée
+## Entry
 
-La demande est classée. Rien n'a encore été écrit.
+The request is classified. Nothing has been written yet.
 
-## Ouvre le registre
+## Open the ledger
 
-Le plan se trace dans le registre d'exécution, pas dans une note locale :
+Trace the plan in the execution ledger, not in a local note:
 
 ```
-skillenforce_task action="new"  title="<la demande en une phrase>"
+skillenforce_task action="new"  title="<the request in one sentence>"
 skillenforce_task action="plan" todos=[...]
 ```
 
-`todowrite` donne le suivi visible, `skillenforce_task` le registre durable qui survit à la compaction.
+`todowrite` provides visible tracking; `skillenforce_task` provides the durable ledger that survives compaction.
 
-## Ce que le plan contient
+## What the plan contains
 
-- **Terminé, c'est quoi** : une phrase qui décrit l'état final observable.
-- **Périmètre** : ce qui entre, ce qui reste dehors.
-- **Approche retenue** : la décision, plus les options écartées avec leur raison.
-- **Ordre de dépendances** : ce qui doit exister avant quoi.
-- **Stratégie de découpage** : verticale par défaut, contrat d'abord si une interface est partagée, risque d'abord si une inconnue domine.
-- **Risques** : impact et parade.
-- **Positions des points de contrôle**.
+- **Done, what it means**: a single sentence describing the final observable state.
+- **Scope**: what goes in, what stays out.
+- **Chosen approach**: the decision, plus rejected options and why.
+- **Dependency order**: what must exist before what.
+- **Splitting strategy**: vertical by default, contract-first if a shared interface is involved, risk-first if an unknown dominates.
+- **Risks**: impact and mitigation.
+- **Checkpoint positions**.
 
-## Lecture seule
+## Read-only
 
-Lis le code concerné, les manifestes, les conventions en place. Tu n'écris pas de code pendant cette phase, et tu ne « prépares » pas le terrain par des modifications anodines. Un plan se juge sur les réécritures qu'il évite.
+Read the affected code, the manifests, the conventions in place. You write no code during this phase, and you do not "prepare the ground" with minor modifications. A plan is judged by the rewrites it avoids.
 
-## Ordre d'implémentation
+## Implementation order
 
-Le graphe de dépendances se remonte : fondations, puis surface. Une API écrite avant son schéma se réécrit, un écran écrit avant son API se jette.
+Walk the dependency graph bottom-up: foundations first, then surface. An API written before its schema gets rewritten; a screen written before its API gets thrown away.
 
-## Stratégies de découpage
+## Splitting strategies
 
-**Verticale (défaut).** Une tranche traverse les couches nécessaires pour être observable de bout en bout. Livrer toute la base, puis toute l'API, puis tout l'écran laisse trois chantiers inutilisables.
+**Vertical (default).** A slice crosses the necessary layers to be observable end-to-end. Shipping all the database, then all the API, then all the screen leaves three unusable workstreams.
 
-**Contrat d'abord.** Quand plusieurs consommateurs partagent une interface : fige les types et les signatures, puis parallélise les deux côtés.
+**Contract-first.** When multiple consumers share an interface: freeze the types and signatures, then parallelize both sides.
 
-**Risque d'abord.** Quand une inconnue domine le reste : prouve le morceau dont la réussite est la moins certaine avant d'investir ailleurs.
+**Risk-first.** When an unknown dominates: prove the least certain piece before investing elsewhere.
 
-## Huit catégories réclament cette étape
+## Eight categories require this step
 
-Le gate exige `skillenforce-plan` pour `code`, `debug`, `browser`, `design-ui`, `database-supabase`, `planning`, `devops` et `data`.
+The gate requires `skillenforce-plan` for `code`, `debug`, `browser`, `design-ui`, `database-supabase`, `planning`, `devops`, and `data`.
 
-## Validation avant d'exécuter
+## Validate before executing
 
-Un plan complexe ne part pas en exécution sur un accord supposé. Tu portes la décision structurante dans l'outil `question` du harness :
+A complex plan does not go into execution on assumed agreement. Present the structuring decision through the `question` tool:
 
 ```
 question({
   questions: [
     {
-      header: "Valider le plan",
-      question: "Le plan tient-il ? <resume en une phrase>",
+      header: "Validate the plan",
+      question: "Does the plan hold? <summary in one sentence>",
       options: [
-        { label: "Valider et executer (Recommandé)", description: "<ce qui demarre tout de suite>" },
-        { label: "Ajuster le perimetre", description: "<ce qui serait retire ou ajoute>" },
-        { label: "Renoncer", description: "rien n'est ecrit" }
+        { label: "Validate and execute (Recommended)", description: "<what starts immediately>" },
+        { label: "Adjust scope", description: "<what would be removed or added>" },
+        { label: "Abort", description: "nothing is written" }
       ]
     }
   ]
 })
 ```
 
-Le contenu du plan vit dans le chat. La question de validation vit dans l'interface. Tu ne remplaces jamais l'un par l'autre.
+The plan content lives in the chat. The validation question lives in the interface. Never replace one with the other.
 
-## Passage à l'étape suivante
+## Next step
 
-Si des choix restent ouverts sur l'architecture, les données, le périmètre ou les tests, va d'abord à `skillenforce-clarify`. Sinon, `skillenforce-task` convertit le plan en tâches atomiques.
+If choices remain open on architecture, data, scope, or tests, go to `skillenforce-clarify` first. Otherwise, `skillenforce-task` converts the plan into atomic tasks.
 
-## Garde-fous
+## Guardrails
 
-- Commence par la cible et la contrainte, pas par les fichiers.
-- Un plan sans ordre de dépendances reste une intention.
-- Ne remplace jamais un plan encore ouvert : même travail, mise à jour en place ; travail différent, arrêt et question.
-- Un plan dont toutes les tranches sont XL n'est pas un plan.
-- Un plan sans point de contrôle ne dit pas quand s'arrêter.
-- Ne promets rien que tu n'aies vérifié. Une direction annoncée sans lecture du code est une supposition.
+- Start with the target and the constraint, not with the files.
+- A plan without dependency order remains an intention.
+- Never replace a still-open plan: same work, update in place; different work, stop and ask.
+- A plan where every slice is XL is not a plan.
+- A plan without checkpoints does not say when to stop.
+- Never promise anything you have not verified. A direction announced without reading the code is a guess.

@@ -62,22 +62,22 @@ export function commandReport(parsed: Parsed): void {
     [
       ui.heading("Skillenforce report"),
       ui.kv([
-        ["Journal d'enforcement", String(total)],
-        ["Invocations de skills", String(invocations)],
-        ["Etapes de roadmap faites", String(roadmapDone)],
+        ["Enforcement log", String(total)],
+        ["Skill invocations", String(invocations)],
+        ["Roadmap steps completed", String(roadmapDone)],
         ["Providers", String(spec.providers.length)]
       ]),
       "",
       ui.heading("Decisions"),
       ui.table(["decision", "n"], decisions.map((row) => [(row as { decision: string }).decision, String((row as { n: number }).n)])),
       "",
-      ui.heading("Outils"),
-      ui.table(["outil", "n"], byTool.map((row) => [String((row as { tool: string }).tool), String((row as { n: number }).n)])),
+      ui.heading("Tools"),
+      ui.table(["tool", "n"], byTool.map((row) => [String((row as { tool: string }).tool), String((row as { n: number }).n)])),
       "",
-      ui.heading("Skills les plus attendues"),
+      ui.heading("Most expected skills"),
       ui.table(["skill", "n"], topMissing.map((entry) => [entry.skill, String(entry.n)])),
       "",
-      ui.heading("Skills les plus chargees"),
+      ui.heading("Most loaded skills"),
       ui.table(["skill", "n"], topSkills.map((row) => [(row as { skill: string }).skill, String((row as { n: number }).n)]))
     ].join("\n")
   );

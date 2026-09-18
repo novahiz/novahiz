@@ -44,14 +44,14 @@ export function commandDoctor(parsed: Parsed): void {
   const parts = process.versions.node.split(".").map((value) => Number(value));
   const nodeOk = parts[0] > 22 || (parts[0] === 22 && parts[1] >= 18);
   checks.push({ id: "node", label: "Node 22.18+", ok: nodeOk, detail: `v${process.versions.node}`, blocking: true });
-  checks.push({ id: "npx", label: "npx disponible", ok: hasCommand("npx"), detail: "requis par les providers MCP", blocking: true });
+  checks.push({ id: "npx", label: "npx available", ok: hasCommand("npx"), detail: "required by MCP providers", blocking: true });
 
   const index = loadInstalledSkills(spec);
   checks.push({
     id: "index",
-    label: "Index des skills",
+    label: "Skills index",
     ok: index.available,
-    detail: index.available ? `${index.skills.size} skills` : "build/installed-skills.json illisible, lance skillenforce sync",
+    detail: index.available ? `${index.skills.size} skills` : "build/installed-skills.json unreadable, run skillenforce sync",
     blocking: true
   });
 
@@ -59,9 +59,9 @@ export function commandDoctor(parsed: Parsed): void {
   const absent = index.available ? referenced.filter((id) => !index.skills.has(id)) : [];
   checks.push({
     id: "referenced",
-    label: "Skills referencees",
+    label: "Referenced skills",
     ok: absent.length === 0,
-    detail: absent.length === 0 ? `${referenced.length} presentes` : `absentes de l'index: ${absent.join(", ")}`,
+    detail: absent.length === 0 ? `${referenced.length} present` : `missing from index: ${absent.join(", ")}`,
     blocking: absent.length > 0
   });
 
@@ -70,9 +70,9 @@ export function commandDoctor(parsed: Parsed): void {
     .map(([, cli]) => cli);
   checks.push({
     id: "cli",
-    label: "CLI externes requises",
+    label: "Required external CLI",
     ok: missingCli.length === 0,
-    detail: missingCli.length === 0 ? "toutes presentes" : `introuvables: ${missingCli.join(", ")}`,
+    detail: missingCli.length === 0 ? "all present" : `not found: ${missingCli.join(", ")}`,
     blocking: missingCli.length > 0
   });
 
@@ -89,15 +89,15 @@ export function commandDoctor(parsed: Parsed): void {
   const gateOk = spec.rules.length > 0 && probe.allow === false && probe.missingSkills.length > 0;
   checks.push({
     id: "gate",
-    label: "Gate operationnel",
+    label: "Operational gate",
     ok: gateOk,
-    detail: gateOk ? `bloque une ecriture sans skill chargee (${probe.missingSkills.join(", ")})` : "n'a pas bloque une ecriture sans skill chargee",
+    detail: gateOk ? `blocks a write without a loaded skill (${probe.missingSkills.join(", ")})` : "did not block a write without a loaded skill",
     blocking: true
   });
 
   const dbFile = dbPathFor(root, spec);
   let dbOk = false;
-  let dbDetail = "absente";
+  let dbDetail = "missing";
   try {
     const size = statSync(dbFile).size;
     const db = openDb(dbFile);
@@ -106,24 +106,24 @@ export function commandDoctor(parsed: Parsed): void {
     dbOk = true;
     dbDetail = ui.bytes(size);
   } catch (error) {
-    dbDetail = `illisible: ${(error as Error).message}`;
+    dbDetail = `unreadable: ${(error as Error).message}`;
   }
-  checks.push({ id: "db", label: "Base du registre", ok: dbOk, detail: dbDetail, blocking: false });
+  checks.push({ id: "db", label: "Registry database", ok: dbOk, detail: dbDetail, blocking: false });
 
   // Informational only: openDb migrates on open, so the stored version always
   // matches by the time this reads it. The value is read so a future migration
   // has something to branch on, and so a database from an older build shows up.
-  let schemaDetail = "base illisible";
+  let schemaDetail = "database unreadable";
   try {
     const db = openDb(dbFile);
     const row = db.prepare("PRAGMA user_version").get() as { user_version?: number } | undefined;
     const version = Number(row?.user_version ?? 0);
     db.close();
-    schemaDetail = `version ${version} (attendue ${SCHEMA_VERSION})`;
+    schemaDetail = `version ${version} (expected ${SCHEMA_VERSION})`;
   } catch (error) {
-    schemaDetail = `illisible: ${(error as Error).message}`;
+    schemaDetail = `unreadable: ${(error as Error).message}`;
   }
-  checks.push({ id: "schema", label: "Version du schema", ok: true, detail: schemaDetail, blocking: false });
+  checks.push({ id: "schema", label: "Schema version", ok: true, detail: schemaDetail, blocking: false });
 
   const adapterSource = join(root, "adapters", "opencode", "skillenforce.ts");
   const opencodeDir =
@@ -132,29 +132,29 @@ export function commandDoctor(parsed: Parsed): void {
       : join(homedir(), ".config", "opencode");
   const adapterInstalled = join(opencodeDir, "plugins", "skillenforce.ts");
   let adapterOk = true;
-  let adapterDetail = "aucune copie installee";
+  let adapterDetail = "no installed copy";
   if (existsSync(adapterSource) && existsSync(adapterInstalled)) {
     adapterOk = readFileSync(adapterSource, "utf8") === readFileSync(adapterInstalled, "utf8");
-    adapterDetail = adapterOk ? "copie harnais a jour" : "copie harnais perimee, relance l'installeur puis redemarre opencode";
+    adapterDetail = adapterOk ? "plugin harness copy up to date" : "plugin harness copy outdated, rerun installer then restart opencode";
   }
-  checks.push({ id: "adapter", label: "Copie harnais du plugin", ok: adapterOk, detail: adapterDetail, blocking: false });
+  checks.push({ id: "adapter", label: "Plugin harness copy", ok: adapterOk, detail: adapterDetail, blocking: false });
 
   const agentSource = join(root, "adapters", "opencode", "agent", "skillenforce-agent.md");
   const agentInstalled = join(opencodeDir, "agent", "skillenforce-agent.md");
   let agentOk = true;
-  let agentDetail = "aucune copie installee";
+  let agentDetail = "no installed copy";
   if (existsSync(agentSource) && existsSync(agentInstalled)) {
     const installed = readFileSync(agentInstalled, "utf8");
     const inSync = installed === readFileSync(agentSource, "utf8");
     const grantsQuestion = grantsQuestionIn(installed);
     agentOk = inSync && grantsQuestion;
     agentDetail = !inSync
-      ? "copie harnais perimee, relance l'installeur puis redemarre opencode"
+      ? "agent harness copy outdated, rerun installer then restart opencode"
       : grantsQuestion
-        ? "copie harnais a jour, question autorise"
-        : "la copie harnais n'autorise pas question: le pipeline ne peut pas interroger";
+        ? "agent harness copy up to date, question allowed"
+        : "agent harness copy does not allow question: pipeline cannot query";
   }
-  checks.push({ id: "agent", label: "Copie harnais de l'agent", ok: agentOk, detail: agentDetail, blocking: false });
+  checks.push({ id: "agent", label: "Agent harness copy", ok: agentOk, detail: agentDetail, blocking: false });
 
   const failing = checks.filter((check) => !check.ok);
   const blocking = failing.filter((check) => check.blocking);
@@ -176,13 +176,13 @@ export function commandDoctor(parsed: Parsed): void {
       ]),
       "",
       ui.table(
-        ["controle", "etat", "detail"],
+        ["check", "status", "detail"],
         checks.map((check) => [check.label, check.ok ? ui.status(true) : ui.status(false), check.detail])
       ),
       "",
       blocking.length > 0
-        ? ui.style("red", `${blocking.length} anomalie(s) bloquante(s): ${blocking.map((check) => check.id).join(", ")}`)
-        : ui.style("green", "Aucune anomalie bloquante.")
+        ? ui.style("red", `${blocking.length} blocking anomaly/anomalies: ${blocking.map((check) => check.id).join(", ")}`)
+        : ui.style("green", "No blocking anomaly.")
     ].join("\n")
   );
 

@@ -1,53 +1,52 @@
 ---
 name: skillenforce-gate
 description: |
-  Le gate d'application de skillenforce, vu du côté agent. Explique pourquoi une édition est
-  refusée, quelles skills la débloquent, et comment lire le message de blocage.
-  Le gate est implémenté dans src/gate.ts et combine deux sources : les règles
-  (catalog/rules.json) et les étapes de roadmap de type skill non optionnelles
-  (catalog/categories.json).
+  The skillenforce enforcement gate, seen from the agent side. Explains why an edit is
+  refused, which skills unblock it, and how to read the block message. The gate is
+  implemented in src/gate.ts and combines two sources: the rules (catalog/rules.json)
+  and the non-optional skill-type roadmap steps (catalog/categories.json).
   Use when an edit is refused, before a significant action, or to know which skill to load.
-  Triggers on: "le gate bloque", "missing skill", requiredSkills, enforcement, skillenforce_GATE,
-  "pourquoi mon edition est refusee".
+  Triggers on: "gate blocks", "missing skill", requiredSkills, enforcement, skillenforce_GATE,
+  "why is my edit blocked".
 license: MIT
 compatibility: opencode
 ---
 
-# skillenforce-gate : lire et satisfaire le gate
+# skillenforce-gate: read and satisfy the gate
 
-Le gate vérifie une seule chose : les skills requises par le contexte sont-elles chargées ? Si non, il refuse l'édition.
+The gate checks a single thing: are the skills required by the context loaded? If not, it refuses the edit.
 
-## Les deux sources d'exigence
+## The two sources of requirements
 
-**Les règles** (`catalog/rules.json`), évaluées sur le chemin, la classe de fichier, la catégorie active et le contenu :
+**The rules** (`catalog/rules.json`), evaluated on path, file class, active category, and content:
 
-| Règle | Se déclenche sur | Exige |
+| Rule | Triggers on | Requires |
 |---|---|---|
-| R1-docs | texte, data, config | `humanizer` |
-| R1-code-prose | code ou design dont le contenu porte de la prose | `humanizer` |
+| R1-docs | text, data, config | `humanizer` |
+| R1-code-prose | code or design whose content carries prose | `humanizer` |
 | R2-style | css, scss, sass, less, styl, html, vue, svelte, astro | `impeccable` |
-| R2-styled-component | jsx, tsx dont le contenu touche au style | `impeccable` |
-| R2-design-target | catégorie `design-ui` sur un fichier de design | `impeccable` |
-| R3-supabase | chemin `**/supabase/**` ou `**/migrations/**`, catégorie `database-supabase` | `supabase`, `supabase-postgres-best-practices` |
+| R2-styled-component | jsx, tsx whose content touches style | `impeccable` |
+| R2-design-target | `design-ui` category on a design file | `impeccable` |
+| R3-supabase | path `**/supabase/**` or `**/migrations/**`, category `database-supabase` | `supabase`, `supabase-postgres-best-practices` |
 
-**Les étapes de roadmap** : seules celles `kind: "skill"` et non `optional` bloquent. Les étapes `edit`, `verify` et `advisory` apparaissent dans `requiredSkills` mais ne refusent rien.
+**Roadmap steps**: only those of `kind: "skill"` and non-optional block. Steps of `edit`, `verify`, and `advisory` appear in `requiredSkills` but refuse nothing.
 
-## Sémantique exacte (gate.ts:229-236)
+## Exact semantics (gate.ts:229-236)
 
 ```
-si l'index est disponible ET que la skill n'y figure pas
-  -> unmatchedRequired : non appliquée, et signalée nulle part
-sinon
-  -> effective : appliquée
+if index is available AND the skill is not in it
+  -> unmatchedRequired: not enforced, and not reported anywhere
+else
+  -> effective: enforced
 ```
 
-Trois conséquences à connaître :
+Three consequences to know:
 
-1. **Skill absente de l'index** (`build/installed-skills.json`, écrit au dernier `sync`) : elle cesse d'être exigée, en silence. Aucun message ne le dit.
-2. **Skill présente dans l'index mais absente du disque** : elle reste exigée et rien ne peut la charger. Blocage définitif jusqu'au prochain `sync`.
-3. **Index illisible** : tout est exigé. Le gate devient plus strict, jamais plus laxiste.
+1. **Skill missing from the index** (`build/installed-skills.json`, written at the last `sync`): it stops being required, silently. No message says so.
+2. **Skill present in the index but missing from disk**: it stays required and nothing can load it. Blocked permanently until the next `sync`.
+3. **Unreadable index**: everything is required. The gate becomes stricter, never more lenient.
 
-## Lire un blocage
+## Read a block
 
 ```
 {
@@ -61,22 +60,22 @@ Trois conséquences à connaître :
 }
 ```
 
-`missingSkills` est la liste à charger. `matchedRules` dit pourquoi. `roadmap` dit quelle catégorie a imposé le reste.
+`missingSkills` is the list to load. `matchedRules` says why. `roadmap` says which category imposed the rest.
 
-## Débloquer
+## Unblock
 
-Charge chaque skill manquante avec `skill({name})`. Le chargement est enregistré dans la session, le gate repasse.
+Load each missing skill with `skill({name})`. The load is recorded in the session, and the gate passes.
 
-Une skill requise devenue introuvable n'est pas un obstacle à contourner : c'est le signal que l'index et le disque ont divergé. Un `sync` les remet d'accord.
+A required skill that becomes unavailable is not an obstacle to bypass: it is the signal that the index and disk have diverged. A `sync` brings them back into agreement.
 
-## Contournement
+## Bypass
 
-Le seul prévu par le code : `skillenforce_GATE=off` (ou `0`, `false`, `no`, `disabled`) dans l'environnement, lu via `gate.envEscape`. L'utilisateur peut aussi demander explicitement de passer outre. Dans les deux cas, la dérogation se dit à voix haute et se rattrape après coup. Le jugement de l'agent n'est pas un contournement valide.
+The only one provided by the code: `skillenforce_GATE=off` (or `0`, `false`, `no`, `disabled`) in the environment, read via `gate.envEscape`. The user can also explicitly ask to override. In both cases, the override is stated aloud and fixed afterward. The agent's judgment is not a valid bypass.
 
 ## Anti-patterns
 
-- Charger une skill sans rapport pour faire taire le message.
-- Éditer en contournant, puis régulariser plus tard.
-- Supposer que l'édition est passée sans regarder `allow`.
-- Oublier `sync` après avoir ajouté ou renommé une skill.
-- Croire qu'une étape `edit` ou `verify` bloque : seul `kind: "skill"` bloque.
+- Loading an unrelated skill to silence the message.
+- Editing by bypassing, then regularizing later.
+- Assuming the edit went through without checking `allow`.
+- Forgetting `sync` after adding or renaming a skill.
+- Believing that an `edit` or `verify` step blocks: only `kind: "skill"` blocks.

@@ -139,11 +139,11 @@ export function commandGate(parsed: Parsed): void {
   const warnings: string[] = [];
   if (unmatchedRequired.length > 0) {
     warnings.push(
-      `skills requises absentes de l'index, donc non appliquees : ${unmatchedRequired.join(", ")}. Relance skillenforce sync pour realigner l'index.`
+      `required skills missing from index, therefore not applied: ${unmatchedRequired.join(", ")}. Restart skillenforce sync to realign the index.`
     );
   }
   if (indexMissing) {
-    warnings.push("index des skills illisible : toutes les skills requises sont exigees.");
+    warnings.push("skills index unreadable: all required skills are enforced.");
   }
 
   if (session.length > 0) {

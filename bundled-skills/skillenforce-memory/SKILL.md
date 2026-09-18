@@ -1,58 +1,58 @@
 ---
 name: skillenforce-memory
 description: |
-  Mémoire de projet skillenforce : écriture double, dans le MEMORY.md du projet et dans une page
-  du vault Obsidian. La destination se déduit uniquement de la table de routage
-  _meta/routing.md. Frontmatter obligatoire, wikilinks, fusion plutôt que duplication.
-  Use when a complex task ends, when the user says "mets à jour la mémoire" or "sauvegarde",
-  or when a decision, une cause de bug ou une prochaine étape doit survivre à la session.
-  Triggers on: "mémoire", "MEMORY.md", obsidian, vault, sauvegarde, "note ça", routing.
+  Skillenforce project memory: dual write, to the project's MEMORY.md and to an
+  Obsidian vault page. The destination is deduced only from the routing table
+  `_meta/routing.md`. Mandatory frontmatter, wikilinks, merge rather than duplicate.
+  Use when a complex task ends, when the user says "update memory" or "save this",
+  or when a decision, bug cause, or next step must survive the session.
+  Triggers on: "memory", "MEMORY.md", obsidian, vault, save, "remember this", routing.
 license: MIT
 compatibility: opencode
 ---
 
-# skillenforce-memory : mémoire double
+# skillenforce-memory: dual memory
 
-Une session se termine par une trace. Deux écritures, jamais une seule.
+A session ends with a trace. Two writes, never just one.
 
-## Où
+## Where
 
-| Support | Chemin |
+| Target | Path |
 |---|---|
-| Projet | `MEMORY.md` à la racine du projet courant |
-| Vault | `C:\Users\hiz\Documents\skillenforce`, dossier déduit de `_meta\routing.md` |
+| Project | `MEMORY.md` at the root of the current project |
+| Vault | `C:\Users\hiz\Documents\skillenforce`, folder derived from `_meta\routing.md` |
 
-`_meta\routing.md` est la seule source de vérité pour le dossier cible. Aucune devinette : si le routage est ambigu, tu demandes.
+`_meta/routing.md` is the single source of truth for the target folder. No guessing: if routing is ambiguous, ask.
 
-La procédure détaillée vit dans la skill `memory-save`. Charge-la et suis-la plutôt que d'écrire à main levée.
+The detailed procedure lives in the `memory-save` skill. Load it and follow it rather than writing freehand.
 
-## Interdits
+## Forbidden
 
-- Écrire dans `index.md`, `log.md`, `hot.md`, `.manifest.json`, `_meta\` ou `.obsidian\`. Ces fichiers appartiennent aux skills de maintenance.
-- Créer un dossier racine de ta propre initiative.
-- Deviner la destination.
+- Write to `index.md`, `log.md`, `hot.md`, `.manifest.json`, `_meta/`, or `.obsidian/`. These files belong to maintenance skills.
+- Create a root folder on your own initiative.
+- Guess the destination.
 
-## Contenu attendu
+## Expected content
 
-1. Ce qui fonctionne.
-2. Ce qui a changé, avec les fichiers clés.
-3. Ce qui reste ouvert : prochaine étape, dette technique, blocages.
+1. What works.
+2. What changed, with the key files.
+3. What's left open: next step, technical debt, blockages.
 
-## Frontmatter obligatoire
+## Mandatory frontmatter
 
 ```
 title, category, tags, sources, created, updated, summary
 ```
 
-Les tags viennent de `_meta\taxonomy.md`. La page se lie avec des `[[wikilinks]]`. Quand le sujet existe déjà, tu enrichis la page existante au lieu d'en créer une seconde.
+Tags come from `_meta/taxonomy.md`. The page links with `[[wikilinks]]`. When the topic already exists, enrich the existing page rather than creating a second one.
 
-## Avant d'écrire
+## Before writing
 
-Affiche le chemin retenu. Une écriture annoncée est une écriture vérifiable.
+Show the chosen path. A stated write is a verifiable write.
 
-## Pièges
+## Pitfalls
 
-- Écrire la même chose dans deux pages au lieu d'enrichir la première.
-- Recopier le déroulé de la session au lieu de distiller les décisions.
-- Mettre à jour le vault et oublier le `MEMORY.md` du projet.
-- Toucher aux fichiers de maintenance depuis cette skill.
+- Writing the same thing in two pages instead of enriching the first.
+- Copying the session transcript instead of distilling decisions.
+- Updating the vault and forgetting the project's `MEMORY.md`.
+- Touching maintenance files from this skill.

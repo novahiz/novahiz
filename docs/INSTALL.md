@@ -66,7 +66,7 @@ Any key you omit from `skillenforce.config.json` falls back to its default, so a
 
 ```
 node ~/.config/skillenforce/src/cli.ts check
-node ~/.config/skillenforce/src/cli.ts classify "ajoute une migration supabase avec une policy rls"
+node ~/.config/skillenforce/src/cli.ts classify "add a supabase migration with an rls policy"
 node ~/.config/skillenforce/src/cli.ts gate --file src/hero.css --tool edit
 ```
 

@@ -85,18 +85,18 @@ async function main() {
 
   // Check for opencode and auto-install if missing
   if (!which("opencode")) {
-    note("opencode non detecte. Installation globale...");
+    note("opencode not detected. Global installation...");
     const installResult = spawnSync("npm", ["install", "-g", "opencode"], {
       encoding: "utf8",
       stdio: "inherit"
     });
     if (installResult.status !== 0) {
-      process.stderr.write("Echec de l'installation d'opencode. Essayez: npm install -g opencode\n");
+      process.stderr.write("Failed to install opencode. Try: npm install -g opencode\n");
       process.exit(1);
     }
-    note("opencode installe avec succes.");
+    note("opencode installed successfully.");
   } else {
-    note("opencode detecte.");
+    note("opencode detected.");
   }
 
   const yes = Boolean(flags.yes) || Boolean(flags["yes"]);
@@ -135,7 +135,7 @@ async function main() {
 
   const sameRoot = resolve(root) === resolve(home);
   if (!sameRoot) {
-    note(`Copie du core vers ${home}`);
+    note(`Copying core to ${home}`);
     if (!dryRun) mkdirSync(home, { recursive: true });
     for (const item of CORE_ITEMS) {
       const source = join(root, item);
@@ -173,7 +173,7 @@ async function main() {
         ? []
         : entries.filter((entry) => alreadyInstalled.has(entry.name)).map((entry) => entry.name);
       const toCopy = entries.filter((entry) => !skipped.includes(entry.name));
-      note(`Installation des skills dans ${skillsDir} (${toCopy.length} a copier, ${skipped.length} deja presents ailleurs)`);
+      note(`Installing skills in ${skillsDir} (${toCopy.length} to copy, ${skipped.length} already present elsewhere)`);
       if (!dryRun) {
         let total = 0;
         let added = 0;
@@ -186,26 +186,26 @@ async function main() {
           added += result.created.length;
           saved += result.backups.length;
         }
-        note(`  ${total} fichiers, ${added} nouveaux, ${saved} sauvegardes`);
+        note(`  ${total} files, ${added} new, ${saved} backups`);
       }
       if (skipped.length > 0) {
-        note(`  deja presentes dans une autre racine, non recopiees: ${skipped.join(", ")}`);
-        note("  Relance avec --force-skills pour les recopier malgre tout.");
+        note(`  already present in another root, not copied: ${skipped.join(", ")}`);
+        note("  Restart with --force-skills to copy them anyway.");
       }
     } else {
-      note(`Aucun dossier skills trouve a ${skillsSource}`);
+      note(`No skills folder found at ${skillsSource}`);
     }
 
     // Copy bundled-skills
     const bundledSource = existsSync(join(home, "bundled-skills")) ? join(home, "bundled-skills") : join(root, "bundled-skills");
     if (existsSync(bundledSource)) {
       const bundledTarget = join(home, "bundled-skills");
-      note(`Installation des bundled-skills dans ${bundledTarget}`);
+      note(`Installing bundled-skills in ${bundledTarget}`);
       if (!dryRun) {
         const result = copyInto(bundledSource, bundledTarget, true);
         created.push(...result.created);
         backups.push(...result.backups);
-        note(`  ${result.total} fichiers copies`);
+        note(`  ${result.total} files copied`);
       }
     }
   }
@@ -213,7 +213,7 @@ async function main() {
   const pluginSource = join(home, "adapters", "opencode", "skillenforce.ts");
   const pluginTarget = join(pluginsDir, "skillenforce.ts");
   if (existsSync(pluginSource)) {
-    note(`Installation du plugin opencode dans ${pluginTarget}`);
+    note(`Installing opencode plugin in ${pluginTarget}`);
     if (!dryRun) {
       const result = copyFileWithBackup(pluginSource, pluginTarget, true);
       if (result.created) created.push(result.created);
@@ -226,7 +226,7 @@ async function main() {
     : join(root, "adapters", "opencode", "agent", "skillenforce-agent.md");
   const agentTarget = join(configDir, "agent", "skillenforce-agent.md");
   if (existsSync(agentSource)) {
-    note(`Installation de l'agent Skillenforce dans ${agentTarget}`);
+    note(`Installing Skillenforce agent in ${agentTarget}`);
     if (!dryRun) {
       const result = copyFileWithBackup(agentSource, agentTarget, true);
       if (result.created) created.push(result.created);
@@ -239,7 +239,7 @@ async function main() {
     : join(root, "adapters", "opencode", "commands");
   const commandsTarget = join(configDir, "commands");
   if (existsSync(commandsSource)) {
-    note(`Installation des commandes Skillenforce dans ${commandsTarget}`);
+    note(`Installing Skillenforce commands in ${commandsTarget}`);
     if (!dryRun) {
       const result = copyInto(commandsSource, commandsTarget, true);
       created.push(...result.created);
@@ -249,7 +249,7 @@ async function main() {
 
   const configPath = join(home, "skillenforce.config.json");
   if (force || !existsSync(configPath)) {
-    note(`Ecriture de ${configPath}`);
+    note(`Writing ${configPath}`);
     if (!dryRun) {
       const existedBefore = existsSync(configPath);
       if (existedBefore) {
@@ -261,7 +261,7 @@ async function main() {
       configCreated = !existedBefore;
     }
   } else {
-    note(`Config existante conservee: ${configPath}`);
+    note(`Existing config preserved: ${configPath}`);
   }
 
   if (!dryRun) {
@@ -282,7 +282,7 @@ async function main() {
   if (!dryRun) {
     const cli = join(home, "src", "cli.ts");
     if (existsSync(cli)) {
-      note("Construction du catalogue (sync)");
+      note("Building catalog (sync)");
       const result = spawnSync(process.execPath, [cli, "sync"], {
         encoding: "utf8",
         env: { ...process.env, SKILLEFORCE_HOME: home }
@@ -299,14 +299,14 @@ async function main() {
       providersChoice !== null
         ? providersChoice
         : Boolean(flags["install-providers"]) || config?.providers?.autoInstall === true;
-    note("Verification des dependances");
+    note("Checking dependencies");
     const check = spawnSync(process.execPath, [cli, "deps"], {
       encoding: "utf8",
       env: { ...process.env, SKILLEFORCE_HOME: home }
     });
     if (check.stdout) process.stdout.write(check.stdout);
     if (autoInstall) {
-      note("Installation des dependances et des providers (MCP, skills, commands)");
+      note("Installing dependencies and providers (MCP, skills, commands)");
       const result = spawnSync(process.execPath, [cli, "deps", "--install"], {
         encoding: "utf8",
         env: { ...process.env, SKILLEFORCE_HOME: home }
@@ -324,25 +324,25 @@ async function main() {
   ];
 
   if (!dryRun) {
-    note("\nInstallation des MCP servers...");
+    note("\nInstalling MCP servers...");
     for (const server of mcpServers) {
       const check = spawnSync(process.platform === "win32" ? "where" : "which", [server.bin], {
         encoding: "utf8",
         stdio: "pipe"
       });
       if (check.status !== 0) {
-        note(`  Installation de ${server.pkg}...`);
+        note(`  Installing ${server.pkg}...`);
         const result = spawnSync("npm", ["install", "-g", server.pkg], {
           encoding: "utf8",
           stdio: "inherit"
         });
         if (result.status !== 0) {
-          note(`  ATTENTION: Echec installation ${server.pkg} (non bloquant)`);
+          note(`  WARNING: Failed to install ${server.pkg} (non-blocking)`);
         } else {
-          note(`  ${server.pkg} installe`);
+          note(`  ${server.pkg} installed`);
         }
       } else {
-        note(`  ${server.name} deja installe`);
+        note(`  ${server.name} already installed`);
       }
     }
   }
@@ -354,17 +354,17 @@ async function main() {
   ];
 
   if (!dryRun) {
-    note("\nInstallation des plugins opencode...");
+    note("\nInstalling opencode plugins...");
     for (const plugin of plugins) {
-      note(`  Installation de ${plugin}...`);
+      note(`  Installing ${plugin}...`);
       const result = spawnSync("npm", ["install", "-g", plugin], {
         encoding: "utf8",
         stdio: "inherit"
       });
       if (result.status !== 0) {
-        note(`  ATTENTION: Echec installation ${plugin} (non bloquant)`);
+        note(`  WARNING: Failed to install ${plugin} (non-blocking)`);
       } else {
-        note(`  ${plugin} installe`);
+        note(`  ${plugin} installed`);
       }
     }
   }
@@ -373,7 +373,7 @@ async function main() {
   if (!dryRun) {
     const configPath = join(configDir, "opencode.jsonc");
     if (!existsSync(configPath)) {
-      note(`\nCreation de ${configPath}`);
+      note(`\nCreating ${configPath}`);
       const bundledDir = join(home, "bundled-skills");
       const agentsSkillsDir = join(homedir(), ".config", ".agents", "skills");
       
@@ -439,19 +439,19 @@ async function main() {
       }
 
       writeFileSync(configPath, JSON.stringify(openCodeConfig, null, 2) + "\n", "utf8");
-      note(`  ${configPath} cree`);
+      note(`  ${configPath} created`);
     } else {
-      note(`\n${join(configDir, "opencode.jsonc")} existe deja, non ecrase`);
+      note(`\n${join(configDir, "opencode.jsonc")} already exists, not overwritten`);
     }
   }
 
   if (!dryRun) {
-    process.stdout.write(`\nSkillenforce installe dans ${home}.\n`);
-    process.stdout.write("Redemarre opencode pour activer le plugin et le serveur MCP.\n");
-    process.stdout.write("Gate desactivable avec la variable d'environnement SKILLEFORCE_GATE=off.\n");
+    process.stdout.write(`\nSkillenforce installed in ${home}.\n`);
+    process.stdout.write("Restart opencode to activate the plugin and the MCP server.\n");
+    process.stdout.write("Gate can be disabled with the SKILLEFORCE_GATE=off environment variable.\n");
     
     // Auto-update dependencies
-    note("Verification des mises a jour des dependances...");
+    note("Checking for dependency updates...");
     const pkgPath = join(home, "package.json");
     if (existsSync(pkgPath)) {
       const npmCheck = spawnSync("npm", ["outdated", "--json"], {
@@ -460,7 +460,7 @@ async function main() {
         env: { ...process.env, SKILLEFORCE_HOME: home }
       });
       if (npmCheck.stdout && npmCheck.stdout.trim().length > 2) {
-        note("Mises a jour disponibles, installation en cours...");
+        note("Updates available, installing...");
         const npmUpdate = spawnSync("npm", ["update"], {
           encoding: "utf8",
           cwd: home,
@@ -468,13 +468,13 @@ async function main() {
         });
         if (npmUpdate.stdout) process.stdout.write(npmUpdate.stdout);
         if (npmUpdate.status !== 0 && npmUpdate.stderr) process.stderr.write(npmUpdate.stderr);
-        note("Dependances mises a jour.");
+        note("Dependencies updated.");
       } else {
-        note("Dependances a jour.");
+        note("Dependencies up to date.");
       }
     }
   } else {
-    process.stdout.write("\nDry-run termine, aucune modification ecrite.\n");
+    process.stdout.write("\nDry-run complete, no changes written.\n");
   }
 }
 
