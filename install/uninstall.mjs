@@ -79,7 +79,7 @@ function main() {
     pruneEmptyDirs(removed, [home, manifest.configDir ?? home, join(homedir(), ".config"), homedir()]);
     if (purge && manifest.coreCopied && existsSync(home)) {
       rmSync(home, { recursive: true, force: true });
-      process.stdout.write(`Dossier Novahiz supprime: ${home}\n`);
+      process.stdout.write(`Dossier Skillenforce supprime: ${home}\n`);
     } else {
       const untouchedCreated = only ? created.filter((item) => !removed.includes(item)) : [];
       const untouchedBackups = only ? backups.filter((entry) => !removed.includes(entry && entry.backup)) : [];

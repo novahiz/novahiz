@@ -129,7 +129,7 @@ function generateOpenCodeJson(configDir, skillenforceHome) {
 }
 
 async function main() {
-  log("Bootstrap Novahiz - Installation from scratch");
+  log("Bootstrap Skillenforce - Installation from scratch");
   log("");
 
   // 1. Check Node version
@@ -257,7 +257,7 @@ async function main() {
   // 10. Done
   log("");
   log("=========================================");
-  log("  Novahiz installed successfully!");
+  log("  Skillenforce installed successfully!");
   log("=========================================");
   log("");
   log("Next steps:");

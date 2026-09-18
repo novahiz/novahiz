@@ -74,7 +74,7 @@ async function main() {
 
   const note = (message) => process.stdout.write(`${dryRun ? "[dry-run] " : ""}${message}\n`);
 
-  note(`Novahiz home: ${home}`);
+  note(`Skillenforce home: ${home}`);
   note(`opencode config: ${configDir}`);
 
   if (!nodeVersionOk()) {
@@ -89,7 +89,7 @@ async function main() {
   if (interactive) {
     const prompt = createPrompt();
     const providers = readJson(join(root, "catalog", "providers.json"), []);
-    process.stdout.write("\nNovahiz setup\n");
+    process.stdout.write("\nSkillenforce setup\n");
     process.stdout.write(`  Home:            ${home}\n`);
     process.stdout.write(`  opencode config: ${configDir}\n`);
     process.stdout.write(`  Skills:          ${skillsDir}\n`);
@@ -101,7 +101,7 @@ async function main() {
       process.stdout.write(`  [${provider.kind}] ${provider.id} - ${provider.purpose ?? ""}${source}\n`);
     }
     process.stdout.write("\n");
-    const proceed = await prompt.confirm("Install the Novahiz core (skills, plugin, agent)?", true);
+    const proceed = await prompt.confirm("Install the Skillenforce core (skills, plugin, agent)?", true);
     if (!proceed) {
       prompt.close();
       process.stdout.write("Aborted. Nothing was written.\n");
@@ -207,7 +207,7 @@ async function main() {
     : join(root, "adapters", "opencode", "agent", "skillenforce-agent.md");
   const agentTarget = join(configDir, "agent", "skillenforce-agent.md");
   if (existsSync(agentSource)) {
-    note(`Installation de l'agent Novahiz dans ${agentTarget}`);
+    note(`Installation de l'agent Skillenforce dans ${agentTarget}`);
     if (!dryRun) {
       const result = copyFileWithBackup(agentSource, agentTarget, true);
       if (result.created) created.push(result.created);
@@ -220,7 +220,7 @@ async function main() {
     : join(root, "adapters", "opencode", "commands");
   const commandsTarget = join(configDir, "commands");
   if (existsSync(commandsSource)) {
-    note(`Installation des commandes Novahiz dans ${commandsTarget}`);
+    note(`Installation des commandes Skillenforce dans ${commandsTarget}`);
     if (!dryRun) {
       const result = copyInto(commandsSource, commandsTarget, true);
       created.push(...result.created);
@@ -428,7 +428,7 @@ async function main() {
   }
 
   if (!dryRun) {
-    process.stdout.write(`\nNovahiz installe dans ${home}.\n`);
+    process.stdout.write(`\nSkillenforce installe dans ${home}.\n`);
     process.stdout.write("Redemarre opencode pour activer le plugin et le serveur MCP.\n");
     process.stdout.write("Gate desactivable avec la variable d'environnement NOVAHIZ_GATE=off.\n");
     
