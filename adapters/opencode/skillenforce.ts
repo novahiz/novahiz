@@ -30,8 +30,10 @@ function readConfig(): SkillenforceConfig {
 
 const CONFIG = readConfig();
 const GATE = CONFIG.gate ?? {};
-const ENV_ESCAPE = typeof GATE.envEscape === "string" && GATE.envEscape.length > 0 ? GATE.envEscape : "SKILLEFORCE_GATE";
-const ESCAPE = (process.env[ENV_ESCAPE] || "").toLowerCase();
+// H1: envEscape is NOT configurable — a writable config must not be able to
+// redirect the kill-switch to an unrelated variable (e.g. CI=false).
+// Primary name first, legacy NOVAHIZ_GATE as backward-compatible fallback.
+const ESCAPE = (process.env.SKILLEFORCE_GATE ?? process.env.NOVAHIZ_GATE ?? "").toLowerCase();
 // gate.enabled=false disables the plugin the same way the CLI gate does (see src/commands/gate.ts).
 // gate.mode (block/warn/audit) stays owned by the CLI: the plugin only forwards the gate exit code.
 const DISABLED =
@@ -42,8 +44,20 @@ const GATE_TOOLS = new Set(
 
 type RunResult = { status: number; stdout: string; stderr: string; spawnError?: string };
 
+// C1: timeout prevents a hung CLI from freezing the whole OpenCode process.
+// C2: maxBuffer caps output; oversized output is treated as a gate failure,
+// never as truncated-then-allowed.
+const RUN_TIMEOUT_MS = 10_000;
+const RUN_MAX_BUFFER = 1_048_576;
+
 function run(args: string[], input?: string): RunResult {
-  const result = spawnSync(NODE, [CLI, ...args], { encoding: "utf8", input });
+  const result = spawnSync(NODE, [CLI, ...args], {
+    encoding: "utf8",
+    input,
+    timeout: RUN_TIMEOUT_MS,
+    maxBuffer: RUN_MAX_BUFFER,
+    killSignal: "SIGTERM"
+  });
   if (result.error) return { status: 1, stdout: "", stderr: "", spawnError: result.error.message };
   return { status: result.status ?? 1, stdout: result.stdout ?? "", stderr: result.stderr ?? "" };
 }
@@ -159,6 +173,12 @@ export const SkillenforcePlugin: Plugin = async ({ client }) => {
           await log("warn", "Classify returned invalid JSON, no enforcement injected");
           return;
         }
+        // M5: the `as` cast is compile-time only — validate the shape at runtime
+        // so a malformed classify response cannot silently disable enforcement.
+        if (!parsed || typeof parsed !== "object" || !Array.isArray(parsed.categories)) {
+          await log("warn", "Classify returned unexpected structure, no enforcement injected");
+          return;
+        }
         const categories = (parsed.categories ?? []).map((entry) => entry.id);
         categoriesBySession.set(input.sessionID, categories);
         const primary = parsed.primary ?? categories[0] ?? null;
@@ -219,7 +239,12 @@ export const SkillenforcePlugin: Plugin = async ({ client }) => {
           const name = args?.name ?? args?.skill;
           if (name) {
             loaded.add(String(name));
-            run(["session-load", "--session", input.sessionID, "--skill", String(name)]);
+            // H3: surface session-load failures — otherwise the gate blocks later
+            // with no trace of why the skill was never recorded.
+            const loadResult = run(["session-load", "--session", input.sessionID, "--skill", String(name)]);
+            if (loadResult.status !== 0) {
+              await log("warn", `session-load failed for skill ${name}: ${(loadResult.stderr || "").trim().slice(0, 200)}`);
+            }
           }
           return;
         }
@@ -249,9 +274,13 @@ export const SkillenforcePlugin: Plugin = async ({ client }) => {
           })()
         );
 
+        // H2: fail-closed — an unavailable gate denies the tool call instead of
+        // silently bypassing enforcement. SKILLEFORCE_GATE=off remains the escape hatch.
         if (result.spawnError) {
-          await log("warn", `Gate unavailable, allowing the tool call: ${result.spawnError}`);
-          return;
+          await log("warn", `Gate unavailable, denying the tool call: ${result.spawnError}`);
+          throw new Error(
+            `Skillenforce gate blocked ${input.tool}: gate unavailable (${result.spawnError}). Fix the install (run sync, check catalog/) or set SKILLEFORCE_GATE=off to disable.`
+          );
         }
         if (result.status === 2) {
           throw new Error(`Skillenforce gate blocked ${input.tool}.\n${result.stdout}`);
@@ -263,7 +292,9 @@ export const SkillenforcePlugin: Plugin = async ({ client }) => {
         }
       } catch (error) {
         if (error instanceof Error && error.message.startsWith("Skillenforce gate")) throw error;
-        await log("warn", `Gate error, allowing the tool call: ${String(error)}`);
+        // H2: fail-closed — unknown gate errors deny, they never bypass.
+        await log("warn", `Gate error, denying the tool call as precaution: ${String(error)}`);
+        throw new Error(`Skillenforce gate blocked ${input.tool}: internal gate error. Set SKILLEFORCE_GATE=off to disable.`);
       }
     }
   };

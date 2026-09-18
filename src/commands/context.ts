@@ -84,8 +84,14 @@ export function confirm(question: string): boolean {
   return answer === "y" || answer === "yes" || answer === "oui";
 }
 
+// The name promises safety: malformed input returns [] instead of throwing.
 export function safeJsonArray(value: string): unknown[] {
-  return JSON.parse(value);
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
 }
 
 export function dbPathFor(root: string, spec: Spec): string {

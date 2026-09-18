@@ -151,7 +151,13 @@ export function classify(spec: Spec, prompt: string, options: ClassifyOptions = 
   }
 
   const selected = scored.slice(0, Math.max(0, maxCategories));
-  if (selected.length === 0 && fallbackCategory.length > 0) {
+  // M2: a misconfigured fallbackCategory used to produce a hollow classification
+  // (primary set, zero skills). Validate it exists before pushing.
+  if (
+    selected.length === 0 &&
+    fallbackCategory.length > 0 &&
+    spec.categories.some((entry) => entry.id === fallbackCategory)
+  ) {
     selected.push({ id: fallbackCategory, score: 0, confidence: 0, margin: 0, terms: [], negatives: [] });
   }
 

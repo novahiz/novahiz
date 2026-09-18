@@ -1,6 +1,7 @@
 import { DatabaseSync } from "node:sqlite";
 import { chmodSync, mkdirSync } from "node:fs";
 import { dirname, resolve } from "node:path";
+import { pruneSessions } from "./ledger.ts";
 
 export { DatabaseSync };
 
@@ -106,19 +107,47 @@ export function openDb(dbPath: string): DatabaseSync {
     CREATE INDEX IF NOT EXISTS enforcement_log_session ON enforcement_log(session_id);
   `);
   migrate(db);
+  // H4: enforce the session TTL on every open — best effort, prune failures
+  // must never break startup.
+  try {
+    pruneSessions(db);
+  } catch {
+    // sessions table may predate updated_at on very old installs; migrate covers it
+  }
   return db;
 }
 
 // Table and column names are interpolated here, unlike every other query in the
-// project, because SQLite does not parameterize identifiers. The values come from
-// the fixed strings below and from migrate(), never from external input. Keep it
-// that way: this is the only place where SQL is assembled from strings.
+// project, because SQLite does not parameterize identifiers. H8: the allowlist
+// below makes the "fixed strings only" invariant structural — any future caller
+// passing a non-listed identifier throws instead of injecting SQL.
+const SAFE_TABLES = new Set([
+  "meta",
+  "skills",
+  "categories",
+  "rules",
+  "sessions",
+  "skill_invocations",
+  "roadmap_progress",
+  "enforcement_log",
+  "tasks",
+  "todos"
+]);
+const SAFE_IDENTIFIER = /^[A-Za-z_][A-Za-z0-9_]*$/;
+
+function assertSafeIdentifier(kind: string, value: string): void {
+  if (!SAFE_IDENTIFIER.test(value)) throw new Error(`unsafe SQL ${kind}: ${value}`);
+}
+
 function tableColumns(db: DatabaseSync, table: string): Set<string> {
+  if (!SAFE_TABLES.has(table)) throw new Error(`unexpected table name: ${table}`);
   const rows = db.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>;
   return new Set(rows.map((row) => row.name));
 }
 
 function ensureColumn(db: DatabaseSync, table: string, column: string, definition: string): void {
+  if (!SAFE_TABLES.has(table)) throw new Error(`unexpected table name: ${table}`);
+  assertSafeIdentifier("column", column);
   if (tableColumns(db, table).has(column)) return;
   db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition};`);
 }

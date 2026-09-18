@@ -29,13 +29,37 @@ const STYLE_SIGNALS = [
 ];
 
 const PROSE_SIGNALS = [
-  /(^|\n)\s*(\/\/|#|\*)\s+[A-Za-z][A-Za-z ,.'()-]{12,}/,
   /\/\*\*?[\s\S]*?[A-Za-z][A-Za-z ,.'()-]{12,}[\s\S]*?\*\//,
   /"[^"\n]{15,}[ ][^"\n]{10,}"/,
   /'[^'\n]{15,}[ ][^'\n]{10,}'/,
   /`[^`\n]{15,}[ ][^`\n]{10,}`/,
   /(^|\n)\s{0,3}\S[^\n]*\s\S+\s[^\n]*[.!?](\s|$)/
 ];
+
+// H6: the old single-line rule — any `//`/`#` comment with 12+ alpha chars —
+// flagged license headers ("Copyright 2024 ..."), TODOs and linter directives
+// as prose. A comment is prose only when it reads like a sentence: no code
+// tokens, no directive prefix, and either ending punctuation or a long
+// multi-word description.
+const COMMENT_DIRECTIVE = /^\s*(\/\/|#|\*)\s*(TODO|FIXME|XXX|HACK|eslint|tslint|prettier|stylelint|c8|istanbul|@ts-|@vite-|node:|deno-lint)/i;
+const CODE_TOKENS = /[=;{}()[\]=>]/;
+
+function isProseCommentLine(line: string): boolean {
+  const match = line.match(/^\s*(\/\/|#|\*)\s+(.+)$/);
+  if (!match) return false;
+  const body = match[2].trim();
+  if (body.length === 0) return false;
+  if (COMMENT_DIRECTIVE.test(line)) return false;
+  if (CODE_TOKENS.test(body)) return false;
+  // Complete sentence: uppercase start, ending punctuation.
+  if (/^[A-Z].{15,}[.!?]$/.test(body)) return true;
+  // Long multi-word description: 40+ chars, 4+ plain words.
+  if (body.length >= 40) {
+    const words = body.split(/\s+/).filter((word) => /^[A-Za-z][A-Za-z,.'()-]*$/.test(word));
+    return words.length >= 4;
+  }
+  return false;
+}
 
 export function hasStyle(text: string): boolean {
   if (text.length === 0) return false;
@@ -44,7 +68,8 @@ export function hasStyle(text: string): boolean {
 
 export function hasProse(text: string): boolean {
   if (text.length === 0) return false;
-  return PROSE_SIGNALS.some((pattern) => pattern.test(text));
+  if (PROSE_SIGNALS.some((pattern) => pattern.test(text))) return true;
+  return text.split(/\r?\n/).some(isProseCommentLine);
 }
 
 export function isTrivial(text: string, minChange = 0): boolean {

@@ -119,6 +119,23 @@ function nowIso(): string {
   return new Date().toISOString();
 }
 
+// H4: SESSION_TTL_MS was defined but never enforced — sessions accumulated
+// forever. pruneSessions deletes expired sessions and their orphaned rows.
+// Called from openDb on every startup (best effort, never throws).
+export function pruneSessions(db: DatabaseSync): void {
+  const cutoff = new Date(Date.now() - SESSION_TTL_MS).toISOString();
+  db.prepare(
+    "DELETE FROM skill_invocations WHERE session_id IN (SELECT id FROM sessions WHERE updated_at < ?)"
+  ).run(cutoff);
+  db.prepare(
+    "DELETE FROM roadmap_progress WHERE session_id IN (SELECT id FROM sessions WHERE updated_at < ?)"
+  ).run(cutoff);
+  db.prepare(
+    "DELETE FROM enforcement_log WHERE session_id IN (SELECT id FROM sessions WHERE updated_at < ?)"
+  ).run(cutoff);
+  db.prepare("DELETE FROM sessions WHERE updated_at < ?").run(cutoff);
+}
+
 function genId(prefix: string): string {
   return `${prefix}_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
 }

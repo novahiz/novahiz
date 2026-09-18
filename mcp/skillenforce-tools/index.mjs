@@ -419,7 +419,10 @@ function handle(message) {
     try {
       return { jsonrpc: "2.0", id, result: callTool(params.name, params.arguments ?? {}) };
     } catch (error) {
-      const msg = String(error?.message ?? error).replace(/[^a-zA-Z0-9 .:,\-_()/]/g, "").slice(0, 200);
+      // Printable ASCII only: strips control chars and non-Latin scripts that
+      // could smuggle terminal escapes, but keeps paths (C:\...), brackets
+      // and symbols that the old [a-zA-Z0-9 ...] class destroyed.
+      const msg = String(error?.message ?? error).replace(/[^\x20-\x7E]/g, "").slice(0, 300);
       return { jsonrpc: "2.0", id, result: toolResult(`internal error: ${msg}`, true) };
     }
   }
@@ -437,6 +440,15 @@ const isMain = (() => {
 })();
 if (isMain) {
   const reader = createInterface({ input: process.stdin });
+  // If the parent (opencode) dies or closes the pipe, stdout.write throws —
+  // exit gracefully instead of crashing with an unhandled exception.
+  const safeWrite = (text) => {
+    try {
+      process.stdout.write(text);
+    } catch {
+      process.exit(0);
+    }
+  };
   reader.on("line", (line) => {
     const trimmed = line.trim();
     if (trimmed.length === 0) return;
@@ -444,10 +456,11 @@ if (isMain) {
     try {
       message = JSON.parse(trimmed);
     } catch {
-      process.stdout.write(`${JSON.stringify({ jsonrpc: "2.0", id: null, error: { code: -32700, message: "Parse error" } })}\n`);
+      safeWrite(`${JSON.stringify({ jsonrpc: "2.0", id: null, error: { code: -32700, message: "Parse error" } })}\n`);
       return;
     }
     const response = handle(message);
-    if (response) process.stdout.write(`${JSON.stringify(response)}\n`);
+    if (response) safeWrite(`${JSON.stringify(response)}\n`);
   });
+  reader.on("close", () => process.exit(0));
 }

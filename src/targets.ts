@@ -11,8 +11,25 @@ export function tokenizeShell(command: string): string[] {
   for (let index = 0; index < command.length; index += 1) {
     const char = command[index];
     if (quote.length > 0) {
+      // H5: POSIX backslash escapes inside double quotes (only $, `, ", \, newline).
+      // Inside single quotes the backslash stays literal.
+      if (quote === '"' && char === "\\" && index + 1 < command.length) {
+        const next = command[index + 1];
+        if (next === "$" || next === "`" || next === '"' || next === "\\" || next === "\n") {
+          current += next;
+          index += 1;
+          continue;
+        }
+      }
       if (char === quote) quote = "";
       else current += char;
+      continue;
+    }
+    // H5: outside quotes a backslash escapes the next character literally,
+    // so `echo hello\ world` is one token, not two.
+    if (char === "\\" && index + 1 < command.length) {
+      current += command[index + 1];
+      index += 1;
       continue;
     }
     if (char === '"' || char === "'") {

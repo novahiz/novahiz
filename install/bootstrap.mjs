@@ -5,10 +5,12 @@ import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { nodeVersionOk, opencodeConfigDir } from "./lib.mjs";
+import { nodeVersionOk, opencodeConfigDir, skillenforceHome } from "./lib.mjs";
 
 const REPO_URL = "https://github.com/skillenforce/skillenforce.git";
-const SKILLEFORCE_HOME = join(homedir(), ".config", "novahiz");
+// Was hardcoded to ~/.config/novahiz, ignoring SKILLEFORCE_HOME/NOVAHIZ_HOME.
+// skillenforceHome() already implements the env-first fallback chain.
+const SKILLEFORCE_HOME = skillenforceHome();
 
 function log(msg) {
   process.stdout.write(`[skillenforce] ${msg}\n`);

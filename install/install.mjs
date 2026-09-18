@@ -163,11 +163,13 @@ async function main() {
     if (existsSync(skillsSource)) {
       const externalRoots = [join(homedir(), ".agents", "skills")];
       const alreadyInstalled = skillNamesIn(externalRoots);
-      const force = Boolean(flags["force-skills"]);
+      // renamed: the outer `force` (--force, config overwrite) lives in the
+      // same function scope — shadowing it here was correct but unreadable.
+      const forceSkills = Boolean(flags["force-skills"]);
       const entries = readdirSync(skillsSource, { withFileTypes: true })
         .filter((entry) => entry.isDirectory())
         .sort((a, b) => (a.name < b.name ? -1 : 1));
-      const skipped = force
+      const skipped = forceSkills
         ? []
         : entries.filter((entry) => alreadyInstalled.has(entry.name)).map((entry) => entry.name);
       const toCopy = entries.filter((entry) => !skipped.includes(entry.name));
@@ -354,7 +356,6 @@ async function main() {
   if (!dryRun) {
     note("\nInstallation des plugins opencode...");
     for (const plugin of plugins) {
-      const pkgName = plugin.includes("@") ? plugin.split("@").slice(0, -1).join("@") || plugin.split("@")[1] : plugin;
       note(`  Installation de ${plugin}...`);
       const result = spawnSync("npm", ["install", "-g", plugin], {
         encoding: "utf8",

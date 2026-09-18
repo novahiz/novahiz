@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 
 type Keyword = { term: string; weight?: number };
 export type CategoryKeyword = string | Keyword;
@@ -183,8 +183,11 @@ export const DEFAULT_CONFIG: SkillenforceConfig = {
 };
 
 export function skillenforceHome(): string {
+  // M7: resolve ~/ and relative segments — the installer variant already did,
+  // the TS variant returned the raw string (broken on SKILLEFORCE_HOME=~/x).
+  // Default stays .config/novahiz: the directory on disk was deliberately not renamed.
   const fromEnv = process.env.SKILLEFORCE_HOME || process.env.NOVAHIZ_HOME;
-  if (fromEnv && fromEnv.length > 0) return fromEnv;
+  if (fromEnv && fromEnv.length > 0) return resolve(expandHome(fromEnv));
   return join(homedir(), ".config", "novahiz");
 }
 

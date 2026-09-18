@@ -126,12 +126,18 @@ export function scanSkills(spec: Spec, errors: string[] = []): SkillRecord[] {
     const id = (frontmatter.name || folder).trim();
     if (id.length === 0) continue;
     const override = spec.overrides.skills?.[id];
+    // M4: power was uncapped — a rogue override (power: 100) always won the
+    // "better" comparison and could force an attacker-controlled skill.
+    // Clamp to the documented 0..5 range, non-numeric falls back to 3.
+    const rawPower = override?.power;
+    const power =
+      typeof rawPower === "number" && Number.isFinite(rawPower) ? Math.min(Math.max(Math.trunc(rawPower), 0), 5) : 3;
     const record: SkillRecord = {
       id,
       name: frontmatter.name || folder,
       description: frontmatter.description || "",
       sourcePath: file,
-      power: override?.power ?? 3,
+      power,
       stars: override?.stars ?? null,
       tags: override?.tags ?? [],
       categories: override?.categories ?? []
@@ -206,8 +212,11 @@ export function loadInstalledSkills(spec: Spec): InstalledIndex {
 
 export function persistCatalog(db: DatabaseSync, spec: Spec, skills: SkillRecord[]): void {
   const now = new Date().toISOString();
-  db.exec("BEGIN; DELETE FROM skills; DELETE FROM categories; DELETE FROM rules;");
+  // M3: the destructive DELETE used to run outside the try — a failure between
+  // DELETE and COMMIT left an empty catalog with no rollback. Everything is now
+  // inside the transaction, and ROLLBACK itself is guarded.
   try {
+    db.exec("BEGIN; DELETE FROM skills; DELETE FROM categories; DELETE FROM rules;");
     const upsertSkill = db.prepare(
       `INSERT INTO skills (id, name, description, source_path, power, stars, tags, categories, scanned_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -260,7 +269,11 @@ export function persistCatalog(db: DatabaseSync, spec: Spec, skills: SkillRecord
     }
     db.exec("COMMIT");
   } catch (error) {
-    db.exec("ROLLBACK");
+    try {
+      db.exec("ROLLBACK");
+    } catch {
+      // no transaction was open — nothing to roll back
+    }
     throw error;
   }
 }

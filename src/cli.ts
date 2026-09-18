@@ -14,15 +14,25 @@ import { commandDoctor } from "./commands/doctor.ts";
 import { commandTokens } from "./commands/tokens.ts";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const HOME = process.env.SKILLEFORCE_HOME || process.env.NOVAHIZ_HOME || join(process.env.HOME || process.env.USERPROFILE || "", ".config", "novahiz");
+
+// M6: HOME was a module-level const, so `--home` (which sets the env var in
+// main()) was silently ignored by the current execution. Read it lazily.
+function homeDir(): string {
+  return (
+    process.env.SKILLEFORCE_HOME ||
+    process.env.NOVAHIZ_HOME ||
+    join(process.env.HOME || process.env.USERPROFILE || "", ".config", "novahiz")
+  );
+}
 
 function runSync(): void {
-  const cli = join(HOME, "src", "cli.ts");
+  const home = homeDir();
+  const cli = join(home, "src", "cli.ts");
   if (existsSync(cli)) {
     spawnSync(process.execPath, [cli, "sync"], {
       encoding: "utf8",
       stdio: "inherit",
-      env: { ...process.env, SKILLEFORCE_HOME: HOME }
+      env: { ...process.env, SKILLEFORCE_HOME: home }
     });
   }
 }
@@ -64,13 +74,14 @@ function printVersion(): void {
 }
 
 function runInit(): void {
-  const installScript = join(HOME, "install", "install.mjs");
+  const home = homeDir();
+  const installScript = join(home, "install", "install.mjs");
   if (existsSync(installScript)) {
     process.stdout.write("Installing Skillenforce...\n");
     const result = spawnSync(process.execPath, [installScript, "--yes"], {
       encoding: "utf8",
       stdio: "inherit",
-      env: { ...process.env, SKILLEFORCE_HOME: HOME }
+      env: { ...process.env, SKILLEFORCE_HOME: home }
     });
     if (result.status !== 0) {
       process.stderr.write("Installation failed. Run `skillenforce doctor` for details.\n");
@@ -84,13 +95,14 @@ function runInit(): void {
 }
 
 function runUpgrade(): void {
-  if (!existsSync(join(HOME, ".git"))) {
+  const home = homeDir();
+  if (!existsSync(join(home, ".git"))) {
     process.stderr.write("Not a git repository. Install from source first.\n");
     process.exitCode = 1;
     return;
   }
   process.stdout.write("Pulling latest changes...\n");
-  spawnSync("git", ["pull"], { cwd: HOME, stdio: "inherit" });
+  spawnSync("git", ["pull"], { cwd: home, stdio: "inherit" });
   process.stdout.write("\nRebuilding skill catalog...\n");
   runSync();
   process.stdout.write("\nUpgraded! Restart opencode to apply changes.\n");
