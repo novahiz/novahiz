@@ -7,11 +7,11 @@
   "author": "Skillenforce",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/skillenforce/skillenforce.git"
+    "url": "git+https://github.com/novahiz/skillenforce.git"
   },
-  "homepage": "https://github.com/skillenforce/skillenforce#readme",
+  "homepage": "https://github.com/novahiz/skillenforce#readme",
   "bugs": {
-    "url": "https://github.com/skillenforce/skillenforce/issues"
+    "url": "https://github.com/novahiz/skillenforce/issues"
   },
   "keywords": [
     "ai-agents",
@@ -48,6 +48,7 @@
     "bootstrap:dry": "node install/bootstrap.mjs --dry-run",
     "test": "node --test",
     "typecheck": "tsc --noEmit",
+    "prepare": "tsc --noEmit",
     "postinstall": "node install/install.mjs --yes"
   },
   "files": [

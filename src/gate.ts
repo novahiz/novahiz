@@ -305,7 +305,7 @@ export function evaluateGate(input: GateInput): GateResult {
       matchedRules: [],
       indexMissing: false,
       placeholder: false,
-      reasons: [`gate error: ${String(error?.message ?? error)}`]
+      reasons: [`gate error: ${String((error as Error)?.message ?? error)}`]
     };
   }
 }

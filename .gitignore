@@ -3,6 +3,8 @@ novahiz.config.json
 .novahiz-install.json
 novahiz.sqlite
 novahiz.sqlite-*
+skillenforce.sqlite
+skillenforce.sqlite-*
 build/
 *.novahiz-bak
 coverage/
@@ -10,3 +12,6 @@ coverage/
 .env
 .DS_Store
 Thumbs.db
+after-full.txt
+prov.txt
+test-results.txt

@@ -15,15 +15,15 @@ after(() => {
   }
 });
 
-const { skillenforcePlugin } = await import("../adapters/opencode/skillenforce.ts");
+const { SkillenforcePlugin } = await import("../adapters/opencode/skillenforce.ts");
 
 type HookMap = Record<string, (input: any, output: any) => Promise<void>>;
 
 // Any client method the plugin might touch at load time resolves to a no-op.
 const fakeClient: any = new Proxy({}, { get: () => async () => undefined });
-const hooks = (await skillenforcePlugin({
+const hooks = (await SkillenforcePlugin({
   client: fakeClient
-} as unknown as Parameters<typeof skillenforcePlugin>[0])) as unknown as HookMap;
+} as unknown as Parameters<typeof SkillenforcePlugin>[0])) as unknown as HookMap;
 
 test("the plugin exposes the enforcement hooks", () => {
   for (const name of [
