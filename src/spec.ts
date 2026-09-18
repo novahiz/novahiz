@@ -183,7 +183,7 @@ export const DEFAULT_CONFIG: SkillenforceConfig = {
 };
 
 export function skillenforceHome(): string {
-  const fromEnv = process.env.SKILLEFORCE_HOME;
+  const fromEnv = process.env.NOVAHIZ_HOME;
   if (fromEnv && fromEnv.length > 0) return fromEnv;
   return join(homedir(), ".config", "novahiz");
 }
@@ -261,7 +261,7 @@ export function mergeConfig(raw: Partial<SkillenforceConfig> | null | undefined)
 
 function loadConfig(root: string = skillenforceHome()): SkillenforceConfig {
   const config = readUserConfig(root);
-  const dbOverride = process.env.SKILLEFORCE_DB;
+  const dbOverride = process.env.NOVAHIZ_DB;
   if (dbOverride && dbOverride.length > 0) config.dbPath = dbOverride;
   return config;
 }

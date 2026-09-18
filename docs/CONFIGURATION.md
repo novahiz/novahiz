@@ -82,8 +82,6 @@ These files live in `catalog/` and are part of the git repository:
 | `NOVAHIZ_GATE` | Set to `off` to disable the gate |
 | `NOVAHIZ_NODE` | Override node executable path |
 | `NOVAHIZ_DB` | Override database path |
-| `SKILLEFORCE_HOME` | Alias for NOVAHIZ_HOME |
-| `SKILLEFORCE_GATE` | Alias for NOVAHIZ_GATE |
 | `OPENCODE_CONFIG_DIR` | Override opencode config directory |
 
 ## opencode config

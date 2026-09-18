@@ -82,7 +82,7 @@ export const SkillenforcePlugin: Plugin = async ({ client }) => {
   // Prune entries idle for longer than SESSION_TTL_MS once the map grows.
   const touch = (sessionID: string): void => {
     lastSeenBySession.set(sessionID, Date.now());
-    if (lastSeenBySession.size < 50) return;
+    if (lastSeenBySession.size < 10) return;
     const cutoff = Date.now() - SESSION_TTL_MS;
     for (const [id, seen] of lastSeenBySession) {
       if (seen < cutoff) forget(id);
