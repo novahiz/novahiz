@@ -135,8 +135,8 @@ flowchart TD
     
     I --> J{Placeholder Detection<br/>TODO / FIXME / placeholder tokens}
     
-    J --> K[Check installed skills<br/>(missing = reported, not blocked)]
-    J --> L[Check loaded skills<br/>(missing = BLOCKED)]
+    J --> K["Check installed skills<br/>(missing → reported, not blocked)"]
+    J --> L["Check loaded skills<br/>(missing → BLOCKED)"]
     
     K --> M{All loaded?}
     L --> M
