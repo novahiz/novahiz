@@ -1,6 +1,6 @@
 # skillenforce-tools
 
-A dependency-free MCP server that exposes the Novahiz core as tools.
+A dependency-free MCP server that exposes the Skillenforce core as tools.
 
 Tools:
 

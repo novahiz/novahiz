@@ -20,7 +20,7 @@ const SERVER_INFO = { name: "skillenforce-tools", version: "0.1.0" };
 const TOOLS = [
   {
     name: "skillenforce_classify",
-    description: "Classify a prompt into Novahiz categories and return the skills those categories require.",
+    description: "Classify a prompt into Skillenforce categories and return the skills those categories require.",
     inputSchema: {
       type: "object",
       properties: { prompt: { type: "string", description: "The user prompt to classify." } },
@@ -49,7 +49,7 @@ const TOOLS = [
   },
   {
     name: "skillenforce_gate",
-    description: "Check whether a file edit satisfies the Novahiz rules. Returns allow, required skills and missing skills.",
+    description: "Check whether a file edit satisfies the Skillenforce rules. Returns allow, required skills and missing skills.",
     inputSchema: {
       type: "object",
       properties: {
@@ -75,7 +75,7 @@ const TOOLS = [
   },
   {
     name: "skillenforce_providers",
-    description: "List the MCP providers registered in Novahiz, optionally for a category or a prompt.",
+    description: "List the MCP providers registered in Skillenforce, optionally for a category or a prompt.",
     inputSchema: {
       type: "object",
       properties: {

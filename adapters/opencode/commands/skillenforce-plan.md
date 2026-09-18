@@ -1,5 +1,5 @@
 ---
-description: Launch Novahiz planning mode (read-only). Arguments: $ARGUMENTS
+description: Launch Skillenforce planning mode (read-only). Arguments: $ARGUMENTS
 ---
 
 You are in read-only mode. No file writes, no state-changing commands, no commits. The harness already refuses edits in this agent; do not attempt to bypass it.

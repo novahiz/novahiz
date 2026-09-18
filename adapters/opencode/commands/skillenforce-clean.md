@@ -1,8 +1,8 @@
 ---
-description: Clean up old Novahiz database data. Arguments: $ARGUMENTS
+description: Clean up old Skillenforce database data. Arguments: $ARGUMENTS
 ---
 
-1. Locate the Novahiz home: `NOVAHIZ_HOME` if set, otherwise `~/.config/skillenforce`. The CLI is `<home>/src/cli.ts`.
+1. Locate the Skillenforce home: `NOVAHIZ_HOME` if set, otherwise `~/.config/skillenforce`. The CLI is `<home>/src/cli.ts`.
 
 2. Default to `--dry-run` if no arguments are provided.
 

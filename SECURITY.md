@@ -1,6 +1,6 @@
 # Security
 
-## What Novahiz runs
+## What Skillenforce runs
 
 The gate runs the local CLI (`node src/cli.ts`) as a child process. It reads JSON spec files from the repository and the skill roots you configure. It does not make network calls.
 
@@ -18,4 +18,4 @@ The bundled skills include reference files written by third parties. Some of tho
 
 ## Scope
 
-Novahiz reads files under your configured skill roots. Treat the spec files as trusted input. A rule that requires an unavailable skill is reported and skipped, so a misconfigured catalog degrades rather than blocks, as long as the installed-skills index exists. When that index is missing or unreadable, the gate fails closed instead.
+Skillenforce reads files under your configured skill roots. Treat the spec files as trusted input. A rule that requires an unavailable skill is reported and skipped, so a misconfigured catalog degrades rather than blocks, as long as the installed-skills index exists. When that index is missing or unreadable, the gate fails closed instead.

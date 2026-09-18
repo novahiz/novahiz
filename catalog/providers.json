@@ -133,7 +133,7 @@
   },
   {
     "id": "skillenforce",
-    "label": "Novahiz workflow tools",
+    "label": "Skillenforce workflow tools",
     "kind": "mcp",
     "transport": "local",
     "command": ["node", "C:/Users/hiz/.config/skillenforce/mcp/skillenforce-tools/index.mjs"],

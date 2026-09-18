@@ -13,12 +13,12 @@ const NODE =
   process.env.NOVAHIZ_NODE && process.env.NOVAHIZ_NODE.length > 0 ? process.env.NOVAHIZ_NODE : "node";
 
 type GateConfig = { enabled?: boolean; mode?: string; envEscape?: string; tools?: string[] };
-type NovahizConfig = { gate?: GateConfig };
+type SkillenforceConfig = { gate?: GateConfig };
 
-function readConfig(): NovahizConfig {
+function readConfig(): SkillenforceConfig {
   for (const name of ["skillenforce.config.json", "skillenforce.config.example.json"]) {
     try {
-      return JSON.parse(readFileSync(join(HOME, name), "utf8")) as NovahizConfig;
+      return JSON.parse(readFileSync(join(HOME, name), "utf8")) as SkillenforceConfig;
     } catch {
       continue;
     }
@@ -56,7 +56,7 @@ function textFromParts(parts: unknown): string {
   return chunks.join("\n").trim();
 }
 
-export const NovahizPlugin: Plugin = async ({ client }) => {
+export const SkillenforcePlugin: Plugin = async ({ client }) => {
   const loadedBySession = new Map<string, Set<string>>();
   const categoriesBySession = new Map<string, string[]>();
   const enforcementBySession = new Map<string, string>();
@@ -166,7 +166,7 @@ export const NovahizPlugin: Plugin = async ({ client }) => {
         const roadmap = (parsed.roadmaps ?? [])[0];
         const providers = parsed.providers ?? [];
         const lines = [
-          "[Novahiz enforcement]",
+          "[Skillenforce enforcement]",
           `Categories detectees: ${categories.join(", ") || "aucune"}${primary ? ` (primaire: ${primary})` : ""}`
         ];
         if (roadmap) {
@@ -242,7 +242,7 @@ export const NovahizPlugin: Plugin = async ({ client }) => {
             try {
               return JSON.stringify(output.args ?? {});
             } catch (error) {
-              throw new Error(`Novahiz gate blocked ${input.tool}: could not serialize tool args (${String(error)}).`);
+              throw new Error(`Skillenforce gate blocked ${input.tool}: could not serialize tool args (${String(error)}).`);
             }
           })()
         );
@@ -252,15 +252,15 @@ export const NovahizPlugin: Plugin = async ({ client }) => {
           return;
         }
         if (result.status === 2) {
-          throw new Error(`Novahiz gate blocked ${input.tool}.\n${result.stdout}`);
+          throw new Error(`Skillenforce gate blocked ${input.tool}.\n${result.stdout}`);
         }
         if (result.status !== 0) {
           throw new Error(
-            `Novahiz gate unavailable (exit ${result.status}). Fix the install (run sync, check catalog/) or set the escape variable to disable.\n${result.stderr}`
+            `Skillenforce gate unavailable (exit ${result.status}). Fix the install (run sync, check catalog/) or set the escape variable to disable.\n${result.stderr}`
           );
         }
       } catch (error) {
-        if (error instanceof Error && error.message.startsWith("Novahiz gate")) throw error;
+        if (error instanceof Error && error.message.startsWith("Skillenforce gate")) throw error;
         await log("warn", `Gate error, allowing the tool call: ${String(error)}`);
       }
     }

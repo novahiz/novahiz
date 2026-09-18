@@ -112,7 +112,7 @@ Copy `adapters/opencode/skillenforce.ts` into `~/.config/opencode/plugins/`, or 
 
 The installer also drops four slash commands into the opencode command directory: `/skillenforce-plan`, `/skillenforce-clean`, `/skillenforce-doctor`, and `/skillenforce-status`. `/skillenforce-plan` runs the pipeline read-only and produces the plan without writing a file.
 
-Set `NOVAHIZ_GATE=off` to disable gating for a session. Set `NOVAHIZ_HOME` when the repo is not at `~/.config/skillenforce`. Set `NOVAHIZ_DB` to override the database path, which keeps tests and scratch runs off your real ledger.
+Set `NOVAHIZ_GATE=off` to disable gating for a session (also accepts `SKILLEFORCE_GATE`). Set `NOVAHIZ_HOME` when the repo is not at `~/.config/skillenforce`. Set `NOVAHIZ_DB` to override the database path, which keeps tests and scratch runs off your real ledger.
 
 ## Execution ledger
 
@@ -120,7 +120,7 @@ For work that spans more than a few steps, `skillenforce task` keeps the plan in
 
 ## Harnesses
 
-The adapter is thin on purpose: the gate logic lives in the CLI. opencode is the supported harness, through the plugin in `adapters/opencode/`. Any harness with a stdio MCP client can use `skillenforce_classify`, `skillenforce_catalog`, `skillenforce_roadmap`, `skillenforce_providers`, `skillenforce_deps`, `skillenforce_step`, `skillenforce_list_skills`, `skillenforce_gate`, `skillenforce_task`, and `skillenforce_dispatch`, but the gate only blocks inside opencode. Novahiz also catalogues external components as providers: MCP servers (playwright, security, narsil, context7, sequential-thinking, cron), and skill packs (impeccable), and can run their official install commands. See [docs/HARNESSES.md](docs/HARNESSES.md), [adapters/README.md](adapters/README.md), and [docs/PROVIDERS.md](docs/PROVIDERS.md).
+The adapter is thin on purpose: the gate logic lives in the CLI. opencode is the supported harness, through the plugin in `adapters/opencode/`. Any harness with a stdio MCP client can use `skillenforce_classify`, `skillenforce_catalog`, `skillenforce_roadmap`, `skillenforce_providers`, `skillenforce_deps`, `skillenforce_step`, `skillenforce_list_skills`, `skillenforce_gate`, `skillenforce_task`, and `skillenforce_dispatch`, but the gate only blocks inside opencode. Skillenforce also catalogues external components as providers: MCP servers (playwright, security, narsil, context7, sequential-thinking, cron), and skill packs (impeccable), and can run their official install commands. See [docs/HARNESSES.md](docs/HARNESSES.md), [adapters/README.md](adapters/README.md), and [docs/PROVIDERS.md](docs/PROVIDERS.md).
 
 ## License
 

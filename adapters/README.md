@@ -1,6 +1,6 @@
 # Adapters
 
-Novahiz keeps every decision in the CLI. An adapter only translates a harness event into a `skillenforce` call.
+Skillenforce keeps every decision in the CLI. An adapter only translates a harness event into a `skillenforce` call.
 
 ## opencode
 
@@ -10,4 +10,4 @@ Novahiz keeps every decision in the CLI. An adapter only translates a harness ev
 
 ## Other clients
 
-Any harness with a stdio MCP client can use `mcp/skillenforce-tools/index.mjs` for `classify`, `catalog`, `roadmap`, `step`, `list_skills`, and `gate`. Register it with that client's own MCP command; Novahiz writes no other harness's configuration. There is no gate outside opencode, so those clients get the catalog and the ledger without enforcement.
+Any harness with a stdio MCP client can use `mcp/skillenforce-tools/index.mjs` for `classify`, `catalog`, `roadmap`, `step`, `list_skills`, and `gate`. Register it with that client's own MCP command; Skillenforce writes no other harness's configuration. There is no gate outside opencode, so those clients get the catalog and the ledger without enforcement.
