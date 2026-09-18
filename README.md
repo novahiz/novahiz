@@ -133,7 +133,7 @@ flowchart TD
     G --> I
     H --> I
     
-    I --> J{Placeholder Detection<br/>TODO / FIXME / &lt;placeholder&gt;}
+    I --> J{Placeholder Detection<br/>TODO / FIXME / placeholder tokens}
     
     J --> K[Check installed skills<br/>(missing = reported, not blocked)]
     J --> L[Check loaded skills<br/>(missing = BLOCKED)]
