@@ -2,15 +2,49 @@
 
 skillenforce has one core and thin adapters. The core holds every decision. An adapter only translates between a harness and the core.
 
+```
+┌─────────────────────────────────────────────────────────┐
+│                    USER PROMPT                          │
+└──────────────────────┬──────────────────────────────────┘
+                       │
+                       ▼
+┌─────────────────────────────────────────────────────────┐
+│              OPENCODE PLUGIN ADAPTER                    │
+│  chat.message hook → classify → inject enforcement      │
+│  tool.execute.before hook → gate → block/allow          │
+└──────┬──────────────────────────────────────────────────┘
+       │
+       ▼
+┌─────────────────────────────────────────────────────────┐
+│                   SKILLENFORCE CORE                     │
+│                                                         │
+│  ┌─────────────┐  ┌──────────────┐  ┌───────────────┐  │
+│  │  CLASSIFIER  │  │     GATE     │  │    LEDGER     │  │
+│  │              │  │              │  │               │  │
+│  │ prompt →     │  │ file path +  │  │ tasks, todos  │  │
+│  │ categories + │  │ categories + │  │ work packets  │  │
+│  │ skills +     │  │ loaded skills│  │ review cadence│  │
+│  │ roadmaps     │  │ → allow/deny │  │               │  │
+│  └──────┬───────┘  └──────┬───────┘  └───────┬───────┘  │
+│         │                 │                   │          │
+│         ▼                 ▼                   ▼          │
+│  ┌─────────────────────────────────────────────────────┐│
+│  │                    SPEC (catalog/)                   ││
+│  │  categories.json  rules.json  providers.json        ││
+│  └─────────────────────────────────────────────────────┘│
+└─────────────────────────────────────────────────────────┘
+```
+
 ## Components
 
 ### Spec (source of truth)
 
 Three versioned JSON files under `catalog/`:
 
-- `categories.json` lists categories with keywords and required skills.
-- `rules.json` lists pre-edit rules with conditions and required skills.
-- `overrides.json` carries manual skill curation.
+- `categories.json` — lists 14 categories with keywords, required skills, and execution roadmaps.
+- `rules.json` — lists 6 pre-edit rules with conditions (file class, path glob, prompt category, content match) and required skills.
+- `providers.json` — lists external MCP servers with their purpose and the categories they serve.
+- `overrides.json` — carries manual skill curation (power, stars, tags, categories).
 
 `src/spec.ts` loads them. Nothing secret or machine-specific lives here.
 
@@ -18,8 +52,8 @@ Three versioned JSON files under `catalog/`:
 
 `src/catalog.ts` walks the skill roots, parses each `SKILL.md` frontmatter, merges the overrides, and writes:
 
-- `build/installed-skills.json`, a flat list of installed skill ids. The adapter reads this to avoid requiring a skill that is not present.
-- rows in SQLite for querying and reporting.
+- `build/installed-skills.json` — a flat list of installed skill IDs. The adapter reads this to avoid requiring a skill that is not present.
+- Rows in SQLite for querying and reporting.
 
 ### Classifier
 
@@ -31,23 +65,45 @@ Three versioned JSON files under `catalog/`:
 
 ### CLI
 
-`src/cli.ts` is the entry point: it parses `argv`, resolves the `--home` override, and dispatches. The commands themselves live in `src/commands/`, one module for the large ones (`clean`, `doctor`, `gate`, `hook`, `report`, `task`, `tokens`) and `inspect.ts` for the read-only ones. The primitives they all share (`Parsed`, `parse`, `print`, `emit`, `flagOn`, `humanMode`, `confirm`, `dbPathFor`) live in `src/commands/context.ts`, a leaf module that imports nothing from the command modules. Commands return JSON, which is the only integration surface an adapter needs.
+`src/cli.ts` is the entry point: it parses `argv`, resolves the `--home` override, and dispatches. The commands themselves live in `src/commands/`, one module for the large ones (`clean`, `doctor`, `gate`, `hook`, `report`, `task`, `tokens`) and `inspect.ts` for the read-only ones.
 
 ### opencode adapter
 
 `adapters/opencode/skillenforce.ts` is a plugin. It runs the CLI for classification and gating, tracks loaded skills per session in memory, and injects enforcement text through `experimental.chat.system.transform`. The gate call runs in `tool.execute.before`, which can throw and cancel the tool call.
 
-### content rules and roadmaps
+### Content rules and roadmaps
 
 `src/content.ts` provides `changeText`, `hasProse`, and `hasStyle`. Rules in `catalog/rules.json` use them through `when.contentMatches` and `when.contentExcludes`, so `humanizer` and `impeccable` are required only for prose and style changes. `when.match` combines class, path, and category selectors.
 
-Each category carries a `roadmap`. The classifier returns the category order, the primary category, the union of required skills, and the roadmaps. The gate adds the primary roadmap `skill` steps to its requirements. `src/db.ts` stores step progress in `roadmap_progress`.
+Each category carries a `roadmap`. The classifier returns the category order, the primary category, the union of required skills, and the roadmaps. The gate adds the primary roadmap `skill` steps to its requirements.
 
 ### Execution ledger
 
-`src/ledger.ts` stores a task and its todos in SQLite (`tasks`, `todos`). Each todo has a kind, a status, an acceptance criterion, an iteration budget, an owner glob, and a proof. `startTodo` enforces dependencies and the budget; `completeTodo` requires a proof on a `verify` step. The plan is mutable: `amendTodo`, `insertTodo`, `dropTodo`, and `reorderTodos` adjust it, and `reviewTask` applies a whole diff in one transaction and bumps `revision`. `reviewDue` reports when the cadence (`edits` or `todos`) is reached, and `revisionSignals` derives concrete reasons to revise from the ledger. `buildWorkPackets` turns the open todos into sub-agent work packets with file ownership, and `traceCheck` verifies that an edit targets an in-progress todo that owns the file. `commandGate` records each edit and blocks edits while a review is due, so the plan is reconciled before work continues.
+`src/ledger.ts` stores a task and its todos in SQLite (`tasks`, `todos`). Each todo has a kind, a status, an acceptance criterion, an iteration budget, an owner glob, and a proof. `startTodo` enforces dependencies and the budget; `completeTodo` requires a proof on a `verify` step.
 
 ## Data flow
+
+```
+┌──────────┐     ┌──────────┐     ┌──────────┐     ┌──────────┐
+│  USER    │────▶│ CLASSIFY │────▶│  INJECT  │────▶│  MODEL   │
+│  PROMPT  │     │          │     │ ENFORCE  │     │ RESPONSE │
+└──────────┘     └────┬─────┘     └──────────┘     └────┬─────┘
+                      │                                  │
+                      ▼                                  ▼
+               ┌──────────┐                      ┌──────────┐
+               │ CATEGORIES│                      │  TOOL    │
+               │ + SKILLS  │                      │  CALL    │
+               │ + ROADMAP │                      │(edit/write)│
+               └──────────┘                      └────┬─────┘
+                                                      │
+                                                      ▼
+                                               ┌──────────┐
+                                               │   GATE   │
+                                               │          │
+                                               │ allow /  │
+                                               │ block    │
+                                               └──────────┘
+```
 
 1. The user sends a message. `chat.message` classifies it, stores the categories and required skills for the session, and reads the active ledger task.
 2. `experimental.chat.system.transform` adds a short enforcement block to the system prompt, including the ledger summary and any review signal.
@@ -65,7 +121,7 @@ The core runs on Node with no dependencies. A new harness adapter needs two thin
 
 ## Installer
 
-`install/install.mjs` copies the core, the bundled skills, and the plugin into place. It backs up any user file it overwrites (`*.skillenforce-bak`) and records what it created in `.skillenforce-install.json`, so `install/uninstall.mjs` can restore and reverse.
+`install/install.mjs` detects whether opencode is installed (auto-installs it if missing), copies the core, the bundled skills, and the plugin into place. It backs up any user file it overwrites (`*.skillenforce-bak`) and records what it created in `.skillenforce-install.json`, so `install/uninstall.mjs` can restore and reverse.
 
 ## MCP server
 
@@ -74,9 +130,3 @@ The core runs on Node with no dependencies. A new harness adapter needs two thin
 ## Providers
 
 `catalog/providers.json` lists external MCP servers with their purpose and the categories they serve. `src/providers.ts` maps categories to providers and builds MCP entries. The classifier returns the relevant providers, the enforcer injects them, and the plugin registers the missing ones on startup. See [PROVIDERS.md](PROVIDERS.md).
-
-## Next
-
-- Optional embedding tie-break for the classifier.
-- A catalog enrichment pass that fills `stars` from a source.
-- More content matchers beyond prose and style.

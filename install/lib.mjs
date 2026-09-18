@@ -1,6 +1,7 @@
 import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
+import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 export function parseArgs(argv) {
@@ -186,6 +187,18 @@ export function pruneEmptyDirs(paths, stops = []) {
       }
     }
   }
+}
+
+export function which(cmd) {
+  const ext = process.platform === "win32" ? ".cmd" : "";
+  const probe = process.platform === "win32" ? "where" : "which";
+  const result = spawnSync(probe, [cmd + ext], { encoding: "utf8", stdio: "pipe" });
+  if (result.status === 0) return true;
+  if (process.platform === "win32") {
+    const result2 = spawnSync("where", [cmd], { encoding: "utf8", stdio: "pipe" });
+    return result2.status === 0;
+  }
+  return false;
 }
 
 export function nodeVersionOk(minimum = [22, 18, 0]) {

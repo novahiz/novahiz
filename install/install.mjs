@@ -16,6 +16,7 @@ import {
   repoRoot,
   saveManifest,
   skillNamesIn,
+  which,
   writeJson
 } from "./lib.mjs";
 import { createPrompt } from "./prompt.mjs";
@@ -80,6 +81,22 @@ async function main() {
   if (!nodeVersionOk()) {
     process.stderr.write(`Node ${process.versions.node} is too old. Node 22.18 or later is required.\n`);
     process.exit(1);
+  }
+
+  // Check for opencode and auto-install if missing
+  if (!which("opencode")) {
+    note("opencode non detecte. Installation globale...");
+    const installResult = spawnSync("npm", ["install", "-g", "opencode"], {
+      encoding: "utf8",
+      stdio: "inherit"
+    });
+    if (installResult.status !== 0) {
+      process.stderr.write("Echec de l'installation d'opencode. Essayez: npm install -g opencode\n");
+      process.exit(1);
+    }
+    note("opencode installe avec succes.");
+  } else {
+    note("opencode detecte.");
   }
 
   const yes = Boolean(flags.yes) || Boolean(flags["yes"]);

@@ -1,79 +1,126 @@
-# Execution ledger
+# Execution Ledger
 
-A long task fails in a predictable way: the plan lives in the conversation, the conversation gets compacted, and the agent starts improvising. The ledger moves the plan into SQLite. It survives compaction, it carries a proof per step, and it forces the plan to be revised as the work changes.
+For work that spans more than a few steps, the ledger keeps the plan in SQLite instead of in the conversation. This survives context compaction and keeps the agent accountable.
 
-## Model
+## How it works
 
-Two tables in the same database as the catalog.
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    TASK CREATION                            │
+│                                                             │
+│  skillenforce task new "Add CSV export"                     │
+│                                                             │
+│  Creates:                                                   │
+│  • Task row in `tasks` table                                │
+│  • Todos from the roadmap steps                             │
+│  • Each todo has: kind, status, acceptance, proof, budget   │
+└──────────────────────────┬──────────────────────────────────┘
+                           │
+                           ▼
+┌─────────────────────────────────────────────────────────────┐
+│                    TODO LIFECYCLE                            │
+│                                                             │
+│  pending → in_progress → done                               │
+│                   ↓                                         │
+│                blocked                                      │
+│                   ↓                                         │
+│                dropped                                      │
+│                                                             │
+│  Each transition is tracked with timestamps                 │
+└──────────────────────────┬──────────────────────────────────┘
+                           │
+                           ▼
+┌─────────────────────────────────────────────────────────────┐
+│                    DISPATCH                                 │
+│                                                             │
+│  skillenforce dispatch --task <id>                          │
+│                                                             │
+│  Generates work packets:                                    │
+│  • Each packet = one todo                                   │
+│  • Exclusive file ownership (no conflicts)                  │
+│  • Dependencies resolved                                    │
+│  • Budget attached                                          │
+└──────────────────────────┬──────────────────────────────────┘
+                           │
+                           ▼
+┌─────────────────────────────────────────────────────────────┐
+│                    REVIEW CADENCE                           │
+│                                                             │
+│  Every N edits or M completed todos:                        │
+│  → Force a review step                                      │
+│  → Inject review signal into system prompt                  │
+│  → Agent must reconcile plan before continuing              │
+│                                                             │
+│  Defaults: review after 3 edits or 2 todos                  │
+└─────────────────────────────────────────────────────────────┘
+```
 
-A task holds `id`, `title`, `status` (`active`, `done`, `abandoned`), `session_id`, `created_at`, `updated_at`, and four fields for the living plan: `revision`, `reviewed_at`, `edits_since_review`, `todos_since_review`.
+## Todo kinds
 
-A todo holds `id`, `task_id`, `seq`, `label`, `kind` (`read`, `edit`, `verify`, `delegate`), `status` (`pending`, `in_progress`, `done`, `blocked`, `dropped`), `acceptance`, `proof`, `owner`, `depends_on`, `iterations`, `max_iterations`, `updated_at`.
+| Kind | Purpose |
+|------|---------|
+| `read` | Read and understand code |
+| `edit` | Make code changes |
+| `verify` | Check that the work is correct |
+| `delegate` | Hand off to another agent |
 
-## Rules that keep it honest
+## Todo statuses
 
-A todo enters `in_progress` only through `start`. Its dependencies must be `done` or `dropped` first. Each start increments `iterations`. The todo allows exactly `max_iterations` starts (12 by default) and the attempt after that fails. This is the loop guard.
+| Status | Meaning |
+|--------|---------|
+| `pending` | Not started |
+| `in_progress` | Currently being worked on |
+| `done` | Completed successfully |
+| `blocked` | Waiting on dependency |
+| `dropped` | Removed from plan |
 
-A `verify` todo cannot be completed without a proof. The proof is the command you ran and its result, so a test step needs a real test line, not an assertion that it passed.
+## Acceptance criteria
 
-The task closes itself when every todo is `done` or `dropped`.
+Each todo can have an `acceptance` string — a testable condition that must be true before the todo can be marked done.
+
+## Proofs
+
+For `verify` steps, a `proof` must be provided when completing the todo. This ensures verification is not skipped.
+
+## Iteration budget
+
+Each todo has a `max_iterations` (default: 12). If the budget is exhausted, the todo is flagged and the agent must escalate or replan.
 
 ## Work packets
 
-`dispatch` turns the pending and in-progress todos into work packets. Each packet carries an objective (the acceptance criterion, or the label), the kind, the owned files, the budget, and the dependencies.
-
-File ownership is a glob on the `owner` field. When two packets own the same file, `dispatch` reports it as a conflict. Parallel sub-agents only help when the lots are independent, so the conflict list is the check to run before splitting the work.
-
-## The living plan
-
-The plan is not frozen. `amend`, `insert`, `drop`, and `reorder` adjust it while it runs.
-
-`review` applies a diff in one transaction: additions, amendments, removals, and a new order. It increments `revision`, records `reviewed_at`, and resets the cadence counters to zero.
-
-The cadence is the forcing function. Every 3 edits or 2 finished todos, a review is due. While a task is active and a review is due, the gate blocks edits and blocks `task start`, so the plan is reconciled before the work continues.
-
-Signals are the reasons to revise, computed from the ledger and not from a model:
-
-- `missing_acceptance`: an edit todo that has no acceptance criterion.
-- `unowned`: an edit todo that owns no file.
-- `parallel`: more than one todo in progress at once.
-- `budget`: an in-progress todo that reached its iteration budget.
-- `blocked`: a todo that is blocked and needs a decision.
-- `ready`: a pending todo whose dependencies are all done, so it can start now.
-
-## Configuration
-
-In `skillenforce.config.json`:
+`skillenforce dispatch` turns open todos into work packets for parallel sub-agents:
 
 ```json
-"ledger": { "enabled": true, "review": { "edits": 3, "todos": 2 } }
+{
+  "todo": "t3",
+  "label": "Write the migration",
+  "objective": "Create a Supabase migration for the users table",
+  "kind": "edit",
+  "files": ["supabase/migrations/001_users.sql"],
+  "acceptance": "Migration runs without errors",
+  "budget": 12,
+  "dependsOn": ["t1", "t2"]
+}
 ```
 
-When no task is active, the ledger does not change gate behavior. The review enforcement only applies to an active task.
+Each packet has **exclusive file ownership** — no two packets can edit the same file.
 
-## CLI
+## System prompt injection
+
+The current plan summary is injected into the system prompt on every turn:
 
 ```
-node src/cli.ts task new --title "Add the CSV export"
-node src/cli.ts task plan --task <id> --json '[{"label":"read the parser","kind":"read"},{"label":"write the exporter","kind":"edit","acceptance":"csv round-trips","owner":"src/export.ts"}]'
-node src/cli.ts task start --id <todo>
-node src/cli.ts task done --id <todo> --proof "node --test tests/export.test.ts -> 4 pass"
-node src/cli.ts task block --id <todo> --reason "missing fixtures"
-node src/cli.ts task status --session <id>
-node src/cli.ts task review --task <id> --json '{"amendments":[{"id":"<todo>","acceptance":"..."}],"additions":[...]}'
-node src/cli.ts task insert --label "handle the BOM" --position start
-node src/cli.ts task drop --id <todo> --reason "out of scope"
-node src/cli.ts task reorder --task <id> --order <id,id,...>
-node src/cli.ts task signals --task <id>
-node src/cli.ts dispatch --task <id>
+[Skillenforce task] Add CSV export
+  t1 ✓ Read the data model
+  t2 ✓ Design the CSV format
+  t3 → Write the export function (in_progress)
+  t4   Add tests (pending)
+  t5   Verify output (pending)
+Review forced: 2/3 edits since last review
 ```
 
-`task status`, `task resume`, and `task current` print the summary plus a review line and any signal. The adapter injects that summary into the enforcement block on every turn, so the plan stays in front of the model after compaction.
+This keeps the plan visible even after context compaction.
 
-## MCP
+## Trace check
 
-`skillenforce_task` exposes the same actions over stdio, and `skillenforce_dispatch` returns the work packets and conflicts. Both open the same database.
-
-## What it does not do
-
-The gate forces the act of review, not its quality. The signals come from the ledger, so they point at real gaps, but the gate cannot judge whether an amendment is wise. That part stays with you.
+When the gate runs, it also checks that the edit targets a file owned by an in-progress todo. If not, the edit is blocked with a message to start or claim the relevant todo first.
