@@ -10,7 +10,7 @@ The `skills/` directory ships a curated set of agent skills so the system works 
 2. A `license:` field in the skill's frontmatter.
 3. Otherwise the skill belongs to Novahiz and ships under Apache-2.0.
 
-The `novahiz-*` pipeline skills, plus the `gate` and `memory` aliases, are Novahiz's own and always Apache-2.0.
+The `skillenforce-*` pipeline skills, plus the `gate` and `memory` aliases, are Skillenforce's own and always Apache-2.0.
 
 ### Third-party skills with a recorded upstream
 
