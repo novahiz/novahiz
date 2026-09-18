@@ -1,6 +1,8 @@
 # skillenforce
 
-> The AI agent skill harness that tells your coding assistant **which tools to load**, **when to use them**, and **stops it from shipping bad code**.
+> **Zero-dependency enforcement layer for AI coding agents** — classifies prompts, assigns execution roadmaps, blocks unsafe edits, and injects session-level skills, all deterministically without model calls.
+
+14 categories, 173+ skills, 7 gate rules, 12 MCP providers — all deterministic, all local, all JSON.
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
@@ -13,8 +15,6 @@
 │                                                                     │
 └─────────────────────────────────────────────────────────────────────┘
 ```
-
-skillenforce is a **zero-dependency, opinionated enforcement layer** for [opencode](https://opencode.ai) that classifies prompts, assigns execution roadmaps, blocks unsafe edits, and injects session-level enforcement — all deterministically, without model calls.
 
 ---
 
@@ -58,19 +58,29 @@ skillenforce is a **zero-dependency, opinionated enforcement layer** for [openco
 
 ## Quick start
 
+### Option 1 — One-liner (recommended)
+
 ```bash
-# Install
+npm install -g skillenforce
+```
+
+This installs skillenforce globally and auto-configures opencode (skills, plugin, MCP servers, config). Then verify:
+
+```bash
+npx skillenforce doctor   # 10 health checks
+npx skillenforce classify "fix the auth bug"
+```
+
+### Option 2 — From source
+
+```bash
 git clone https://github.com/novahiz/skillenforce.git
 cd novahiz
 npm install && npm run build
 node ./install/install.mjs
 
-# Verify (10 health checks)
+# Verify
 npx skillenforce doctor
-
-# Start using
-npx skillenforce classify "fix the auth bug"
-npx skillenforce status
 ```
 
 > Requires **Node.js >= 22.18**. The installer auto-installs opencode if it's missing.
