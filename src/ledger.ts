@@ -125,16 +125,23 @@ function nowIso(): string {
 // Called from openDb on every startup (best effort, never throws).
 export function pruneSessions(db: DatabaseSync): void {
   const cutoff = new Date(Date.now() - SESSION_TTL_MS).toISOString();
-  db.prepare(
-    "DELETE FROM skill_invocations WHERE session_id IN (SELECT id FROM sessions WHERE updated_at < ?)"
-  ).run(cutoff);
-  db.prepare(
-    "DELETE FROM roadmap_progress WHERE session_id IN (SELECT id FROM sessions WHERE updated_at < ?)"
-  ).run(cutoff);
-  db.prepare(
-    "DELETE FROM enforcement_log WHERE session_id IN (SELECT id FROM sessions WHERE updated_at < ?)"
-  ).run(cutoff);
-  db.prepare("DELETE FROM sessions WHERE updated_at < ?").run(cutoff);
+  db.exec("SAVEPOINT prune_sp");
+  try {
+    db.prepare(
+      "DELETE FROM skill_invocations WHERE session_id IN (SELECT id FROM sessions WHERE updated_at < ?)"
+    ).run(cutoff);
+    db.prepare(
+      "DELETE FROM roadmap_progress WHERE session_id IN (SELECT id FROM sessions WHERE updated_at < ?)"
+    ).run(cutoff);
+    db.prepare(
+      "DELETE FROM enforcement_log WHERE session_id IN (SELECT id FROM sessions WHERE updated_at < ?)"
+    ).run(cutoff);
+    db.prepare("DELETE FROM sessions WHERE updated_at < ?").run(cutoff);
+    db.exec("RELEASE SAVEPOINT prune_sp");
+  } catch (error) {
+    db.exec("ROLLBACK TO SAVEPOINT prune_sp");
+    throw error;
+  }
 }
 
 function genId(prefix: string): string {
@@ -202,27 +209,34 @@ export function addTodos(db: DatabaseSync, taskId: string, items: TodoInput[]): 
     "INSERT INTO todos (id, task_id, seq, label, kind, status, acceptance, proof, owner, depends_on, iterations, max_iterations, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
   );
   const ids: string[] = [];
-  for (const item of items) {
-    seq += 1;
-    const todoId = genId("todo");
-    insert.run(
-      todoId,
-      taskId,
-      seq,
-      item.label,
-      item.kind ?? "edit",
-      item.status ?? "pending",
-      item.acceptance ?? null,
-      null,
-      item.owner ?? null,
-      JSON.stringify(item.dependsOn ?? []),
-      0,
-      item.maxIterations ?? DEFAULT_MAX_ITERATIONS,
-      nowIso()
-    );
-    ids.push(todoId);
+  db.exec("SAVEPOINT add_todos_sp");
+  try {
+    for (const item of items) {
+      seq += 1;
+      const todoId = genId("todo");
+      insert.run(
+        todoId,
+        taskId,
+        seq,
+        item.label,
+        item.kind ?? "edit",
+        item.status ?? "pending",
+        item.acceptance ?? null,
+        null,
+        item.owner ?? null,
+        JSON.stringify(item.dependsOn ?? []),
+        0,
+        item.maxIterations ?? DEFAULT_MAX_ITERATIONS,
+        nowIso()
+      );
+      ids.push(todoId);
+    }
+    reopenTask(db, taskId);
+    db.exec("RELEASE SAVEPOINT add_todos_sp");
+  } catch (error) {
+    db.exec("ROLLBACK TO SAVEPOINT add_todos_sp");
+    throw error;
   }
-  reopenTask(db, taskId);
   autoCommit("todos-added", `${items.length} item(s) to ${taskId}`);
   return ids.map((id) => getTodo(db, id) as TodoRow);
 }

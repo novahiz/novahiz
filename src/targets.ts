@@ -281,7 +281,12 @@ export function extractShellPaths(command: string): string[] {
 export function extractTargetPaths(tool: string, args: unknown): string[] {
   const paths: string[] = [];
   const push = (value: unknown): void => {
-    if (typeof value === "string" && value.length > 0 && !paths.includes(value)) paths.push(value);
+    if (typeof value === "string" && value.length > 0 && !paths.includes(value)) {
+      // C-Security: reject path traversal sequences (../, ..\\) that bypass
+      // the expandHome check since these paths come from untrusted tool args.
+      if (value.includes("..") || value.includes("..\\/") || value.includes("..\\\\")) return;
+      paths.push(value);
+    }
   };
   const record = (args && typeof args === "object" ? args : {}) as Record<string, unknown>;
   push(record.filePath);

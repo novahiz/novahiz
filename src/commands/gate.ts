@@ -15,7 +15,13 @@ export function commandGate(parsed: Parsed): void {
   try {
     spec = loadSpec(root);
   } catch (error) {
-    print({ allow: true, error: `loadSpec failed: ${String(error).slice(0, 200)}`, tool: asString(parsed.flags.tool) || "edit" });
+    // C-Gate: fail-closed when spec is corrupt — returning allow:true is a
+    // security boundary violation. Structured JSON on stderr for callers that
+    // need to distinguish corruption from normal block.
+    const msg = `loadSpec failed: ${String(error).slice(0, 200)}`;
+    process.stderr.write(`Skillenforce: ${msg}\n`);
+    print({ allow: false, error: msg, tool: asString(parsed.flags.tool) || "edit", missingSkills: [], reasons: [msg] });
+    process.exitCode = 2;
     return;
   }
   const gateConfig = spec.config.gate;
@@ -24,10 +30,19 @@ export function commandGate(parsed: Parsed): void {
   let loaded = splitList(parsed.flags.loaded);
   const session = asString(parsed.flags.session);
   if (loaded.length === 0 && session.length > 0) {
-    const db = openDb(dbPathFor(root, spec));
-    const rows = db.prepare("SELECT skill FROM skill_invocations WHERE session_id = ?").all(session) as { skill: string }[];
-    db.close();
-    loaded = rows.map((row) => row.skill);
+    let db: ReturnType<typeof openDb> | null = null;
+    try {
+      db = openDb(dbPathFor(root, spec));
+      const rows = db.prepare("SELECT skill FROM skill_invocations WHERE session_id = ?").all(session) as { skill: string }[];
+      loaded = rows.map((row) => row.skill);
+    } catch (error) {
+      process.stderr.write(`Skillenforce: session DB open failed: ${String(error).slice(0, 200)}\n`);
+      print({ allow: false, error: `session DB error`, tool, missingSkills: [], reasons: [`session DB open failed`] });
+      process.exitCode = 2;
+      return;
+    } finally {
+      db?.close();
+    }
   }
 
   if (gateConfig.enabled === false) {
@@ -111,7 +126,15 @@ export function commandGate(parsed: Parsed): void {
   const indexMissing = results.some((entry) => entry.indexMissing);
 
   // H4: single DB connection for trace, ledger checks, AND enforcement logging
-  const db = openDb(dbPathFor(root, spec));
+  let db: ReturnType<typeof openDb> | null = null;
+  try {
+    db = openDb(dbPathFor(root, spec));
+  } catch (error) {
+    process.stderr.write(`Skillenforce: DB open failed: ${String(error).slice(0, 200)}\n`);
+    print({ allow: false, error: `DB open failed`, tool, missingSkills: [], reasons: [`DB open failed`] });
+    process.exitCode = 2;
+    return;
+  }
   try {
     const traceConfig = gateConfig.trace;
     const traceRequired =
@@ -155,10 +178,14 @@ export function commandGate(parsed: Parsed): void {
         JSON.stringify(results.flatMap((entry) => entry.matchedRules)),
         new Date().toISOString()
       );
-      autoCommit("enforcement", `${currentAllow ? "allow" : "block"} ${tool}`);
+      try {
+        autoCommit("enforcement", `${currentAllow ? "allow" : "block"} ${tool}`);
+      } catch {
+        // autoCommit failures are non-critical; the enforcement is logged regardless
+      }
     }
   } finally {
-    db.close();
+    db?.close();
   }
 
   const warnings: string[] = [];

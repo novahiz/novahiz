@@ -201,9 +201,15 @@ function callTool(name, args) {
   if (args !== null && args !== undefined && (typeof args !== "object" || Array.isArray(args))) {
     throw new Error("Invalid params: arguments must be an object");
   }
+  // H-MCP: input size limits to prevent DoS via large payloads
+  const MAX_PROMPT_LEN = 100000;
+  const MAX_CONTENT_LEN = 1000000;
   const spec = loadSpec();
   if (name === "skillenforce_classify") {
     const prompt = String(args?.prompt ?? "");
+    if (prompt.length > MAX_PROMPT_LEN) {
+      throw new Error(`Invalid params: prompt exceeds ${MAX_PROMPT_LEN} characters`);
+    }
     return toolResult({ prompt, ...classify(spec, prompt) });
   }
   if (name === "skillenforce_list_skills") {
@@ -252,6 +258,9 @@ function callTool(name, args) {
     }
     if (args?.content !== undefined && typeof args.content !== "string") {
       throw new Error("Invalid params: content must be a string");
+    }
+    if (typeof args?.content === "string" && args.content.length > MAX_CONTENT_LEN) {
+      throw new Error(`Invalid params: content exceeds ${MAX_CONTENT_LEN} characters`);
     }
     if (args?.tool !== undefined && typeof args.tool !== "string") {
       throw new Error("Invalid params: tool must be a string");
@@ -399,6 +408,12 @@ function callTool(name, args) {
         const taskId = args?.task ? String(args.task) : activeTask(db, session)?.id;
         if (!taskId) return toolResult("no active task", true);
         const order = Array.isArray(args?.order) ? args.order.map(String) : [];
+        // H-MCP: validate IDs are non-empty strings
+        for (const id of order) {
+          if (typeof id !== "string" || id.length === 0 || id.length > 128) {
+            throw new Error("Invalid params: reorder order contains invalid ID");
+          }
+        }
         return toolResult(reorderTodos(db, taskId, order));
       }
       if (action === "signals") {
@@ -474,10 +489,10 @@ function handle(message) {
       return { jsonrpc: "2.0", id, result: callTool(params.name, params.arguments ?? {}) };
     } catch (error) {
       // Printable ASCII only: strips control chars and non-Latin scripts that
-      // could smuggle terminal escapes, but keeps paths (C:\...), brackets
-      // and symbols that the old [a-zA-Z0-9 ...] class destroyed.
+      // could smuggle terminal escapes. Also strip Windows paths (C:\...) to
+      // avoid leaking filesystem structure in error messages.
       const raw = String(error?.message ?? error);
-      const msg = raw.replace(/[^\x20-\x7E]/g, "").slice(0, 300);
+      const msg = raw.replace(/[^\x20-\x7E]/g, "").replace(/[A-Z]:\\[^\s]*/g, "[path]").slice(0, 300);
       // Protocol violations use JSON-RPC error codes, not isError results:
       // -32601 unknown tool, -32602 invalid params. Only execution failures
       // surface as isError tool results.

@@ -307,6 +307,9 @@ export const SkillenforcePlugin: Plugin = async ({ client }) => {
 
     "tool.execute.before": async (input, output) => {
       try {
+        // H-Plugin: validate session ID before using it — prevents undefined/null
+        // from being passed to spawnSync env (throws on Windows).
+        if (!isValidSessionId(input.sessionID)) return;
         touch(input.sessionID);
         if (!loadedBySession.has(input.sessionID)) loadedBySession.set(input.sessionID, new Set());
         const loaded = loadedBySession.get(input.sessionID)!;

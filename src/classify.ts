@@ -179,12 +179,13 @@ export function classify(spec: Spec, prompt: string, options: ClassifyOptions = 
       continue;
     }
     if (tier === "lite") {
-      // Lite: only implement + converge (any step kind — edit, verify, skill)
+      // Lite: only implement + converge skills (skip plan, clarify, etc.)
       for (const step of category.roadmap?.steps ?? []) {
-        if (step.requireSkills?.some(s => s === "skillenforce-implement" || s === "skillenforce-converge")) {
-          for (const skill of step.requireSkills ?? []) {
-            if (!requiredSkills.includes(skill)) requiredSkills.push(skill);
-          }
+        const allowed = (step.requireSkills ?? []).filter(
+          s => s === "skillenforce-implement" || s === "skillenforce-converge"
+        );
+        for (const skill of allowed) {
+          if (!requiredSkills.includes(skill)) requiredSkills.push(skill);
         }
       }
     } else {

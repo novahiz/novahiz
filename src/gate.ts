@@ -116,7 +116,12 @@ const CONFIG_BASENAMES = new Set([
   return CLASS_BY_EXTENSION[ext] ?? "other";
 }
 
+// M-Gate: cache glob→RegExp conversions (same glob pattern recompiled on every call)
+const _globCache = new Map<string, RegExp>();
+
 export function globToRegExp(glob: string): RegExp {
+  let cached = _globCache.get(glob);
+  if (cached) return cached;
   const source = glob.replace(/\\/g, "/");
   let output = "";
   for (let index = 0; index < source.length; index += 1) {
@@ -143,7 +148,9 @@ export function globToRegExp(glob: string): RegExp {
       output += char;
     }
   }
-  return new RegExp(`^${output}$`, "i");
+  cached = new RegExp(`^${output}$`, "i");
+  _globCache.set(glob, cached);
+  return cached;
 }
 
 // C3: nested quantifiers — (a+)+, (x*)*, (a+)? — are the classic ReDoS shape.
@@ -157,6 +164,7 @@ export function isSafeRegexPattern(pattern: string): boolean {
 
 // M3: cache compiled regex patterns to avoid recompilation on every gate check
 const _regexCache = new Map<string, RegExp>();
+const REGEX_CACHE_MAX = 256;
 
 export function contentSatisfies(content: string, patterns: string[]): boolean {
   if (content.length === 0) return false;
@@ -168,6 +176,11 @@ export function contentSatisfies(content: string, patterns: string[]): boolean {
     try {
       let re = _regexCache.get(pattern);
       if (!re) {
+        // M-Gate: simple eviction — drop oldest entry when cache is full
+        if (_regexCache.size >= REGEX_CACHE_MAX) {
+          const firstKey = _regexCache.keys().next().value;
+          if (firstKey !== undefined) _regexCache.delete(firstKey);
+        }
         re = new RegExp(pattern, "i");
         _regexCache.set(pattern, re);
       }
