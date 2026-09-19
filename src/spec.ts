@@ -194,6 +194,10 @@ export function skillenforceHome(): string {
 export function expandHome(value: string): string {
   if (value === "~") return homedir();
   if (value.startsWith("~/") || value.startsWith("~\\")) return join(homedir(), value.slice(2));
+  // M19: ~username is a shell convention not natively supported by Node.js.
+  // os.homedir() only resolves the current user. For other users, the caller
+  // must pass an absolute path. We document this limitation rather than
+  // attempting platform-specific user lookup.
   return value;
 }
 

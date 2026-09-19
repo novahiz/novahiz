@@ -36,9 +36,15 @@ export function commandClean(parsed: Parsed): void {
   const apply = flagOn(parsed, "apply");
   const cutoff = new Date(Date.now() - days * 86_400_000).toISOString();
 
+  // M13: only allow known tables from CLEAN_SCOPES to prevent SQL injection
+  // via --target values. The CLEAN_CHOICES check above already gates this,
+  // but we validate at the SQL layer too for defense-in-depth.
+  const SAFE_TABLES = new Set(Object.values(CLEAN_SCOPES).flat().map((s) => s.table));
+
   const db = openDb(path);
   const before = statSync(path).size;
   const plan = scopes.map((scope) => {
+    if (!SAFE_TABLES.has(scope.table)) throw new Error(`unsafe table: ${scope.table}`);
     const where = `${scope.column} < ?${scope.where ? ` AND ${scope.where}` : ""}`;
     const rows = (db.prepare(`SELECT COUNT(*) AS n FROM ${scope.table}`).get() as { n: number }).n;
     const deletable = (db.prepare(`SELECT COUNT(*) AS n FROM ${scope.table} WHERE ${where}`).get(cutoff) as { n: number }).n;

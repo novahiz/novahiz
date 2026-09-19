@@ -17,6 +17,10 @@ export function commandReport(parsed: Parsed): void {
   const topSkills = db.prepare("SELECT skill, COUNT(*) AS n FROM skill_invocations GROUP BY skill ORDER BY n DESC LIMIT 10").all();
   const roadmapDone = (db.prepare("SELECT COUNT(*) AS n FROM roadmap_progress").get() as { n: number }).n;
   const roadmapBySession = db.prepare("SELECT session_id, COUNT(*) AS n FROM roadmap_progress GROUP BY session_id ORDER BY n DESC LIMIT 10").all();
+  const taskCount = (db.prepare("SELECT COUNT(*) AS n FROM tasks").get() as { n: number }).n;
+  const activeTasks = (db.prepare("SELECT COUNT(*) AS n FROM tasks WHERE status = 'active'").get() as { n: number }).n;
+  const todoCount = (db.prepare("SELECT COUNT(*) AS n FROM todos").get() as { n: number }).n;
+  const completedTodos = (db.prepare("SELECT COUNT(*) AS n FROM todos WHERE status = 'done'").get() as { n: number }).n;
   db.close();
 
   const counts: Record<string, number> = {};
@@ -34,7 +38,7 @@ export function commandReport(parsed: Parsed): void {
     .slice(0, 10)
     .map(([skill, n]) => ({ skill, n }));
 
-  const report = { total, invocations, roadmapDone, providers: spec.providers.map((provider) => provider.id), decisions, byTool, byClass, topMissing, topSkills, roadmapBySession };
+  const report = { total, invocations, roadmapDone, tasks: taskCount, activeTasks, todos: todoCount, completedTodos, providers: spec.providers.map((provider) => provider.id), decisions, byTool, byClass, topMissing, topSkills, roadmapBySession };
 
   if (asString(parsed.flags.format) === "markdown") {
     const lines = [
@@ -43,6 +47,8 @@ export function commandReport(parsed: Parsed): void {
       `Enforcement entries: ${total}`,
       `Skill invocations: ${invocations}`,
       `Roadmap steps done: ${roadmapDone}`,
+      `Tasks: ${taskCount} (${activeTasks} active)`,
+      `Todos: ${todoCount} (${completedTodos} done)`,
       "",
       "## Decisions",
       ...decisions.map((row) => `- ${(row as { decision: string }).decision}: ${(row as { n: number }).n}`),
@@ -65,6 +71,8 @@ export function commandReport(parsed: Parsed): void {
         ["Enforcement log", String(total)],
         ["Skill invocations", String(invocations)],
         ["Roadmap steps completed", String(roadmapDone)],
+        ["Tasks", `${taskCount} (${activeTasks} active)`],
+        ["Todos", `${todoCount} (${completedTodos} done)`],
         ["Providers", String(spec.providers.length)]
       ]),
       "",

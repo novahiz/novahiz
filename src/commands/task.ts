@@ -38,6 +38,12 @@ export function commandTask(parsed: Parsed): void {
     if (action === "todo") return taskTodo(parsed, db, session, spec);
 
     const id = asString(parsed.flags.id) || parsed.positionals[2] || "";
+    // NOTE: review enforcement is asymmetric by design. `start` checks and
+    // blocks if a review is due (prevents starting new work on stale context).
+    // `done` records the completion without requiring a review first — the
+    // review is enforced on the *next* `start` or `review` call. This keeps
+    // the "finish what I'm doing" flow unblocked while still catching stale
+    // context before new work begins.
     if (action === "start") return taskStart(parsed, db, session, spec);
     if (action === "done") return taskDone(parsed, db, session, spec);
     if (action === "block") return taskBlock(parsed, db, session, spec);
@@ -68,7 +74,6 @@ export function commandTask(parsed: Parsed): void {
 }
 
 function taskRead(parsed: Parsed, db: ReturnType<typeof openDb>, session: string, spec: ReturnType<typeof loadSpec>): void {
-  const id = asString(parsed.flags.id) || parsed.positionals[2] || "";
   const state = resume(db, session || undefined);
   const summary = ledgerSummary(state);
   let review = null as ReturnType<typeof reviewDue> | null;
@@ -86,7 +91,6 @@ function taskRead(parsed: Parsed, db: ReturnType<typeof openDb>, session: string
     }
 
 function taskReorder(parsed: Parsed, db: ReturnType<typeof openDb>, session: string, spec: ReturnType<typeof loadSpec>): void {
-  const id = asString(parsed.flags.id) || parsed.positionals[2] || "";
   const taskId = asString(parsed.flags.task) || activeTask(db, session || undefined)?.id;
   if (!taskId) {
     print({ error: "task reorder requires --task or an active task" });
@@ -102,6 +106,8 @@ function taskReorder(parsed: Parsed, db: ReturnType<typeof openDb>, session: str
 function taskDrop(parsed: Parsed, db: ReturnType<typeof openDb>, session: string, spec: ReturnType<typeof loadSpec>): void {
   const id = asString(parsed.flags.id) || parsed.positionals[2] || "";
   if (!id) {
+    // NOTE: active tasks are never dropped — only completed/cancelled tasks
+    // can be removed. This prevents accidental data loss on in-progress work.
     print({ error: "task drop requires --id" });
     process.exitCode = 1;
     return;
@@ -111,7 +117,6 @@ function taskDrop(parsed: Parsed, db: ReturnType<typeof openDb>, session: string
     }
 
 function taskInsert(parsed: Parsed, db: ReturnType<typeof openDb>, session: string, spec: ReturnType<typeof loadSpec>): void {
-  const id = asString(parsed.flags.id) || parsed.positionals[2] || "";
   const taskId = asString(parsed.flags.task) || activeTask(db, session || undefined)?.id;
   if (!taskId) {
     print({ error: "task insert requires --task or an active task" });
@@ -159,7 +164,6 @@ function taskAmend(parsed: Parsed, db: ReturnType<typeof openDb>, session: strin
     }
 
 function taskReview(parsed: Parsed, db: ReturnType<typeof openDb>, session: string, spec: ReturnType<typeof loadSpec>): void {
-  const id = asString(parsed.flags.id) || parsed.positionals[2] || "";
   const taskId = asString(parsed.flags.task) || activeTask(db, session || undefined)?.id;
   if (!taskId) {
     print({ error: "task review requires --task or an active task" });
@@ -183,7 +187,6 @@ function taskReview(parsed: Parsed, db: ReturnType<typeof openDb>, session: stri
     }
 
 function taskSignals(parsed: Parsed, db: ReturnType<typeof openDb>, session: string, spec: ReturnType<typeof loadSpec>): void {
-  const id = asString(parsed.flags.id) || parsed.positionals[2] || "";
   const taskId = asString(parsed.flags.task) || activeTask(db, session || undefined)?.id;
   if (!taskId) {
     print({ error: "task signals requires --task or an active task" });
@@ -276,6 +279,11 @@ function taskPlan(parsed: Parsed, db: ReturnType<typeof openDb>, session: string
     return;
   }
   const raw = (asString(parsed.flags.json) || readStdin()).trim();
+  if (raw.length === 0 && parsed.flags.json === undefined) {
+    print({ error: "task plan requires --json <array> or JSON on stdin" });
+    process.exitCode = 1;
+    return;
+  }
   let parsedItems: unknown;
   try {
     parsedItems = JSON.parse(raw.length > 0 ? raw : "[]");

@@ -54,6 +54,12 @@ function usage(): void {
       "upgrade                 Pull latest and rebuild catalog",
       "version                 Show version",
       "",
+      "",
+      "Options:",
+      "  --home <path>         Override skillenforce home directory",
+      "  --version, -v         Show version",
+      "  --help, -h            Show this help",
+      "",
       "Advanced (for power users and adapters):",
       "  classify <text>       Classify a prompt",
       "  gate --tool <t> --file <f>  Check if an edit is allowed",
@@ -116,7 +122,7 @@ function main(argv: string[]): void {
     process.env.SKILLEFORCE_HOME = resolve(expandHome(parsed.flags.home));
   }
   const command = parsed.positionals[0];
-  if (command === undefined) {
+  if (command === undefined || command === "help" || command === "--help" || command === "-h") {
     usage();
     return;
   }

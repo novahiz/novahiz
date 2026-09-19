@@ -27,6 +27,12 @@ export function buildMcpEntries(spec: Spec): Record<string, McpEntry> {
       if (!provider.url) continue;
       entries[provider.id] = { type: "remote", url: provider.url, enabled: true };
     } else {
+      // M20b: when a provider has no `command` field, we fall back to using the
+      // provider ID as the command name. This works for providers that register
+      // a globally-installed CLI tool with the same name as their ID (e.g.,
+      // "npx supabase" or "graft"). If the provider ID is actually a scoped
+      // npm package (e.g., "@scope/pkg"), this fallback will fail silently —
+      // the provider should define `command` explicitly in that case.
       entries[provider.id] = { type: "local", command: provider.command ?? [provider.id], enabled: true };
     }
   }

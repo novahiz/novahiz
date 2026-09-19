@@ -105,6 +105,12 @@ export function commandSessionLoad(parsed: Parsed): void {
     process.exitCode = 1;
     return;
   }
+  // M12: basic session ID format validation (alphanumeric, hyphens, underscores)
+  if (!/^[a-zA-Z0-9_-]+$/.test(session)) {
+    print({ error: `invalid session ID format: "${session}" (expected alphanumeric, hyphens, underscores)` });
+    process.exitCode = 1;
+    return;
+  }
   const db = openDb(dbPathFor(root, spec));
   db.prepare("INSERT OR IGNORE INTO skill_invocations (session_id, skill, invoked_at) VALUES (?, ?, ?)").run(
     session,
