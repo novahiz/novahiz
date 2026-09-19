@@ -229,7 +229,9 @@ function callTool(name, args) {
   }
   if (name === "skillenforce_catalog") {
     const query = String(args?.query ?? "");
-    const limit = Number.isFinite(args?.limit) ? Number(args.limit) : 10;
+    // M-MCP: bound limit to prevent excessive results
+    const MAX_CATALOG_LIMIT = 50;
+    const limit = Math.min(Number.isFinite(args?.limit) ? Number(args.limit) : 10, MAX_CATALOG_LIMIT);
     const catalog = loadCatalog(spec);
     return toolResult({ query, total: catalog.length, results: rankSkills(catalog, query, limit) });
   }
@@ -333,6 +335,11 @@ function callTool(name, args) {
   }
   if (name === "skillenforce_task") {
     const action = String(args?.action ?? "status");
+    // M-MCP: validate action before opening DB — avoids opening/closing on invalid input
+    const VALID_ACTIONS = ["new", "plan", "todo", "start", "done", "block", "review", "amend", "insert", "drop", "reorder", "signals", "status", "resume", "current"];
+    if (!VALID_ACTIONS.includes(action)) {
+      throw new Error(`Invalid params: unknown task action '${action}'`);
+    }
     const session = args?.session ? String(args.session) : undefined;
     const db = openDb(resolve(spec.root, spec.config.dbPath));
     try {
@@ -421,7 +428,7 @@ function callTool(name, args) {
         if (!taskId) return toolResult("no active task", true);
         return toolResult(revisionSignals(db, taskId));
       }
-      if (action === "status" || action === "resume") {
+      if (action === "status" || action === "resume" || action === "current") {
         const explicit = args?.task ? getTask(db, String(args.task)) : null;
         const state = explicit
           ? (() => {
@@ -437,7 +444,6 @@ function callTool(name, args) {
         const signals = state.task ? revisionSignals(db, state.task.id) : [];
         return toolResult({ task: state.task, current: state.current, todos: state.todos, summary: ledgerSummary(state), review, signals });
       }
-      return toolResult({ error: `unknown task action: ${action}` }, true);
     } finally {
       db.close();
     }

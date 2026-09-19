@@ -84,6 +84,9 @@ function byCodeUnit(a: string, b: string): number {
   return a < b ? -1 : a > b ? 1 : 0;
 }
 
+// Confidence maps a raw keyword score to [0, 1) using a half-saturation curve.
+// At score=2 the confidence is ~0.5; at score=5 it's ~0.71; at score=10 it's ~0.83.
+// The "+2" constant prevents low-score categories from having disproportionate confidence.
 function confidence(score: number): number {
   if (score <= 0) return 0;
   return Math.round((score / (score + 2)) * 100) / 100;

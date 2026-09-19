@@ -378,21 +378,34 @@ export function reorderTodos(db: DatabaseSync, taskId: string, orderedIds: strin
 }
 
 export function insertTodo(db: DatabaseSync, taskId: string, item: TodoInput, position?: number | "start" | "end"): TodoRow {
-  const created = addTodos(db, taskId, [item])[0];
-  if (position === undefined || position === "end") return created;
-  const others = listTodos(db, taskId).filter((todo) => todo.id !== created.id);
-  let orderedIds: string[];
-  if (position === "start") {
-    orderedIds = [created.id, ...others.map((todo) => todo.id)];
-  } else {
-    orderedIds = [
-      ...others.filter((todo) => todo.seq <= position).map((todo) => todo.id),
-      created.id,
-      ...others.filter((todo) => todo.seq > position).map((todo) => todo.id)
-    ];
+  // M-Ledger: wrap insert + reorder in a savepoint so a reorder failure doesn't
+  // leave a half-inserted todo visible.
+  db.exec("SAVEPOINT insert_sp");
+  try {
+    const created = addTodos(db, taskId, [item])[0];
+    if (position === undefined || position === "end") {
+      db.exec("RELEASE SAVEPOINT insert_sp");
+      return created;
+    }
+    const others = listTodos(db, taskId).filter((todo) => todo.id !== created.id);
+    let orderedIds: string[];
+    if (position === "start") {
+      orderedIds = [created.id, ...others.map((todo) => todo.id)];
+    } else {
+      orderedIds = [
+        ...others.filter((todo) => todo.seq <= position).map((todo) => todo.id),
+        created.id,
+        ...others.filter((todo) => todo.seq > position).map((todo) => todo.id)
+      ];
+    }
+    reorderTodos(db, taskId, orderedIds);
+    db.exec("RELEASE SAVEPOINT insert_sp");
+    return getTodo(db, created.id) as TodoRow;
+  } catch (error) {
+    db.exec("ROLLBACK TO SAVEPOINT insert_sp");
+    db.exec("RELEASE SAVEPOINT insert_sp");
+    throw error;
   }
-  reorderTodos(db, taskId, orderedIds);
-  return getTodo(db, created.id) as TodoRow;
 }
 
 export function dropTodo(db: DatabaseSync, id: string, reason = ""): TodoRow {
