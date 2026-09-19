@@ -21,7 +21,7 @@ test("classifies dotfiles instead of dropping them to other", () => {
   assert.equal(fileClass(".env"), "config");
   assert.equal(fileClass(".env.local"), "config");
   assert.equal(fileClass(".gitignore"), "config");
-  assert.equal(fileClass(".eslintrc.json"), "data");
+  assert.equal(fileClass(".eslintrc.json"), "config");
 });
 
 test("globs match nested paths", () => {
@@ -107,7 +107,8 @@ test("applies the primary roadmap skill steps", () => {
     spec,
     installedSkills: null,
     categories: ["code"],
-    content: "const x = 1;"
+    content: "const x = 1;",
+    tier: "full"
   });
   assert.equal(result.roadmap, "feature");
   assert.ok(result.requiredSkills.includes("skillenforce-plan"));

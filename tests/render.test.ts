@@ -35,7 +35,7 @@ test("style drops the escape codes when colour is off", () => {
     assert.equal(style("red", "boom"), "boom");
     assert.equal(heading("Title"), "Title");
     assert.equal(status(true), "ok");
-    assert.equal(status(false), "echec");
+    assert.equal(status(false), "fail");
   });
 });
 
@@ -43,7 +43,7 @@ test("style paints when colour is forced", () => {
   withEnv("FORCE_COLOR", "1", () => {
     assert.equal(style("green", "ok"), "\u001b[32mok\u001b[0m");
     assert.equal(status(true), "\u001b[32mok\u001b[0m");
-    assert.equal(status(false), "\u001b[31mechec\u001b[0m");
+    assert.equal(status(false), "\u001b[31mfail\u001b[0m");
   });
 });
 

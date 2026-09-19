@@ -1,5 +1,6 @@
 import type { Rule, Spec } from "./spec.ts";
 import { hasPlaceholder, hasProse, hasStyle, isTrivial } from "./content.ts";
+import { determineTier, type ComplexityTier } from "./complexity.ts";
 
 type FileClass = "code" | "text" | "design" | "data" | "config" | "other";
 
@@ -191,6 +192,7 @@ type GateInput = {
   loadedSkills?: string[];
   installedSkills?: ReadonlySet<string> | null;
   installedIndexAvailable?: boolean;
+  tier?: ComplexityTier;
   spec: Spec;
 };
 
@@ -199,6 +201,7 @@ type GateResult = {
   ignored: boolean;
   fileClass: FileClass;
   roadmap: string | null;
+  tier: ComplexityTier;
   requiredSkills: string[];
   missingSkills: string[];
   unmatchedRequired: string[];
@@ -222,6 +225,7 @@ export function evaluateGate(input: GateInput): GateResult {
         ignored: true,
         fileClass: classification,
         roadmap: null,
+        tier: "trivial",
         requiredSkills: [],
         missingSkills: [],
         unmatchedRequired: [],
@@ -248,12 +252,30 @@ export function evaluateGate(input: GateInput): GateResult {
 
     const primary = categories[0];
     let roadmap: string | null = null;
+
+    // Determine complexity tier for this prompt
+    const tier = input.tier ?? determineTier(content);
+
     if (primary) {
       const category = input.spec.categories.find((entry) => entry.id === primary);
       if (category?.roadmap) {
         roadmap = category.roadmap.id;
         for (const step of category.roadmap.steps) {
           if (step.kind !== "skill" || step.optional) continue;
+
+          // Tier-based filtering
+          if (tier === "trivial") {
+            // Trivial: no skills from roadmap
+            continue;
+          }
+          if (tier === "lite") {
+            // Lite: only implement + converge (any step kind — edit, verify, skill)
+            const isImplementOrConverge = (step.requireSkills ?? []).some(
+              s => s.includes("implement") || s.includes("converge")
+            );
+            if (!isImplementOrConverge) continue;
+          }
+
           for (const skill of step.requireSkills ?? []) {
             if (!requiredSkills.includes(skill)) requiredSkills.push(skill);
           }
@@ -285,6 +307,7 @@ export function evaluateGate(input: GateInput): GateResult {
       ignored: false,
       fileClass: classification,
       roadmap,
+      tier,
       requiredSkills: effective,
       missingSkills,
       unmatchedRequired,
@@ -299,6 +322,7 @@ export function evaluateGate(input: GateInput): GateResult {
       ignored: false,
       fileClass: classification,
       roadmap: null,
+      tier: "trivial",
       requiredSkills: [],
       missingSkills: [],
       unmatchedRequired: [],

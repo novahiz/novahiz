@@ -185,10 +185,10 @@ export const DEFAULT_CONFIG: SkillenforceConfig = {
 export function skillenforceHome(): string {
   // M7: resolve ~/ and relative segments — the installer variant already did,
   // the TS variant returned the raw string (broken on SKILLEFORCE_HOME=~/x).
-  // Default stays .config/novahiz: the directory on disk was deliberately not renamed.
+  // Default stays .config/skillenforce: the canonical home directory.
   const fromEnv = process.env.SKILLEFORCE_HOME || process.env.NOVAHIZ_HOME;
   if (fromEnv && fromEnv.length > 0) return resolve(expandHome(fromEnv));
-  return join(homedir(), ".config", "novahiz");
+  return join(homedir(), ".config", "skillenforce");
 }
 
 export function expandHome(value: string): string {

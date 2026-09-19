@@ -16,11 +16,11 @@ test("loads the bundled providers", () => {
     "expo",
     "impeccable",
     "narsil",
-    "skillenforce",
     "obsidian",
     "playwright",
     "security",
     "sequential-thinking",
+    "skillenforce",
     "supabase"
   ]);
 });

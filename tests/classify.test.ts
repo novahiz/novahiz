@@ -11,7 +11,10 @@ test("classifies a design prompt as design-ui with a roadmap", () => {
   const result = classify(spec, "refais le css de la landing page et la typographie");
   assert.equal(result.categories[0].id, "design-ui");
   assert.equal(result.primary, "design-ui");
-  assert.ok(result.requiredSkills.includes("impeccable"));
+  assert.equal(result.tier, "lite");
+  // Lite tier only includes implement + converge skills
+  assert.ok(result.requiredSkills.includes("skillenforce-implement"));
+  assert.ok(result.requiredSkills.includes("skillenforce-converge"));
   assert.equal(result.roadmaps[0].category, "design-ui");
   assert.ok(result.categories[0].confidence > 0 && result.categories[0].confidence <= 1);
 });
@@ -32,14 +35,18 @@ test("classification is deterministic", () => {
 test("classifies a refactor prompt as code", () => {
   const result = classify(spec, "Decouper src/cli.ts (1435 lignes) en modules dans src/commands/ sans changer le comportement du CLI");
   assert.equal(result.primary, "code");
-  assert.ok(result.requiredSkills.includes("skillenforce-plan"));
-  assert.ok(result.requiredSkills.includes("skillenforce-analyse"));
+  assert.equal(result.tier, "lite");
+  // Lite tier only includes implement + converge skills
+  assert.ok(result.requiredSkills.includes("skillenforce-implement"));
+  assert.ok(result.requiredSkills.includes("skillenforce-converge"));
 });
 
-test("falls back to general and injects the general roadmap skill", () => {
+test("falls back to general with trivial tier (no roadmap skills)", () => {
   const result = classify(spec, "bonjour, comment vas tu ?");
   assert.equal(result.categories[0].id, "general");
-  assert.ok(result.requiredSkills.includes("humanizer"));
+  assert.equal(result.tier, "trivial");
+  // Trivial tier injects no roadmap skills
+  assert.equal(result.requiredSkills.length, 0);
 });
 
 test("ignores accents when matching", () => {

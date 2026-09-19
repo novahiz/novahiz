@@ -21,7 +21,7 @@ function homeDir(): string {
   return (
     process.env.SKILLEFORCE_HOME ||
     process.env.NOVAHIZ_HOME ||
-    join(process.env.HOME || process.env.USERPROFILE || "", ".config", "novahiz")
+    join(process.env.HOME || process.env.USERPROFILE || "", ".config", "skillenforce")
   );
 }
 

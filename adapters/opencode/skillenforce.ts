@@ -3,13 +3,14 @@ import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import { rewritePrompt } from "../../src/prompt-rewriter.ts";
 
 const HOME =
   process.env.SKILLEFORCE_HOME && process.env.SKILLEFORCE_HOME.length > 0
     ? process.env.SKILLEFORCE_HOME
     : process.env.NOVAHIZ_HOME && process.env.NOVAHIZ_HOME.length > 0
       ? process.env.NOVAHIZ_HOME
-      : join(homedir(), ".config", "novahiz");
+      : join(homedir(), ".config", "skillenforce");
 const CLI = join(HOME, "src", "cli.ts");
 const NODE =
   process.env.SKILLEFORCE_NODE && process.env.SKILLEFORCE_NODE.length > 0 ? process.env.SKILLEFORCE_NODE : "node";
@@ -154,7 +155,16 @@ export const SkillenforcePlugin: Plugin = async ({ client }) => {
         touch(input.sessionID);
         const text = textFromParts(output.parts);
         if (text.length === 0) return;
-        const result = run(["classify", text]);
+
+        // Prompt rewriter: translate non-English prompts to optimized English
+        // before classification. Responses always match the user's language.
+        const rewrite = rewritePrompt(text);
+        const classifyText = rewrite.rewritten;
+        if (rewrite.wasRewritten) {
+          await log("info", `Prompt rewritten: ${rewrite.sourceLanguage} → English ("${classifyText.slice(0, 80)}")`);
+        }
+
+        const result = run(["classify", classifyText]);
         if (result.status !== 0) {
           await log("warn", `Classify failed (exit ${result.status}), no enforcement injected: ${result.stderr.trim().slice(0, 200)}`);
           return;
@@ -191,6 +201,9 @@ export const SkillenforcePlugin: Plugin = async ({ client }) => {
           "[Skillenforce enforcement]",
           `Categories detected: ${categories.join(", ") || "none"}${primary ? ` (primary: ${primary})` : ""}`
         ];
+        if (rewrite.wasRewritten) {
+          lines.push(`User language: ${rewrite.sourceLanguage} — respond in this language, not English.`);
+        }
         if (roadmap) {
           lines.push(`Roadmap ${roadmap.id}:`);
           roadmap.steps.forEach((step, index) => {

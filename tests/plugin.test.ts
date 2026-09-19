@@ -5,7 +5,10 @@ import { join } from "node:path";
 import { test, after } from "node:test";
 
 const pluginHome = mkdtempSync(join(tmpdir(), "skillenforce-plugin-"));
-process.env.skillenforce_HOME = pluginHome;
+process.env.SKILLEFORCE_HOME = pluginHome;
+// Gate must be ON for the plugin to inject MCP and enforce — system-level
+// SKILLEFORCE_GATE=off would make DISABLED=true and skip everything.
+process.env.SKILLEFORCE_GATE = "on";
 
 after(() => {
   try {
@@ -67,7 +70,7 @@ test("tool.execute.before surfaces an unavailable gate instead of failing open",
       { tool: "write", sessionID: "s-gate", callID: "c3" },
       { args: { filePath: "/tmp/y.ts", content: "hello" } }
     ),
-    /skillenforce gate/
+    /Skillenforce gate/i
   );
 });
 

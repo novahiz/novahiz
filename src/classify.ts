@@ -1,5 +1,6 @@
 import type { Category, CategoryKeyword, RoadmapStep, Spec } from "./spec.ts";
 import { providersForCategories } from "./providers.ts";
+import { determineTier, type ComplexityTier } from "./complexity.ts";
 
 type CategoryScore = {
   id: string;
@@ -28,6 +29,7 @@ type SkillInvocation = {
 type Classification = {
   categories: CategoryScore[];
   primary: string | null;
+  tier: ComplexityTier;
   requiredSkills: string[];
   enforcedSkills: string[];
   invocations: SkillInvocation[];
@@ -114,6 +116,9 @@ export function classify(spec: Spec, prompt: string, options: ClassifyOptions = 
   const fallbackCategory = options.fallbackCategory ?? spec.config.classify.fallbackCategory;
   const text = fold(prompt);
 
+  // Determine complexity tier
+  const tier = determineTier(prompt);
+
   const scored: CategoryScore[] = [];
   for (const category of spec.categories) {
     let score = 0;
@@ -167,9 +172,28 @@ export function classify(spec: Spec, prompt: string, options: ClassifyOptions = 
   for (const item of selected) {
     const category = spec.categories.find((entry) => entry.id === item.id);
     if (!category) continue;
-    for (const skill of skillsOfCategory(category)) {
-      if (!requiredSkills.includes(skill)) requiredSkills.push(skill);
+
+    // Tier-based skill filtering
+    if (tier === "trivial") {
+      // Trivial: no skills required from roadmap
+      continue;
     }
+    if (tier === "lite") {
+      // Lite: only implement + converge (any step kind — edit, verify, skill)
+      for (const step of category.roadmap?.steps ?? []) {
+        if (step.requireSkills?.some(s => s.includes("implement") || s.includes("converge"))) {
+          for (const skill of step.requireSkills ?? []) {
+            if (!requiredSkills.includes(skill)) requiredSkills.push(skill);
+          }
+        }
+      }
+    } else {
+      // Full: all skills
+      for (const skill of skillsOfCategory(category)) {
+        if (!requiredSkills.includes(skill)) requiredSkills.push(skill);
+      }
+    }
+
     for (const step of category.roadmap?.steps ?? []) {
       if (step.kind !== "skill") continue;
       invocations.push({
@@ -198,6 +222,7 @@ export function classify(spec: Spec, prompt: string, options: ClassifyOptions = 
   return {
     categories: selected,
     primary,
+    tier,
     requiredSkills,
     enforcedSkills,
     invocations,

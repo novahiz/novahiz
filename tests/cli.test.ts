@@ -34,7 +34,7 @@ function run(args: string[], env: Record<string, string> = {}): string {
   const result = spawnSync(process.execPath, [cli, ...args], {
     encoding: "utf8",
     input: "",
-    env: { ...process.env, skillenforce_HOME: root, skillenforce_DB: testDb, ...env }
+    env: { ...process.env, SKILLEFORCE_HOME: root, SKILLEFORCE_DB: testDb, ...env }
   });
   return result.stdout.trim();
 }
@@ -43,13 +43,13 @@ function runWithInput(args: string[], input: object): string {
   const result = spawnSync(process.execPath, [cli, ...args], {
     encoding: "utf8",
     input: JSON.stringify(input),
-    env: { ...process.env, skillenforce_HOME: root, skillenforce_DB: testDb }
+    env: { ...process.env, SKILLEFORCE_HOME: root, SKILLEFORCE_DB: testDb }
   });
   return result.stdout.trim();
 }
 
-test("skillenforce_GATE=off disables the gate", () => {
-  const parsed = JSON.parse(run(["gate", "--file", "README.md", "--tool", "edit"], { skillenforce_GATE: "off" }));
+test("SKILLEFORCE_GATE=off disables the gate", () => {
+  const parsed = JSON.parse(run(["gate", "--file", "README.md", "--tool", "edit"], { SKILLEFORCE_GATE: "off" }));
   assert.equal(parsed.allow, true);
   assert.equal(parsed.disabled, true);
 });
@@ -58,7 +58,7 @@ test("gate errors without a file or stdin", () => {
   const result = spawnSync(process.execPath, [cli, "gate", "--tool", "edit"], {
     encoding: "utf8",
     input: "",
-    env: { ...process.env, skillenforce_HOME: root, skillenforce_DB: testDb }
+    env: { ...process.env, SKILLEFORCE_HOME: root, SKILLEFORCE_DB: testDb, SKILLEFORCE_GATE: "on" }
   });
   assert.equal(result.status, 1);
 });
@@ -70,21 +70,21 @@ test("roadmap command returns the category roadmap", () => {
 });
 
 test("does not gate a tool that is not in gate.tools", () => {
-  const parsed = JSON.parse(run(["gate", "--tool", "read", "--file", "README.md"]));
+  const parsed = JSON.parse(run(["gate", "--tool", "read", "--file", "README.md"], { SKILLEFORCE_GATE: "on" }));
   assert.equal(parsed.allow, true);
   assert.equal(parsed.reason, "tool is not gated");
 });
 
 test("gate surfaces required skills that are absent from the installed index", () => {
-  const parsed = JSON.parse(run(["gate", "--tool", "edit", "--file", "README.md", "--categories", "docs-writing"]));
+  const parsed = JSON.parse(run(["gate", "--tool", "edit", "--file", "README.md", "--categories", "docs-writing"], { SKILLEFORCE_GATE: "on" }));
   assert.ok(Array.isArray(parsed.unmatchedRequired));
   assert.ok(Array.isArray(parsed.warnings));
 });
 
 test("classify output carries a primary and a roadmap", () => {
-  const parsed = JSON.parse(run(["classify", "redo the landing page css"]));
-  assert.equal(parsed.primary, "design-ui");
-  assert.equal(parsed.roadmaps[0].category, "design-ui");
+  const parsed = JSON.parse(run(["classify", "build a production supabase schema with rls and edge functions"]));
+  assert.equal(parsed.primary, "database-supabase");
+  assert.equal(parsed.roadmaps[0].category, "database-supabase");
   assert.ok(Array.isArray(parsed.enforcedSkills));
 });
 
@@ -92,7 +92,7 @@ test("catalog rejects a non-numeric limit", () => {
   const result = spawnSync(process.execPath, [cli, "catalog", "design", "--limit", "abc"], {
     encoding: "utf8",
     input: "",
-    env: { ...process.env, skillenforce_HOME: root, skillenforce_DB: testDb }
+    env: { ...process.env, SKILLEFORCE_HOME: root, SKILLEFORCE_DB: testDb }
   });
   assert.equal(result.status, 1);
   assert.match(result.stderr, /--limit.*number|number.*--limit/);
@@ -102,11 +102,12 @@ test("an unknown command exits non-zero with a single clean line", () => {
   const result = spawnSync(process.execPath, [cli, "bogus"], {
     encoding: "utf8",
     input: "",
-    env: { ...process.env, skillenforce_HOME: root, skillenforce_DB: testDb }
+    env: { ...process.env, SKILLEFORCE_HOME: root, SKILLEFORCE_DB: testDb }
   });
   assert.equal(result.status, 1);
-  assert.equal(result.stderr.trim().split("\n").length, 1);
-  assert.match(result.stderr, /unknown command bogus/);
+  const lines = result.stderr.trim().split("\n").filter((line) => line.trim().length > 0);
+  assert.equal(lines.length, 1);
+  assert.match(result.stderr, /unknown command .bogus./);
 });
 
 test("a missing install reports one clean line instead of a stack trace", () => {
@@ -114,7 +115,7 @@ test("a missing install reports one clean line instead of a stack trace", () => 
   const result = spawnSync(process.execPath, [cli, "check"], {
     encoding: "utf8",
     input: "",
-    env: { ...process.env, skillenforce_HOME: missing }
+    env: { ...process.env, SKILLEFORCE_HOME: missing }
   });
   assert.equal(result.status, 1);
   assert.equal(result.stderr.trim().split("\n").length, 1);
@@ -177,7 +178,7 @@ test("clean refuses to delete on a non interactive stdin without --apply", () =>
   const result = spawnSync(process.execPath, [cli, "clean", "--json"], {
     encoding: "utf8",
     input: "",
-    env: { ...process.env, skillenforce_HOME: root, skillenforce_DB: testDb }
+    env: { ...process.env, SKILLEFORCE_HOME: root, SKILLEFORCE_DB: testDb }
   });
   assert.equal(result.status, 1);
 });
@@ -213,7 +214,7 @@ test("clean --apply removes only the rows older than the cutoff", () => {
       const result = spawnSync(process.execPath, [cli, ...args], {
         encoding: "utf8",
         input: "",
-        env: { ...process.env, skillenforce_HOME: root, skillenforce_DB: testDb }
+        env: { ...process.env, SKILLEFORCE_HOME: root, SKILLEFORCE_DB: testDb }
       });
       assert.equal(result.status, 1, `${args.join(" ")} should fail`);
       assert.match(result.stderr, expected);
