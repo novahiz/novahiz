@@ -12,6 +12,7 @@ import { commandTask } from "./commands/task.ts";
 import { commandClean } from "./commands/clean.ts";
 import { commandDoctor } from "./commands/doctor.ts";
 import { commandTokens } from "./commands/tokens.ts";
+import { graftCommand } from "./commands/graft.ts";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -49,6 +50,7 @@ function usage(): void {
       "task done <id>          Mark a todo as complete",
       "report                  Session report",
       "clean                   Remove old logs and sessions",
+      "graft                   Version-control the ledger (graft init/log/diff/status/restore)",
       "upgrade                 Pull latest and rebuild catalog",
       "version                 Show version",
       "",
@@ -170,6 +172,8 @@ function main(argv: string[]): void {
       return commandDispatch(parsed);
     case "tokens":
       return commandTokens(parsed);
+    case "graft":
+      return graftCommand(parsed.positionals.slice(1));
     default:
       process.stderr.write(`skillenforce: unknown command "${command}"\n\n`);
       usage();

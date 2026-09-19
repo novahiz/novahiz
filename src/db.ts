@@ -2,6 +2,7 @@ import { DatabaseSync } from "node:sqlite";
 import { chmodSync, mkdirSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { pruneSessions } from "./ledger.ts";
+import { autoCommit } from "./graft.ts";
 
 export { DatabaseSync };
 
@@ -111,6 +112,8 @@ export function openDb(dbPath: string): DatabaseSync {
   // must never break startup.
   try {
     pruneSessions(db);
+    // Auto-commit after session pruning
+    autoCommit("prune-sessions");
   } catch {
     // sessions table may predate updated_at on very old installs; migrate covers it
   }

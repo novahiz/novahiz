@@ -7,6 +7,7 @@ import { changeText } from "../content.ts";
 import { evaluateGate } from "../gate.ts";
 import { extractTargetPaths } from "../targets.ts";
 import { activeTask, recordEdit, reviewDue, traceCheck } from "../ledger.ts";
+import { autoCommit } from "../graft.ts";
 
 export function commandGate(parsed: Parsed): void {
   const root = skillenforceHome();
@@ -160,6 +161,7 @@ export function commandGate(parsed: Parsed): void {
       JSON.stringify(results.flatMap((entry) => entry.matchedRules)),
       new Date().toISOString()
     );
+    autoCommit("enforcement", `${allow ? "allow" : "block"} ${tool}`);
     db.close();
   }
 

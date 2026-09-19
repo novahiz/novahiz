@@ -5,6 +5,7 @@ novahiz.sqlite
 novahiz.sqlite-*
 skillenforce.sqlite
 skillenforce.sqlite-*
+.graft/
 build/
 *.novahiz-bak
 coverage/

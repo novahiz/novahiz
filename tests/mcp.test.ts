@@ -144,7 +144,7 @@ test("dispatches the active task into work packets", () => {
 
 test("runs the gate over MCP", () => {
   const out = call([
-    JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "skillenforce_gate", arguments: { tool: "edit", filePath: "README.md", categories: ["docs-writing"] } } })
+    JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "skillenforce_gate", arguments: { tool: "edit", file: "README.md", categories: ["docs-writing"] } } })
   ]);
   const payload = JSON.parse(out[0].result.content[0].text);
   assert.equal(typeof payload.allow, "boolean");

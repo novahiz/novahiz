@@ -1,5 +1,6 @@
 import type { DatabaseSync } from "node:sqlite";
 import { globToRegExp } from "./gate.ts";
+import { autoCommit } from "./graft.ts";
 
 export type TodoKind = "read" | "edit" | "verify" | "delegate";
 type TodoStatus = "pending" | "in_progress" | "done" | "blocked" | "dropped";
@@ -155,6 +156,7 @@ export function createTask(db: DatabaseSync, options: { title: string; id?: stri
   db.prepare(
     "INSERT INTO tasks (id, title, status, session_id, created_at, updated_at) VALUES (?, ?, 'active', ?, ?, ?)"
   ).run(taskId, options.title, options.sessionId ?? null, ts, ts);
+  autoCommit("task-created", options.title);
   return getTask(db, taskId) as TaskRow;
 }
 
@@ -209,6 +211,7 @@ export function addTodos(db: DatabaseSync, taskId: string, items: TodoInput[]): 
     ids.push(todoId);
   }
   reopenTask(db, taskId);
+  autoCommit("todos-added", `${items.length} item(s) to ${taskId}`);
   return ids.map((id) => getTodo(db, id) as TodoRow);
 }
 
@@ -241,6 +244,7 @@ export function completeTodo(db: DatabaseSync, id: string, proof = ""): TodoRow 
   }
   db.prepare("UPDATE todos SET status = 'done', proof = ?, updated_at = ? WHERE id = ?").run(trimmed.length > 0 ? trimmed : null, nowIso(), id);
   maybeCompleteTask(db, todo.task_id);
+  autoCommit("todo-completed", id);
   return getTodo(db, id) as TodoRow;
 }
 
@@ -374,6 +378,7 @@ export function dropTodo(db: DatabaseSync, id: string, reason = ""): TodoRow {
     id
   );
   maybeCompleteTask(db, todo.task_id);
+  autoCommit("todo-dropped", id);
   return getTodo(db, id) as TodoRow;
 }
 
@@ -457,6 +462,7 @@ export function reviewTask(db: DatabaseSync, options: { taskId: string } & Revie
       "UPDATE tasks SET revision = ?, reviewed_at = ?, edits_since_review = 0, todos_since_review = 0, updated_at = ? WHERE id = ?"
     ).run(revision, ts, ts, options.taskId);
     db.exec("COMMIT");
+    autoCommit("task-reviewed", `revision ${revision}`);
     return {
       task: getTask(db, options.taskId) as TaskRow,
       revision,
