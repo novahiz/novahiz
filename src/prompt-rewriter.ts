@@ -9,6 +9,10 @@
  *
  * The rewritten prompt is used for classification and reasoning.
  * The original language is preserved for response generation.
+ *
+ * Scope: Arabic only. FR/ES/DE/PT are handled natively by the classifier
+ * via multilingual keywords in categories.json — no rewriting needed.
+ * English prompts are optimized (remove fluff, imperative mood).
  */
 
 export type RewriteResult = {
@@ -18,121 +22,20 @@ export type RewriteResult = {
   wasRewritten: boolean;
 };
 
-// Language detection patterns (simple heuristics, no external deps)
-// Weight design: high-weight patterns are unambiguous language signals.
-// Low-weight function words (le, la, el, etc.) are weak — they can false-positive
-// on English text. Only high-weight patterns should push detection away from English.
-const LANG_PATTERNS: Array<{ lang: string; pattern: RegExp; weight: number }> = [
-  // French
-  { lang: "fr", pattern: /\b(c'est-a-dire|par exemple|en fait|cependant|neanmoins|toutefois|par consequent|ainsi que)\b/i, weight: 5 },
-  { lang: "fr", pattern: /\b(probleme|fonction|classe|methode|variable|fichier|corriger|ajouter|supprimer|modifier|creer|refactoriser|debugger|migrer|configurer|optimiser|simplifier|ameliorer|implementer|renommer)\b/i, weight: 4 },
-  { lang: "fr", pattern: /\b(le|la|les|un|une|des|est|sont|avec|pour|dans|ce|cette|pourquoi|quel|quelle|faire|fait|etre|avoir|pas|plus|tout|mais|donc|car|ni|ou|et)\b/i, weight: 1 },
-  // Arabic — Unicode range is unambiguous
-  { lang: "ar", pattern: /[\u0600-\u06FF]/, weight: 10 },
-  // Spanish
-  { lang: "es", pattern: /\b(funcion|clase|metodo|variable|archivo|codigo|depurar|corregir|agregar|eliminar|modificar|crear)\b/i, weight: 4 },
-  { lang: "es", pattern: /\b(el|la|los|las|un|una|es|son|con|para|en|este|esta|como|hacer|ser|tener|pero|porque|sino|o|y)\b/i, weight: 1 },
-  // German
-  { lang: "de", pattern: /\b(Funktion|Klasse|Methode|Variable|Datei|Code|korrigieren|hinzufuegen|entfernen|aendern|erstellen)\b/i, weight: 4 },
-  { lang: "de", pattern: /\b(der|die|das|ein|eine|ist|sind|mit|fur|in|wie|warum|machen|sein|haben|aber|denn|nicht|auch)\b/i, weight: 1 },
-  // Portuguese
-  { lang: "pt", pattern: /\b(funcao|classe|metodo|variavel|arquivo|codigo|corrigir|adicionar|remover|modificar|criar)\b/i, weight: 4 },
-  { lang: "pt", pattern: /\b(o|a|os|as|um|uma|e|sao|com|para|em|este|esta|como|fazer|ser|ter|mas|porque|ou)\b/i, weight: 1 },
-];
-
 /**
  * Detect the source language of a prompt.
- * Arabic uses Unicode range (unambiguous, weight 10).
- * Other languages require at least one high-weight match (>=2) to avoid
- * false positives from common words like "a", "the", "in" that overlap English.
+ * Returns "ar" for Arabic (Unicode range, unambiguous), "en" otherwise.
+ * FR/ES/DE/PT are not detected here — the classifier handles them natively.
  */
 export function detectLanguage(prompt: string): string {
-  // Arabic first — Unicode range is unambiguous
   if (/[\u0600-\u06FF]/.test(prompt)) return "ar";
-
-  const scores: Record<string, number> = {};
-  const hasHighWeight: Record<string, boolean> = {};
-  for (const { lang, pattern, weight } of LANG_PATTERNS) {
-    if (lang === "ar") continue; // already handled
-    if (pattern.test(prompt)) {
-      scores[lang] = (scores[lang] ?? 0) + weight;
-      if (weight >= 2) hasHighWeight[lang] = true;
-    }
-  }
-  let bestLang = "en";
-  let bestScore = 0;
-  for (const [lang, score] of Object.entries(scores)) {
-    // Require at least one high-weight match to override English
-    if (score > bestScore && hasHighWeight[lang]) {
-      bestScore = score;
-      bestLang = lang;
-    }
-  }
-  return bestLang;
+  return "en";
 }
 
-// French -> English task term mappings
-// Technical terms first (high confidence), then structural words
-const FR_EN: Array<[RegExp, string]> = [
-  // Technical verbs
-  [/\bcorriger\s+le\b/gi, "fix the"],
-  [/\bcorriger\s+la\b/gi, "fix the"],
-  [/\bcorriger\b/gi, "fix"],
-  [/\bcreer\b/gi, "create"],
-  [/\bajouter\b/gi, "add"],
-  [/\bsupprimer\b/gi, "remove"],
-  [/\bmodifier\b/gi, "modify"],
-  [/\brenommer\b/gi, "rename"],
-  [/\brefactoriser\b/gi, "refactor"],
-  [/\bdebugger\b/gi, "debug"],
-  [/\btester\b/gi, "test"],
-  [/\bmigrer\b/gi, "migrate"],
-  [/\bconfigurer\b/gi, "configure"],
-  [/\boptimiser\b/gi, "optimize"],
-  [/\bsimplifier\b/gi, "simplify"],
-  [/\bnettoyer\b/gi, "clean up"],
-  [/\bameliorer\b/gi, "improve"],
-  [/\bimplementer\b/gi, "implement"],
-  [/\butiliser\b/gi, "use"],
-  [/\bremplacer\b/gi, "replace"],
-  [/\becrire\b/gi, "write"],
-  [/\blire\b/gi, "read"],
-  [/\bsauvegarder\b/gi, "save"],
-  [/\bactiver\b/gi, "enable"],
-  [/\bdesactiver\b/gi, "disable"],
-  // Nouns
-  [/\bfonction\b/gi, "function"],
-  [/\bclasse\b/gi, "class"],
-  [/\bmethode\b/gi, "method"],
-  [/\bvariable\b/gi, "variable"],
-  [/\bfichier\b/gi, "file"],
-  [/\bprobleme\b/gi, "issue"],
-  [/\bsolution\b/gi, "solution"],
-  [/\bpage de landing\b/gi, "landing page"],
-  [/\bpage d'atterrissage\b/gi, "landing page"],
-  [/\bpage de garde\b/gi, "landing page"],
-  // Structural words (translate only in French context)
-  [/\bdans le\b/gi, "in the"],
-  [/\bdans la\b/gi, "in the"],
-  [/\bdans les\b/gi, "in the"],
-  [/\bdans un\b/gi, "in a"],
-  [/\bdans une\b/gi, "in a"],
-  [/\bune page de\b/gi, "a page of"],
-  [/\bune\b/gi, "a"],
-  [/\bun\b/gi, "a"],
-  [/\bcomment\b/gi, "how to"],
-  [/\bpourquoi\b/gi, "why"],
-  [/\bquel\b/gi, "which"],
-  [/\bquelle\b/gi, "which"],
-  [/\bfaire\b/gi, "do"],
-  [/\bde toute facon\b/gi, "anyway"],
-  [/\bcependant\b/gi, "however"],
-  [/\bneanmoins\b/gi, "nevertheless"],
-  [/\bvoici\b/gi, "here is"],
-  [/\bvoila\b/gi, "here is"],
-];
-
 // Arabic -> English task term mappings
+// Arabic is the only language that benefits from rewriting:
+// - Unicode-range detection is unambiguous
+// - The classifier cannot match Arabic keywords natively
 // NOTE: Arabic has multiple valid spellings. Use common forms users actually type.
 const AR_EN: Array<[RegExp, string]> = [
   // Technical verbs (noun + imperative forms)
@@ -199,12 +102,12 @@ const AR_EN: Array<[RegExp, string]> = [
 ];
 
 /**
- * Apply term translations to a prompt.
+ * Apply term translations to a prompt. Arabic only.
  */
 function translateTerms(prompt: string, lang: string): string {
+  if (lang !== "ar") return prompt;
   let result = prompt;
-  const mappings = lang === "fr" ? FR_EN : lang === "ar" ? AR_EN : [];
-  for (const [pattern, replacement] of mappings) {
+  for (const [pattern, replacement] of AR_EN) {
     result = result.replace(pattern, replacement);
   }
   return result;

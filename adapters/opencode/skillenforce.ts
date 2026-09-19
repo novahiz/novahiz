@@ -96,10 +96,9 @@ export const SkillenforcePlugin: Plugin = async ({ client }) => {
   };
 
   // Sessions only vanish from memory on session.deleted, which may never arrive.
-  // Prune entries idle for longer than SESSION_TTL_MS once the map grows.
+  // Prune entries idle for longer than SESSION_TTL_MS on every access.
   const touch = (sessionID: string): void => {
     lastSeenBySession.set(sessionID, Date.now());
-    if (lastSeenBySession.size < 10) return;
     const cutoff = Date.now() - SESSION_TTL_MS;
     for (const [id, seen] of lastSeenBySession) {
       if (seen < cutoff) forget(id);

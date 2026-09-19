@@ -25,7 +25,7 @@ export type DimensionScores = {
   scopeScale: number;
   constraints: number;
   domainSpecificity: number;
-  actionIntensity: number;
+  actionIntensity: { lite: number; full: number };
 };
 
 type DimensionSignals = {
@@ -171,13 +171,12 @@ const TRIVIAL_OVERRIDE: RegExp[] = [
 
 // ── Dimension weights ──────────────────────────────────────────────────────
 
-const WEIGHTS: Record<keyof DimensionScores, number> = {
+const WEIGHTS: Record<string, number> = {
   technicalDepth: 0.25,
   reasoningDepth: 0.25,
   scopeScale: 0.20,
   constraints: 0.15,
   domainSpecificity: 0.10,
-  actionIntensity: 0.05,
 };
 
 // ── Scoring functions ──────────────────────────────────────────────────────
@@ -236,7 +235,7 @@ export function scoreDimensions(prompt: string): DimensionScores {
     scopeScale,
     constraints: normalizedConstraints,
     domainSpecificity,
-    actionIntensity: Math.max(action.lite, action.full),
+    actionIntensity: { lite: action.lite, full: action.full },
   };
 }
 
@@ -244,7 +243,7 @@ export function scoreDimensions(prompt: string): DimensionScores {
  * Compute complexity scores using additive model.
  * Each dimension match adds points. Higher total = more complex.
  */
-function computeScores(dims: DimensionScores, actionLite: number, actionFull: number, wordCount: number): {
+function computeScores(dims: DimensionScores, wordCount: number): {
   full: number;
   lite: number;
   trivial: number;
@@ -257,11 +256,11 @@ function computeScores(dims: DimensionScores, actionLite: number, actionFull: nu
     dims.scopeScale +
     dims.constraints +
     dims.domainSpecificity +
-    actionFull;
+    dims.actionIntensity.full;
 
   // Lite-tier score: repair actions + low-complexity signals
   const lite =
-    actionLite +
+    dims.actionIntensity.lite +
     dims.technicalDepth +
     dims.reasoningDepth +
     dims.domainSpecificity;
@@ -284,24 +283,23 @@ export function scoreComplexity(prompt: string): ComplexityTier {
   }
 
   const dims = scoreDimensions(prompt);
-  const action = scoreActionIntensity(normalized);
   const wordCount = prompt.trim().split(/\s+/).length;
-  const { full, lite, trivial } = computeScores(dims, action.lite, action.full, wordCount);
+  const { full, lite, trivial } = computeScores(dims, wordCount);
 
   // Decision logic:
   //   full >= 3 → definitely full
   //   full >= 2 → full (2+ dimension matches is substantial)
-  //   action.full >= 2 && wordCount >= 5 → full (creation verb in a non-trivial prompt)
+  //   dims.actionIntensity.full >= 2 && wordCount >= 5 → full (creation verb in a non-trivial prompt)
   //   full >= 1 && wordCount >= 12 → full (long prompt with at least 1 signal)
-  //   action.lite >= 2 && wordCount >= 3 → lite (repair verb in a non-trivial prompt)
+  //   dims.actionIntensity.lite >= 2 && wordCount >= 3 → lite (repair verb in a non-trivial prompt)
   //   trivial >= 3 && full < 2 → trivial (short, no complexity, no repair verb)
   //   lite >= 2 && full < 2 → lite
   //   default: use length heuristic
   if (full >= 3) return "full";
   if (full >= 2) return "full";
-  if (action.full >= 2 && wordCount >= 5) return "full";
+  if (dims.actionIntensity.full >= 2 && wordCount >= 5) return "full";
   if (full >= 1 && wordCount >= 12) return "full";
-  if (action.lite >= 2 && wordCount >= 3) return "lite";
+  if (dims.actionIntensity.lite >= 2 && wordCount >= 3) return "lite";
   if (trivial >= 3 && full < 2) return "trivial";
   if (lite >= 2 && full < 2) return "lite";
 
