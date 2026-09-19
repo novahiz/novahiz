@@ -269,11 +269,15 @@ export function evaluateGate(input: GateInput): GateResult {
             continue;
           }
           if (tier === "lite") {
-            // Lite: only implement + converge (any step kind — edit, verify, skill)
-            const isImplementOrConverge = (step.requireSkills ?? []).some(
+            // Lite: only implement + converge skills (skip plan, clarify, etc.)
+            const allowed = (step.requireSkills ?? []).filter(
               s => s === "skillenforce-implement" || s === "skillenforce-converge"
             );
-            if (!isImplementOrConverge) continue;
+            if (allowed.length === 0) continue;
+            for (const skill of allowed) {
+              if (!requiredSkills.includes(skill)) requiredSkills.push(skill);
+            }
+            continue;
           }
 
           for (const skill of step.requireSkills ?? []) {

@@ -169,16 +169,6 @@ const TRIVIAL_OVERRIDE: RegExp[] = [
   // /\b(add\s+a\s+comment|document\s+the|add\s+docstring)\b/i,
 ];
 
-// ── Dimension weights ──────────────────────────────────────────────────────
-
-const WEIGHTS: Record<string, number> = {
-  technicalDepth: 0.25,
-  reasoningDepth: 0.25,
-  scopeScale: 0.20,
-  constraints: 0.15,
-  domainSpecificity: 0.10,
-};
-
 // ── Scoring functions ──────────────────────────────────────────────────────
 
 function countMatches(text: string, patterns: RegExp[]): number {

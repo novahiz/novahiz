@@ -78,7 +78,6 @@ const AR_EN: Array<[RegExp, string]> = [
   [/في/g, "in"],
   [/من/g, "from"],
   [/على/g, "on"],
-  [/ال/g, "the "],
   // UI/Design words
   [/صفحة/g, "page"],
   [/هبوط/g, "landing"],

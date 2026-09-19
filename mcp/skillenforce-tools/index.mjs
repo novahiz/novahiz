@@ -2,7 +2,7 @@
 import { createInterface } from "node:readline";
 import { pathToFileURL } from "node:url";
 import { resolve } from "node:path";
-import { realpathSync } from "node:fs";
+import { readFileSync, realpathSync } from "node:fs";
 import { classify } from "../../src/classify.ts";
 import { evaluateGate } from "../../src/gate.ts";
 import { loadSpec } from "../../src/spec.ts";
@@ -15,7 +15,12 @@ import { activeTask, addTodos, amendTodo, blockTodo, buildWorkPackets, completeT
 
 const SUPPORTED_PROTOCOLS = ["2024-11-05", "2025-06-18"];
 const DEFAULT_PROTOCOL = "2024-11-05";
-const SERVER_INFO = { name: "skillenforce-tools", version: "0.1.0" };
+let SERVER_VERSION = "0.0.0";
+try {
+  const pkg = JSON.parse(readFileSync(new URL("../../package.json", import.meta.url), "utf8"));
+  SERVER_VERSION = pkg.version ?? "0.0.0";
+} catch { /* keep default */ }
+const SERVER_INFO = { name: "skillenforce-tools", version: SERVER_VERSION };
 
 const TOOLS = [
   {
@@ -385,11 +390,14 @@ function callTool(name, args) {
       }
       const explicit = args?.task ? getTask(db, String(args.task)) : null;
       const state = explicit
-        ? {
-            task: explicit,
-            todos: listTodos(db, explicit.id),
-            current: listTodos(db, explicit.id).find((todo) => todo.status === "in_progress") ?? listTodos(db, explicit.id).find((todo) => todo.status === "pending") ?? null
-          }
+        ? (() => {
+            const todos = listTodos(db, explicit.id);
+            return {
+              task: explicit,
+              todos,
+              current: todos.find((todo) => todo.status === "in_progress") ?? todos.find((todo) => todo.status === "pending") ?? null
+            };
+          })()
         : resume(db, session);
       const review = state.task ? reviewDue(db, state.task.id) : null;
       const signals = state.task ? revisionSignals(db, state.task.id) : [];

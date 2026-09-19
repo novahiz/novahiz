@@ -3,7 +3,52 @@ import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { rewritePrompt } from "../../src/prompt-rewriter.ts";
+
+// Inlined from src/prompt-rewriter.ts to avoid broken relative path in installed plugin
+type RewriteResult = { original: string; rewritten: string; sourceLanguage: string; wasRewritten: boolean };
+
+function detectLanguage(prompt: string): string {
+  if (/[\u0600-\u06FF]/.test(prompt)) return "ar";
+  return "en";
+}
+
+const AR_EN: Array<[RegExp, string]> = [
+  [/اصلاح|اصلح/g, "fix"], [/انشاء|اصنع/g, "create"], [/اضافة|اضف/g, "add"],
+  [/حذف|احذف/g, "remove"], [/تعديل|عدّل/g, "modify"], [/هاكود|اكتشف/g, "debug"],
+  [/اختبار|اختبر/g, "test"], [/ترحيل|هجر/g, "migrate"], [/اضبط|ضبط/g, "configure"],
+  [/تحسين|حسّن/g, "optimize"], [/تبسيط|بسّط/g, "simplify"], [/تنظيف|نظّف/g, "clean up"],
+  [/تنفيذ|طبّق/g, "implement"], [/استخدام|استخدم/g, "use"], [/استبدال|بدّل/g, "replace"],
+  [/كتابة|اكتب/g, "write"], [/قراءة|اقرأ/g, "read"], [/حفظ|احفظ/g, "save"],
+  [/عرض|اعرض/g, "display"], [/اخفاء|اخفي/g, "hide"], [/تفعيل|فعّل/g, "enable"],
+  [/تعطيل|عطّل/g, "disable"], [/دالة/g, "function"], [/فئة/g, "class"],
+  [/طريقة/g, "method"], [/متغير/g, "variable"], [/ملف/g, "file"], [/شفرة/g, "code"],
+  [/مشكلة/g, "issue"], [/حل/g, "solution"], [/كيف/g, "how to"], [/لماذا/g, "why"],
+  [/أي/g, "which"], [/افعل/g, "do"], [/في/g, "in"], [/من/g, "from"], [/على/g, "on"],
+  [/صفحة/g, "page"], [/هبوط/g, "landing"], [/متجاوبة/g, "responsive"],
+  [/تصميم/g, "design"], [/واجهة/g, "interface"], [/زر/g, "button"], [/قائمة/g, "menu"],
+  [/شريط/g, "bar"], [/نافذة/g, "window"], [/شكل/g, "form"],
+  [/الخادم|السيرفر/g, "server"], [/قاعدة البيانات/g, "database"],
+  [/صفحة الهبوط/g, "landing page"], [/المصادقة/g, "auth"],
+  [/تسجيل الدخول/g, "login"], [/خطأ/g, "bug"], [/اداء/g, "performance"], [/امان/g, "security"],
+];
+
+function rewritePrompt(prompt: string): RewriteResult {
+  const sourceLanguage = detectLanguage(prompt);
+  if (sourceLanguage === "en") {
+    let r = prompt.trim().replace(/^I\s+want\s+to\s+/i, "").replace(/^I\s+need\s+to\s+/i, "")
+      .replace(/^Can\s+you\s+/i, "").replace(/^Could\s+you\s+/i, "").replace(/^Please\s+/i, "")
+      .replace(/^I\s+would\s+like\s+to\s+/i, "").replace(/^It\s+would\s+be\s+great\s+if\s+you\s+could\s+/i, "")
+      .replace(/[.!?]+$/, "").trim();
+    return { original: prompt, rewritten: r, sourceLanguage, wasRewritten: r !== prompt };
+  }
+  let result = prompt;
+  for (const [pattern, replacement] of AR_EN) result = result.replace(pattern, replacement);
+  let r = result.trim().replace(/^I\s+want\s+to\s+/i, "").replace(/^I\s+need\s+to\s+/i, "")
+    .replace(/^Can\s+you\s+/i, "").replace(/^Could\s+you\s+/i, "").replace(/^Please\s+/i, "")
+    .replace(/^I\s+would\s+like\s+to\s+/i, "").replace(/^It\s+would\s+be\s+great\s+if\s+you\s+could\s+/i, "")
+    .replace(/[.!?]+$/, "").trim();
+  return { original: prompt, rewritten: r, sourceLanguage, wasRewritten: true };
+}
 
 const HOME =
   process.env.SKILLEFORCE_HOME && process.env.SKILLEFORCE_HOME.length > 0
@@ -234,10 +279,14 @@ export const SkillenforcePlugin: Plugin = async ({ client }) => {
 
     "experimental.chat.system.transform": async (input, output) => {
       if (DISABLED) return;
-      const sessionID = input.sessionID;
-      if (!sessionID) return;
-      const block = enforcementBySession.get(sessionID);
-      if (block) output.system.push(block);
+      try {
+        const sessionID = input.sessionID;
+        if (!sessionID) return;
+        const block = enforcementBySession.get(sessionID);
+        if (block) output.system.push(block);
+      } catch (error) {
+        await log("warn", `system.transform hook failed: ${String(error).slice(0, 200)}`);
+      }
     },
 
     "tool.execute.before": async (input, output) => {

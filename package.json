@@ -37,16 +37,16 @@
     "node": ">=22.18.0"
   },
   "scripts": {
-    "check": "node src/cli.ts check",
-    "sync": "node src/cli.ts sync",
-    "classify": "node src/cli.ts classify",
-    "catalog": "node src/cli.ts catalog",
-    "report": "node src/cli.ts report",
+    "check": "node --experimental-strip-types src/cli.ts check",
+    "sync": "node --experimental-strip-types src/cli.ts sync",
+    "classify": "node --experimental-strip-types src/cli.ts classify",
+    "catalog": "node --experimental-strip-types src/cli.ts catalog",
+    "report": "node --experimental-strip-types src/cli.ts report",
     "setup": "node install/install.mjs",
     "setup:dry": "node install/install.mjs --dry-run",
     "bootstrap": "node install/bootstrap.mjs",
     "bootstrap:dry": "node install/bootstrap.mjs --dry-run",
-    "test": "node --test",
+    "test": "node --experimental-strip-types --test",
     "typecheck": "tsc --noEmit",
     "prepare": "tsc --noEmit",
     "postinstall": "node install/install.mjs --yes"

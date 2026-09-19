@@ -126,6 +126,10 @@ function main(argv: string[]): void {
     usage();
     return;
   }
+  if (parsed.flags.version || parsed.flags.v) {
+    printVersion();
+    return;
+  }
   switch (command) {
     case "init":
     case "setup":

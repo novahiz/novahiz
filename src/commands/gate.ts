@@ -11,7 +11,13 @@ import { autoCommit } from "../graft.ts";
 
 export function commandGate(parsed: Parsed): void {
   const root = skillenforceHome();
-  const spec = loadSpec(root);
+  let spec;
+  try {
+    spec = loadSpec(root);
+  } catch (error) {
+    print({ allow: true, error: `loadSpec failed: ${String(error).slice(0, 200)}`, tool: asString(parsed.flags.tool) || "edit" });
+    return;
+  }
   const gateConfig = spec.config.gate;
   const tool = asString(parsed.flags.tool) || "edit";
   const categories = splitList(parsed.flags.categories);

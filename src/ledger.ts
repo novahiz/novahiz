@@ -462,13 +462,14 @@ export function reviewTask(db: DatabaseSync, options: { taskId: string } & Revie
       "UPDATE tasks SET revision = ?, reviewed_at = ?, edits_since_review = 0, todos_since_review = 0, updated_at = ? WHERE id = ?"
     ).run(revision, ts, ts, options.taskId);
     db.exec("COMMIT");
-    autoCommit("task-reviewed", `revision ${revision}`);
-    return {
+    const result = {
       task: getTask(db, options.taskId) as TaskRow,
       revision,
       applied: { additions: additions.length, amendments: amendments.length, removals: removals.length, reordered: Boolean(options.order) },
       signals: revisionSignals(db, options.taskId)
     };
+    autoCommit("task-reviewed", `revision ${revision}`);
+    return result;
   } catch (error) {
     db.exec("ROLLBACK");
     throw error;

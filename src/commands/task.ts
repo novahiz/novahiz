@@ -61,6 +61,7 @@ export function commandTask(parsed: Parsed): void {
     if (action === "reorder") return taskReorder(parsed, db, session, spec);
 
     if (action === "read") return taskRead(parsed, db, session, spec);
+    if (action === "status") return taskRead(parsed, db, session, spec);
 
     print({ error: `unknown task action: ${action}`, actions: ["new", "plan", "todo", "start", "done", "block", "review", "amend", "insert", "drop", "reorder", "signals", "status", "resume", "current"] });
     process.exitCode = 1;

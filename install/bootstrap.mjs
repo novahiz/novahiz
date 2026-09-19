@@ -7,7 +7,7 @@ import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { nodeVersionOk, opencodeConfigDir, skillenforceHome } from "./lib.mjs";
 
-const REPO_URL = "https://github.com/skillenforce/skillenforce.git";
+const REPO_URL = "https://github.com/novahiz/skillenforce.git";
 // Was hardcoded to ~/.config/novahiz, ignoring SKILLEFORCE_HOME/NOVAHIZ_HOME.
 // skillenforceHome() already implements the env-first fallback chain.
 const SKILLEFORCE_HOME = skillenforceHome();
