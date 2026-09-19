@@ -19,11 +19,12 @@ An enforcement and execution layer for coding agents. It classifies a request in
 ## Configuration
 
 - `skillenforce.config.json` holds `dbPath`, `skillRoots`, `gate` (enabled, mode, envEscape, tools), `classify`, `providers`, and `ledger`.
-- `NOVAHIZ_HOME` relocates the home directory. `NOVAHIZ_DB` overrides the database path, which is how the tests stay off the real ledger.
-- `NOVAHIZ_GATE=off` disables the gate for a session.
+- `SKILLEFORCE_HOME` relocates the home directory. `SKILLEFORCE_DB` overrides the database path, which is how the tests stay off the real ledger.
+- `SKILLEFORCE_GATE=off` disables the gate for a session.
 
 ## Gotchas
 
+- **Windows env vars are case-sensitive through spawnSync.** Passing `skilleforce_HOME` (lowercase) in `spawnSync` env does NOT make `SKILLEFORCE_HOME` (uppercase) visible to the child process. All test env overrides and plugin env vars MUST use uppercase keys (`SKILLEFORCE_HOME`, `SKILLEFORCE_DB`, `SKILLEFORCE_GATE`).
 - Any change to `catalog/*.json` or to a skill needs `skillenforce sync`, or the catalog and the index keep describing the previous state.
 - The gate logs every decision to `enforcement_log`, so the database grows during ordinary use. `skillenforce clean` prunes it.
 - `defuddle` is a real external dependency of the `research` roadmap step, and `skillenforce doctor` checks for it.
