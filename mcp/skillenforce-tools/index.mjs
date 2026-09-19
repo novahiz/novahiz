@@ -388,20 +388,23 @@ function callTool(name, args) {
         if (!taskId) return toolResult("no active task", true);
         return toolResult(revisionSignals(db, taskId));
       }
-      const explicit = args?.task ? getTask(db, String(args.task)) : null;
-      const state = explicit
-        ? (() => {
-            const todos = listTodos(db, explicit.id);
-            return {
-              task: explicit,
-              todos,
-              current: todos.find((todo) => todo.status === "in_progress") ?? todos.find((todo) => todo.status === "pending") ?? null
-            };
-          })()
-        : resume(db, session);
-      const review = state.task ? reviewDue(db, state.task.id) : null;
-      const signals = state.task ? revisionSignals(db, state.task.id) : [];
-      return toolResult({ task: state.task, current: state.current, todos: state.todos, summary: ledgerSummary(state), review, signals });
+      if (action === "status" || action === "resume") {
+        const explicit = args?.task ? getTask(db, String(args.task)) : null;
+        const state = explicit
+          ? (() => {
+              const todos = listTodos(db, explicit.id);
+              return {
+                task: explicit,
+                todos,
+                current: todos.find((todo) => todo.status === "in_progress") ?? todos.find((todo) => todo.status === "pending") ?? null
+              };
+            })()
+          : resume(db, session);
+        const review = state.task ? reviewDue(db, state.task.id) : null;
+        const signals = state.task ? revisionSignals(db, state.task.id) : [];
+        return toolResult({ task: state.task, current: state.current, todos: state.todos, summary: ledgerSummary(state), review, signals });
+      }
+      return toolResult({ error: `unknown task action: ${action}` }, true);
     } finally {
       db.close();
     }

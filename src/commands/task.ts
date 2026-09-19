@@ -88,8 +88,7 @@ function taskRead(parsed: Parsed, db: ReturnType<typeof openDb>, session: string
     for (const signal of signals) summary.push(`  signal ${signal.type}: ${signal.detail}`);
   }
   print({ ...state, summary, review, signals });
-  return;
-    }
+}
 
 function taskReorder(parsed: Parsed, db: ReturnType<typeof openDb>, session: string, spec: ReturnType<typeof loadSpec>): void {
   const taskId = asString(parsed.flags.task) || activeTask(db, session || undefined)?.id;
