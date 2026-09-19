@@ -229,7 +229,11 @@ function callTool(name, args) {
   }
   if (name === "skillenforce_gate") {
     if (spec.config.gate.enabled === false) return toolResult({ allow: true, disabled: true });
-    const escapeValue = (process.env[spec.config.gate.envEscape || "SKILLEFORCE_GATE"] || "").toLowerCase();
+    // C5: envEscape is now hardcoded to "SKILLEFORCE_GATE" (the primary env
+    // var). The old configurable envEscape field allowed bypassing enforcement
+    // by setting an arbitrary env var. Hardcoded: the only way to override is
+    // through the canonical SKILLEFORCE_GATE var.
+    const escapeValue = (process.env.SKILLEFORCE_GATE || "").toLowerCase();
     if (["off", "0", "false", "no", "disabled"].includes(escapeValue)) {
       return toolResult({ allow: true, disabled: true });
     }
@@ -342,15 +346,29 @@ function callTool(name, args) {
         const id = String(args?.id ?? "");
         const target = getTodo(db, id);
         if (target) {
-          const due = reviewDue(db, target.task_id);
+          const due = reviewDue(db, target.task_id, spec.config.ledger?.review);
           if (due.due) return toolResult({ error: due.reason, task: target.task_id }, true);
         }
         return toolResult(startTodo(db, id));
       }
       if (action === "done") {
-        const todo = completeTodo(db, String(args?.id ?? ""), args?.proof ? String(args.proof) : "");
-        recordTodoDone(db, todo.task_id);
-        return toolResult(todo);
+        const id = String(args?.id ?? "");
+        const target = getTodo(db, id);
+        if (!target) return toolResult("no active task", true);
+        // H1: completeTodo + recordTodoDone must be atomic. Use a SAVEPOINT
+        // so the nested autoCommit inside completeTodo doesn't break the outer
+        // transaction boundary.
+        db.exec("SAVEPOINT done_sp");
+        try {
+          const todo = completeTodo(db, id, args?.proof ? String(args.proof) : "");
+          recordTodoDone(db, todo.task_id);
+          db.exec("RELEASE done_sp");
+          return toolResult(todo);
+        } catch (error) {
+          db.exec("ROLLBACK TO done_sp");
+          db.exec("RELEASE done_sp");
+          throw error;
+        }
       }
       if (action === "block") return toolResult(blockTodo(db, String(args?.id ?? ""), args?.reason ? String(args.reason) : ""));
       if (action === "review") {

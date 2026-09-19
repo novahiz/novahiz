@@ -97,14 +97,23 @@ const RUN_TIMEOUT_MS = 10_000;
 const RUN_MAX_BUFFER = 1_048_576;
 
 function run(args: string[], input?: string): RunResult {
+  // C1: On Windows, SIGTERM is emulated via process.kill() which sends
+  //TerminateProcess + exit code 1, causing the CLI to report status 1 instead
+  //of being properly terminated. Use SIGKILL on Windows (unavoidable but at
+  //least doesn't pretend graceful shutdown is possible).
+  const isWin = process.platform === "win32";
   const result = spawnSync(NODE, [CLI, ...args], {
     encoding: "utf8",
     input,
     timeout: RUN_TIMEOUT_MS,
     maxBuffer: RUN_MAX_BUFFER,
-    killSignal: "SIGTERM"
+    killSignal: isWin ? "SIGKILL" : "SIGTERM"
   });
   if (result.error) return { status: 1, stdout: "", stderr: "", spawnError: result.error.message };
+  // On Windows, timeout-killed processes always exit with status 1 (TerminateProcess).
+  // The `signal` property is set when the process was killed by a signal.
+  const timedOut = result.status === 1 && !result.stdout?.trim() && Boolean(result.signal);
+  if (timedOut) return { status: 1, stdout: "", stderr: "skillenforce timed out" };
   return { status: result.status ?? 1, stdout: result.stdout ?? "", stderr: result.stderr ?? "" };
 }
 
@@ -116,6 +125,12 @@ function textFromParts(parts: unknown): string {
     if (record && record.type === "text" && typeof record.text === "string") chunks.push(record.text);
   }
   return chunks.join("\n").trim();
+}
+
+// H2: Session IDs must be non-empty strings. This guards against undefined/null
+// being passed to spawnSync env, which would throw on Windows.
+function isValidSessionId(id: unknown): id is string {
+  return typeof id === "string" && id.trim().length > 0;
 }
 
 export const SkillenforcePlugin: Plugin = async ({ client }) => {
@@ -196,6 +211,7 @@ export const SkillenforcePlugin: Plugin = async ({ client }) => {
     "chat.message": async (input, output) => {
       if (DISABLED) return;
       try {
+        if (!isValidSessionId(input.sessionID)) return;
         touch(input.sessionID);
         const text = textFromParts(output.parts);
         if (text.length === 0) return;

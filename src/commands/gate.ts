@@ -105,72 +105,73 @@ export function commandGate(parsed: Parsed): void {
   }));
 
   const reasons: string[] = [];
-  const traceConfig = gateConfig.trace;
-  const traceRequired =
-    traceConfig?.enabled === true &&
-    session.length > 0 &&
-    categories.some((category) => traceConfig.categories.includes(category));
-  if (traceRequired) {
-    const db = openDb(dbPathFor(root, spec));
-    for (const entry of results) {
-      const trace = traceCheck(db, { sessionId: session, filePath: entry.path, required: true });
-      if (!trace.ok) {
-        entry.allow = false;
-        reasons.push(trace.reason);
-      }
-    }
-    db.close();
-  }
-
-  const ledgerConfig = spec.config.ledger;
-  if (ledgerConfig?.enabled !== false) {
-    const db = openDb(dbPathFor(root, spec));
-    const task = activeTask(db, session || undefined);
-    if (task) {
-      if (["edit", "write", "patch", "apply_patch"].includes(tool)) recordEdit(db, task.id);
-      const due = reviewDue(db, task.id, ledgerConfig.review);
-      if (due.due) {
-        for (const entry of results) entry.allow = false;
-        reasons.push(due.reason);
-      }
-    }
-    db.close();
-  }
-
-  const allow = results.every((entry) => entry.allow);
   const requiredSkills = [...new Set(results.flatMap((entry) => entry.requiredSkills))];
   const missingSkills = [...new Set(results.flatMap((entry) => entry.missingSkills))];
   const unmatchedRequired = [...new Set(results.flatMap((entry) => entry.unmatchedRequired))];
   const indexMissing = results.some((entry) => entry.indexMissing);
 
+  // H4: single DB connection for trace, ledger checks, AND enforcement logging
+  const db = openDb(dbPathFor(root, spec));
+  try {
+    const traceConfig = gateConfig.trace;
+    const traceRequired =
+      traceConfig?.enabled === true &&
+      session.length > 0 &&
+      categories.some((category) => traceConfig.categories.includes(category));
+    if (traceRequired) {
+      for (const entry of results) {
+        const trace = traceCheck(db, { sessionId: session, filePath: entry.path, required: true });
+        if (!trace.ok) {
+          entry.allow = false;
+          reasons.push(trace.reason);
+        }
+      }
+    }
+
+    const ledgerConfig = spec.config.ledger;
+    if (ledgerConfig?.enabled !== false) {
+      const task = activeTask(db, session || undefined);
+      if (task) {
+        if (["edit", "write", "patch", "apply_patch"].includes(tool)) recordEdit(db, task.id);
+        const due = reviewDue(db, task.id, ledgerConfig.review);
+        if (due.due) {
+          for (const entry of results) entry.allow = false;
+          reasons.push(due.reason);
+        }
+      }
+    }
+
+    const currentAllow = results.every((entry) => entry.allow);
+    if (session.length > 0) {
+      db.prepare(
+        "INSERT INTO enforcement_log (session_id, tool, file_path, file_class, decision, missing, matched_rules, logged_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+      ).run(
+        session,
+        tool,
+        paths.join(","),
+        results[0]?.fileClass ?? "other",
+        currentAllow ? "allow" : gateConfig.mode === "block" ? "block" : gateConfig.mode,
+        JSON.stringify(missingSkills),
+        JSON.stringify(results.flatMap((entry) => entry.matchedRules)),
+        new Date().toISOString()
+      );
+      autoCommit("enforcement", `${currentAllow ? "allow" : "block"} ${tool}`);
+    }
+  } finally {
+    db.close();
+  }
+
   const warnings: string[] = [];
   if (unmatchedRequired.length > 0) {
     warnings.push(
-      `required skills missing from index, therefore not applied: ${unmatchedRequired.join(", ")}. Restart skillenforce sync to realign the index.`
+      `required skills missing from index, therefore not applied: ` + unmatchedRequired.join(", ") + `. Restart skillenforce sync to realign the index.`
     );
   }
   if (indexMissing) {
     warnings.push("skills index unreadable: all required skills are enforced.");
   }
 
-  if (session.length > 0) {
-    const db = openDb(dbPathFor(root, spec));
-    db.prepare(
-      "INSERT INTO enforcement_log (session_id, tool, file_path, file_class, decision, missing, matched_rules, logged_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
-    ).run(
-      session,
-      tool,
-      paths.join(","),
-      results[0]?.fileClass ?? "other",
-      allow ? "allow" : gateConfig.mode === "block" ? "block" : gateConfig.mode,
-      JSON.stringify(missingSkills),
-      JSON.stringify(results.flatMap((entry) => entry.matchedRules)),
-      new Date().toISOString()
-    );
-    autoCommit("enforcement", `${allow ? "allow" : "block"} ${tool}`);
-    db.close();
-  }
-
+  const allow = results.every((entry) => entry.allow);
   print({
     allow,
     tool,

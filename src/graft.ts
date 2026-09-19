@@ -209,5 +209,9 @@ export function exportGraft(revision: string, outputPath: string): { success: bo
  */
 export function autoCommit(operation: string, detail?: string): void {
   const msg = detail ? `skillenforce: ${operation} — ${detail}` : `skillenforce: ${operation}`;
-  commitGraft(msg);
+  try {
+    commitGraft(msg);
+  } catch {
+    // H12: auto-commit failures must never break the caller
+  }
 }

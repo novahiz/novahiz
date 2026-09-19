@@ -155,6 +155,9 @@ export function isSafeRegexPattern(pattern: string): boolean {
   return !UNSAFE_NESTED_QUANTIFIER.test(pattern);
 }
 
+// M3: cache compiled regex patterns to avoid recompilation on every gate check
+const _regexCache = new Map<string, RegExp>();
+
 export function contentSatisfies(content: string, patterns: string[]): boolean {
   if (content.length === 0) return false;
   return patterns.some((pattern) => {
@@ -163,7 +166,12 @@ export function contentSatisfies(content: string, patterns: string[]): boolean {
     if (pattern.length > 1000) return false;
     if (!isSafeRegexPattern(pattern)) return false;
     try {
-      return new RegExp(pattern, "i").test(content);
+      let re = _regexCache.get(pattern);
+      if (!re) {
+        re = new RegExp(pattern, "i");
+        _regexCache.set(pattern, re);
+      }
+      return re.test(content);
     } catch {
       return false;
     }
@@ -236,6 +244,10 @@ export function evaluateGate(input: GateInput): GateResult {
       };
     }
 
+    // H3: Determine complexity tier BEFORE rule evaluation so that trivial
+    // prompts can skip skillenforce-specific rules entirely.
+    const tier = input.tier ?? determineTier(content);
+
     const requiredSkills: string[] = [];
     const matchedRules: string[] = [];
 
@@ -253,8 +265,6 @@ export function evaluateGate(input: GateInput): GateResult {
     const primary = categories[0];
     let roadmap: string | null = null;
 
-    // Determine complexity tier for this prompt
-    const tier = input.tier ?? determineTier(content);
 
     if (primary) {
       const category = input.spec.categories.find((entry) => entry.id === primary);

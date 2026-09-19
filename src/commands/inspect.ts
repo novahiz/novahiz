@@ -112,6 +112,9 @@ export function commandSessionLoad(parsed: Parsed): void {
     return;
   }
   const db = openDb(dbPathFor(root, spec));
+  // H5: ensure session exists for FK compliance
+  const ts = new Date().toISOString();
+  db.prepare("INSERT OR IGNORE INTO sessions (id, categories, required_skills, updated_at) VALUES (?, '[]', '[]', ?)").run(session, ts);
   db.prepare("INSERT OR IGNORE INTO skill_invocations (session_id, skill, invoked_at) VALUES (?, ?, ?)").run(
     session,
     skill,
@@ -125,6 +128,17 @@ export function commandSessionState(parsed: Parsed): void {
   const root = skillenforceHome();
   const spec = loadSpec(root);
   const session = asString(parsed.flags.session);
+  if (session.length === 0) {
+    print({ error: "session-state requires --session <id>" });
+    process.exitCode = 1;
+    return;
+  }
+  // H6: validate session ID format
+  if (!/^[a-zA-Z0-9_-]+$/.test(session)) {
+    print({ error: `invalid session ID format: "${session}" (expected alphanumeric, hyphens, underscores)` });
+    process.exitCode = 1;
+    return;
+  }
   const db = openDb(dbPathFor(root, spec));
   const loaded = (db.prepare("SELECT skill FROM skill_invocations WHERE session_id = ?").all(session) as { skill: string }[]).map(
     (row) => row.skill
@@ -172,6 +186,12 @@ export function commandStep(parsed: Parsed): void {
   const done = asString(parsed.flags.done);
   if (session.length === 0) {
     print({ error: "step requires --session <id>" });
+    process.exitCode = 1;
+    return;
+  }
+  // H6: validate session ID format
+  if (!/^[a-zA-Z0-9_-]+$/.test(session)) {
+    print({ error: `invalid session ID format: "${session}" (expected alphanumeric, hyphens, underscores)` });
     process.exitCode = 1;
     return;
   }

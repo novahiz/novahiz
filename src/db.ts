@@ -55,13 +55,13 @@ export function openDb(dbPath: string): DatabaseSync {
       updated_at TEXT NOT NULL
     );
     CREATE TABLE IF NOT EXISTS skill_invocations (
-      session_id TEXT NOT NULL,
+      session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
       skill TEXT NOT NULL,
       invoked_at TEXT NOT NULL,
       PRIMARY KEY (session_id, skill)
     );
     CREATE TABLE IF NOT EXISTS roadmap_progress (
-      session_id TEXT NOT NULL,
+      session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
       step_id TEXT NOT NULL,
       status TEXT NOT NULL DEFAULT 'done',
       updated_at TEXT NOT NULL,
@@ -82,7 +82,7 @@ export function openDb(dbPath: string): DatabaseSync {
       id TEXT PRIMARY KEY,
       title TEXT NOT NULL,
       status TEXT NOT NULL DEFAULT 'active',
-      session_id TEXT,
+      session_id TEXT REFERENCES sessions(id) ON DELETE SET NULL,
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL,
       revision INTEGER NOT NULL DEFAULT 0,
@@ -92,7 +92,7 @@ export function openDb(dbPath: string): DatabaseSync {
     );
     CREATE TABLE IF NOT EXISTS todos (
       id TEXT PRIMARY KEY,
-      task_id TEXT NOT NULL,
+      task_id TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
       seq INTEGER NOT NULL DEFAULT 0,
       label TEXT NOT NULL,
       kind TEXT NOT NULL DEFAULT 'edit',

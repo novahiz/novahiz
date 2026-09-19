@@ -153,6 +153,10 @@ function parseDeps(raw: string | null): string[] {
 export function createTask(db: DatabaseSync, options: { title: string; id?: string; sessionId?: string }): TaskRow {
   const taskId = options.id && options.id.trim().length > 0 ? options.id.trim() : genId("task");
   const ts = nowIso();
+  // H5: ensure referenced session exists (auto-create if needed for FK compliance)
+  if (options.sessionId) {
+    db.prepare("INSERT OR IGNORE INTO sessions (id, categories, required_skills, updated_at) VALUES (?, '[]', '[]', ?)").run(options.sessionId, ts);
+  }
   db.prepare(
     "INSERT INTO tasks (id, title, status, session_id, created_at, updated_at) VALUES (?, ?, 'active', ?, ?, ?)"
   ).run(taskId, options.title, options.sessionId ?? null, ts, ts);
@@ -163,6 +167,14 @@ export function createTask(db: DatabaseSync, options: { title: string; id?: stri
 export function getTask(db: DatabaseSync, id: string): TaskRow | null {
   const row = db.prepare("SELECT * FROM tasks WHERE id = ?").get(id);
   return (row as unknown as TaskRow) ?? null;
+}
+
+// C6: Helper that throws a descriptive error instead of casting null as TaskRow.
+// Prevents silent null-dereference when a task ID doesn't exist.
+function requireTask(db: DatabaseSync, id: string): TaskRow {
+  const task = getTask(db, id);
+  if (!task) throw new Error(`task not found: ${id}`);
+  return task;
 }
 
 export function activeTask(db: DatabaseSync, sessionId?: string): TaskRow | null {
@@ -384,12 +396,12 @@ export function dropTodo(db: DatabaseSync, id: string, reason = ""): TodoRow {
 
 export function recordEdit(db: DatabaseSync, taskId: string): number {
   db.prepare("UPDATE tasks SET edits_since_review = edits_since_review + 1, updated_at = ? WHERE id = ?").run(nowIso(), taskId);
-  return (getTask(db, taskId) as TaskRow).edits_since_review;
+  return requireTask(db, taskId).edits_since_review;
 }
 
 export function recordTodoDone(db: DatabaseSync, taskId: string): number {
   db.prepare("UPDATE tasks SET todos_since_review = todos_since_review + 1, updated_at = ? WHERE id = ?").run(nowIso(), taskId);
-  return (getTask(db, taskId) as TaskRow).todos_since_review;
+  return requireTask(db, taskId).todos_since_review;
 }
 
 export function reviewDue(db: DatabaseSync, taskId: string, policy: ReviewPolicy = { edits: DEFAULT_REVIEW_EDITS, todos: DEFAULT_REVIEW_TODOS }): ReviewState {
@@ -463,7 +475,7 @@ export function reviewTask(db: DatabaseSync, options: { taskId: string } & Revie
     ).run(revision, ts, ts, options.taskId);
     db.exec("COMMIT");
     const result = {
-      task: getTask(db, options.taskId) as TaskRow,
+      task: requireTask(db, options.taskId),
       revision,
       applied: { additions: additions.length, amendments: amendments.length, removals: removals.length, reordered: Boolean(options.order) },
       signals: revisionSignals(db, options.taskId)
