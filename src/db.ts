@@ -106,6 +106,10 @@ export function openDb(dbPath: string): DatabaseSync {
     );
     CREATE INDEX IF NOT EXISTS enforcement_log_logged_at ON enforcement_log(logged_at);
     CREATE INDEX IF NOT EXISTS enforcement_log_session ON enforcement_log(session_id);
+    CREATE INDEX IF NOT EXISTS todos_task_id ON todos(task_id);
+    CREATE INDEX IF NOT EXISTS tasks_status_session ON tasks(status, session_id);
+    CREATE INDEX IF NOT EXISTS skill_invocations_session ON skill_invocations(session_id);
+    CREATE INDEX IF NOT EXISTS roadmap_progress_session ON roadmap_progress(session_id);
   `);
   migrate(db);
   // H4: enforce the session TTL on every open — best effort, prune failures

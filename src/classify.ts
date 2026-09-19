@@ -181,7 +181,7 @@ export function classify(spec: Spec, prompt: string, options: ClassifyOptions = 
     if (tier === "lite") {
       // Lite: only implement + converge (any step kind — edit, verify, skill)
       for (const step of category.roadmap?.steps ?? []) {
-        if (step.requireSkills?.some(s => s.includes("implement") || s.includes("converge"))) {
+        if (step.requireSkills?.some(s => s === "skillenforce-implement" || s === "skillenforce-converge")) {
           for (const skill of step.requireSkills ?? []) {
             if (!requiredSkills.includes(skill)) requiredSkills.push(skill);
           }

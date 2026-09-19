@@ -301,14 +301,17 @@ function callTool(name, args) {
     const session = String(args?.session ?? "default");
     const done = args?.done ? String(args.done) : "";
     const db = openDb(resolve(spec.root, spec.config.dbPath));
-    if (done.length > 0) {
-      db.prepare(
-        "INSERT INTO roadmap_progress (session_id, step_id, status, updated_at) VALUES (?, ?, 'done', ?) ON CONFLICT(session_id, step_id) DO UPDATE SET status = 'done', updated_at = excluded.updated_at"
-      ).run(session, done, new Date().toISOString());
+    try {
+      if (done.length > 0) {
+        db.prepare(
+          "INSERT INTO roadmap_progress (session_id, step_id, status, updated_at) VALUES (?, ?, 'done', ?) ON CONFLICT(session_id, step_id) DO UPDATE SET status = 'done', updated_at = excluded.updated_at"
+        ).run(session, done, new Date().toISOString());
+      }
+      const steps = db.prepare("SELECT step_id, status, updated_at FROM roadmap_progress WHERE session_id = ? ORDER BY updated_at").all(session);
+      return toolResult({ session, steps });
+    } finally {
+      db.close();
     }
-    const steps = db.prepare("SELECT step_id, status, updated_at FROM roadmap_progress WHERE session_id = ? ORDER BY updated_at").all(session);
-    db.close();
-    return toolResult({ session, steps });
   }
   if (name === "skillenforce_task") {
     const action = String(args?.action ?? "status");

@@ -145,7 +145,7 @@ const SIGNALS: DimensionSignals = {
     { pattern: /\b(implement|build|create|design|architect|scaffold|bootstrap)\b/i, lite: 0, full: 3 },
     { pattern: /\b(refactor|rewrite|restructure|reorganize|migrate|convert)\b/i, lite: 0, full: 3 },
     { pattern: /\b(audit|security\s*review|pentest|penetration\s*test)\b/i, lite: 0, full: 3 },
-    { pattern: /\b(deploy|release|ship|launch|publish)\b/i, lite: 1, full: 2 },
+    { pattern: /\b(deploy|release|ship|launch|publish)\b/i, lite: 1, full: 1 },
     // Lite-tier actions (repair verbs)
     { pattern: /\b(fix|repair|patch|resolve|debug|diagnose)\b/i, lite: 2, full: 0 },
     { pattern: /\b(update|upgrade|bump|change|modify|edit|adjust)\b/i, lite: 2, full: 0 },
@@ -303,9 +303,9 @@ export function scoreComplexity(prompt: string): ComplexityTier {
   if (trivial >= 3 && full < 2) return "trivial";
   if (lite >= 2 && full < 2) return "lite";
 
-  // Default by length
+  // Default by length — high threshold prevents false full-tier on long prose
   if (wordCount <= 8) return "trivial";
-  if (wordCount <= 20) return "lite";
+  if (wordCount <= 40) return "lite";
   return "full";
 }
 

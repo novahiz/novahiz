@@ -86,7 +86,7 @@ export function commandDoctor(parsed: Parsed): void {
     installedIndexAvailable: index.available,
     spec
   });
-  const gateOk = spec.rules.length > 0 && probe.allow === false && probe.missingSkills.length > 0;
+  const gateOk = spec.rules.length === 0 || (probe.allow === false && probe.missingSkills.length > 0);
   checks.push({
     id: "gate",
     label: "Operational gate",

@@ -56,8 +56,8 @@ export function commandTokens(parsed: Parsed): void {
         ["tasks:", String(taskEvents)],
         ["todos:", String(todoEvents)],
         ["blocked:", String(blocked)],
-        ["est. bytes saved:", ui.bytes(blockedBytes)],
-        ["est. tokens saved:", String(blockedTokens)]
+        ["est. bytes saved (~±5x):", ui.bytes(blockedBytes)],
+        ["est. tokens saved (~±5x):", String(blockedTokens)]
       ]),
       "",
       ui.heading("By tool"),
