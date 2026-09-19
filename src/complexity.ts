@@ -304,5 +304,7 @@ export function scoreComplexity(prompt: string): ComplexityTier {
  * Main entry point for the complexity system.
  */
 export function determineTier(prompt: string): ComplexityTier {
+  // C2: guard against null/undefined — treat as trivial instead of crashing
+  if (!prompt || typeof prompt !== "string") return "trivial";
   return scoreComplexity(prompt);
 }

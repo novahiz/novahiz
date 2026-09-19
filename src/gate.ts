@@ -117,6 +117,7 @@ const CONFIG_BASENAMES = new Set([
 }
 
 // M-Gate: cache glob→RegExp conversions (same glob pattern recompiled on every call)
+const GLOB_CACHE_MAX = 512;
 const _globCache = new Map<string, RegExp>();
 
 export function globToRegExp(glob: string): RegExp {
@@ -149,6 +150,11 @@ export function globToRegExp(glob: string): RegExp {
     }
   }
   cached = new RegExp(`^${output}$`, "i");
+  // H4: eviction — drop oldest entry when cache is full
+  if (_globCache.size >= GLOB_CACHE_MAX) {
+    const firstKey = _globCache.keys().next().value;
+    if (firstKey !== undefined) _globCache.delete(firstKey);
+  }
   _globCache.set(glob, cached);
   return cached;
 }
@@ -186,7 +192,10 @@ export function contentSatisfies(content: string, patterns: string[]): boolean {
       }
       return re.test(content);
     } catch {
-      return false;
+      // H1: fail-closed — propagate the error so the caller can decide.
+      // For contentMatches this blocks the edit; for contentExcludes the
+      // caller catches and treats it as "exclude matched" (also blocking).
+      throw new Error(`regex error in pattern: ${pattern.slice(0, 80)}`);
     }
   });
 }
@@ -267,8 +276,15 @@ export function evaluateGate(input: GateInput): GateResult {
     for (const rule of input.spec.rules) {
       if (!selectorMatches(rule, classification, path, categories)) continue;
       if (rule.when.minChange && isTrivial(content, rule.when.minChange)) continue;
-      if (rule.when.contentExcludes && contentSatisfies(content, rule.when.contentExcludes)) continue;
-      if (rule.when.contentMatches && !contentSatisfies(content, rule.when.contentMatches)) continue;
+      // H1: contentSatisfies now throws on regex errors (fail-closed).
+      // For contentExcludes: regex error → treat as "exclude matched" → skip rule.
+      // For contentMatches: regex error → treat as "match succeeded" → apply rule.
+      if (rule.when.contentExcludes) {
+        try { if (contentSatisfies(content, rule.when.contentExcludes)) continue; } catch { continue; }
+      }
+      if (rule.when.contentMatches) {
+        try { if (!contentSatisfies(content, rule.when.contentMatches)) continue; } catch { /* fail-closed: apply rule */ }
+      }
       matchedRules.push(rule.id);
       for (const skill of rule.require) {
         if (!requiredSkills.includes(skill)) requiredSkills.push(skill);

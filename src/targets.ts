@@ -282,9 +282,8 @@ export function extractTargetPaths(tool: string, args: unknown): string[] {
   const paths: string[] = [];
   const push = (value: unknown): void => {
     if (typeof value === "string" && value.length > 0 && !paths.includes(value)) {
-      // C-Security: reject path traversal sequences (../, ..\\) that bypass
-      // the expandHome check since these paths come from untrusted tool args.
-      if (value.includes("..") || value.includes("..\\/") || value.includes("..\\\\")) return;
+      // C-Security: reject path traversal — check if any path segment is exactly ".."
+      if (value.split(/[/\\]/).some((s) => s === "..")) return;
       paths.push(value);
     }
   };

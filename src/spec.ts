@@ -194,10 +194,15 @@ export function skillenforceHome(): string {
 export function expandHome(value: string): string {
   if (value === "~") return homedir();
   if (value.startsWith("~/") || value.startsWith("~\\")) return join(homedir(), value.slice(2));
-  // H15: reject path traversal sequences (../, ..\\)
-  if (value.includes("..") || value.includes("..\\/") || value.includes("..\\\\")) return value;
+  // H15: reject path traversal — check if any path segment is exactly ".."
+  if (hasTraversalSegment(value)) return value;
   // M19: ~username is a shell convention not natively supported by Node.js.
   return value;
+}
+
+/** Returns true if the path contains a segment that is exactly ".." */
+function hasTraversalSegment(p: string): boolean {
+  return p.split(/[/\\]/).some((segment) => segment === "..");
 }
 
 function stripBom(text: string): string {

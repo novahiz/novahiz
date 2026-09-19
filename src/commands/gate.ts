@@ -49,7 +49,9 @@ export function commandGate(parsed: Parsed): void {
     print({ allow: true, disabled: true, tool });
     return;
   }
-  const escapeValue = (process.env[gateConfig.envEscape] || "").toLowerCase();
+  // H3: always use SKILLEFORCE_GATE (legacy: NOVAHIZ_GATE) — ignore configurable
+  // envEscape to prevent a writable config from redirecting the kill-switch.
+  const escapeValue = (process.env.SKILLEFORCE_GATE || process.env.NOVAHIZ_GATE || "").toLowerCase();
   if (["off", "0", "false", "no", "disabled"].includes(escapeValue)) {
     print({ allow: true, disabled: true });
     return;

@@ -159,14 +159,14 @@ export function classify(spec: Spec, prompt: string, options: ClassifyOptions = 
   }
 
   const selected = scored.slice(0, Math.max(0, maxCategories));
-  // M2: a misconfigured fallbackCategory used to produce a hollow classification
-  // (primary set, zero skills). Validate it exists before pushing.
-  if (
-    selected.length === 0 &&
-    fallbackCategory.length > 0 &&
-    spec.categories.some((entry) => entry.id === fallbackCategory)
-  ) {
-    selected.push({ id: fallbackCategory, score: 0, confidence: 0, margin: 0, terms: [], negatives: [] });
+  // H8: when nothing matched and fallback is misconfigured, force "general" so
+  // the gate still applies R6 rules instead of silently allowing everything.
+  if (selected.length === 0) {
+    if (fallbackCategory.length > 0 && spec.categories.some((entry) => entry.id === fallbackCategory)) {
+      selected.push({ id: fallbackCategory, score: 0, confidence: 0, margin: 0, terms: [], negatives: [] });
+    } else if (spec.categories.some((entry) => entry.id === "general")) {
+      selected.push({ id: "general", score: 0, confidence: 0, margin: 0, terms: [], negatives: [] });
+    }
   }
 
   const requiredSkills: string[] = [];
@@ -216,7 +216,9 @@ export function classify(spec: Spec, prompt: string, options: ClassifyOptions = 
 
   const primary = selected[0]?.id ?? null;
   const primaryCategory = primary ? spec.categories.find((entry) => entry.id === primary) : undefined;
-  const enforcedSkills = primaryCategory ? enforcedOfCategory(primaryCategory) : [];
+  // C1: enforcedSkills must respect tier gating — trivial prompts should not
+  // expose enforced skills, otherwise downstream consumers load skills unnecessarily.
+  const enforcedSkills = (tier !== "trivial" && primaryCategory) ? enforcedOfCategory(primaryCategory) : [];
 
   const providers = providersForCategories(
     spec,
