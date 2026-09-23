@@ -1,4 +1,4 @@
-# Novahiz
+# Novahiz: Agent Governance Toolkit
 
 > **Zero-dependency enforcement layer for AI coding agents** — classifies prompts, assigns execution roadmaps, blocks unsafe edits, and injects session-level skills, all deterministically without model calls.
 
