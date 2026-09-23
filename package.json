@@ -27,11 +27,11 @@
     "access": "public"
   },
   "bin": {
-    "novahiz": "./bin/novahiz.mjs",
-    "novahiz-bootstrap": "./install/bootstrap.mjs",
-    "novahiz-install": "./install/install.mjs",
-    "novahiz-uninstall": "./install/uninstall.mjs",
-    "novahiz-mcp": "./mcp/novahiz-tools/index.mjs"
+    "novahiz": "bin/novahiz.mjs",
+    "novahiz-bootstrap": "install/bootstrap.mjs",
+    "novahiz-install": "install/install.mjs",
+    "novahiz-uninstall": "install/uninstall.mjs",
+    "novahiz-mcp": "mcp/novahiz-tools/index.mjs"
   },
   "engines": {
     "node": ">=22.18.0"

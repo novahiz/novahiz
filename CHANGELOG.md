@@ -6,8 +6,14 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [0.2.2] - 2026-09-23
+
 ### Added
 
+- `project-memory` durable store under the project root: `index.json` plus fixed-size slots (8000 chars / 200 lines), compact → archive → new-slot rotation, shared by the plugin and the MCP surface.
+- Five MCP tools: `memory_write`, `memory_list`, `memory_get`, `memory_init`, `memory_rebuild`.
+- Plugin bootstrap (`ensureProjectMemory`) so a project gets a memory skeleton on first use.
+- Two `doctor` checks: `memory` (limits present) and `memory-tools` (five tools registered).
 - Six-stage execution pipeline: `novahiz-plan`, `novahiz-clarify`, `novahiz-task`, `novahiz-analyse`, `novahiz-implement`, `novahiz-converge`, orchestrated by `novahiz-planner`.
 - `novahiz clean` removes old enforcement logs, roadmap progress, sessions, and closed tasks, with `--days`, `--dry-run`, `--apply`, and `--vacuum`.
 - `novahiz doctor` runs nine preflight checks and exits non-zero on a blocking finding.
@@ -25,6 +31,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Changed
 
+- Package and product renamed from Skillenforce to Novahiz across code, docs, skills, harnesses, and installers. The npm package name is `novahiz`; bins are `novahiz`, `novahiz-bootstrap`, `novahiz-install`, `novahiz-uninstall`, `novahiz-mcp`.
 - NOTICE license inventory closed: the "no recorded upstream" list is empty. `skill-creator` frontmatter gains `license: Apache-2.0` (matches `LICENSE.txt`); `write-a-skill` license recorded as MIT (frontmatter + `original_license` metadata); `playwright-agent` recorded (MIT, upstream not recorded); `prompt-rewriter` recognized as Novahiz-owned with `license: Apache-2.0` and `compatibility` (implementation lives in `src/prompt-rewriter.ts` / `adapters/opencode/novahiz.ts`); em-dashes cleaned in `prompt-rewriter` SKILL.md.
 - `playwright-agent` humanized (French prose kept, `license: MIT` preserved): absolute external-server rule reframed, 4-step startup protocol, error/cause/solution table, Playwright command cheatsheet (navigate, interact, capture, inspect, wait), 6 practical rules, Novahiz pipeline integration note; em-dashes and AI tells removed; mirror synced (1 file, 0 hashDiff).
 - `skill-creator` humanized as Novahiz-owned (Apache-2.0 frontmatter already present): prose rewritten to drop em-dashes and AI writing patterns across `SKILL.md`, `agents/grader.md`, `references/schemas.md`, `scripts/improve_description.py`, `scripts/aggregate_benchmark.py`, `scripts/generate_report.py`, `eval-viewer/generate_review.py`, and `eval-viewer/viewer.html`; UI placeholder em-dashes replaced by `-`; structure and Anthropic LICENSE.txt preserved; mirror synced (18 files, 0 hashDiff).
@@ -81,7 +88,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [0.1.0] - 2026-09-11
 
-Initial release.
+Initial release under the Skillenforce name (npm history later continued as `novahiz` 0.1.x).
 
 ### Added
 
