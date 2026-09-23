@@ -24,6 +24,7 @@ import {
   recordTodoDone,
   reorderTodos,
   resume,
+  reviewBlockReason,
   reviewDue,
   reviewTask,
   revisionSignals,
@@ -260,6 +261,38 @@ test("flags a plan review when the edit cadence is exceeded", () => {
   recordEdit(db, task.id);
   recordEdit(db, task.id);
   assert.equal(reviewDue(db, task.id).due, true);
+});
+
+test("blocks only paths owned by an open todo when review is due", () => {
+  const task = makeTask("Targeted review");
+  const [owned] = addTodos(db, task.id, [{ label: "owned work", owner: "src/commands/gate.ts" }]);
+  const [unowned] = addTodos(db, task.id, [{ label: "unowned work" }]);
+  assert.equal(owned.owner, "src/commands/gate.ts");
+  assert.equal(unowned.owner, null);
+  recordEdit(db, task.id);
+  recordEdit(db, task.id);
+  recordEdit(db, task.id);
+  assert.equal(reviewDue(db, task.id).due, true);
+  const linked = reviewBlockReason(db, task.id, "src/commands/gate.ts");
+  assert.ok(linked && linked.includes("plan review due"));
+  assert.equal(reviewBlockReason(db, task.id, "README.md"), null);
+  assert.equal(reviewBlockReason(db, task.id, "dist/bundle.js"), null);
+  completeTodo(db, owned.id, "done");
+  completeTodo(db, unowned.id, "done");
+  reviewTask(db, { taskId: task.id, additions: [], amendments: [] });
+  assert.equal(reviewDue(db, task.id).due, false);
+  assert.equal(reviewBlockReason(db, task.id, "src/commands/gate.ts"), null);
+});
+
+test("does not block any path when review is due but no open todo has an owner", () => {
+  const task = makeTask("Due without owners");
+  addTodos(db, task.id, [{ label: "no owner" }]);
+  recordEdit(db, task.id);
+  recordEdit(db, task.id);
+  recordEdit(db, task.id);
+  assert.equal(reviewDue(db, task.id).due, true);
+  assert.equal(reviewBlockReason(db, task.id, "src/anything.ts"), null);
+  assert.equal(reviewBlockReason(db, task.id, "README.md"), null);
 });
 
 test("counts finished todos toward the review cadence", () => {

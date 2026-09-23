@@ -160,7 +160,7 @@ flowchart TD
 | R1-code-prose | Code or design file whose change contains prose | novahiz-humanizer |
 | R1-docs | Text, data or config file, or a docs-writing prompt | novahiz-humanizer |
 | R3-supabase | A Supabase path or a Supabase prompt | novahiz-supabase, novahiz-postgres |
-| R4-playwright | A browser prompt category | novahiz-browser |
+| R4-playwright | A browser prompt category, or a browser test path (`**/*.spec.ts`, `**/e2e/**`, `**/playwright/**`, …) | novahiz-browser |
 | R6-Novahiz | A prompt in a workflow category | novahiz-plan, -clarify, -analyse, -implement, -converge |
 | R7-assessment | An assessment prompt | novahiz-assess-intake, -research, -define, -shape, -decide |
 | R8-docs | Edits under `novahiz-docs/**/*.md` | novahiz-docs |

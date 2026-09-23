@@ -6,6 +6,14 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [0.2.4] - 2026-09-23
+
+### Fixed
+
+- Plan review due no longer forces `allow: false` on every gate target. The gate now blocks only paths owned by an open todo with a non-empty owner pattern (`reviewBlockReason`); unrelated files stay allowed, and a due review with no owned open todo is reported as a warning instead of a lock-out.
+- `R4-playwright` also matches browser test paths (`**/*.spec.ts`, `**/e2e/**`, `**/playwright/**`, and related globs) with `match: "any"`, so editing those files loads `novahiz-browser` even without a `browser` prompt category.
+- `docs/INSTALL.md` listed nine doctor checks; there are twelve. The same page now documents the `NOVAHIZ_GATE` kill-switch and that `gate.envEscape` is schema-only.
+
 ## [0.2.3] - 2026-09-23
 
 ### Added

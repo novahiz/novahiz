@@ -35,7 +35,7 @@ Content conditions are combined with AND against the selectors. A rule with `con
 | R1-docs | text, data or config file, or a docs-writing prompt | `novahiz-humanizer` |
 | R1-code-prose | code or design file whose change contains prose | `novahiz-humanizer` |
 | R3-supabase | a Supabase path or a Supabase prompt | `novahiz-supabase`, `novahiz-postgres` |
-| R4-playwright | a browser prompt category | `novahiz-browser` |
+| R4-playwright | a browser prompt category, or a browser test path (`**/*.spec.ts`, `**/e2e/**`, `**/playwright/**`, …) | `novahiz-browser` |
 | R6-Novahiz | a prompt in a workflow category | pipeline skills (`novahiz-plan`, `novahiz-clarify`, `novahiz-analyse`, `novahiz-implement`, `novahiz-converge`) |
 | R9-code-review | a review prompt or a code file under review | `novahiz-code-review` |
 | R10-security | an audit or security prompt | `novahiz-security` |

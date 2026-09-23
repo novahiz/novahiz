@@ -6,7 +6,7 @@ import { loadInstalledSkills } from "../catalog.ts";
 import { changeText } from "../content.ts";
 import { evaluateGate } from "../gate.ts";
 import { extractTargetPaths } from "../targets.ts";
-import { activeTask, recordEdit, reviewDue, traceCheck } from "../ledger.ts";
+import { activeTask, recordEdit, reviewBlockReason, reviewDue, traceCheck } from "../ledger.ts";
 import { autoCommit } from "../graft.ts";
 
 export function commandGate(parsed: Parsed): void {
@@ -122,6 +122,7 @@ export function commandGate(parsed: Parsed): void {
   }));
 
   const reasons: string[] = [];
+  let reviewWarning = "";
   const requiredSkills = [...new Set(results.flatMap((entry) => entry.requiredSkills))];
   const missingSkills = [...new Set(results.flatMap((entry) => entry.missingSkills))];
   const unmatchedRequired = [...new Set(results.flatMap((entry) => entry.unmatchedRequired))];
@@ -158,10 +159,19 @@ export function commandGate(parsed: Parsed): void {
       const task = activeTask(db, session || undefined);
       if (task) {
         if (["edit", "write", "patch", "apply_patch"].includes(tool)) recordEdit(db, task.id);
-        const due = reviewDue(db, task.id, ledgerConfig.review);
-        if (due.due) {
-          for (const entry of results) entry.allow = false;
-          reasons.push(due.reason);
+        // Targeted review: block only paths owned by an open todo with an owner
+        // pattern. A due review no longer freezes every target.
+        for (const entry of results) {
+          const reason = reviewBlockReason(db, task.id, entry.path, ledgerConfig.review);
+          if (reason && !entry.ignored) {
+            entry.allow = false;
+            entry.reasons.push(reason);
+          }
+        }
+        if (results.some((entry) => entry.reasons.some((reason) => reason.startsWith("plan review due")))) {
+          reasons.push(reviewDue(db, task.id, ledgerConfig.review).reason);
+        } else if (reviewDue(db, task.id, ledgerConfig.review).due) {
+          reviewWarning = reviewDue(db, task.id, ledgerConfig.review).reason;
         }
       }
     }
@@ -191,6 +201,7 @@ export function commandGate(parsed: Parsed): void {
   }
 
   const warnings: string[] = [];
+  if (reviewWarning.length > 0) warnings.push(reviewWarning);
   if (unmatchedRequired.length > 0) {
     warnings.push(
       `required skills missing from index, therefore not applied: ` + unmatchedRequired.join(", ") + `. Restart novahiz sync to realign the index.`

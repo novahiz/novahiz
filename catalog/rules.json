@@ -29,9 +29,20 @@
   },
   {
     "id": "R4-playwright",
-    "description": "Load novahiz-browser on any task using Playwright.",
+    "description": "Load novahiz-browser on any task using Playwright or targeting browser tests.",
     "when": {
-      "promptCategories": ["browser"]
+      "match": "any",
+      "promptCategories": ["browser"],
+      "pathGlobs": [
+        "**/*.spec.ts",
+        "**/*.spec.js",
+        "**/*.e2e.ts",
+        "**/*.e2e.js",
+        "**/*.pw.ts",
+        "**/e2e/**",
+        "**/playwright/**",
+        "**/*.cy.ts"
+      ]
     },
     "require": ["novahiz-browser"]
   },

@@ -469,6 +469,22 @@ export function reviewDue(db: DatabaseSync, taskId: string, policy: ReviewPolicy
   return { due, edits: task.edits_since_review, todos: task.todos_since_review, policy, reason };
 }
 
+/**
+ * Which gate targets a due plan review should block.
+ * Only paths owned by an open todo with a non-empty owner pattern are blocked.
+ * Empty owners and tasks with no owned open todos never expand the block set,
+ * so a due review no longer freezes the whole gate.
+ */
+export function reviewBlockReason(db: DatabaseSync, taskId: string, filePath: string, policy?: ReviewPolicy): string | null {
+  const due = reviewDue(db, taskId, policy);
+  if (!due.due) return null;
+  const openOwned = listTodos(db, taskId).filter(
+    (todo) => (todo.status === "pending" || todo.status === "in_progress") && (todo.owner ?? "").trim().length > 0
+  );
+  if (openOwned.length === 0) return null;
+  return openOwned.some((todo) => ownedBy(todo, filePath)) ? due.reason : null;
+}
+
 export function revisionSignals(db: DatabaseSync, taskId: string): RevisionSignal[] {
   const todos = listTodos(db, taskId);
   const signals: RevisionSignal[] = [];

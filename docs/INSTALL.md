@@ -27,7 +27,7 @@ The installer runs `git`-free and never deletes your files. When run in a termin
 6. Verifies provider dependencies, and installs them when you confirm or `--install-providers` is set.
 7. Installs the Novahiz agent into `~/.config/opencode/agent/novahiz.md` and the four slash commands into `~/.config/opencode/commands/`.
 
-Restart opencode afterward. The plugin registers the Novahiz MCP server automatically, so you do not edit `opencode.jsonc` by hand. See [HARNESSES.md](HARNESSES.md) for the exact paths.
+Restart opencode afterward. The plugin in `~/.config/opencode/plugins/novahiz.ts` is auto-discovered (confirmed by `opencode debug config`: `file:///…/plugins/novahiz.ts`, scope local), so it is not listed in `plugin[]` and you do not edit `opencode.jsonc` by hand. See [HARNESSES.md](HARNESSES.md) for the exact paths.
 
 ## Options
 
@@ -54,7 +54,9 @@ node ~/.config/novahiz/src/cli.ts doctor
 node ~/.config/novahiz/src/cli.ts clean --dry-run
 ```
 
-`doctor` runs nine checks: Node version, `npx`, the installed-skills index, the referenced skills, the external CLIs the skills call, a gate smoke test, the ledger database, whether the installed plugin copy matches the source, and whether the installed agent grants the `question` tool. It exits non-zero when a blocking check fails, so it works as a pre-flight in scripts.
+`doctor` runs twelve checks: Node 22.18+, `npx`, the installed-skills index, the referenced skills, the external CLIs the skills call, a gate smoke test, the registry database, the schema version, whether the installed plugin copy matches the source, the memory module limits, the five MCP `memory_*` tools, and whether the installed agent is in sync and grants the `question` tool. It exits non-zero when a blocking check fails, so it works as a pre-flight in scripts.
+
+The gate kill-switch environment variable is `NOVAHIZ_GATE` (`off`, `0`, `false`, `no`, or `disabled`). The config key `gate.envEscape` exists only for schema compatibility: it cannot rename the variable. See [CONFIGURATION.md](CONFIGURATION.md).
 
 `clean` trims old rows from the ledger, `novahiz.sqlite`. Targets are `logs` (default), `roadmap`, `sessions`, `tasks`, and `all`; flags are `--days N` (default 30), `--dry-run`, `--apply`, `--vacuum`, and `--json`. Without `--apply` on a terminal it prints the plan and asks; without a terminal it prints the plan and exits 1, so a script cannot delete by accident.
 
