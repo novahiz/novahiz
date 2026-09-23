@@ -159,6 +159,28 @@ test("gate accepts the filePath alias", () => {
   assert.equal(typeof payload.allow, "boolean");
 });
 
+test("gate auto-classifies from prompt when categories is omitted", () => {
+  const out = call([
+    JSON.stringify({
+      jsonrpc: "2.0",
+      id: 1,
+      method: "tools/call",
+      params: {
+        name: "novahiz_gate",
+        arguments: {
+          tool: "edit",
+          file: "src/app.ts",
+          prompt: "corrige le bug de login dans le formulaire et ajoute un test"
+        }
+      }
+    })
+  ]);
+  assert.equal(out[0].error, undefined);
+  const payload = JSON.parse(out[0].result.content[0].text);
+  assert.equal(typeof payload.allow, "boolean");
+  assert.ok(Array.isArray(payload.missingSkills));
+});
+
 test("gate rejects a call with neither file nor filePath", () => {
   const out = call([
     JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "novahiz_gate", arguments: { tool: "edit" } } })

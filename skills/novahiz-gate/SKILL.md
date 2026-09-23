@@ -67,7 +67,7 @@ Charger chaque skill manquante avec `skill({name})`. Le chargement est enregistr
 
 ## Contournement
 
-Le seul prévu par le code : `novahiz_GATE=off` (ou `0`, `false`, `no`, `disabled`) dans l'environnement, lu via `gate.envEscape`. L'utilisateur peut aussi demander explicitement de passer outre. Dans les deux cas, la dérogation se dit à voix haute et se rattrape après coup. Le jugement de l'agent n'est pas un contournement valide.
+Le seul prévu par le code : `NOVAHIZ_GATE=off` (ou `0`, `false`, `no`, `disabled`) dans l'environnement. Le nom de la variable est codé en dur (le champ `gate.envEscape` de la config ne le redirige pas). L'utilisateur peut aussi demander explicitement de passer outre. Dans les deux cas, la dérogation se dit à voix haute et se rattrape après coup. Le jugement de l'agent n'est pas un contournement valide.
 
 ## Anti-patterns
 

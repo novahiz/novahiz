@@ -46,6 +46,8 @@ function defaultConfig(skillsDir) {
     gate: {
       enabled: true,
       mode: "block",
+      // Kept for schema compatibility only — the kill-switch name is hardcoded
+      // to NOVAHIZ_GATE in the CLI, MCP gate, and plugin (see src/spec.ts).
       envEscape: "NOVAHIZ_GATE",
       tools: ["edit", "write", "patch", "apply_patch", "bash", "shell"]
     },

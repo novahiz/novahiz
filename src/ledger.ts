@@ -423,6 +423,29 @@ export function dropTodo(db: DatabaseSync, id: string, reason = ""): TodoRow {
   return getTodo(db, id) as TodoRow;
 }
 
+export function dropTask(db: DatabaseSync, id: string, reason = ""): TaskRow {
+  const task = requireTask(db, id);
+  const trimmed = String(reason ?? "").trim();
+  // Active tasks may only be abandoned with an explicit reason (cleanup /
+  // superseded work). Finished tasks can be dropped without one.
+  if (task.status === "active" && trimmed.length === 0) {
+    throw new Error(`refusing to abandon active task ${id} without a reason; pass --reason (or finish the task first)`);
+  }
+  try {
+    db.exec("SAVEPOINT drop_task_sp");
+    db.prepare(
+      "UPDATE todos SET status = 'dropped', proof = ?, updated_at = ? WHERE task_id = ? AND status NOT IN ('done', 'dropped')"
+    ).run(trimmed || null, nowIso(), id);
+    db.prepare("UPDATE tasks SET status = 'abandoned', updated_at = ? WHERE id = ?").run(nowIso(), id);
+    db.exec("RELEASE SAVEPOINT drop_task_sp");
+  } catch (error) {
+    db.exec("ROLLBACK TO SAVEPOINT drop_task_sp");
+    throw error;
+  }
+  autoCommit("task-abandoned", trimmed ? `${id}: ${trimmed}` : id);
+  return requireTask(db, id);
+}
+
 export function recordEdit(db: DatabaseSync, taskId: string): number {
   const result = db.prepare(
     "UPDATE tasks SET edits_since_review = edits_since_review + 1, updated_at = ? WHERE id = ? RETURNING edits_since_review"

@@ -18,7 +18,7 @@ An enforcement and execution layer for coding agents. It classifies a request in
 
 ## Configuration
 
-- `novahiz.config.json` holds `dbPath`, `skillRoots`, `gate` (enabled, mode, envEscape, tools), `classify`, `providers`, and `ledger`.
+- `novahiz.config.json` holds `dbPath`, `skillRoots`, `gate` (enabled, mode, tools), `classify`, `providers`, and `ledger`. `gate.envEscape` remains in the schema for compatibility but the kill-switch name is hardcoded to `NOVAHIZ_GATE`.
 - `NOVAHIZ_HOME` relocates the home directory. `NOVAHIZ_DB` overrides the database path, which is how the tests stay off the real ledger.
 - `NOVAHIZ_GATE=off` disables the gate for a session.
 

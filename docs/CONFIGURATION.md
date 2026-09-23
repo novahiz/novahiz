@@ -61,7 +61,7 @@ These files live in `catalog/` and are part of the git repository:
 | `skillRoots` | `["./skills", "./bundled-skills"]` | Directories to scan for skills |
 | `gate.enabled` | `true` | Enable/disable the gate |
 | `gate.mode` | `block` | `block`, `warn`, or `audit` |
-| `gate.envEscape` | `NOVAHIZ_GATE` | Env var to disable the gate |
+| `gate.envEscape` | `NOVAHIZ_GATE` | Schema field only. The kill-switch name is hardcoded to `NOVAHIZ_GATE` in the CLI, MCP gate, and plugin; a config value cannot redirect it. |
 | `gate.tools` | `[edit, write, patch, ...]` | Tools to intercept |
 | `gate.placeholders` | `true` | Block edits with placeholder markers |
 | `classify.minScore` | `1` | Minimum score to match a category |
@@ -79,7 +79,7 @@ These files live in `catalog/` and are part of the git repository:
 | Variable | Purpose |
 |----------|---------|
 | `NOVAHIZ_HOME` | Override Novahiz home directory |
-| `NOVAHIZ_GATE` | Set to `off` to disable the gate |
+| `NOVAHIZ_GATE` | Set to `off` to disable the gate (hardcoded name; not configurable) |
 | `NOVAHIZ_NODE` | Override node executable path |
 | `NOVAHIZ_DB` | Override database path |
 | `OPENCODE_CONFIG_DIR` | Override opencode config directory |

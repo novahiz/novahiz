@@ -25,11 +25,18 @@ export function tokenizeShell(command: string): string[] {
       else current += char;
       continue;
     }
-    // H5: outside quotes a backslash escapes the next character literally,
-    // so `echo hello\ world` is one token, not two.
+    // H5: outside quotes a backslash escapes the next character only when it
+    // is a shell metacharacter (whitespace, quote, operator). Windows path
+    // separators (C:\Users\…) are not escapes and must stay intact so path
+    // extraction does not mangle or false-positive on drive letters.
     if (char === "\\" && index + 1 < command.length) {
-      current += command[index + 1];
-      index += 1;
+      const next = command[index + 1];
+      if (/[\s"'`$&|;<>()]/.test(next)) {
+        current += next;
+        index += 1;
+        continue;
+      }
+      current += char;
       continue;
     }
     if (char === '"' || char === "'") {
@@ -99,7 +106,16 @@ function isWindowsFlag(token: string): boolean {
 }
 
 function allPositionals(tokens: string[], windows: boolean): string[] {
-  return tokens.filter((token) => !isDashFlag(token) && !(windows && isWindowsFlag(token)) && !isOperator(token));
+  const positionals: string[] = [];
+  for (let index = 0; index < tokens.length; index += 1) {
+    const token = tokens[index];
+    if (isDashFlag(token) || (windows && isWindowsFlag(token)) || isOperator(token)) continue;
+    // Skip the value that follows a value-taking flag (e.g. -ErrorAction Stop).
+    const previous = tokens[index - 1];
+    if (previous && VALUE_FLAGS.has(previous.toLowerCase())) continue;
+    positionals.push(token);
+  }
+  return positionals;
 }
 
 function firstPositional(tokens: string[], windows: boolean): string | null {
@@ -124,7 +140,24 @@ const VALUE_FLAGS = new Set([
   "-newname",
   "-property",
   "-inputobject",
-  "-credential"
+  "-credential",
+  "-path",
+  "-literalpath",
+  "-filepath",
+  "-file",
+  "-erroraction",
+  "-warningaction",
+  "-informationaction",
+  "-errorvariable",
+  "-warningvariable",
+  "-informationvariable",
+  "-outvariable",
+  "-outbuffer",
+  "-context",
+  "-depth",
+  "-first",
+  "-last",
+  "-skip"
 ]);
 
 function firstPathLike(tokens: string[], windows: boolean): string | null {
@@ -255,7 +288,10 @@ export function extractShellPaths(command: string): string[] {
     } else if (DEST_CMDLETS.has(lower)) {
       add(flagValue(rest, ["-destination", "-newname"]) ?? lastPositional(rest, windows));
     } else if (DELETE_CMDLETS.has(lower)) {
-      for (const candidate of allPositionals(rest, windows)) add(candidate);
+      // Prefer an explicit path flag so switch values never look like targets.
+      const explicit = flagValue(rest, ["-path", "-literalpath", "-filepath", "-file"]);
+      if (explicit) add(explicit);
+      else for (const candidate of allPositionals(rest, windows)) add(candidate);
     } else if (WRITE_CMDLETS.has(lower)) {
       add(flagValue(rest, ["-path", "-literalpath", "-filepath", "-destination", "-file"]) ?? firstPathLike(rest, windows));
     } else if (lower === "tee") {

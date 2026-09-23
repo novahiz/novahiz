@@ -131,3 +131,23 @@ test("ignores device redirection targets", () => {
 test("extractTargetPaths reads shell commands", () => {
   assert.deepEqual(extractTargetPaths("bash", { command: "echo x > report.md" }), ["report.md"]);
 });
+
+test("keeps windows path separators outside quotes", () => {
+  assert.deepEqual(tokenizeShell("Remove-Item -Path C:\\Users\\hiz\\temp\\x.txt"), [
+    "Remove-Item",
+    "-Path",
+    "C:\\Users\\hiz\\temp\\x.txt"
+  ]);
+  assert.deepEqual(extractShellPaths("Remove-Item -Path C:\\Users\\hiz\\temp\\x.txt"), [
+    "C:\\Users\\hiz\\temp\\x.txt"
+  ]);
+});
+
+test("still treats quoted shell escapes as escapes outside quotes", () => {
+  assert.deepEqual(tokenizeShell("echo hello\\ world"), ["echo", "hello world"]);
+});
+
+test("skips values of common PowerShell value flags in positionals", () => {
+  assert.deepEqual(extractShellPaths("Remove-Item -ErrorAction SilentlyContinue dist"), ["dist"]);
+  assert.deepEqual(extractShellPaths("Remove-Item -ErrorAction Stop -Path build\\out"), ["build\\out"]);
+});

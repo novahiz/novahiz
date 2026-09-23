@@ -75,7 +75,7 @@ The `gate` block in `novahiz.config.json` controls behavior:
 
 - `enabled`: disable the whole gate.
 - `mode`: `block`, `warn`, or `audit`.
-- `envEscape`: the variable that disables the gate for one session. Defaults to `novahiz_GATE`; values `off`, `0`, `false`, `no`, `disabled` disable it. Read by the CLI, the hook mode, the MCP gate tool, and the opencode plugin.
+- `envEscape`: schema field only. The kill-switch variable is hardcoded to `NOVAHIZ_GATE` (not configurable); values `off`, `0`, `false`, `no`, `disabled` disable the gate. Read by the CLI, the hook mode, the MCP gate tool, and the opencode plugin.
 - `tools`: the tool names the gate intercepts.
 - `ignoreFiles`: globs skipped by the gate.
 

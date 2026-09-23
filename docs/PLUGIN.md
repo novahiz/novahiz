@@ -13,12 +13,16 @@ The opencode adapter is a thin plugin that bridges the Novahiz core with the ope
 │  3. Check DISABLED flag (env escape or config)              │
 │  4. Register hooks:                                         │
 │     • config → inject MCP server + providers                │
-│     • event → clean up session state on session.deleted     │
+│     • event → session.deleted cleanup;                      │
+│               session.idle → flush autodocs (fail-open)     │
 │     • chat.message → classify prompt, build enforcement     │
 │     • experimental.chat.system.transform → inject into prompt│
 │     • tool.execute.before → gate check on edits             │
+│     • tool.execute.after → mark major path dirty (autodocs)  │
 └─────────────────────────────────────────────────────────────┘
 ```
+
+The plugin is self-contained: prompt rewriting and autodocs helpers are inlined so the installed copy under `~/.config/opencode/plugins/` does not depend on `../../src/*` (that path does not resolve after install).
 
 ## Hooks
 
@@ -28,8 +32,8 @@ Registers the Novahiz MCP server and any additional providers from `catalog/prov
 
 ```typescript
 config: async (input) => {
-  // Register Novahiz MCP server
-  config.mcp.Novahiz = {
+  // Register Novahiz MCP server (key is lowercase: config.mcp.novahiz)
+  config.mcp.novahiz = {
     type: "local",
     command: [NODE, join(HOME, "mcp", "novahiz-tools", "index.mjs")],
     enabled: true
@@ -108,9 +112,22 @@ The core enforcement hook. Intercepts tool calls and runs the gate:
 │  Gate output:                                               │
 │  • exit 0 → allow                                           │
 │  • exit 2 → BLOCK (throw error with missing skills list)    │
-│  • exit != 0 → allow with warning (gate unavailable)        │
+│  • exit != 0 → BLOCK (fail-closed, same as spawn error)      │
 └─────────────────────────────────────────────────────────────┘
 ```
+
+### `event`
+
+Two event types:
+
+| Event | Behavior |
+|-------|----------|
+| `session.deleted` | Forget in-memory session state |
+| `session.idle` | If autodocs is enabled and state is dirty, spawn `novahiz autodocs --flush` (fail-open, unref'd child) |
+
+### `tool.execute.after`
+
+After an edit-like tool succeeds, if the path is a major source file (`src/…`, `package.json`, `.ts`, …), call the inlined `markDirty` so the next `session.idle` can flush docs. Non-edit tools and non-major paths are ignored. Never throws.
 
 ## Session state
 
@@ -145,6 +162,7 @@ When disabled, all hooks return early without doing anything.
 ## Error handling
 
 - If `classify` fails → warning logged, no enforcement injected
-- If `gate` fails with spawn error → tool call allowed (gate unavailable)
-- If `gate` exits non-zero non-two → tool call allowed with warning
+- If `gate` fails with spawn error → tool call **blocked** (fail-closed)
+- If `gate` exits non-zero non-two → tool call **blocked** (fail-closed)
 - If `gate` exits 2 → error thrown, tool call blocked
+- Autodocs flush on `session.idle` and `tool.execute.after` are fail-open

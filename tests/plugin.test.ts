@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { existsSync, mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test, after } from "node:test";
@@ -34,7 +34,8 @@ test("the plugin exposes the enforcement hooks", () => {
     "event",
     "chat.message",
     "experimental.chat.system.transform",
-    "tool.execute.before"
+    "tool.execute.before",
+    "tool.execute.after"
   ]) {
     assert.equal(typeof hooks[name], "function", `expected hook ${name}`);
   }
@@ -119,4 +120,59 @@ test("event forgets a deleted session without throwing", async () => {
     },
     {}
   );
+});
+
+test("event session.idle fails open without throwing", async () => {
+  await hooks["event"](
+    {
+      event: { type: "session.idle", properties: { sessionID: "s-idle" } }
+    },
+    {}
+  );
+});
+
+test("tool.execute.after marks a major path without throwing", async () => {
+  const cwd = mkdtempSync(join(tmpdir(), "novahiz-mark-"));
+  const prev = process.cwd();
+  try {
+    process.chdir(cwd);
+    await hooks["tool.execute.after"](
+      { tool: "write", sessionID: "s-after", callID: "c4", args: { filePath: "src/app.ts" } },
+      { title: "ok", output: "", metadata: null }
+    );
+    const state = JSON.parse(readFileSync(join(cwd, ".novahiz", "state.json"), "utf8"));
+    assert.equal(state.dirty, true);
+    assert.ok(state.pending.includes("src/app.ts"));
+  } finally {
+    process.chdir(prev);
+    try {
+      rmSync(cwd, { recursive: true, force: true });
+    } catch {
+      // best effort cleanup
+    }
+  }
+});
+
+test("tool.execute.after ignores non-edit tools and non-major paths", async () => {
+  const cwd = mkdtempSync(join(tmpdir(), "novahiz-mark-skip-"));
+  const prev = process.cwd();
+  try {
+    process.chdir(cwd);
+    await hooks["tool.execute.after"](
+      { tool: "read", sessionID: "s-after2", callID: "c5", args: { filePath: "src/app.ts" } },
+      { title: "ok", output: "", metadata: null }
+    );
+    await hooks["tool.execute.after"](
+      { tool: "write", sessionID: "s-after3", callID: "c6", args: { filePath: "notes/todo.md" } },
+      { title: "ok", output: "", metadata: null }
+    );
+    assert.equal(existsSync(join(cwd, ".novahiz", "state.json")), false);
+  } finally {
+    process.chdir(prev);
+    try {
+      rmSync(cwd, { recursive: true, force: true });
+    } catch {
+      // best effort cleanup
+    }
+  }
 });

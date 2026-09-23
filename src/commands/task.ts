@@ -2,7 +2,7 @@ import { join } from "node:path";
 import { asString, dbPathFor, numberFlag, parse, print, readStdin, splitList, type Parsed } from "./context.ts";
 import { loadSpec, NovahizHome } from "../spec.ts";
 import { openDb } from "../db.ts";
-import { activeTask, addTodos, amendTodo, blockTodo, completeTodo, createTask, dropTodo, getTask, getTodo, insertTodo, ledgerSummary, recordTodoDone, reorderTodos, resume, reviewDue, reviewTask, revisionSignals, startTodo, type ReviewDiff, type TodoAmendment, type TodoInput, type TodoKind } from "../ledger.ts";
+import { activeTask, addTodos, amendTodo, blockTodo, completeTodo, createTask, dropTask, dropTodo, getTask, getTodo, insertTodo, ledgerSummary, recordTodoDone, reorderTodos, resume, reviewDue, reviewTask, revisionSignals, startTodo, type ReviewDiff, type TodoAmendment, type TodoInput, type TodoKind } from "../ledger.ts";
 
 export function normalizeTodoInput(item: unknown): TodoInput {
   const record = (item ?? {}) as Record<string, unknown>;
@@ -106,15 +106,28 @@ function taskReorder(parsed: Parsed, db: ReturnType<typeof openDb>, session: str
 function taskDrop(parsed: Parsed, db: ReturnType<typeof openDb>, session: string, spec: ReturnType<typeof loadSpec>): void {
   const id = asString(parsed.flags.id) || parsed.positionals[2] || "";
   if (!id) {
-    // NOTE: active tasks are never dropped — only completed/cancelled tasks
-    // can be removed. This prevents accidental data loss on in-progress work.
-    print({ error: "task drop requires --id" });
+    print({
+      error: "task drop requires --id",
+      usage: "novahiz task drop --id <task_id|todo_id> --reason \"why\""
+    });
     process.exitCode = 1;
     return;
   }
-  print({ todo: dropTodo(db, id, asString(parsed.flags.reason)) });
-  return;
-    }
+  const reason = asString(parsed.flags.reason);
+  if (getTask(db, id)) {
+    print({ task: dropTask(db, id, reason) });
+    return;
+  }
+  if (getTodo(db, id)) {
+    print({ todo: dropTodo(db, id, reason) });
+    return;
+  }
+  print({
+    error: `unknown id: ${id}`,
+    hint: "expected a task id or a todo id (pass --reason to abandon an active task)"
+  });
+  process.exitCode = 1;
+}
 
 function taskInsert(parsed: Parsed, db: ReturnType<typeof openDb>, session: string, spec: ReturnType<typeof loadSpec>): void {
   const taskId = asString(parsed.flags.task) || activeTask(db, session || undefined)?.id;

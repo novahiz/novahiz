@@ -1,10 +1,11 @@
 import type { Plugin } from "@opencode-ai/plugin";
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { join, relative, resolve } from "node:path";
 
-// Inlined from src/prompt-rewriter.ts to avoid broken relative path in installed plugin
+// Inlined from src/prompt-rewriter.ts — the installed plugin lives in
+// ~/.config/opencode/plugins/ and cannot resolve ../../src/*.
 type RewriteResult = { original: string; rewritten: string; sourceLanguage: string; wasRewritten: boolean };
 
 function detectLanguage(prompt: string): string {
@@ -48,6 +49,138 @@ function rewritePrompt(prompt: string): RewriteResult {
     .replace(/^I\s+would\s+like\s+to\s+/i, "").replace(/^It\s+would\s+be\s+great\s+if\s+you\s+could\s+/i, "")
     .replace(/[.!?]+$/, "").trim();
   return { original: prompt, rewritten: r, sourceLanguage, wasRewritten: true };
+}
+
+// Inlined from src/autodocs.ts — same reason as prompt-rewriter: relative
+// imports to ../../src break once the plugin is copied into opencode's plugins/.
+const NOVAHIZ_DIR = ".novahiz";
+const STATE_NAME = "state.json";
+const CONFIG_NAME = "config.json";
+
+type AutoDocsState = {
+  dirty: boolean;
+  pending: string[];
+  lastSync: string | null;
+  sessions: number;
+};
+
+const EMPTY_STATE: AutoDocsState = { dirty: false, pending: [], lastSync: null, sessions: 0 };
+const MAJOR_DIRS = /^(src|lib|app|routes|pages|api|server|internal|pkg|cmd)\//;
+const MAJOR_FILES = new Set([
+  "package.json",
+  "pyproject.toml",
+  "Cargo.toml",
+  "go.mod",
+  "composer.json",
+  "Gemfile"
+]);
+const MAJOR_EXT = new Set([
+  ".ts",
+  ".tsx",
+  ".js",
+  ".jsx",
+  ".mjs",
+  ".cjs",
+  ".py",
+  ".rs",
+  ".go",
+  ".php",
+  ".rb",
+  ".java",
+  ".kt",
+  ".swift",
+  ".dart",
+  ".sql"
+]);
+const SKIP_DIRS = new Set([
+  "node_modules",
+  ".git",
+  "project-memory",
+  "novahiz-docs",
+  ".novahiz",
+  "dist",
+  "build",
+  "coverage",
+  ".next"
+]);
+
+function projectDir(cwd: string): string {
+  return join(cwd, NOVAHIZ_DIR);
+}
+
+function configPath(cwd: string): string {
+  return join(projectDir(cwd), CONFIG_NAME);
+}
+
+function statePath(cwd: string): string {
+  return join(projectDir(cwd), STATE_NAME);
+}
+
+function ensureNovahizDir(path: string): void {
+  if (!existsSync(path)) mkdirSync(path, { recursive: true });
+}
+
+function autoDocsEnabled(cwd: string): boolean {
+  const escape = (process.env.NOVAHIZ_AUTODOCS ?? "").toLowerCase();
+  if (["off", "0", "false", "no", "disabled"].includes(escape)) return false;
+  try {
+    const parsed = JSON.parse(readFileSync(configPath(cwd), "utf8")) as { autoDocs?: unknown };
+    return parsed !== null && typeof parsed === "object" && parsed.autoDocs === true;
+  } catch {
+    return false;
+  }
+}
+
+function readState(cwd: string): AutoDocsState {
+  try {
+    const parsed = JSON.parse(readFileSync(statePath(cwd), "utf8")) as Partial<AutoDocsState>;
+    if (!parsed || typeof parsed !== "object") return { ...EMPTY_STATE };
+    return {
+      dirty: parsed.dirty === true,
+      pending: Array.isArray(parsed.pending)
+        ? parsed.pending.filter((entry): entry is string => typeof entry === "string").slice(0, 64)
+        : [],
+      lastSync: typeof parsed.lastSync === "string" ? parsed.lastSync : null,
+      sessions: typeof parsed.sessions === "number" && Number.isFinite(parsed.sessions) ? parsed.sessions : 0
+    };
+  } catch {
+    return { ...EMPTY_STATE };
+  }
+}
+
+function writeState(cwd: string, state: AutoDocsState): void {
+  ensureNovahizDir(projectDir(cwd));
+  writeFileSync(statePath(cwd), `${JSON.stringify(state, null, 2)}\n`, "utf8");
+}
+
+function normalizePath(filePath: string): string {
+  return filePath.replace(/\\/g, "/").replace(/^\.\//, "").replace(/^\/+/, "");
+}
+
+function isMajorPath(filePath: string): boolean {
+  const path = normalizePath(filePath);
+  const parts = path.split("/");
+  if (parts.some((part) => SKIP_DIRS.has(part))) return false;
+  const base = parts[parts.length - 1] ?? "";
+  if (MAJOR_FILES.has(base)) return true;
+  const dot = base.lastIndexOf(".");
+  const ext = dot >= 0 ? base.slice(dot).toLowerCase() : "";
+  if (MAJOR_EXT.has(ext)) return true;
+  return MAJOR_DIRS.test(path);
+}
+
+function markDirty(cwd: string, filePath: string): AutoDocsState {
+  const path = normalizePath(filePath);
+  const state = readState(cwd);
+  const pending = state.pending.includes(path) ? state.pending : [...state.pending, path].slice(-64);
+  const next: AutoDocsState = {
+    ...state,
+    dirty: true,
+    pending,
+    sessions: state.sessions + 1
+  };
+  writeState(cwd, next);
+  return next;
 }
 
 function ensureProjectMemory(cwd: string): boolean {
@@ -219,6 +352,28 @@ export const NovahizPlugin: Plugin = async ({ client }) => {
 
     event: async ({ event }) => {
       const type = (event as { type?: string }).type ?? "";
+      if (type === "session.idle") {
+        // Fail-open: never block idle; skip when disabled or nothing pending.
+        try {
+          const cwd = process.cwd();
+          if (autoDocsEnabled(cwd)) {
+            const state = readState(cwd);
+            if (state.dirty || state.pending.length > 0) {
+              const child = spawn(NODE, [CLI, "autodocs", "--flush"], {
+                cwd,
+                stdio: "ignore",
+                timeout: RUN_TIMEOUT_MS,
+                windowsHide: true
+              });
+              child.on("error", () => undefined);
+              child.unref();
+            }
+          }
+        } catch {
+          // fail-open
+        }
+        return;
+      }
       if (type !== "session.deleted") return;
       const properties = (event as { properties?: { info?: { id?: string }; sessionID?: string } }).properties ?? {};
       const sessionID = properties.info?.id ?? properties.sessionID;
@@ -394,6 +549,29 @@ export const NovahizPlugin: Plugin = async ({ client }) => {
         // H2: fail-closed — unknown gate errors deny, they never bypass.
         await log("warn", `Gate error, denying the tool call as precaution: ${String(error)}`);
         throw new Error(`Novahiz gate blocked ${input.tool}: internal gate error. Set NOVAHIZ_GATE=off to disable.`);
+      }
+    },
+
+    "tool.execute.after": async (input) => {
+      // Fail-open: mark major paths only; never break the tool result.
+      try {
+        const tool = input.tool.toLowerCase();
+        if (!["edit", "write", "patch", "apply_patch"].includes(tool)) return;
+        const args = (input.args ?? {}) as Record<string, unknown>;
+        const raw =
+          (typeof args.filePath === "string" && args.filePath) ||
+          (typeof args.file_path === "string" && args.file_path) ||
+          (typeof args.path === "string" && args.path) ||
+          "";
+        if (!raw) return;
+        const cwd = process.cwd();
+        const abs = resolve(cwd, raw);
+        const rel = relative(cwd, abs).replace(/\\/g, "/");
+        if (!rel || rel.startsWith("..")) return;
+        if (!isMajorPath(rel)) return;
+        markDirty(cwd, rel);
+      } catch {
+        // fail-open
       }
     }
   };

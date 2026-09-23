@@ -13,6 +13,7 @@ import {
   completeTodo,
   createTask,
   DEFAULT_MAX_ITERATIONS,
+  dropTask,
   dropTodo,
   getTask,
   insertTodo,
@@ -211,6 +212,28 @@ test("drops a todo without blocking task completion", () => {
   const dropped = dropTodo(db, b.id, "not needed");
   assert.equal(dropped.status, "dropped");
   assert.equal(getTask(db, task.id)?.status, "done");
+});
+
+test("refuses to abandon an active task without a reason", () => {
+  const task = makeTask("Active drop guard");
+  addTodos(db, task.id, [{ label: "open work" }]);
+  assert.throws(() => dropTask(db, task.id), /without a reason/);
+  assert.equal(getTask(db, task.id)?.status, "active");
+});
+
+test("abandons an active task with a reason and drops open todos", () => {
+  const task = makeTask("Abandon me");
+  const [open, finished] = addTodos(db, task.id, [
+    { label: "open", kind: "edit" },
+    { label: "done already", kind: "read" }
+  ]);
+  completeTodo(db, finished.id, "ok");
+  const abandoned = dropTask(db, task.id, "superseded by cleanup");
+  assert.equal(abandoned.status, "abandoned");
+  const todos = listTodos(db, task.id);
+  assert.equal(todos.find((todo) => todo.id === open.id)?.status, "dropped");
+  assert.equal(todos.find((todo) => todo.id === finished.id)?.status, "done");
+  assert.throws(() => dropTask(db, "missing-task"), /task not found/);
 });
 
 test("reopens a completed task when work is added to it", () => {

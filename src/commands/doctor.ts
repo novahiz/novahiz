@@ -66,14 +66,23 @@ export function commandDoctor(parsed: Parsed): void {
     blocking: absent.length > 0
   });
 
-  const missingCli = Object.entries(SKILL_CLI)
+  // SKILL_CLI is intentionally empty: novahiz-web-extract replaced the external
+  // defuddle CLI on the research roadmap (see MEMORY.md). Keep the check so a
+  // future external dependency is wired here again.
+  const cliEntries = Object.entries(SKILL_CLI);
+  const missingCli = cliEntries
     .filter(([skill]) => referenced.includes(skill) && !hasCommand(skill))
     .map(([, cli]) => cli);
   checks.push({
     id: "cli",
     label: "Required external CLI",
     ok: missingCli.length === 0,
-    detail: missingCli.length === 0 ? "all present" : `not found: ${missingCli.join(", ")}`,
+    detail:
+      missingCli.length > 0
+        ? `not found: ${missingCli.join(", ")}`
+        : cliEntries.length === 0
+          ? "none required (web-extract replaced defuddle)"
+          : "all present",
     blocking: missingCli.length > 0
   });
 

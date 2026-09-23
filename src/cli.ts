@@ -13,6 +13,8 @@ import { commandClean } from "./commands/clean.ts";
 import { commandDoctor } from "./commands/doctor.ts";
 import { commandTokens } from "./commands/tokens.ts";
 import { graftCommand } from "./commands/graft.ts";
+import { commandInit } from "./commands/init.ts";
+import { commandAutodocs } from "./commands/autodocs.ts";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -41,7 +43,9 @@ function usage(): void {
   print({
     name: "novahiz",
     commands: [
-      "init                    Set up Novahiz (config, skills, catalog)",
+      "init                    Initialize Novahiz in the current project",
+      "setup                   Install Novahiz (config, skills, catalog)",
+      "autodocs [--flush]      Sync docs and memory after major project changes",
       "doctor                  Check that everything works",
       "status                  Show current classification and gate state",
       "task new <title>        Start a new tracked task",
@@ -131,8 +135,11 @@ function main(argv: string[]): void {
   }
   switch (command) {
     case "init":
+      return commandInit(parsed);
     case "setup":
       return runInit();
+    case "autodocs":
+      return commandAutodocs(parsed);
     case "doctor":
       return commandDoctor(parsed);
     case "status":

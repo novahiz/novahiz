@@ -11,7 +11,7 @@ import { rankSkills } from "../../src/relevance.ts";
 import { openDb } from "../../src/db.ts";
 import { enabledProviders } from "../../src/providers.ts";
 import { checkDependencies } from "../../src/deps.ts";
-import { activeTask, addTodos, amendTodo, blockTodo, buildWorkPackets, completeTodo, createTask, dropTodo, getTask, getTodo, insertTodo, ledgerSummary, listTodos, recordTodoDone, reorderTodos, resume, reviewDue, reviewTask, revisionSignals, startTodo } from "../../src/ledger.ts";
+import { activeTask, addTodos, amendTodo, blockTodo, buildWorkPackets, completeTodo, createTask, dropTask, dropTodo, getTask, getTodo, insertTodo, ledgerSummary, listTodos, recordTodoDone, reorderTodos, resume, reviewDue, reviewTask, revisionSignals, startTodo } from "../../src/ledger.ts";
 import { DEFAULT_LIMIT_CHARS, DEFAULT_LIMIT_LINES, ensureMemoryRoot, getSlot, listSlots, memoryRoot, parseSlotInput, rebuildIndex, writeEntry } from "../../src/memory.ts";
 
 const SUPPORTED_PROTOCOLS = ["2024-11-05", "2025-06-18"];
@@ -63,7 +63,8 @@ const TOOLS = [
         filePath: { type: "string", description: "Alias of file. Some harnesses rename the parameter when they surface the tool." },
         tool: { type: "string", description: "edit, write or patch." },
         content: { type: "string", description: "The edited content, used for content-aware rules." },
-        categories: { type: "array", items: { type: "string" } },
+        prompt: { type: "string", description: "Optional prompt used to auto-classify when categories is omitted or empty." },
+        categories: { type: "array", items: { type: "string" }, description: "Category ids. When omitted or empty, inferred from prompt, content, or file path." },
         loaded: { type: "array", items: { type: "string" } }
       }
     }
@@ -118,7 +119,7 @@ const TOOLS = [
           description: "What to do with the ledger."
         },
         title: { type: "string", description: "Task title for action new." },
-        id: { type: "string", description: "Task id (new) or todo id (start, done, block)." },
+        id: { type: "string", description: "Task id (new) or todo/task id (start, done, block, drop)." },
         task: { type: "string", description: "Task id. Defaults to the active task." },
         session: { type: "string", description: "Session id used to scope the active task." },
         label: { type: "string", description: "Todo label for action todo." },
@@ -329,12 +330,34 @@ function callTool(name, args) {
     if (args?.tool !== undefined && typeof args.tool !== "string") {
       throw new Error("Invalid params: tool must be a string");
     }
+    if (args?.prompt !== undefined && typeof args.prompt !== "string") {
+      throw new Error("Invalid params: prompt must be a string");
+    }
+    if (typeof args?.prompt === "string" && args.prompt.length > MAX_PROMPT_LEN) {
+      throw new Error(`Invalid params: prompt exceeds ${MAX_PROMPT_LEN} characters`);
+    }
+    // Auto-classify when categories is omitted or empty: seed from prompt,
+    // fall back to content, then file path. Explicit categories always win.
+    let categories = args?.categories ? args.categories.map(String) : [];
+    if (categories.length === 0) {
+      const seed =
+        (typeof args?.prompt === "string" && args.prompt.length > 0 ? args.prompt : "") ||
+        (typeof args?.content === "string" && args.content.length > 0 ? args.content : "") ||
+        file;
+      try {
+        categories = classify(spec, seed).categories.map((entry) => entry.id);
+      } catch {
+        // Fail closed on classify errors: keep empty categories so
+        // evaluateGate still runs path/content rules instead of crashing.
+        categories = [];
+      }
+    }
     const index = loadInstalledSkills(spec);
     const result = evaluateGate({
       tool: String(args?.tool ?? "edit"),
       filePath: file,
       content: typeof args?.content === "string" ? args.content : "",
-      categories: args?.categories ? args.categories.map(String) : [],
+      categories,
       loadedSkills: args?.loaded ? args.loaded.map(String) : [],
       installedSkills: index.skills,
       installedIndexAvailable: index.available,
@@ -472,8 +495,14 @@ function callTool(name, args) {
         const position = raw === undefined || raw === "" ? "end" : /^\d+$/.test(String(raw)) ? Number(raw) : String(raw);
         return toolResult(insertTodo(db, taskId, normalizeTodo(args), position));
       }
-      if (action === "drop") return toolResult(dropTodo(db, String(args?.id ?? ""), args?.reason ? String(args.reason) : ""));
-      if (action === "reorder") {
+        if (action === "drop") {
+          const dropId = String(args?.id ?? "");
+          const reason = args?.reason ? String(args.reason) : "";
+          if (getTask(db, dropId)) return toolResult({ task: dropTask(db, dropId, reason) });
+          if (getTodo(db, dropId)) return toolResult({ todo: dropTodo(db, dropId, reason) });
+          throw new Error(`unknown id: ${dropId} (expected a task id or todo id)`);
+        }
+        if (action === "reorder") {
         const taskId = args?.task ? String(args.task) : activeTask(db, session)?.id;
         if (!taskId) return toolResult("no active task", true);
         const order = Array.isArray(args?.order) ? args.order.map(String) : [];

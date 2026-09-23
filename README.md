@@ -2,7 +2,7 @@
 
 > **Zero-dependency enforcement layer for AI coding agents** — classifies prompts, assigns execution roadmaps, blocks unsafe edits, and injects session-level skills, all deterministically without model calls.
 
-15 categories, 185 skills, 11 gate rules, 12 MCP providers — all deterministic, all local, all JSON.
+15 categories, 173 skills, 12 gate rules, 10 MCP providers — all deterministic, all local, all JSON.
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
@@ -52,7 +52,7 @@
 └──────────────────────────────────────────────────────────────────────────┘
 ```
 
-**15 categories**, **185 skills**, **11 gate rules**, **12 MCP providers** — all deterministic, all local, all JSON.
+**15 categories**, **173 skills**, **12 gate rules**, **10 MCP providers** — all deterministic, all local, all JSON.
 
 ---
 
@@ -67,7 +67,7 @@ npm install -g Novahiz
 This installs Novahiz globally and auto-configures opencode (skills, plugin, MCP servers, config). Then verify:
 
 ```bash
-npx Novahiz doctor   # 10 health checks
+npx Novahiz doctor   # 12 health checks
 npx Novahiz classify "fix the auth bug"
 ```
 
@@ -240,7 +240,7 @@ flowchart TD
 
 ## Installed skills
 
-Novahiz ships with 172 skills across all categories:
+Novahiz ships with 173 skills across all categories:
 
 | Category | Skills | Purpose |
 |----------|--------|---------|
@@ -299,7 +299,7 @@ See [docs/CONFIGURATION.md](docs/CONFIGURATION.md) for all options.
 | Command | Purpose |
 |---------|---------|
 | `Novahiz init` | One-shot setup |
-| `Novahiz doctor` | 10-check health diagnostic |
+| `Novahiz doctor` | 12-check health diagnostic |
 | `Novahiz status` | Current classification + gate state |
 | `Novahiz classify <text>` | Classify a prompt |
 | `Novahiz gate` | Check if an edit is allowed |

@@ -6,6 +6,35 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [0.2.3] - 2026-09-23
+
+### Added
+
+- `dropTask` in the ledger: abandon a task (reason required when it is active), mark open todos as dropped, keep finished ones, and record a graft commit. Exposed as `novahiz task drop --id <task_id|todo_id> --reason "why"` and as MCP `novahiz_task` action `drop`. An unknown id returns an explicit error instead of a silent no-op.
+- `novahiz init` project command: scaffold `project-memory/` and `novahiz-docs/`, with `--dry-run`, `--docs-only`, `--memory-only`, `--apply`, and `--json`. Distinct from `novahiz setup`, which still installs the package on the machine.
+- `novahiz autodocs [--flush]`: tracks major source edits under `.novahiz/` and flushes docs when the session goes idle.
+- `novahiz-init` skill and `/novahiz-init` slash command: agent pipeline around the CLI scaffold (deep read, docs fill-in, memory seed, reviewed cleanup).
+- MCP `novahiz_gate` accepts an optional `prompt`. When `categories` is omitted or empty, the gate classifies from prompt, then content, then file path; explicit categories still win, and a classify failure fails closed.
+- Tests for Windows path tokenization, PowerShell value flags, `dropTask`, and gate auto-classify (259 passing).
+
+### Changed
+
+- Shell path extraction keeps Windows path separators outside quotes. A backslash only escapes a shell metacharacter (`\ ` `\"` `` \` `` `$` and operators), so `C:\Users\…` is no longer mangled into a false target.
+- Positional extraction skips values of common PowerShell value flags (`-ErrorAction`, `-Path`, `-ErrorVariable`, …) so switch arguments are not treated as file targets. Delete cmdlets prefer an explicit `-Path`/`-LiteralPath`/`-FilePath`/`-File` when present.
+- The opencode plugin gate is fail-closed on spawn error and on non-zero non-two exit codes (previously it allowed the tool call).
+- Plugin MCP key is `config.mcp.novahiz` (lowercase). Prompt rewriting and autodocs helpers are inlined so the installed copy under `~/.config/opencode/plugins/` does not depend on `../../src/*`.
+- `gate.envEscape` stays in the schema for compatibility, but the kill-switch name is hardcoded to `NOVAHIZ_GATE` in the CLI, MCP gate, and plugin.
+- README counts refreshed: 173 skills, 12 gate rules, 10 MCP providers, 12 doctor checks.
+
+### Fixed
+
+- `novahiz task drop` used to drop todos only. It now dispatches task ids and todo ids, and it fails with usage text when `--id` is missing.
+- Doctor reports `none required (web-extract replaced defuddle)` when no external CLI is needed, instead of implying a missing dependency.
+
+### Removed
+
+- Test and polluter tasks left active in the ledger were bulk-abandoned (355 abandoned, 7 real tasks kept).
+
 ## [0.2.2] - 2026-09-23
 
 ### Added
