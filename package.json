@@ -1,17 +1,17 @@
 {
-  "name": "skillenforce",
+  "name": "novahiz",
   "version": "0.2.2",
   "description": "Enforce AI agent skills before every file edit: prompt classifier, skill catalog, and pre-edit gate.",
   "type": "module",
   "license": "Apache-2.0",
-  "author": "Skillenforce",
+  "author": "novahiz",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/novahiz/skillenforce.git"
+    "url": "git+https://github.com/novahiz/novahiz.git"
   },
-  "homepage": "https://github.com/novahiz/skillenforce#readme",
+  "homepage": "https://github.com/novahiz/novahiz#readme",
   "bugs": {
-    "url": "https://github.com/novahiz/skillenforce/issues"
+    "url": "https://github.com/novahiz/novahiz/issues"
   },
   "keywords": [
     "ai-agents",
@@ -27,11 +27,11 @@
     "access": "public"
   },
   "bin": {
-    "skillenforce": "./bin/skillenforce.mjs",
-    "skillenforce-bootstrap": "./install/bootstrap.mjs",
-    "skillenforce-install": "./install/install.mjs",
-    "skillenforce-uninstall": "./install/uninstall.mjs",
-    "skillenforce-mcp": "./mcp/skillenforce-tools/index.mjs"
+    "novahiz": "./bin/novahiz.mjs",
+    "novahiz-bootstrap": "./install/bootstrap.mjs",
+    "novahiz-install": "./install/install.mjs",
+    "novahiz-uninstall": "./install/uninstall.mjs",
+    "novahiz-mcp": "./mcp/novahiz-tools/index.mjs"
   },
   "engines": {
     "node": ">=22.18.0"
@@ -63,7 +63,7 @@
     "docs",
     "README.md",
     "NOTICE.md",
-    "skillenforce.config.example.json",
+    "novahiz.config.example.json",
     "tsconfig.json",
     "LICENSE"
   ],

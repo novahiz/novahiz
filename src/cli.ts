@@ -20,9 +20,8 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 // main()) was silently ignored by the current execution. Read it lazily.
 function homeDir(): string {
   return (
-    process.env.SKILLEFORCE_HOME ||
     process.env.NOVAHIZ_HOME ||
-    join(process.env.HOME || process.env.USERPROFILE || "", ".config", "skillenforce")
+    join(process.env.HOME || process.env.USERPROFILE || "", ".config", "novahiz")
   );
 }
 
@@ -33,16 +32,16 @@ function runSync(): void {
     spawnSync(process.execPath, [cli, "sync"], {
       encoding: "utf8",
       stdio: "inherit",
-      env: { ...process.env, SKILLEFORCE_HOME: home }
+      env: { ...process.env, NOVAHIZ_HOME: home }
     });
   }
 }
 
 function usage(): void {
   print({
-    name: "skillenforce",
+    name: "novahiz",
     commands: [
-      "init                    Set up Skillenforce (config, skills, catalog)",
+      "init                    Set up Novahiz (config, skills, catalog)",
       "doctor                  Check that everything works",
       "status                  Show current classification and gate state",
       "task new <title>        Start a new tracked task",
@@ -56,7 +55,7 @@ function usage(): void {
       "",
       "",
       "Options:",
-      "  --home <path>         Override skillenforce home directory",
+      "  --home <path>         Override Novahiz home directory",
       "  --version, -v         Show version",
       "  --help, -h            Show this help",
       "",
@@ -75,9 +74,9 @@ function usage(): void {
 function printVersion(): void {
   try {
     const pkg = JSON.parse(readFileSync(join(__dirname, "..", "package.json"), "utf8"));
-    process.stdout.write(`skillenforce ${pkg.version}\n`);
+    process.stdout.write(`Novahiz ${pkg.version}\n`);
   } catch {
-    process.stdout.write("skillenforce (unknown version)\n");
+    process.stdout.write("Novahiz (unknown version)\n");
   }
 }
 
@@ -85,21 +84,21 @@ function runInit(): void {
   const home = homeDir();
   const installScript = join(home, "install", "install.mjs");
   if (existsSync(installScript)) {
-    process.stdout.write("Installing Skillenforce...\n");
+    process.stdout.write("Installing Novahiz...\n");
     const result = spawnSync(process.execPath, [installScript, "--yes"], {
       encoding: "utf8",
       stdio: "inherit",
-      env: { ...process.env, SKILLEFORCE_HOME: home }
+      env: { ...process.env, NOVAHIZ_HOME: home }
     });
     if (result.status !== 0) {
-      process.stderr.write("Installation failed. Run `skillenforce doctor` for details.\n");
+      process.stderr.write("Installation failed. Run `novahiz doctor` for details.\n");
       process.exitCode = 1;
       return;
     }
   }
   process.stdout.write("\nBuilding skill catalog...\n");
   runSync();
-  process.stdout.write("\nDone! Restart opencode to activate Skillenforce.\n");
+  process.stdout.write("\nDone! Restart opencode to activate Novahiz.\n");
 }
 
 function runUpgrade(): void {
@@ -119,7 +118,7 @@ function runUpgrade(): void {
 function main(argv: string[]): void {
   const parsed = parse(argv);
   if (typeof parsed.flags.home === "string" && parsed.flags.home.length > 0) {
-    process.env.SKILLEFORCE_HOME = resolve(expandHome(parsed.flags.home));
+    process.env.NOVAHIZ_HOME = resolve(expandHome(parsed.flags.home));
   }
   const command = parsed.positionals[0];
   if (command === undefined || command === "help" || command === "--help" || command === "-h") {
@@ -185,7 +184,7 @@ function main(argv: string[]): void {
     case "graft":
       return graftCommand(parsed.positionals.slice(1));
     default:
-      process.stderr.write(`skillenforce: unknown command "${command}"\n\n`);
+      process.stderr.write(`novahiz: unknown command "${command}"\n\n`);
       usage();
       process.exitCode = 1;
       return;
@@ -196,6 +195,6 @@ try {
   main(process.argv.slice(2));
 } catch (error) {
   const message = error instanceof Error ? error.message : String(error);
-  process.stderr.write(`skillenforce: ${message}\n`);
+  process.stderr.write(`novahiz: ${message}\n`);
   process.exitCode = 1;
 }

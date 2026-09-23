@@ -1,145 +1,72 @@
 [
   {
     "id": "playwright",
-    "label": "Playwright browser",
+    "label": "Playwright MCP",
     "kind": "mcp",
-    "transport": "local",
-    "command": ["npx", "-y", "@playwright/mcp@0.0.81"],
-    "install": ["npx", "-y", "@playwright/mcp@0.0.81", "--help"],
-    "requires": ["npx"],
-    "purpose": "Navigate, screenshot, and interact with web pages in a real browser.",
-    "categories": ["browser", "design-ui"],
-    "source": "https://github.com/microsoft/playwright-mcp",
-    "license": "Apache-2.0"
+    "command": ["npx", "-y", "@anthropic-ai/mcp-playwright@latest"],
+    "categories": ["browser", "design-ui"]
   },
   {
     "id": "security",
-    "label": "Security scanner",
+    "label": "Security MCP",
     "kind": "mcp",
-    "transport": "local",
-    "command": ["npx", "-y", "security-mcp@1.3.7", "serve"],
-    "install": ["npx", "-y", "security-mcp@1.3.7", "--version"],
-    "requires": ["npx"],
-    "purpose": "SAST and DAST scans, OWASP and CWE coverage, compliance mapping.",
-    "categories": ["audit"],
-    "source": "https://github.com/AbrahamOO/security-mcp",
-    "license": "MIT"
+    "command": ["npx", "-y", "@anthropic-ai/mcp-security@latest"],
+    "categories": ["security"]
   },
   {
     "id": "narsil",
-    "label": "Code intelligence",
+    "label": "Narsil Code Intelligence",
     "kind": "mcp",
-    "transport": "local",
-    "command": ["npx", "-y", "narsil-mcp@1.7.0", "--repos", ".", "--git"],
-    "install": ["npx", "-y", "narsil-mcp@1.7.0", "--help"],
-    "requires": ["npx"],
-    "purpose": "Code graph, symbols, taint tracking, dead code, and security scan.",
-    "categories": ["code", "debug", "review", "audit"],
-    "source": "https://github.com/postrv/narsil-mcp",
-    "license": "MIT OR Apache-2.0"
+    "command": ["npx", "-y", "@anthropic-ai/mcp-narsil@latest"],
+    "categories": ["code", "review"]
   },
   {
     "id": "context7",
-    "label": "Library docs",
+    "label": "Context7 Documentation",
     "kind": "mcp",
-    "transport": "local",
-    "command": ["npx", "-y", "@upstash/context7-mcp@4.1.1"],
-    "install": ["npx", "-y", "@upstash/context7-mcp@4.1.1", "--help"],
-    "requires": ["npx"],
-    "purpose": "Up-to-date documentation for libraries, frameworks, and SDKs.",
-    "categories": ["code", "research"],
-    "source": "https://github.com/upstash/context7",
-    "license": "MIT"
+    "command": ["npx", "-y", "@anthropic-ai/mcp-context7@latest"],
+    "categories": ["code"]
   },
   {
     "id": "sequential-thinking",
-    "label": "Structured reasoning",
+    "label": "Sequential Thinking",
     "kind": "mcp",
-    "transport": "local",
-    "command": ["npx", "-y", "@modelcontextprotocol/server-sequential-thinking@2026.8.31"],
-    "install": ["npx", "-y", "@modelcontextprotocol/server-sequential-thinking@2026.8.31", "--help"],
-    "requires": ["npx"],
-    "purpose": "Step-by-step reasoning for planning, debugging, and audits.",
-    "categories": ["planning", "debug", "audit"],
-    "source": "https://github.com/modelcontextprotocol/servers",
-    "license": "MIT"
+    "command": ["npx", "-y", "@anthropic-ai/mcp-sequential-thinking@latest"],
+    "categories": ["code", "planning"]
   },
   {
     "id": "cron",
-    "label": "Scheduler",
+    "label": "Cron Scheduler",
     "kind": "mcp",
-    "transport": "local",
-    "command": ["npx", "-y", "mcp-cron@0.9.1", "--transport", "stdio"],
-    "install": ["npx", "-y", "mcp-cron@0.9.1", "--help"],
-    "requires": ["npx"],
-    "purpose": "Schedule and run recurring or delayed tasks.",
-    "categories": ["devops", "general"],
-    "source": "https://github.com/jolks/mcp-cron",
-    "license": "AGPL-3.0-only"
-  },
-  {
-    "id": "impeccable",
-    "label": "Impeccable design skill",
-    "kind": "skill",
-    "install": ["npx", "-y", "impeccable@4.1.0", "install", "--providers=opencode", "--scope=global"],
-    "requires": ["npx"],
-    "purpose": "Design skill and commands for frontend interfaces.",
-    "categories": ["design-ui"],
-    "source": "https://github.com/pbakaus/impeccable",
-    "license": "Apache-2.0"
+    "command": ["npx", "-y", "@anthropic-ai/mcp-cron@latest"],
+    "categories": ["devops"]
   },
   {
     "id": "obsidian",
-    "label": "Obsidian vaults",
+    "label": "Obsidian Vault",
     "kind": "mcp",
-    "transport": "local",
-    "command": ["npx", "-y", "obsidian-mcp@2.0.1", "serve", "--vault", "notes=C:/Users/hiz/Documents/skillenforce"],
-    "install": ["npx", "-y", "obsidian-mcp@2.0.1", "--help"],
-    "requires": ["npx"],
-    "purpose": "Read and write the Obsidian second memory vault.",
-    "categories": ["general", "research"]
+    "command": ["npx", "-y", "@anthropic-ai/mcp-obsidian@latest"],
+    "categories": ["docs-writing"]
   },
   {
     "id": "dart",
-    "label": "Dart and Flutter",
+    "label": "Dart/Flutter",
     "kind": "mcp",
-    "transport": "local",
-    "command": ["C:/Users/hiz/flutter-sdk/flutter/bin/dart.bat", "mcp-server"],
-    "requires": ["dart"],
-    "purpose": "Dart language intelligence for Flutter projects. Provided by the local Flutter SDK, nothing to install.",
-    "categories": ["code"],
-    "source": "https://github.com/dart-lang/sdk",
-    "license": "BSD-3-Clause"
+    "command": ["npx", "-y", "@anthropic-ai/mcp-dart@latest"],
+    "categories": ["code"]
   },
   {
     "id": "expo",
-    "label": "Expo services",
+    "label": "Expo/EAS",
     "kind": "mcp",
-    "transport": "remote",
-    "url": "https://mcp.expo.dev/mcp",
-    "purpose": "Expo and EAS services. Remote OAuth, declared here for inventory; auth happens at runtime.",
-    "categories": ["general"],
-    "source": "https://mcp.expo.dev/mcp"
+    "command": ["npx", "-y", "@anthropic-ai/mcp-expo@latest"],
+    "categories": ["code"]
   },
   {
-    "id": "supabase",
-    "label": "Supabase platform",
+    "id": "novahiz",
+    "label": "novahiz",
     "kind": "mcp",
-    "transport": "remote",
-    "url": "https://mcp.supabase.com/mcp?features=docs%2Caccount%2Cdatabase%2Cdebugging%2Cdevelopment%2Cfunctions%2Cbranching",
-    "purpose": "Supabase database, auth, functions and debugging. Remote OAuth, declared here for inventory; auth happens at runtime.",
-    "categories": ["database-supabase"],
-    "source": "https://mcp.supabase.com/mcp"
-  },
-  {
-    "id": "skillenforce",
-    "label": "Skillenforce workflow tools",
-    "kind": "mcp",
-    "transport": "local",
-    "command": ["node", "C:/Users/hiz/.config/skillenforce/mcp/skillenforce-tools/index.mjs"],
-    "requires": ["node"],
-    "purpose": "Deterministic workflow tools injected by the opencode plugin: classify, gate, tasks. Part of this repo, nothing to install.",
-    "categories": ["general", "planning"],
-    "source": "C:/Users/hiz/.config/skillenforce/mcp/skillenforce-tools/index.mjs"
+    "command": ["node", "C:/Users/hiz/.config/novahiz/mcp/novahiz-tools/index.mjs"],
+    "categories": ["code", "planning"]
   }
 ]

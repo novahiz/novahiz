@@ -18,7 +18,7 @@ test("node version check accepts current runtime", () => {
 });
 
 test("copyInto reports newly created files only", () => {
-  const base = mkdtempSync(join(tmpdir(), "skillenforce-"));
+  const base = mkdtempSync(join(tmpdir(), "novahiz-"));
   const src = join(base, "src");
   const dest = join(base, "dest");
   mkdirSync(join(src, "a"), { recursive: true });
@@ -35,7 +35,7 @@ test("copyInto reports newly created files only", () => {
 });
 
 test("mergeCreated deduplicates and drops missing paths", () => {
-  const base = mkdtempSync(join(tmpdir(), "skillenforce-"));
+  const base = mkdtempSync(join(tmpdir(), "novahiz-"));
   const present = join(base, "present.txt");
   writeFileSync(present, "x");
   const merged = mergeCreated([present], [present, join(base, "missing.txt")]);
@@ -44,7 +44,7 @@ test("mergeCreated deduplicates and drops missing paths", () => {
 });
 
 test("skillNamesIn lists only directories that hold a SKILL.md", () => {
-  const base = mkdtempSync(join(tmpdir(), "skillenforce-"));
+  const base = mkdtempSync(join(tmpdir(), "novahiz-"));
   const first = join(base, "first");
   const second = join(base, "second");
   mkdirSync(join(first, "alpha"), { recursive: true });

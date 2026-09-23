@@ -1,19 +1,20 @@
 #!/usr/bin/env python3
-"""skill_structure_validator.py — Validate a skill folder structure against Matt Pocock's pattern.
+"""skill_structure_validator.py: check a skill folder layout against Novahiz conventions.
 
-Stdlib-only. Walks a skill folder and checks:
+Stdlib only. Walks a skill folder and verifies:
 
   1. SKILL.md present at folder root
-  2. SKILL.md <= 100 lines (Matt's ceiling; configurable via --max-lines)
-  3. If SKILL.md > limit, separate reference files exist (REFERENCE.md, EXAMPLES.md, or references/*.md)
-  4. Reference files are one level deep (no nested references in subfolders)
-  5. No circular cross-references between markdown files (file A links to B which links back to A)
-  6. Scripts present in scripts/ subfolder when SKILL.md mentions executable operations
+  2. SKILL.md <= 100 lines (configurable via --max-lines)
+  3. when SKILL.md exceeds the ceiling, separate reference files exist
+     (REFERENCE.md, EXAMPLES.md, or references/*.md)
+  4. reference files sit one level deep (no nested subfolders)
+  5. no circular cross-references between markdown files
+  6. scripts/ folder present when SKILL.md mentions executable operations
 
-Deterministic logic. No LLM calls. Stdlib only.
+Deterministic. No LLM calls. Stdlib only.
 
 Usage:
-    python skill_structure_validator.py                       # uses embedded sample (current write-a-skill folder)
+    python skill_structure_validator.py                       # embedded sample (this skill's folder)
     python skill_structure_validator.py path/to/skill-folder/
     python skill_structure_validator.py path/to/skill-folder/ --output json
     python skill_structure_validator.py path/to/skill-folder/ --max-lines 100
@@ -27,18 +28,14 @@ import sys
 from typing import Any, Dict, List, Set, Tuple
 
 
-# Default max-lines threshold from Matt Pocock's write-a-skill review checklist
 DEFAULT_MAX_LINES = 100
 
-# Reference filename patterns Matt's pattern recognizes
 REFERENCE_FILE_PATTERNS = ["REFERENCE.md", "EXAMPLES.md", "references", "examples"]
 
-# Script folder names
 SCRIPT_FOLDERS = ["scripts"]
 
 
 def find_skill_md(folder: str) -> str:
-    """Find SKILL.md at folder root; return its path or empty string."""
     candidate = os.path.join(folder, "SKILL.md")
     if os.path.isfile(candidate):
         return candidate
@@ -51,7 +48,6 @@ def count_lines(filepath: str) -> int:
 
 
 def _list_md_in_subdir(subdir: str) -> List[str]:
-    """List .md files directly inside a subdirectory (not recursive)."""
     out: List[str] = []
     if not os.path.isdir(subdir):
         return out
@@ -63,7 +59,6 @@ def _list_md_in_subdir(subdir: str) -> List[str]:
 
 
 def find_reference_files(folder: str) -> List[str]:
-    """Find reference files at folder root + one-level-deep references/ subfolder."""
     refs: List[str] = []
     for name in os.listdir(folder):
         full = os.path.join(folder, name)
@@ -75,7 +70,6 @@ def find_reference_files(folder: str) -> List[str]:
 
 
 def find_deeper_references(folder: str) -> List[str]:
-    """Find markdown files nested deeper than one level (violation of one-level-deep rule)."""
     deeper: List[str] = []
     refs_subdir = os.path.join(folder, "references")
     if not os.path.isdir(refs_subdir):
@@ -94,7 +88,6 @@ def has_scripts_folder(folder: str) -> bool:
 
 
 def extract_md_links(text: str) -> List[str]:
-    """Extract local markdown links: [...](path.md), excluding URLs."""
     pattern = re.compile(r"\[[^\]]+\]\(([^)]+\.md(?:#[^)]*)?)\)")
     links = []
     for m in pattern.finditer(text):
@@ -105,7 +98,6 @@ def extract_md_links(text: str) -> List[str]:
 
 
 def _collect_links_for_file(filepath: str, files: List[str]) -> Set[str]:
-    """Read filepath, return set of links that resolve to other files in `files`."""
     out: Set[str] = set()
     try:
         with open(filepath, "r", encoding="utf-8") as fh:
@@ -120,8 +112,6 @@ def _collect_links_for_file(filepath: str, files: List[str]) -> Set[str]:
 
 
 def detect_circular_refs(folder: str, files: List[str]) -> List[Tuple[str, str]]:
-    """Detect circular references: file A -> file B -> file A.
-    Returns list of (file_a, file_b) tuples."""
     graph: Dict[str, Set[str]] = {f: _collect_links_for_file(f, files) for f in files}
     seen_pairs: Set[Tuple[str, str]] = set()
     circular: List[Tuple[str, str]] = []
@@ -165,7 +155,6 @@ def analyze(folder: str, max_lines: int) -> Dict[str, Any]:
 
     refs = find_reference_files(folder)
     if not skill_md_under_ceiling:
-        # When SKILL.md exceeds ceiling, reference files SHOULD exist
         findings.append({
             "rule": "reference_files_when_split_needed",
             "pass": len(refs) > 0,
@@ -201,7 +190,7 @@ def analyze(folder: str, max_lines: int) -> Dict[str, Any]:
         "rule": "scripts_folder_present",
         "pass": True,
         "detail": "scripts/ folder exists" if has_scripts
-        else "No scripts/ folder (optional per Matt's pattern)",
+        else "No scripts/ folder (optional)",
     })
 
     passed = sum(1 for c in findings if c["pass"])
@@ -245,11 +234,11 @@ def render_text(r: Dict[str, Any]) -> str:
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Validate skill folder structure per Matt Pocock's write-a-skill pattern.",
+        description="Validate skill folder structure against Novahiz conventions.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=__doc__,
     )
-    max_lines_help = f"SKILL.md line ceiling (default: {DEFAULT_MAX_LINES} per Matt's rule)"
+    max_lines_help = f"SKILL.md line ceiling (default: {DEFAULT_MAX_LINES})"
     parser.add_argument("path", nargs="?", help="Path to skill folder (uses embedded sample if omitted)")
     parser.add_argument("--output", choices=("text", "json"), default="text", help="Output format")
     parser.add_argument("--max-lines", type=int, default=DEFAULT_MAX_LINES, help=max_lines_help)
@@ -258,7 +247,6 @@ def main() -> int:
     if args.path:
         folder = args.path
     else:
-        # Embedded sample: validate this skill's own folder
         folder = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
     if not os.path.isdir(folder):

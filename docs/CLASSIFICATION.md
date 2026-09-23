@@ -1,6 +1,6 @@
 # Classification Engine
 
-The classifier is the brain of skillenforce. It maps a natural language prompt to categories, required skills, and execution roadmaps — deterministically, with no model calls.
+The classifier is the brain of Novahiz. It maps a natural language prompt to categories, required skills, and execution roadmaps — deterministically, with no model calls.
 
 ## How it works
 
@@ -75,7 +75,7 @@ The classifier is the brain of skillenforce. It maps a natural language prompt t
 
 ## Categories
 
-skillenforce defines 14 categories, each with its own keywords, priority, and roadmap:
+Novahiz defines 15 categories, each with its own keywords, priority, and roadmap:
 
 | Category | Priority | Keywords (examples) | Roadmap |
 |----------|----------|---------------------|---------|
@@ -92,6 +92,7 @@ skillenforce defines 14 categories, each with its own keywords, priority, and ro
 | `planning` | 47 | plan, architecture, strategy, spec | `planning` (6 steps) |
 | `devops` | 46 | docker, ci, cd, deploy, terraform | `devops` (7 steps) |
 | `data` | 45 | csv, pandas, etl, analytics | `data` (7 steps) |
+| `assessment` | 44 | idea, assess, evaluate, feasibility, market, go no-go | `assessment` (5 steps) |
 | `general` | 0 | (fallback) | `general` (5 steps) |
 
 ## Negative keywords

@@ -1,14 +1,14 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test, after } from "node:test";
 
-const pluginHome = mkdtempSync(join(tmpdir(), "skillenforce-plugin-"));
-process.env.SKILLEFORCE_HOME = pluginHome;
+const pluginHome = mkdtempSync(join(tmpdir(), "novahiz-plugin-"));
+process.env.NOVAHIZ_HOME = pluginHome;
 // Gate must be ON for the plugin to inject MCP and enforce — system-level
-// SKILLEFORCE_GATE=off would make DISABLED=true and skip everything.
-process.env.SKILLEFORCE_GATE = "on";
+// NOVAHIZ_GATE=off would make DISABLED=true and skip everything.
+process.env.NOVAHIZ_GATE = "on";
 
 after(() => {
   try {
@@ -18,15 +18,15 @@ after(() => {
   }
 });
 
-const { SkillenforcePlugin } = await import("../adapters/opencode/skillenforce.ts");
+const { NovahizPlugin } = await import("../adapters/opencode/novahiz.ts");
 
 type HookMap = Record<string, (input: any, output: any) => Promise<void>>;
 
 // Any client method the plugin might touch at load time resolves to a no-op.
 const fakeClient: any = new Proxy({}, { get: () => async () => undefined });
-const hooks = (await SkillenforcePlugin({
+const hooks = (await NovahizPlugin({
   client: fakeClient
-} as unknown as Parameters<typeof SkillenforcePlugin>[0])) as unknown as HookMap;
+} as unknown as Parameters<typeof NovahizPlugin>[0])) as unknown as HookMap;
 
 test("the plugin exposes the enforcement hooks", () => {
   for (const name of [
@@ -40,12 +40,31 @@ test("the plugin exposes the enforcement hooks", () => {
   }
 });
 
-test("config hook injects the skillenforce MCP server", async () => {
+test("config hook creates project-memory under cwd", async () => {
+  const cwd = mkdtempSync(join(tmpdir(), "novahiz-pm-"));
+  const prev = process.cwd();
+  try {
+    process.chdir(cwd);
+    const config: any = {};
+    await hooks["config"](config, {});
+    assert.ok(existsSync(join(cwd, "project-memory", "index.json")));
+    assert.ok(existsSync(join(cwd, "project-memory", "slots")));
+  } finally {
+    process.chdir(prev);
+    try {
+      rmSync(cwd, { recursive: true, force: true });
+    } catch {
+      // best effort cleanup
+    }
+  }
+});
+
+test("config hook injects the Novahiz MCP server", async () => {
   const config: any = {};
   await hooks["config"](config, {});
-  assert.equal(config.mcp.skillenforce.type, "local");
-  assert.equal(config.mcp.skillenforce.enabled, true);
-  assert.ok(Array.isArray(config.mcp.skillenforce.command));
+  assert.equal(config.mcp.novahiz.type, "local");
+  assert.equal(config.mcp.novahiz.enabled, true);
+  assert.ok(Array.isArray(config.mcp.novahiz.command));
 });
 
 test("tool.execute.before lets non-gated tools through", async () => {
@@ -58,19 +77,19 @@ test("tool.execute.before lets non-gated tools through", async () => {
 test("tool.execute.before records a loaded skill without throwing", async () => {
   await hooks["tool.execute.before"](
     { tool: "skill", sessionID: "s-skill", callID: "c2" },
-    { args: { name: "humanizer" } }
+    { args: { name: "novahiz-humanizer" } }
   );
 });
 
 test("tool.execute.before surfaces an unavailable gate instead of failing open", async () => {
-  // skillenforce_HOME points at an empty temp dir, so the CLI is missing and the
+  // NOVAHIZ_HOME points at an empty temp dir, so the CLI is missing and the
   // gate exits nonzero. The plugin must throw, never silently allow.
   await assert.rejects(
     hooks["tool.execute.before"](
       { tool: "write", sessionID: "s-gate", callID: "c3" },
       { args: { filePath: "/tmp/y.ts", content: "hello" } }
     ),
-    /Skillenforce gate/i
+    /Novahiz gate/i
   );
 });
 

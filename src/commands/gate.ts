@@ -1,6 +1,6 @@
 import { join } from "node:path";
 import { asString, dbPathFor, parse, print, readStdin, splitList, type Parsed } from "./context.ts";
-import { loadSpec, skillenforceHome } from "../spec.ts";
+import { loadSpec, NovahizHome } from "../spec.ts";
 import { openDb } from "../db.ts";
 import { loadInstalledSkills } from "../catalog.ts";
 import { changeText } from "../content.ts";
@@ -10,7 +10,7 @@ import { activeTask, recordEdit, reviewDue, traceCheck } from "../ledger.ts";
 import { autoCommit } from "../graft.ts";
 
 export function commandGate(parsed: Parsed): void {
-  const root = skillenforceHome();
+  const root = NovahizHome();
   let spec;
   try {
     spec = loadSpec(root);
@@ -19,7 +19,7 @@ export function commandGate(parsed: Parsed): void {
     // security boundary violation. Structured JSON on stderr for callers that
     // need to distinguish corruption from normal block.
     const msg = `loadSpec failed: ${String(error).slice(0, 200)}`;
-    process.stderr.write(`Skillenforce: ${msg}\n`);
+    process.stderr.write(`novahiz: ${msg}\n`);
     print({ allow: false, error: msg, tool: asString(parsed.flags.tool) || "edit", missingSkills: [], reasons: [msg] });
     process.exitCode = 2;
     return;
@@ -36,7 +36,7 @@ export function commandGate(parsed: Parsed): void {
       const rows = db.prepare("SELECT skill FROM skill_invocations WHERE session_id = ?").all(session) as { skill: string }[];
       loaded = rows.map((row) => row.skill);
     } catch (error) {
-      process.stderr.write(`Skillenforce: session DB open failed: ${String(error).slice(0, 200)}\n`);
+      process.stderr.write(`novahiz: session DB open failed: ${String(error).slice(0, 200)}\n`);
       print({ allow: false, error: `session DB error`, tool, missingSkills: [], reasons: [`session DB open failed`] });
       process.exitCode = 2;
       return;
@@ -49,9 +49,9 @@ export function commandGate(parsed: Parsed): void {
     print({ allow: true, disabled: true, tool });
     return;
   }
-  // H3: always use SKILLEFORCE_GATE (legacy: NOVAHIZ_GATE) — ignore configurable
+  // H3: always use NOVAHIZ_GATE (legacy: NOVAHIZ_GATE) — ignore configurable
   // envEscape to prevent a writable config from redirecting the kill-switch.
-  const escapeValue = (process.env.SKILLEFORCE_GATE || process.env.NOVAHIZ_GATE || "").toLowerCase();
+  const escapeValue = (process.env.NOVAHIZ_GATE || "").toLowerCase();
   if (["off", "0", "false", "no", "disabled"].includes(escapeValue)) {
     print({ allow: true, disabled: true });
     return;
@@ -75,7 +75,7 @@ export function commandGate(parsed: Parsed): void {
       try {
         args = JSON.parse(raw);
       } catch {
-        process.stderr.write("Skillenforce: invalid JSON on stdin for --args-stdin\n");
+        process.stderr.write("novahiz: invalid JSON on stdin for --args-stdin\n");
         process.exitCode = 1;
         return;
       }
@@ -83,7 +83,7 @@ export function commandGate(parsed: Parsed): void {
     paths = extractTargetPaths(tool, args);
     if (content.length === 0) content = changeText(tool, args);
   } else {
-    process.stderr.write("Skillenforce: gate requires --file <path> or --args-stdin\n");
+    process.stderr.write("novahiz: gate requires --file <path> or --args-stdin\n");
     process.exitCode = 1;
     return;
   }
@@ -132,7 +132,7 @@ export function commandGate(parsed: Parsed): void {
   try {
     db = openDb(dbPathFor(root, spec));
   } catch (error) {
-    process.stderr.write(`Skillenforce: DB open failed: ${String(error).slice(0, 200)}\n`);
+    process.stderr.write(`novahiz: DB open failed: ${String(error).slice(0, 200)}\n`);
     print({ allow: false, error: `DB open failed`, tool, missingSkills: [], reasons: [`DB open failed`] });
     process.exitCode = 2;
     return;
@@ -193,7 +193,7 @@ export function commandGate(parsed: Parsed): void {
   const warnings: string[] = [];
   if (unmatchedRequired.length > 0) {
     warnings.push(
-      `required skills missing from index, therefore not applied: ` + unmatchedRequired.join(", ") + `. Restart skillenforce sync to realign the index.`
+      `required skills missing from index, therefore not applied: ` + unmatchedRequired.join(", ") + `. Restart novahiz sync to realign the index.`
     );
   }
   if (indexMissing) {

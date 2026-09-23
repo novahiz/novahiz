@@ -1,4 +1,4 @@
-# Production Hardening Guide — Safety, Versioning, Quality Gates
+# Production Hardening Guide: Safety, Versioning, Quality Gates
 
 The advisory layer behind the mcp-server-builder workflows: read this when
 hardening a scaffolded server for production, designing auth, planning
@@ -7,9 +7,11 @@ contract evolution, or reviewing a manifest before publishing.
 ## Auth & Safety Design
 
 - Keep secrets in env, not in tool schemas.
+- Model auth on the spec roles: the server is the OAuth 2.1 resource server, the client is the OAuth client, the authorization server issues tokens. Validate token audience on every call and document the scopes each tool needs.
 - Prefer explicit allowlists for outbound hosts.
 - Return structured errors (`code`, `message`, `details`) for agent recovery.
 - Avoid destructive operations without explicit confirmation inputs.
+- Validate inputs, apply access control, rate-limit, and sanitize outputs, as the spec requires for tool execution.
 
 ## Versioning Strategy
 
@@ -20,7 +22,7 @@ contract evolution, or reviewing a manifest before publishing.
 
 ## Common Pitfalls
 
-1. Tool names derived directly from raw paths (`get__v1__users___id`)
+1. Tool names built directly from raw paths (`get__v1__users___id`)
 2. Missing operation descriptions (agents choose tools poorly)
 3. Ambiguous parameter schemas with no required fields
 4. Mixing transport errors and domain errors in one opaque message
@@ -61,7 +63,7 @@ Before publishing a manifest:
 - Unit: validate transformation from OpenAPI operation to MCP tool schema.
 - Contract: snapshot `tool_manifest.json` and review diffs in PR.
 - Integration: call generated tool handlers against staging API.
-- Resilience: simulate 4xx/5xx upstream errors and verify structured responses.
+- Resilience: simulate 4xx/5xx remote errors and verify structured responses.
 
 ## Deployment Practices
 

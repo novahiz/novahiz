@@ -1,139 +1,116 @@
 [
   {
     "id": "R1-code-prose",
-    "description": "Load humanizer when code or design changes contain prose, and fix any AI writing pattern immediately (not-X-but-Y contrasts, forced triads, excessive dashes, empty phrases, marketing jargon, superlatives).",
+    "description": "Load novahiz-humanizer when code or design changes contain prose.",
     "when": {
-      "fileClasses": [
-        "code",
-        "design"
-      ],
-      "contentMatches": [
-        "prose"
-      ]
+      "fileClasses": ["code", "design"],
+      "contentMatches": ["prose"]
     },
-    "require": [
-      "humanizer"
-    ]
+    "require": ["novahiz-humanizer"]
   },
   {
     "id": "R1-docs",
-    "description": "Load humanizer on text, documentation, and written content.",
+    "description": "Load novahiz-humanizer on text, documentation, and written content.",
     "when": {
-      "fileClasses": [
-        "text",
-        "data",
-        "config"
-      ],
-      "promptCategories": [
-        "docs-writing"
-      ]
+      "fileClasses": ["text", "data", "config"],
+      "contentMatches": ["prose"]
     },
-    "require": [
-      "humanizer"
-    ]
-  },
-  {
-    "id": "R2-style",
-    "description": "Load impeccable on visual style files.",
-    "when": {
-      "pathGlobs": [
-        "**/*.css",
-        "**/*.scss",
-        "**/*.sass",
-        "**/*.less",
-        "**/*.styl",
-        "**/*.html",
-        "**/*.vue",
-        "**/*.svelte",
-        "**/*.astro"
-      ]
-    },
-    "require": [
-      "impeccable"
-    ]
-  },
-  {
-    "id": "R2-styled-component",
-    "description": "Load impeccable on components whose changes touch styling.",
-    "when": {
-      "pathGlobs": [
-        "**/*.jsx",
-        "**/*.tsx"
-      ],
-      "contentMatches": [
-        "style"
-      ]
-    },
-    "require": [
-      "impeccable"
-    ]
+    "require": ["novahiz-humanizer"]
   },
   {
     "id": "R3-supabase",
     "description": "Load Supabase skills on any Supabase task.",
     "when": {
-      "pathGlobs": [
-        "**/supabase/**",
-        "**/migrations/**"
-      ],
-      "promptCategories": [
-        "database-supabase"
-      ]
+      "match": "any",
+      "pathGlobs": ["**/supabase/**", "**/migrations/**"],
+      "promptCategories": ["database-supabase"]
     },
-    "require": [
-      "supabase",
-      "supabase-postgres-best-practices"
-    ]
+    "require": ["novahiz-supabase", "novahiz-postgres"]
   },
   {
     "id": "R4-playwright",
-    "description": "Load playwright-agent on any task using Playwright or navigating to a local server.",
+    "description": "Load novahiz-browser on any task using Playwright.",
     "when": {
-      "promptCategories": [
-        "browser"
-      ]
+      "promptCategories": ["browser"]
     },
-    "require": [
-      "playwright-agent"
-    ]
+    "require": ["novahiz-browser"]
   },
   {
-    "id": "R5-design",
-    "description": "When working on a design or UI task, load the impeccable skill and follow its workflow.",
+    "id": "R6-Novahiz",
+    "description": "Load Novahiz pipeline skills for any task triggering the workflow.",
     "when": {
-      "promptCategories": [
-        "design-ui"
-      ]
+      "promptCategories": ["code", "debug", "review", "audit", "browser", "design-ui", "database-supabase", "docs-writing", "planning", "devops", "data", "general"]
     },
-    "require": [
-      "impeccable"
-    ]
+    "require": ["novahiz-plan", "novahiz-clarify", "novahiz-analyse", "novahiz-implement", "novahiz-converge"]
   },
   {
-    "id": "R6-skillenforce",
-    "description": "Load the Skillenforce pipeline skills (plan, clarify, analyse, implement, converge) for any task that triggers the skillenforce workflow. The gate requires these skills to be loaded before allowing edits.",
+    "id": "R7-assessment",
+    "description": "Load Idea Assessment pipeline skills.",
     "when": {
-      "promptCategories": [
-        "code",
-        "debug",
-        "review",
-        "audit",
-        "browser",
-        "design-ui",
-        "database-supabase",
-        "docs-writing",
-        "planning",
-        "devops",
-        "data",
-        "general"
+      "promptCategories": ["assessment"]
+    },
+    "require": ["novahiz-assess-intake", "novahiz-assess-research", "novahiz-assess-define", "novahiz-assess-shape", "novahiz-assess-decide"]
+  },
+  {
+    "id": "R8-docs",
+    "description": "Load novahiz-docs when editing project documentation.",
+    "when": {
+      "pathGlobs": ["novahiz-docs/**/*.md"]
+    },
+    "require": ["novahiz-docs"]
+  },
+  {
+    "id": "R9-code-review",
+    "description": "Load novahiz-code-review on any code review task.",
+    "when": {
+      "match": "any",
+      "promptCategories": ["review"],
+      "fileClasses": ["code"]
+    },
+    "require": ["novahiz-code-review"]
+  },
+  {
+    "id": "R10-security",
+    "description": "Load novahiz-security on any security audit or hardening task.",
+    "when": {
+      "match": "any",
+      "promptCategories": ["audit", "security"]
+    },
+    "require": ["novahiz-security"]
+  },
+  {
+    "id": "R11-accessibility",
+    "description": "Load novahiz-wcag-audit on any a11y audit or WCAG task.",
+    "when": {
+      "match": "any",
+      "promptCategories": ["design-ui", "audit"]
+    },
+    "require": ["novahiz-wcag-audit"]
+  },
+  {
+    "id": "R12-web-extract",
+    "description": "Load novahiz-web-extract when fetching web content.",
+    "when": {
+      "match": "any",
+      "promptCategories": ["research"]
+    },
+    "require": ["novahiz-web-extract"]
+  },
+  {
+    "id": "R13-design-craft",
+    "description": "Load anti-AI-design and frontend-design-taste on design UI prompts or style file edits.",
+    "when": {
+      "match": "any",
+      "promptCategories": ["design-ui"],
+      "pathGlobs": [
+        "**/*.css",
+        "**/*.scss",
+        "**/*.sass",
+        "**/*.less",
+        "**/*.html",
+        "**/*.htm"
       ]
     },
-    "require": [
-      "skillenforce-plan",
-      "skillenforce-clarify",
-      "skillenforce-analyse",
-      "skillenforce-implement",
-      "skillenforce-converge"
-    ]
+    "require": ["anti-AI-design", "frontend-design-taste"]
   }
 ]

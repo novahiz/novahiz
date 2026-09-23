@@ -76,7 +76,7 @@ Tracks version progression in Improve mode. Located at workspace root.
 - `skill_name`: Name of the skill being improved
 - `current_best`: Version identifier of the best performer
 - `iterations[].version`: Version identifier (v0, v1, ...)
-- `iterations[].parent`: Parent version this was derived from
+- `iterations[].parent`: Parent version this branched from
 - `iterations[].expectation_pass_rate`: Pass rate from grading
 - `iterations[].grading_result`: "baseline", "won", "lost", or "tie"
 - `iterations[].is_current_best`: Whether this is the current best version
@@ -198,7 +198,7 @@ Output from the executor agent. Located at `<run-dir>/outputs/metrics.json`.
 
 Wall clock timing for a run. Located at `<run-dir>/timing.json`.
 
-**How to capture:** When a subagent task completes, the task notification includes `total_tokens` and `duration_ms`. Save these immediately — they are not persisted anywhere else and cannot be recovered after the fact.
+**How to capture:** When a subagent task completes, the task notification includes `total_tokens` and `duration_ms`. Save these immediately; they are not persisted anywhere else and cannot be recovered after the fact.
 
 ```json
 {

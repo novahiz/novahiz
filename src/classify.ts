@@ -185,7 +185,7 @@ export function classify(spec: Spec, prompt: string, options: ClassifyOptions = 
       // Lite: only implement + converge skills (skip plan, clarify, etc.)
       for (const step of category.roadmap?.steps ?? []) {
         const allowed = (step.requireSkills ?? []).filter(
-          s => s === "skillenforce-implement" || s === "skillenforce-converge"
+          s => s === "novahiz-implement" || s === "novahiz-converge"
         );
         for (const skill of allowed) {
           if (!requiredSkills.includes(skill)) requiredSkills.push(skill);

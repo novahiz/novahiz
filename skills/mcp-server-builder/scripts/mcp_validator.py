@@ -1,15 +1,9 @@
 #!/usr/bin/env python3
 """Validate MCP tool manifest files for common contract issues.
 
-Input sources:
-- --input <manifest.json>
-- stdin JSON
-
-Validation domains:
-- structural correctness
-- naming hygiene
-- schema consistency
-- descriptive completeness
+Reads a manifest from --input or stdin. Checks structure, naming hygiene,
+schema consistency, and whether each tool has an actionable description.
+--strict exits non-zero when any error is found.
 """
 
 import argparse

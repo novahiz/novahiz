@@ -9,7 +9,7 @@ import {
   mergeBackups,
   mergeCreated,
   nodeVersionOk,
-  skillenforceHome,
+  NovahizHome,
   opencodeConfigDir,
   parseArgs,
   readJson,
@@ -36,17 +36,17 @@ const CORE_ITEMS = [
   "LICENSE",
   "README.md",
   "NOTICE.md",
-  "skillenforce.config.example.json"
+  "novahiz.config.example.json"
 ];
 
 function defaultConfig(skillsDir) {
   return {
-    dbPath: "skillenforce.sqlite",
+    dbPath: "novahiz.sqlite",
     skillRoots: ["./skills", "./bundled-skills"],
     gate: {
       enabled: true,
       mode: "block",
-      envEscape: "SKILLEFORCE_GATE",
+      envEscape: "NOVAHIZ_GATE",
       tools: ["edit", "write", "patch", "apply_patch", "bash", "shell"]
     },
     classify: {
@@ -68,14 +68,14 @@ async function main() {
   const force = Boolean(flags.force);
   const withSkills = !flags["no-skills"];
   const root = repoRoot(import.meta.url);
-  const home = skillenforceHome(flags);
+  const home = NovahizHome(flags);
   const configDir = flags.scope === "project" ? resolve(".opencode") : opencodeConfigDir();
   const skillsDir = join(configDir, "skills");
   const pluginsDir = join(configDir, "plugins");
 
   const note = (message) => process.stdout.write(`${dryRun ? "[dry-run] " : ""}${message}\n`);
 
-  note(`Skillenforce home: ${home}`);
+  note(`novahiz home: ${home}`);
   note(`opencode config: ${configDir}`);
 
   if (!nodeVersionOk()) {
@@ -106,19 +106,19 @@ async function main() {
   if (interactive) {
     const prompt = createPrompt();
     const providers = readJson(join(root, "catalog", "providers.json"), []);
-    process.stdout.write("\nSkillenforce setup\n");
+    process.stdout.write("\nnovahiz setup\n");
     process.stdout.write(`  Home:            ${home}\n`);
     process.stdout.write(`  opencode config: ${configDir}\n`);
     process.stdout.write(`  Skills:          ${skillsDir}\n`);
-    process.stdout.write(`  Plugin:          ${join(pluginsDir, "skillenforce.ts")}\n`);
-    process.stdout.write(`  Agent:           ${join(configDir, "agent", "skillenforce-agent.md")}\n`);
+    process.stdout.write(`  Plugin:          ${join(pluginsDir, "novahiz.ts")}\n`);
+    process.stdout.write(`  Agent:           ${join(configDir, "agent", "novahiz.md")}\n`);
     process.stdout.write("\nProviders (optional, installed on your machine, never copied into the repo):\n");
     for (const provider of providers) {
       const source = provider.source ? ` ${provider.source}` : "";
       process.stdout.write(`  [${provider.kind}] ${provider.id} - ${provider.purpose ?? ""}${source}\n`);
     }
     process.stdout.write("\n");
-    const proceed = await prompt.confirm("Install the Skillenforce core (skills, plugin, agent)?", true);
+    const proceed = await prompt.confirm("Install the Novahiz core (skills, plugin, agent)?", true);
     if (!proceed) {
       prompt.close();
       process.stdout.write("Aborted. Nothing was written.\n");
@@ -210,8 +210,8 @@ async function main() {
     }
   }
 
-  const pluginSource = join(home, "adapters", "opencode", "skillenforce.ts");
-  const pluginTarget = join(pluginsDir, "skillenforce.ts");
+  const pluginSource = join(home, "adapters", "opencode", "novahiz.ts");
+  const pluginTarget = join(pluginsDir, "novahiz.ts");
   if (existsSync(pluginSource)) {
     note(`Installing opencode plugin in ${pluginTarget}`);
     if (!dryRun) {
@@ -221,12 +221,12 @@ async function main() {
     }
   }
 
-  const agentSource = existsSync(join(home, "adapters", "opencode", "agent", "skillenforce-agent.md"))
-    ? join(home, "adapters", "opencode", "agent", "skillenforce-agent.md")
-    : join(root, "adapters", "opencode", "agent", "skillenforce-agent.md");
-  const agentTarget = join(configDir, "agent", "skillenforce-agent.md");
+  const agentSource = existsSync(join(home, "adapters", "opencode", "agent", "novahiz.md"))
+    ? join(home, "adapters", "opencode", "agent", "novahiz.md")
+    : join(root, "adapters", "opencode", "agent", "novahiz.md");
+  const agentTarget = join(configDir, "agent", "novahiz.md");
   if (existsSync(agentSource)) {
-    note(`Installing Skillenforce agent in ${agentTarget}`);
+    note(`Installing Novahiz agent in ${agentTarget}`);
     if (!dryRun) {
       const result = copyFileWithBackup(agentSource, agentTarget, true);
       if (result.created) created.push(result.created);
@@ -239,7 +239,7 @@ async function main() {
     : join(root, "adapters", "opencode", "commands");
   const commandsTarget = join(configDir, "commands");
   if (existsSync(commandsSource)) {
-    note(`Installing Skillenforce commands in ${commandsTarget}`);
+    note(`Installing Novahiz commands in ${commandsTarget}`);
     if (!dryRun) {
       const result = copyInto(commandsSource, commandsTarget, true);
       created.push(...result.created);
@@ -247,13 +247,13 @@ async function main() {
     }
   }
 
-  const configPath = join(home, "skillenforce.config.json");
+  const configPath = join(home, "novahiz.config.json");
   if (force || !existsSync(configPath)) {
     note(`Writing ${configPath}`);
     if (!dryRun) {
       const existedBefore = existsSync(configPath);
       if (existedBefore) {
-        const backup = `${configPath}.skillenforce-bak`;
+        const backup = `${configPath}.novahiz-bak`;
         if (!existsSync(backup)) cpSync(configPath, backup);
         backups.push({ path: configPath, backup });
       }
@@ -285,7 +285,7 @@ async function main() {
       note("Building catalog (sync)");
       const result = spawnSync(process.execPath, [cli, "sync"], {
         encoding: "utf8",
-        env: { ...process.env, SKILLEFORCE_HOME: home }
+        env: { ...process.env, NOVAHIZ_HOME: home }
       });
       if (result.stdout) process.stdout.write(result.stdout);
       if (result.status !== 0 && result.stderr) process.stderr.write(result.stderr);
@@ -294,7 +294,7 @@ async function main() {
 
   if (!dryRun) {
     const cli = join(home, "src", "cli.ts");
-    const config = readJson(join(home, "skillenforce.config.json"), {});
+    const config = readJson(join(home, "novahiz.config.json"), {});
     const autoInstall =
       providersChoice !== null
         ? providersChoice
@@ -302,14 +302,14 @@ async function main() {
     note("Checking dependencies");
     const check = spawnSync(process.execPath, [cli, "deps"], {
       encoding: "utf8",
-      env: { ...process.env, SKILLEFORCE_HOME: home }
+      env: { ...process.env, NOVAHIZ_HOME: home }
     });
     if (check.stdout) process.stdout.write(check.stdout);
     if (autoInstall) {
       note("Installing dependencies and providers (MCP, skills, commands)");
       const result = spawnSync(process.execPath, [cli, "deps", "--install"], {
         encoding: "utf8",
-        env: { ...process.env, SKILLEFORCE_HOME: home }
+        env: { ...process.env, NOVAHIZ_HOME: home }
       });
       if (result.stdout) process.stdout.write(result.stdout);
       if (result.status !== 0 && result.stderr) process.stderr.write(result.stderr);
@@ -401,11 +401,6 @@ async function main() {
             "command": ["npx", "@playwright/mcp@latest", "--browser=msedge"],
             "enabled": true
           },
-          "supabase": {
-            "type": "remote",
-            "url": "https://mcp.supabase.com/mcp?features=docs%2Caccount%2Cdatabase%2Cdebugging%2Cdevelopment%2Cfunctions%2Cbranching",
-            "enabled": true
-          },
           "expo": {
             "type": "remote",
             "url": "https://mcp.expo.dev/mcp",
@@ -418,7 +413,7 @@ async function main() {
         "plugin": [
           "@mohak34/opencode-notifier@0.2.8",
           "@tarquinen/opencode-dcp@latest",
-          join(home, "adapters", "opencode", "skillenforce.ts")
+          join(home, "adapters", "opencode", "novahiz.ts")
         ],
         "compaction": {
           "auto": true,
@@ -446,9 +441,9 @@ async function main() {
   }
 
   if (!dryRun) {
-    process.stdout.write(`\nSkillenforce installed in ${home}.\n`);
+    process.stdout.write(`\nNovahiz installed in ${home}.\n`);
     process.stdout.write("Restart opencode to activate the plugin and the MCP server.\n");
-    process.stdout.write("Gate can be disabled with the SKILLEFORCE_GATE=off environment variable.\n");
+    process.stdout.write("Gate can be disabled with the NOVAHIZ_GATE=off environment variable.\n");
     
     // Auto-update dependencies
     note("Checking for dependency updates...");
@@ -457,14 +452,14 @@ async function main() {
       const npmCheck = spawnSync("npm", ["outdated", "--json"], {
         encoding: "utf8",
         cwd: home,
-        env: { ...process.env, SKILLEFORCE_HOME: home }
+        env: { ...process.env, NOVAHIZ_HOME: home }
       });
       if (npmCheck.stdout && npmCheck.stdout.trim().length > 2) {
         note("Updates available, installing...");
         const npmUpdate = spawnSync("npm", ["update"], {
           encoding: "utf8",
           cwd: home,
-          env: { ...process.env, SKILLEFORCE_HOME: home }
+          env: { ...process.env, NOVAHIZ_HOME: home }
         });
         if (npmUpdate.stdout) process.stdout.write(npmUpdate.stdout);
         if (npmUpdate.status !== 0 && npmUpdate.stderr) process.stderr.write(npmUpdate.stderr);

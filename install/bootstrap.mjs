@@ -5,19 +5,19 @@ import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { nodeVersionOk, opencodeConfigDir, skillenforceHome } from "./lib.mjs";
+import { nodeVersionOk, opencodeConfigDir, NovahizHome } from "./lib.mjs";
 
-const REPO_URL = "https://github.com/novahiz/skillenforce.git";
-// Was hardcoded to ~/.config/novahiz, ignoring SKILLEFORCE_HOME/NOVAHIZ_HOME.
-// skillenforceHome() already implements the env-first fallback chain.
-const SKILLEFORCE_HOME = skillenforceHome();
+const REPO_URL = "https://github.com/novahiz/novahiz.git";
+// Was hardcoded to ~/.config/novahiz, ignoring NOVAHIZ_HOME/NOVAHIZ_HOME.
+// NovahizHome() already implements the env-first fallback chain.
+const NOVAHIZ_HOME = NovahizHome();
 
 function log(msg) {
-  process.stdout.write(`[skillenforce] ${msg}\n`);
+  process.stdout.write(`[Novahiz] ${msg}\n`);
 }
 
 function error(msg) {
-  process.stderr.write(`[skillenforce] ERROR: ${msg}\n`);
+  process.stderr.write(`[Novahiz] ERROR: ${msg}\n`);
 }
 
 function run(cmd, args, opts = {}) {
@@ -61,9 +61,9 @@ function detectShell() {
   return "bash";
 }
 
-function generateOpenCodeJson(configDir, skillenforceHome) {
+function generateOpenCodeJson(configDir, NovahizHome) {
   const skillsDir = join(configDir, "skills");
-  const bundledDir = join(skillenforceHome, "bundled-skills");
+  const bundledDir = join(NovahizHome, "bundled-skills");
   const agentsSkillsDir = join(homedir(), ".config", ".agents", "skills");
 
   const config = {
@@ -90,11 +90,6 @@ function generateOpenCodeJson(configDir, skillenforceHome) {
         command: ["npx", "@playwright/mcp@latest", "--browser=msedge"],
         enabled: true,
       },
-      supabase: {
-        type: "remote",
-        url: "https://mcp.supabase.com/mcp?features=docs%2Caccount%2Cdatabase%2Cdebugging%2Cdevelopment%2Cfunctions%2Cbranching",
-        enabled: true,
-      },
       expo: {
         type: "remote",
         url: "https://mcp.expo.dev/mcp",
@@ -107,7 +102,7 @@ function generateOpenCodeJson(configDir, skillenforceHome) {
     plugin: [
       "@mohak34/opencode-notifier@0.2.8",
       "@tarquinen/opencode-dcp@latest",
-      join(skillenforceHome, "adapters", "opencode", "skillenforce.ts"),
+      join(NovahizHome, "adapters", "opencode", "novahiz.ts"),
     ],
     compaction: {
       auto: true,
@@ -131,7 +126,7 @@ function generateOpenCodeJson(configDir, skillenforceHome) {
 }
 
 async function main() {
-  log("Bootstrap Skillenforce - Installation from scratch");
+  log("Bootstrap Novahiz - Installation from scratch");
   log("");
 
   // 1. Check Node version
@@ -166,13 +161,13 @@ async function main() {
   }
 
   // 4. Clone or update repo
-  if (existsSync(join(SKILLEFORCE_HOME, ".git"))) {
+  if (existsSync(join(NOVAHIZ_HOME, ".git"))) {
     log("Repo already exists, pulling latest...");
-    run("git", ["-C", SKILLEFORCE_HOME, "pull", "--rebase"]);
+    run("git", ["-C", NOVAHIZ_HOME, "pull", "--rebase"]);
   } else {
-    log(`Cloning repo to ${SKILLEFORCE_HOME}...`);
-    mkdirSync(SKILLEFORCE_HOME, { recursive: true });
-    if (!run("git", ["clone", REPO_URL, SKILLEFORCE_HOME])) {
+    log(`Cloning repo to ${NOVAHIZ_HOME}...`);
+    mkdirSync(NOVAHIZ_HOME, { recursive: true });
+    if (!run("git", ["clone", REPO_URL, NOVAHIZ_HOME])) {
       error("Failed to clone repo");
       process.exit(1);
     }
@@ -222,7 +217,7 @@ async function main() {
   // 7. Run the main installer
   log("");
   log("Running main installer...");
-  const installScript = join(SKILLEFORCE_HOME, "install", "install.mjs");
+  const installScript = join(NOVAHIZ_HOME, "install", "install.mjs");
   if (existsSync(installScript)) {
     if (!run(process.execPath, [installScript, "--yes"])) {
       error("Main installer had issues (non-fatal, check output above)");
@@ -238,7 +233,7 @@ async function main() {
   const configPath = join(configDir, "opencode.jsonc");
 
   if (!existsSync(configPath)) {
-    const config = generateOpenCodeJson(configDir, SKILLEFORCE_HOME);
+    const config = generateOpenCodeJson(configDir, NOVAHIZ_HOME);
     writeFileSync(configPath, JSON.stringify(config, null, 2) + "\n", "utf8");
     log(`Created ${configPath}`);
   } else {
@@ -247,8 +242,8 @@ async function main() {
   }
 
   // 9. Copy plugin to opencode plugins dir
-  const pluginSource = join(SKILLEFORCE_HOME, "adapters", "opencode", "skillenforce.ts");
-  const pluginTarget = join(configDir, "plugins", "skillenforce.ts");
+  const pluginSource = join(NOVAHIZ_HOME, "adapters", "opencode", "novahiz.ts");
+  const pluginTarget = join(configDir, "plugins", "novahiz.ts");
   if (existsSync(pluginSource)) {
     mkdirSync(join(configDir, "plugins"), { recursive: true });
     const { cpSync } = await import("node:fs");
@@ -259,12 +254,12 @@ async function main() {
   // 10. Done
   log("");
   log("=========================================");
-  log("  Skillenforce installed successfully!");
+  log("  Novahiz installed successfully!");
   log("=========================================");
   log("");
   log("Next steps:");
   log("  1. Restart opencode to activate everything");
-  log("  2. Gate is ON by default (disable with SKILLEFORCE_GATE=off)");
+  log("  2. Gate is ON by default (disable with NOVAHIZ_GATE=off)");
   log("");
   log("Enjoy your deterministic agentic layer!");
 }

@@ -1,14 +1,9 @@
 #!/usr/bin/env python3
 """Generate MCP scaffold files from an OpenAPI specification.
 
-Input sources:
-- --input <file>
-- stdin (JSON or YAML when PyYAML is available)
-
-Output:
-- tool_manifest.json
-- server.py or server.ts scaffold
-- summary in text/json
+Reads a contract from --input or stdin (JSON, or YAML when PyYAML is installed)
+and writes tool_manifest.json plus a Python or TypeScript starter server.
+Prints a short text or JSON summary of what landed on disk.
 """
 
 import argparse

@@ -33,28 +33,27 @@ The gate is the enforcement mechanism. It inspects every file edit and decides w
 │  R1-code-prose:                                             │
 │    fileClasses: ["code", "design"] ✓                       │
 │    contentMatches: ["prose"] → check content                │
-│    → Does the diff contain prose? If YES: require humanizer │
+│    → Does the diff contain prose?                           │
+│      If YES: require novahiz-humanizer                 │
 │                                                             │
-│  R2-style:                                                  │
-│    pathGlobs: ["**/*.css", "**/*.html", ...]                │
-│    → Is it a style file? If YES: require impeccable         │
-│                                                             │
-│  R2-styled-component:                                       │
-│    pathGlobs: ["**/*.jsx", "**/*.tsx"]                      │
-│    contentMatches: ["style"] → check content                │
-│    → Does the diff touch styling? If YES: require impeccable│
+│  R1-docs:                                                   │
+│    fileClasses: ["text", "data", "config"] ✓                │
+│    contentMatches: ["prose"] → check content                │
+│    → Does the diff contain prose?                           │
+│      If YES: require novahiz-humanizer                 │
 │                                                             │
 │  R3-supabase:                                               │
 │    promptCategories: ["database-supabase"]                  │
-│    → Was the prompt classified as Supabase? require skills  │
+│    → Was the prompt classified as Supabase?                 │
+│      require novahiz-supabase + novahiz-postgres  │
 │                                                             │
 │  R4-playwright:                                             │
 │    promptCategories: ["browser"]                            │
-│    → require playwright-agent                               │
+│    → require novahiz-browser                           │
 │                                                             │
-│  R5-design:                                                 │
-│    promptCategories: ["design-ui"]                          │
-│    → require impeccable                                     │
+│  R6-Novahiz:                                           │
+│    promptCategories: workflow categories                    │
+│    → require plan/clarify/analyse/implement/converge        │
 └──────────────────────────┬──────────────────────────────────┘
                            │
                            ▼
@@ -65,13 +64,13 @@ The gate is the enforcement mechanism. It inspects every file edit and decides w
 │  Roadmap: schema                                            │
 │                                                             │
 │  Non-optional skill steps:                                  │
-│  • plan → skillenforce-plan                                 │
-│  • clarify → skillenforce-clarify                           │
-│  • inspect → skillenforce-analyse                           │
-│  • load → supabase                                          │
-│  • migration → skillenforce-implement                       │
-│  • security → supabase-postgres-best-practices              │
-│  • converge → skillenforce-converge                         │
+│  • plan → novahiz-plan                                 │
+│  • clarify → novahiz-clarify                           │
+│  • inspect → novahiz-analyse                           │
+│  • load → novahiz-supabase                             │
+│  • migration → novahiz-implement                       │
+│  • security → novahiz-postgres                         │
+│  • converge → novahiz-converge                         │
 └──────────────────────────┬──────────────────────────────────┘
                            │
                            ▼

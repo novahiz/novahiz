@@ -162,7 +162,7 @@ const TRIVIAL_OVERRIDE: RegExp[] = [
   // Explicit typo/fix commands
   /\b(fix\s+the\s+typo|correct\s+the\s+spelling|change\s+\w+\s+to\s+\w+)\b/i,
   // Single-word commands
-  /^(rename|set|update|add|remove|delete|toggle|enable|disable)\s+\w+$/i,
+  /^(rename|set|update|add|remove|delete|toggle|enable|disable)\s+\S+(\s+\S+){0,2}$/i,
   // Config-only changes — NOT trivial: changing config is a real action
   // /\b(update\s+the\s+config|change\s+the\s+setting|bump\s+the\s+version)\b/i,
   // Comment-only — NOT trivial: "add a comment" is a real action
@@ -174,8 +174,6 @@ const TRIVIAL_OVERRIDE: RegExp[] = [
 function countMatches(text: string, patterns: RegExp[]): number {
   let count = 0;
   for (const p of patterns) {
-    // Reset lastIndex to avoid stateful test() issues with global flag
-    p.lastIndex = 0;
     if (p.test(text)) count++;
   }
   return count;
@@ -185,7 +183,6 @@ function scoreActionIntensity(text: string): { lite: number; full: number } {
   let lite = 0;
   let full = 0;
   for (const { pattern, lite: l, full: f } of SIGNALS.actionIntensity) {
-    pattern.lastIndex = 0;
     if (pattern.test(text)) {
       lite += l;
       full += f;
@@ -197,8 +194,6 @@ function scoreActionIntensity(text: string): { lite: number; full: number } {
 function countConstraints(text: string): number {
   let count = 0;
   for (const p of SIGNALS.constraints) {
-    // Reset lastIndex before test
-    p.lastIndex = 0;
     if (p.test(text)) count++;
   }
   return count;
@@ -268,12 +263,11 @@ export function scoreComplexity(prompt: string): ComplexityTier {
   // Check trivial override first
   const normalized = prompt.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
   for (const pattern of TRIVIAL_OVERRIDE) {
-    pattern.lastIndex = 0;
     if (pattern.test(normalized)) return "trivial";
   }
 
   const dims = scoreDimensions(prompt);
-  const wordCount = prompt.trim().split(/\s+/).length;
+  const wordCount = normalized.trim().split(/\s+/).length;
   const { full, lite, trivial } = computeScores(dims, wordCount);
 
   // Decision logic:
@@ -293,10 +287,11 @@ export function scoreComplexity(prompt: string): ComplexityTier {
   if (trivial >= 3 && full < 2) return "trivial";
   if (lite >= 2 && full < 2) return "lite";
 
-  // Default by length — high threshold prevents false full-tier on long prose
+  // Default by length — H5: only trigger "full" if technical signals are present
   if (wordCount <= 8) return "trivial";
   if (wordCount <= 40) return "lite";
-  return "full";
+  const hasDomainSignal = dims.technicalDepth > 0 || dims.domainSpecificity > 0;
+  return hasDomainSignal ? "full" : "lite";
 }
 
 /**

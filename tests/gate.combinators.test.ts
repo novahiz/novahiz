@@ -33,9 +33,9 @@ test("contentSatisfies handles prose, style, regex and the length guard", () => 
 
 test("evaluateGate respects minChange, contentExcludes and match:all", () => {
   const synthetic = [
-    { id: "R-TEST-MIN", require: ["humanizer"], when: { fileClasses: ["text"],         minChange: 10 } },
-    { id: "R-TEST-EXCL", require: ["humanizer"], when: { fileClasses: ["text"], contentExcludes: ["prose"] } },
-    { id: "R-TEST-ALL", require: ["humanizer"], when: { match: "all", fileClasses: ["text"], pathGlobs: ["**/*.md"] } }
+    { id: "R-TEST-MIN", require: ["novahiz-humanizer"], when: { fileClasses: ["text"],         minChange: 10 } },
+    { id: "R-TEST-EXCL", require: ["novahiz-humanizer"], when: { fileClasses: ["text"], contentExcludes: ["prose"] } },
+    { id: "R-TEST-ALL", require: ["novahiz-humanizer"], when: { match: "all", fileClasses: ["text"], pathGlobs: ["**/*.md"] } }
   ] as unknown as typeof spec.rules;
   const custom = { ...spec, rules: [...spec.rules, ...synthetic] } as typeof spec;
 

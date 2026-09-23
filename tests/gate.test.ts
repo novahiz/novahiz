@@ -30,39 +30,47 @@ test("globs match nested paths", () => {
   assert.equal(globToRegExp("**/*.sql").test("src/index.ts"), false);
 });
 
-test("requires humanizer for a markdown edit", () => {
-  const result = evaluateGate({ tool: "edit", filePath: "README.md", spec, installedSkills: null });
+test("requires humanizer for a markdown edit containing prose", () => {
+  const result = evaluateGate({ tool: "edit", filePath: "README.md", spec, installedSkills: null, content: "## Installation\n\nThis section explains how to install the package." });
   assert.equal(result.allow, false);
-  assert.ok(result.missingSkills.includes("humanizer"));
+  assert.ok(result.missingSkills.includes("novahiz-humanizer"));
   assert.ok(result.matchedRules.includes("R1-docs"));
+});
+
+test("does not require humanizer for a markdown edit without prose content", () => {
+  const result = evaluateGate({ tool: "edit", filePath: "README.md", spec, installedSkills: null });
+  assert.equal(result.matchedRules.includes("R1-docs"), false);
 });
 
 test("does not require humanizer for pure logic code", () => {
   const result = evaluateGate({ tool: "edit", filePath: "src/app.ts", spec, installedSkills: null, content: "const x = 1;" });
-  assert.equal(result.missingSkills.includes("humanizer"), false);
+  assert.equal(result.missingSkills.includes("novahiz-humanizer"), false);
   assert.equal(result.matchedRules.includes("R1-code-prose"), false);
 });
 
 test("requires humanizer for code containing prose", () => {
   const result = evaluateGate({ tool: "edit", filePath: "src/app.ts", spec, installedSkills: null, content: PROSE });
-  assert.ok(result.missingSkills.includes("humanizer"));
+  assert.ok(result.missingSkills.includes("novahiz-humanizer"));
   assert.ok(result.matchedRules.includes("R1-code-prose"));
 });
 
-test("requires impeccable for a style file", () => {
+test("requires design craft skills for a style file", () => {
   const result = evaluateGate({ tool: "edit", filePath: "src/hero.css", spec, installedSkills: null });
-  assert.ok(result.missingSkills.includes("impeccable"));
-  assert.ok(result.matchedRules.includes("R2-style"));
+  assert.ok(result.matchedRules.includes("R13-design-craft"));
+  assert.ok(result.missingSkills.includes("anti-AI-design"));
+  assert.ok(result.missingSkills.includes("frontend-design-taste"));
 });
 
-test("requires impeccable for a styled component only with style content", () => {
+test("does not require design craft for a component without a design prompt", () => {
   const withStyle = evaluateGate({ tool: "edit", filePath: "src/Button.tsx", spec, installedSkills: null, content: STYLE });
-  assert.ok(withStyle.missingSkills.includes("impeccable"));
+  assert.equal(withStyle.matchedRules.includes("R13-design-craft"), false);
+  assert.equal(withStyle.missingSkills.includes("anti-AI-design"), false);
   const logicOnly = evaluateGate({ tool: "edit", filePath: "src/Button.tsx", spec, installedSkills: null, content: "const n = 2;" });
-  assert.equal(logicOnly.missingSkills.includes("impeccable"), false);
+  assert.equal(logicOnly.matchedRules.includes("R13-design-craft"), false);
+  assert.equal(logicOnly.missingSkills.includes("anti-AI-design"), false);
 });
 
-test("requires impeccable for a design prompt on a UI target", () => {
+test("requires design craft skills for a design prompt on a UI target", () => {
   const result = evaluateGate({
     tool: "edit",
     filePath: "src/Hero.tsx",
@@ -71,8 +79,9 @@ test("requires impeccable for a design prompt on a UI target", () => {
     categories: ["design-ui"],
     content: "const n = 2;"
   });
-  assert.ok(result.missingSkills.includes("impeccable"));
-  assert.ok(result.matchedRules.includes("R5-design"));
+  assert.ok(result.matchedRules.includes("R13-design-craft"));
+  assert.ok(result.missingSkills.includes("anti-AI-design"));
+  assert.ok(result.missingSkills.includes("frontend-design-taste"));
 });
 
 test("ignores generated and lock files", () => {
@@ -90,8 +99,8 @@ test("requires supabase skills for a migration path", () => {
     installedSkills: null,
     loadedSkills: []
   });
-  assert.ok(result.missingSkills.includes("supabase"));
-  assert.ok(result.missingSkills.includes("supabase-postgres-best-practices"));
+  assert.ok(result.missingSkills.includes("novahiz-supabase"));
+  assert.ok(result.missingSkills.includes("novahiz-postgres"));
   assert.ok(result.matchedRules.includes("R3-supabase"));
 });
 
@@ -111,20 +120,21 @@ test("applies the primary roadmap skill steps", () => {
     tier: "full"
   });
   assert.equal(result.roadmap, "feature");
-  assert.ok(result.requiredSkills.includes("skillenforce-plan"));
-  assert.ok(result.requiredSkills.includes("code-reviewer"));
+  assert.ok(result.requiredSkills.includes("novahiz-plan"));
+  assert.ok(result.requiredSkills.includes("novahiz-code-review"));
 });
 
-test("reports required skills that are not installed separately", () => {
+test("reports design craft skills that are not installed separately", () => {
   const result = evaluateGate({
     tool: "edit",
     filePath: "src/hero.css",
     spec,
-    installedSkills: new Set(["humanizer"]),
+    installedSkills: new Set(["novahiz-humanizer"]),
     loadedSkills: []
   });
   assert.deepEqual(result.requiredSkills, []);
-  assert.deepEqual(result.unmatchedRequired, ["impeccable"]);
+  assert.ok(result.unmatchedRequired.includes("anti-AI-design"));
+  assert.ok(result.unmatchedRequired.includes("frontend-design-taste"));
   assert.deepEqual(result.missingSkills, []);
 });
 
@@ -135,11 +145,12 @@ test("fails closed when the installed index is unavailable", () => {
     spec,
     installedSkills: new Set(),
     installedIndexAvailable: false,
-    loadedSkills: []
+    loadedSkills: [],
+    content: "## Installation\n\nThis section explains how to install the package."
   });
   assert.equal(result.allow, false);
   assert.equal(result.indexMissing, true);
-  assert.ok(result.missingSkills.includes("humanizer"));
+  assert.ok(result.missingSkills.includes("novahiz-humanizer"));
 });
 
 test("does not block a valid empty index", () => {
@@ -162,7 +173,7 @@ test("blocks a placeholder marker in code content", () => {
     filePath: "src/app.ts",
     spec,
     installedSkills: null,
-    loadedSkills: ["humanizer"],
+    loadedSkills: ["novahiz-humanizer"],
     content: `throw new Error("${marker}");`
   });
   assert.equal(result.placeholder, true);
@@ -176,13 +187,32 @@ test("does not flag clean code as a placeholder", () => {
     filePath: "src/app.ts",
     spec,
     installedSkills: null,
-    loadedSkills: ["humanizer"],
+    loadedSkills: ["novahiz-humanizer"],
     content: "const x = 1;"
   });
   assert.equal(result.placeholder, false);
 });
 
+test("gates a bash command that writes prose to a file", () => {
+  const result = evaluateGate({ tool: "bash", filePath: "output.md", spec, installedSkills: null, content: "# This is a detailed explanation of the installation steps for the project." });
+  assert.equal(result.allow, false);
+  assert.ok(result.missingSkills.length > 0);
+  assert.ok(result.matchedRules.length > 0);
+});
+
+test("gates a shell command targeting a supabase migration", () => {
+  const result = evaluateGate({ tool: "shell", filePath: "supabase/migrations/001_init.sql", spec, installedSkills: null, content: "psql -f supabase/migrations/001_init.sql" });
+  assert.equal(result.allow, false);
+  assert.ok(result.missingSkills.includes("novahiz-supabase"));
+});
+
+test("allows a bash command targeting an ignored file", () => {
+  const result = evaluateGate({ tool: "bash", filePath: "package-lock.json", spec, installedSkills: null, content: "npm install" });
+  assert.equal(result.allow, true);
+  assert.equal(result.ignored, true);
+});
+
 test("explains each missing skill in reasons", () => {
-  const result = evaluateGate({ tool: "edit", filePath: "README.md", spec, installedSkills: null, loadedSkills: [] });
-  assert.ok(result.reasons.some((entry) => entry.includes("humanizer")));
+  const result = evaluateGate({ tool: "edit", filePath: "README.md", spec, installedSkills: null, loadedSkills: [], content: "## Installation\n\nThis section explains how to install the package." });
+  assert.ok(result.reasons.some((entry) => entry.includes("novahiz-humanizer")));
 });

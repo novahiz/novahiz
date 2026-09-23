@@ -4,32 +4,29 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Eval Review</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@500;600&family=Lora:wght@400;500&display=swap" rel="stylesheet">
   <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js" integrity="sha384-EnyY0/GSHQGSxSgMwaIPzSESbqoOLSexfnSMN2AP+39Ckmn92stwABZynq1JyzdT" crossorigin="anonymous"></script>
   <style>
     :root {
-      --bg: #faf9f5;
+      --bg: #f5f0eb;
       --surface: #ffffff;
-      --border: #e8e6dc;
+      --border: #e7e5e0;
       --text: #141413;
-      --text-muted: #b0aea5;
-      --accent: #d97757;
-      --accent-hover: #c4613f;
-      --green: #788c5d;
-      --green-bg: #eef2e8;
+      --text-muted: #6b7280;
+      --accent: #0f766e;
+      --accent-hover: #0b5f59;
+      --green: #0f766e;
+      --green-bg: #d9f2ee;
       --red: #c44;
       --red-bg: #fceaea;
       --header-bg: #141413;
-      --header-text: #faf9f5;
-      --radius: 6px;
+      --header-text: #f5f0eb;
+      --radius: 4px;
     }
 
     * { box-sizing: border-box; margin: 0; padding: 0; }
 
     body {
-      font-family: 'Lora', Georgia, serif;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
       background: var(--bg);
       color: var(--text);
       height: 100vh;
@@ -48,9 +45,8 @@
       flex-shrink: 0;
     }
     .header h1 {
-      font-family: 'Poppins', sans-serif;
+      font-weight: 500;
       font-size: 1.25rem;
-      font-weight: 600;
     }
     .header .instructions {
       font-size: 0.8rem;
@@ -81,7 +77,7 @@
       flex-shrink: 0;
     }
     .section-header {
-      font-family: 'Poppins', sans-serif;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
       padding: 0.75rem 1rem;
       font-size: 0.75rem;
       font-weight: 500;
@@ -100,7 +96,7 @@
       display: inline-block;
       padding: 0.2rem 0.625rem;
       border-radius: 9999px;
-      font-family: 'Poppins', sans-serif;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
       font-size: 0.6875rem;
       font-weight: 600;
       text-transform: uppercase;
@@ -333,7 +329,7 @@
       flex-shrink: 0;
     }
     .view-tab {
-      font-family: 'Poppins', sans-serif;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
       padding: 0.625rem 1.25rem;
       font-size: 0.8125rem;
       font-weight: 500;
@@ -373,7 +369,7 @@
       border: 1px solid var(--border);
     }
     .benchmark-table th {
-      font-family: 'Poppins', sans-serif;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
       background: var(--header-bg);
       color: var(--header-text);
       font-weight: 500;
@@ -398,7 +394,7 @@
       padding: 1rem;
     }
     .benchmark-notes h3 {
-      font-family: 'Poppins', sans-serif;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
       font-size: 0.875rem;
       margin-bottom: 0.75rem;
     }
@@ -429,7 +425,7 @@
       flex-shrink: 0;
     }
     .nav-btn {
-      font-family: 'Poppins', sans-serif;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
       padding: 0.5rem 1.25rem;
       border: 1px solid var(--border);
       border-radius: var(--radius);
@@ -449,7 +445,7 @@
       cursor: not-allowed;
     }
     .done-btn {
-      font-family: 'Poppins', sans-serif;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
       padding: 0.5rem 1.5rem;
       border: 1px solid var(--border);
       border-radius: var(--radius);
@@ -545,7 +541,7 @@
     <div class="header">
       <div>
         <h1>Eval Review: <span id="skill-name"></span></h1>
-        <div class="instructions">Review each output and leave feedback below. Navigate with arrow keys or buttons. When done, copy feedback and paste into Claude Code.</div>
+        <div class="instructions">Review each output and leave feedback below. Navigate with arrow keys or buttons. When done, download feedback.json and put it in the workspace so the next iteration can pick it up.</div>
       </div>
       <div class="progress" id="progress"></div>
     </div>
@@ -634,7 +630,7 @@
   <div class="done-overlay" id="done-overlay">
     <div class="done-card">
       <h2>Review Complete</h2>
-      <p>Your feedback has been saved. Go back to your Claude Code session and tell Claude you're done reviewing.</p>
+      <p>Your feedback has been saved. Download feedback.json and return it to the agent session that launched this review.</p>
       <div class="btn-row">
         <button onclick="closeDoneDialog()">OK</button>
       </div>
@@ -655,7 +651,7 @@
 
     // ---- Init ----
     async function init() {
-      // Load saved feedback from server — but only if this isn't a fresh
+      // Load saved feedback from server, but only if this isn't a fresh
       // iteration (indicated by previous_feedback being present). When
       // previous feedback exists, the feedback.json on disk is stale from
       // the prior iteration and should not pre-fill the textareas.
@@ -1016,7 +1012,7 @@
       }).then(() => {
         document.getElementById("feedback-status").textContent = "Saved";
       }).catch(() => {
-        // Static mode or server unavailable — no-op on auto-save,
+        // Static mode or server unavailable: no-op on auto-save,
         // feedback will be downloaded on final submit
         document.getElementById("feedback-status").textContent = "Will download on submit";
       });
@@ -1033,7 +1029,7 @@
         feedbackMap[run.id] = text;
       }
 
-      // POST once with status: complete — include ALL runs so the model
+      // POST once with status: complete, include ALL runs so the model
       // can distinguish "no feedback" (looks good) from "not reviewed"
       const reviews = [];
       const ts = new Date().toISOString();
@@ -1048,7 +1044,7 @@
       }).then(() => {
         document.getElementById("done-overlay").classList.add("visible");
       }).catch(() => {
-        // Server not available (static mode) — download as file
+        // Server not available (static mode): download as file
         const blob = new Blob([payload], { type: "application/json" });
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
@@ -1126,7 +1122,7 @@
       let html = "";
 
       // Header
-      html += "<h2 style='font-family: Poppins, sans-serif; margin-bottom: 0.5rem;'>Benchmark Results</h2>";
+      html += "<h2 style='font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin-bottom: 0.5rem;'>Benchmark Results</h2>";
       html += "<p style='color: var(--text-muted); font-size: 0.875rem; margin-bottom: 1.25rem;'>";
       if (metadata.skill_name) html += "<strong>" + escapeHtml(metadata.skill_name) + "</strong> &mdash; ";
       if (metadata.timestamp) html += metadata.timestamp + " &mdash; ";
@@ -1138,7 +1134,7 @@
       html += '<table class="benchmark-table">';
 
       function fmtStat(stat, pct) {
-        if (!stat) return "—";
+        if (!stat) return "-";
         const suffix = pct ? "%" : "";
         const m = pct ? (stat.mean * 100).toFixed(0) : stat.mean.toFixed(1);
         const s = pct ? (stat.stddev * 100).toFixed(0) : stat.stddev.toFixed(1);
@@ -1169,14 +1165,14 @@
       html += "<tr><td><strong>Pass Rate</strong></td>";
       html += "<td>" + fmtStat(a.pass_rate, true) + "</td>";
       html += "<td>" + fmtStat(b.pass_rate, true) + "</td>";
-      html += '<td class="' + deltaClass(delta.pass_rate) + '">' + (delta.pass_rate || "—") + "</td></tr>";
+      html += '<td class="' + deltaClass(delta.pass_rate) + '">' + (delta.pass_rate || "-") + "</td></tr>";
 
       // Time (only show row if data exists)
       if (a.time_seconds || b.time_seconds) {
         html += "<tr><td><strong>Time (s)</strong></td>";
         html += "<td>" + fmtStat(a.time_seconds, false) + "</td>";
         html += "<td>" + fmtStat(b.time_seconds, false) + "</td>";
-        html += '<td class="' + deltaClass(delta.time_seconds) + '">' + (delta.time_seconds ? delta.time_seconds + "s" : "—") + "</td></tr>";
+        html += '<td class="' + deltaClass(delta.time_seconds) + '">' + (delta.time_seconds ? delta.time_seconds + "s" : "-") + "</td></tr>";
       }
 
       // Tokens (only show row if data exists)
@@ -1184,7 +1180,7 @@
         html += "<tr><td><strong>Tokens</strong></td>";
         html += "<td>" + fmtStat(a.tokens, false) + "</td>";
         html += "<td>" + fmtStat(b.tokens, false) + "</td>";
-        html += '<td class="' + deltaClass(delta.tokens) + '">' + (delta.tokens || "—") + "</td></tr>";
+        html += '<td class="' + deltaClass(delta.tokens) + '">' + (delta.tokens || "-") + "</td></tr>";
       }
 
       html += "</tbody></table>";
@@ -1194,7 +1190,7 @@
       if (runs.length > 0) {
         const evalIds = [...new Set(runs.map(r => r.eval_id))].sort((a, b) => a - b);
 
-        html += "<h3 style='font-family: Poppins, sans-serif; margin-bottom: 0.75rem;'>Per-Eval Breakdown</h3>";
+        html += "<h3 style='font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin-bottom: 0.75rem;'>Per-Eval Breakdown</h3>";
 
         const hasTime = runs.some(r => r.result && r.result.time_seconds != null);
         const hasErrors = runs.some(r => r.result && r.result.errors > 0);
@@ -1203,7 +1199,7 @@
           const evalRuns = runs.filter(r => r.eval_id === evalId);
           const evalName = evalRuns[0] && evalRuns[0].eval_name ? evalRuns[0].eval_name : "Eval " + evalId;
 
-          html += "<h4 style='font-family: Poppins, sans-serif; margin: 1rem 0 0.5rem; color: var(--text);'>" + escapeHtml(evalName) + "</h4>";
+          html += "<h4 style='font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin: 1rem 0 0.5rem; color: var(--text);'>" + escapeHtml(evalName) + "</h4>";
           html += '<table class="benchmark-table">';
           html += "<thead><tr><th>Config</th><th>Run</th><th>Pass Rate</th>";
           if (hasTime) html += "<th>Time (s)</th>";
@@ -1228,7 +1224,7 @@
               html += "<td>" + configLabel + "</td>";
               html += "<td>" + run.run_number + "</td>";
               html += '<td class="' + prClass + '">' + ((r.pass_rate || 0) * 100).toFixed(0) + "% (" + (r.passed || 0) + "/" + (r.total || 0) + ")</td>";
-              if (hasTime) html += "<td>" + (r.time_seconds != null ? r.time_seconds.toFixed(1) : "—") + "</td>";
+              if (hasTime) html += "<td>" + (r.time_seconds != null ? r.time_seconds.toFixed(1) : "-") + "</td>";
               if (hasErrors) html += "<td>" + (r.errors || 0) + "</td>";
               html += "</tr>";
             }
@@ -1243,7 +1239,7 @@
             html += '<td class="' + avgPrClass + '">' + (avgRate * 100).toFixed(0) + "%</td>";
             if (hasTime) {
               const times = configRuns.map(r => (r.result || {}).time_seconds).filter(t => t != null);
-              html += "<td>" + (times.length ? (times.reduce((a, b) => a + b, 0) / times.length).toFixed(1) : "—") + "</td>";
+              html += "<td>" + (times.length ? (times.reduce((a, b) => a + b, 0) / times.length).toFixed(1) : "-") + "</td>";
             }
             if (hasErrors) html += "<td></td>";
             html += "</tr>";
@@ -1291,7 +1287,7 @@
                     const icon = exp.passed ? "\u2713" : "\u2717";
                     html += '<span class="' + cls + '" title="Run ' + run.run_number + ': ' + escapeHtml(exp.evidence || "") + '">' + icon + "</span> ";
                   } else {
-                    html += "— ";
+                    html += "- ";
                   }
                 }
                 html += "</td>";

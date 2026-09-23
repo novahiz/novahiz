@@ -113,7 +113,7 @@ type LedgerConfig = {
   review: LedgerReviewConfig;
 };
 
-export type SkillenforceConfig = {
+export type NovahizConfig = {
   dbPath: string;
   skillRoots: string[];
   gate: GateConfig;
@@ -124,7 +124,7 @@ export type SkillenforceConfig = {
 
 export type Spec = {
   root: string;
-  config: SkillenforceConfig;
+  config: NovahizConfig;
   categories: Category[];
   rules: Rule[];
   overrides: Overrides;
@@ -148,13 +148,13 @@ const DEFAULT_IGNORE_FILES = [
   "**/*.generated.*"
 ];
 
-export const DEFAULT_CONFIG: SkillenforceConfig = {
-  dbPath: "skillenforce.sqlite",
+export const DEFAULT_CONFIG: NovahizConfig = {
+  dbPath: "novahiz.sqlite",
   skillRoots: [],
   gate: {
     enabled: true,
     mode: "block",
-    envEscape: "SKILLEFORCE_GATE",
+    envEscape: "NOVAHIZ_GATE", // canonical kill-switch name; gate command ignores this field
     tools: ["edit", "write", "patch", "apply_patch", "bash", "shell"],
     ignoreFiles: DEFAULT_IGNORE_FILES,
     placeholders: true,
@@ -182,13 +182,13 @@ export const DEFAULT_CONFIG: SkillenforceConfig = {
   }
 };
 
-export function skillenforceHome(): string {
+export function NovahizHome(): string {
   // M7: resolve ~/ and relative segments — the installer variant already did,
-  // the TS variant returned the raw string (broken on SKILLEFORCE_HOME=~/x).
-  // Default stays .config/skillenforce: the canonical home directory.
-  const fromEnv = process.env.SKILLEFORCE_HOME || process.env.NOVAHIZ_HOME;
+  // the TS variant returned the raw string (broken on NOVAHIZ_HOME=~/x).
+  // Default stays .config/novahiz: the canonical home directory.
+  const fromEnv = process.env.NOVAHIZ_HOME || process.env.NOVAHIZ_HOME;
   if (fromEnv && fromEnv.length > 0) return resolve(expandHome(fromEnv));
-  return join(homedir(), ".config", "skillenforce");
+  return join(homedir(), ".config", "novahiz");
 }
 
 export function expandHome(value: string): string {
@@ -213,7 +213,7 @@ function readJson<T>(path: string): T {
   return JSON.parse(stripBom(readFileSync(path, "utf8"))) as T;
 }
 
-export function mergeConfig(raw: Partial<SkillenforceConfig> | null | undefined): SkillenforceConfig {
+export function mergeConfig(raw: Partial<NovahizConfig> | null | undefined): NovahizConfig {
   const source = raw && typeof raw === "object" ? raw : {};
   const gateSource: Partial<GateConfig> = source.gate && typeof source.gate === "object" ? source.gate : {};
   const gate: GateConfig = { ...DEFAULT_CONFIG.gate, ...gateSource };
@@ -270,24 +270,24 @@ export function mergeConfig(raw: Partial<SkillenforceConfig> | null | undefined)
   };
 }
 
-function loadConfig(root: string = skillenforceHome()): SkillenforceConfig {
+function loadConfig(root: string = NovahizHome()): NovahizConfig {
   const config = readUserConfig(root);
-  const dbOverride = process.env.SKILLEFORCE_DB || process.env.NOVAHIZ_DB;
+  const dbOverride = process.env.NOVAHIZ_DB;
   if (dbOverride && dbOverride.length > 0) config.dbPath = dbOverride;
   return config;
 }
 
-function readUserConfig(root: string): SkillenforceConfig {
-  const userPath = join(root, "skillenforce.config.json");
+function readUserConfig(root: string): NovahizConfig {
+  const userPath = join(root, "novahiz.config.json");
   if (existsSync(userPath)) {
     try {
-      return mergeConfig(JSON.parse(stripBom(readFileSync(userPath, "utf8"))) as Partial<SkillenforceConfig>);
+      return mergeConfig(JSON.parse(stripBom(readFileSync(userPath, "utf8"))) as Partial<NovahizConfig>);
     } catch (error) {
       throw new Error(`Invalid JSON in ${userPath}: ${(error as Error).message}`);
     }
   }
-  const examplePath = join(root, "skillenforce.config.example.json");
-  if (existsSync(examplePath)) return mergeConfig(readJson<Partial<SkillenforceConfig>>(examplePath));
+  const examplePath = join(root, "novahiz.config.example.json");
+  if (existsSync(examplePath)) return mergeConfig(readJson<Partial<NovahizConfig>>(examplePath));
   return mergeConfig(null);
 }
 
@@ -299,7 +299,7 @@ function readCatalog<T>(path: string): T {
   }
 }
 
-export function loadSpec(root: string = skillenforceHome()): Spec {
+export function loadSpec(root: string = NovahizHome()): Spec {
   const categories = readCatalog<Category[]>(join(root, "catalog", "categories.json"));
   const rules = readCatalog<Rule[]>(join(root, "catalog", "rules.json"));
   const overrides = readCatalog<Overrides>(join(root, "catalog", "overrides.json"));

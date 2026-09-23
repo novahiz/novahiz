@@ -10,7 +10,7 @@ const root = fileURLToPath(new URL("..", import.meta.url));
 test("unsafeToken accepts tokens with no shell metacharacters", () => {
   assert.equal(unsafeToken(["npm", "-y", "@playwright/mcp@latest", "--help"]), null);
   assert.equal(unsafeToken(["uv", "tool", "install", "specify-cli"]), null);
-  assert.equal(unsafeToken(["impeccable", "install", "--providers=opencode", "--scope=global"]), null);
+  assert.equal(unsafeToken(["npx", "@playwright/mcp@latest", "--help"]), null);
 });
 
 test("unsafeToken flags every shell metacharacter", () => {

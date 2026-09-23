@@ -1,6 +1,6 @@
 # MCP Server Builder
 
-Generate and validate MCP servers from OpenAPI contracts with production-focused tooling. This skill helps teams bootstrap fast and enforce schema quality before shipping.
+Generate and validate MCP servers from OpenAPI contracts with production-focused tooling, on top of current MCP spec patterns (capabilities, OAuth 2.1 roles, elicitation, tool design rules). This skill helps teams bootstrap fast and enforce schema quality before shipping.
 
 ## Quick Start
 
@@ -24,6 +24,8 @@ python3 scripts/mcp_validator.py --input generated/tool_manifest.json --strict -
 
 ## References
 
+- `references/spec-compatibility.md`
+- `references/production-hardening-guide.md`
 - `references/openapi-extraction-guide.md`
 - `references/python-server-template.md`
 - `references/typescript-server-template.md`
@@ -31,20 +33,10 @@ python3 scripts/mcp_validator.py --input generated/tool_manifest.json --strict -
 
 ## Installation
 
-### Claude Code
+Copy this folder into your agent skills directory, for example:
 
 ```bash
-cp -R engineering/mcp-server-builder ~/.claude/skills/mcp-server-builder
+cp -R mcp-server-builder ~/.agents/skills/mcp-server-builder
 ```
 
-### OpenAI Codex
-
-```bash
-cp -R engineering/mcp-server-builder ~/.codex/skills/mcp-server-builder
-```
-
-### OpenClaw
-
-```bash
-cp -R engineering/mcp-server-builder ~/.openclaw/skills/mcp-server-builder
-```
+Adjust the destination to match the host you use (opencode skills path, Claude skills path, Codex skills path, or OpenClaw skills path).

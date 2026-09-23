@@ -1,5 +1,5 @@
 /**
- * Graft integration for skillenforce — version-controls the SQLite ledger.
+ * Graft integration for Novahiz — version-controls the SQLite ledger.
  *
  * Provides: init, commit, log, diff, status, restore, isAvailable, isInitialized.
  * Auto-commit is handled by calling `commitGraft()` from ledger operations.
@@ -7,7 +7,7 @@
 import { execFileSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
-import { skillenforceHome } from "./spec.ts";
+import { NovahizHome } from "./spec.ts";
 
 // ── Graft binary resolution ──────────────────────────────────────────────────
 // Graft is expected on PATH. If not found, we degrade gracefully (no-op).
@@ -34,14 +34,14 @@ function graftBinary(): string {
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 function graftDir(): string {
-  return resolve(skillenforceHome(), ".graft");
+  return resolve(NovahizHome(), ".graft");
 }
 
 function ledgerPath(): string {
-  const envDb = process.env.SKILLEFORCE_DB || process.env.NOVAHIZ_DB;
+  const envDb = process.env.NOVAHIZ_DB;
   if (envDb) return resolve(envDb);
-  // Default: skillenforce.sqlite in the skillenforce home directory
-  return resolve(skillenforceHome(), "skillenforce.sqlite");
+  // Default: novahiz.sqlite in the Novahiz home directory
+  return resolve(NovahizHome(), "novahiz.sqlite");
 }
 
 function runGraft(args: string[], opts?: { timeout?: number }): string {
@@ -52,13 +52,14 @@ function runGraft(args: string[], opts?: { timeout?: number }): string {
     return execFileSync(bin, fullArgs, {
       stdio: "pipe",
       timeout: opts?.timeout ?? 30_000,
-      cwd: skillenforceHome(),
+      cwd: NovahizHome(),
       encoding: "utf-8",
     }).trim();
-  } catch (err: any) {
-    const stderr = err.stderr?.toString() ?? "";
-    const stdout = err.stdout?.toString() ?? "";
-    throw new Error(`graft ${args[0]} failed: ${stderr || stdout || err.message}`);
+  } catch (err: unknown) {
+    const stderr = err instanceof Error && "stderr" in err ? String((err as { stderr: unknown }).stderr ?? "") : "";
+    const stdout = err instanceof Error && "stdout" in err ? String((err as { stdout: unknown }).stdout ?? "") : "";
+    const message = err instanceof Error ? err.message : String(err);
+    throw new Error(`graft ${args[0]} failed: ${stderr || stdout || message}`);
   }
 }
 
@@ -74,12 +75,12 @@ export function isGraftAvailable(): boolean {
   }
 }
 
-/** Check if .graft directory exists in the skillenforce home. */
+/** Check if .graft directory exists in the Novahiz home. */
 export function isGraftInitialized(): boolean {
   return existsSync(graftDir());
 }
 
-/** Initialize a .graft repository in the skillenforce home directory. */
+/** Initialize a .graft repository in the Novahiz home directory. */
 export function initGraft(): { success: boolean; message: string } {
   if (!isGraftAvailable()) {
     return { success: false, message: "graft CLI not found on PATH" };
@@ -92,18 +93,19 @@ export function initGraft(): { success: boolean; message: string } {
     execFileSync(graftBinary(), ["init"], {
       stdio: "pipe",
       timeout: 10_000,
-      cwd: skillenforceHome(),
+      cwd: NovahizHome(),
     });
     // Configure user identity
     try {
-      runGraft(["config", "set", "user.name", "skillenforce"]);
-      runGraft(["config", "set", "user.email", "skillenforce@local"]);
+      runGraft(["config", "set", "user.name", "Novahiz"]);
+      runGraft(["config", "set", "user.email", "Novahiz@local"]);
     } catch {
       // non-critical
     }
     return { success: true, message: "graft initialized" };
-  } catch (err: any) {
-    return { success: false, message: `init failed: ${err.message}` };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    return { success: false, message: `init failed: ${message}` };
   }
 }
 
@@ -182,8 +184,9 @@ export function restoreGraft(revision: string): { success: boolean; message: str
   try {
     runGraft(["checkout", revision]);
     return { success: true, message: `restored to ${revision}` };
-  } catch (err: any) {
-    return { success: false, message: `restore failed: ${err.message}` };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    return { success: false, message: `restore failed: ${message}` };
   }
 }
 
@@ -195,8 +198,9 @@ export function exportGraft(revision: string, outputPath: string): { success: bo
   try {
     runGraft(["export", revision, "--output", outputPath]);
     return { success: true, message: `exported to ${outputPath}` };
-  } catch (err: any) {
-    return { success: false, message: `export failed: ${err.message}` };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    return { success: false, message: `export failed: ${message}` };
   }
 }
 
@@ -208,7 +212,7 @@ export function exportGraft(revision: string, outputPath: string): { success: bo
  * The commit message is generated from the operation type.
  */
 export function autoCommit(operation: string, detail?: string): void {
-  const msg = detail ? `skillenforce: ${operation} — ${detail}` : `skillenforce: ${operation}`;
+  const msg = detail ? `novahiz: ${operation} — ${detail}` : `novahiz: ${operation}`;
   try {
     commitGraft(msg);
   } catch {

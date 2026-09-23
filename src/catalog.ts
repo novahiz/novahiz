@@ -189,7 +189,8 @@ export function loadCatalog(spec: Spec): CatalogSkill[] {
     const raw = readFileSync(join(spec.root, "build", "catalog.json"), "utf8");
     const parsed = JSON.parse(raw);
     return Array.isArray(parsed) ? (parsed as CatalogSkill[]) : [];
-  } catch {
+  } catch (err) {
+    console.error(`[Novahiz] loadCatalog failed: ${err instanceof Error ? err.message : err}`);
     return [];
   }
 }

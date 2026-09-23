@@ -1,18 +1,18 @@
 # CLI Reference
 
-skillenforce exposes a single CLI entry point. All commands return JSON when invoked programmatically.
+Novahiz exposes a single CLI entry point. All commands return JSON when invoked programmatically.
 
 ## Core commands
 
-### `skillenforce init`
+### `Novahiz init`
 
 One-shot setup: copies core, builds catalog, installs skills.
 
 ```bash
-skillenforce init
+Novahiz init
 ```
 
-### `skillenforce doctor`
+### `Novahiz doctor`
 
 Health check — runs 10 diagnostic checks:
 
@@ -22,7 +22,7 @@ Health check — runs 10 diagnostic checks:
 | `npx` | npx available (required by providers) |
 | `index` | `build/installed-skills.json` is readable |
 | `referenced` | All skills referenced in catalog are installed |
-| `cli` | External CLIs (defuddle) are present |
+| `cli` | External CLIs declared in `SKILL_CLI` are present (none by default) |
 | `gate` | Gate smoke test passes |
 | `db` | Ledger database is readable |
 | `plugin` | Installed plugin matches source |
@@ -30,87 +30,87 @@ Health check — runs 10 diagnostic checks:
 | `config` | Config file is valid |
 
 ```bash
-skillenforce doctor
+Novahiz doctor
 ```
 
-### `skillenforce status`
+### `Novahiz status`
 
 Shows current classification and gate state.
 
 ```bash
-skillenforce status
+Novahiz status
 ```
 
-### `skillenforce version`
+### `Novahiz version`
 
 Prints the version from `package.json`.
 
 ```bash
-skillenforce version
+Novahiz version
 ```
 
 ## Task management
 
-### `skillenforce task new <title>`
+### `Novahiz task new <title>`
 
 Starts a new tracked task in the ledger.
 
 ```bash
-skillenforce task new "Add CSV export"
+Novahiz task new "Add CSV export"
 ```
 
-### `skillenforce task status`
+### `Novahiz task status`
 
 Shows task progress with todos and their states.
 
 ```bash
-skillenforce task status
+Novahiz task status
 ```
 
-### `skillenforce task done <id>`
+### `Novahiz task done <id>`
 
 Marks a todo as complete. For `verify` steps, requires a proof.
 
 ```bash
-skillenforce task done t1
+Novahiz task done t1
 ```
 
 ## Session commands
 
-### `skillenforce report`
+### `Novahiz report`
 
 Session report — shows what was done, what's pending.
 
 ```bash
-skillenforce report
+Novahiz report
 ```
 
-### `skillenforce clean`
+### `Novahiz clean`
 
 Removes old logs and sessions.
 
 ```bash
-skillenforce clean --days 30 --apply --vacuum
+Novahiz clean --days 30 --apply --vacuum
 ```
 
 Options: `--days N`, `--dry-run`, `--apply`, `--vacuum`, `--json`.
 
-### `skillenforce upgrade`
+### `Novahiz upgrade`
 
 Pulls latest changes and rebuilds catalog.
 
 ```bash
-skillenforce upgrade
+Novahiz upgrade
 ```
 
 ## Advanced commands
 
-### `skillenforce classify <text>`
+### `Novahiz classify <text>`
 
 Classifies a prompt and returns categories, skills, and roadmaps.
 
 ```bash
-skillenforce classify "ajoute une migration supabase"
+Novahiz classify "ajoute une migration supabase"
 ```
 
 Output:
@@ -118,69 +118,69 @@ Output:
 {
   "categories": [{ "id": "database-supabase", "score": 3.0, "confidence": 0.6 }],
   "primary": "database-supabase",
-  "requiredSkills": ["supabase", "supabase-postgres-best-practices"],
-  "enforcedSkills": ["supabase"],
+  "requiredSkills": ["novahiz-supabase", "novahiz-postgres"],
+  "enforcedSkills": ["novahiz-supabase"],
   "roadmaps": [{ "id": "schema", "steps": [...] }],
   "providers": ["supabase"]
 }
 ```
 
-### `skillenforce gate`
+### `Novahiz gate`
 
 Checks if an edit is allowed.
 
 ```bash
-skillenforce gate --tool edit --file src/hero.css --args-stdin
+Novahiz gate --tool edit --file src/hero.css --args-stdin
 ```
 
 Exit codes: `0` = allowed, `2` = blocked.
 
-### `skillenforce skills`
+### `Novahiz skills`
 
 Lists loaded or available skills.
 
 ```bash
-skillenforce skills --category design-ui
+Novahiz skills --category design-ui
 ```
 
-### `skillenforce catalog <query>`
+### `Novahiz catalog <query>`
 
 Searches the skill catalog.
 
 ```bash
-skillenforce catalog "design frontend landing" --limit 5
+Novahiz catalog "design frontend landing" --limit 5
 ```
 
-### `skillenforce roadmap`
+### `Novahiz roadmap`
 
 Shows execution roadmap for a category.
 
 ```bash
-skillenforce roadmap --category code
+Novahiz roadmap --category code
 ```
 
-### `skillenforce dispatch`
+### `Novahiz dispatch`
 
 Generates work packets from open todos.
 
 ```bash
-skillenforce dispatch --task <id>
+Novahiz dispatch --task <id>
 ```
 
-### `skillenforce tokens`
+### `Novahiz tokens`
 
 Token diagnostics.
 
 ```bash
-skillenforce tokens --calibrate
+Novahiz tokens --calibrate
 ```
 
-### `skillenforce sync`
+### `Novahiz sync`
 
 Rebuilds the installed-skills index.
 
 ```bash
-skillenforce sync
+Novahiz sync
 ```
 
 ## Exit codes
@@ -195,7 +195,7 @@ skillenforce sync
 
 | Flag | Purpose |
 |------|---------|
-| `--home <path>` | Override skillenforce home directory |
+| `--home <path>` | Override Novahiz home directory |
 | `--json` | Machine-readable output |
 | `--pretty` | Force human-readable output |
 | `--dry-run` | Print actions without executing |

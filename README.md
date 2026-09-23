@@ -1,8 +1,8 @@
-# skillenforce
+# Novahiz
 
 > **Zero-dependency enforcement layer for AI coding agents** — classifies prompts, assigns execution roadmaps, blocks unsafe edits, and injects session-level skills, all deterministically without model calls.
 
-14 categories, 173+ skills, 7 gate rules, 12 MCP providers — all deterministic, all local, all JSON.
+15 categories, 185 skills, 11 gate rules, 12 MCP providers — all deterministic, all local, all JSON.
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
@@ -22,7 +22,7 @@
 
 ```
 ┌──────────────────────────────────────────────────────────────────────────┐
-│                        HOW SKILLENFORCE WORKS                            │
+│                        HOW Novahiz WORKS                            │
 │                                                                          │
 │  ┌──────────┐    ┌────────────┐    ┌──────────┐    ┌──────────────┐     │
 │  │  USER    │───▶│  CLASSIFY  │───▶│  INJECT  │───▶│    MODEL     │     │
@@ -52,7 +52,7 @@
 └──────────────────────────────────────────────────────────────────────────┘
 ```
 
-**14 categories**, **173+ skills**, **6 gate rules**, **12 MCP providers** — all deterministic, all local, all JSON.
+**15 categories**, **185 skills**, **11 gate rules**, **12 MCP providers** — all deterministic, all local, all JSON.
 
 ---
 
@@ -61,26 +61,26 @@
 ### Option 1 — One-liner (recommended)
 
 ```bash
-npm install -g skillenforce
+npm install -g Novahiz
 ```
 
-This installs skillenforce globally and auto-configures opencode (skills, plugin, MCP servers, config). Then verify:
+This installs Novahiz globally and auto-configures opencode (skills, plugin, MCP servers, config). Then verify:
 
 ```bash
-npx skillenforce doctor   # 10 health checks
-npx skillenforce classify "fix the auth bug"
+npx Novahiz doctor   # 10 health checks
+npx Novahiz classify "fix the auth bug"
 ```
 
 ### Option 2 — From source
 
 ```bash
-git clone https://github.com/novahiz/skillenforce.git
+git clone https://github.com/novahiz/novahiz.git
 cd novahiz
 npm install && npm run build
 node ./install/install.mjs
 
 # Verify
-npx skillenforce doctor
+npx Novahiz doctor
 ```
 
 > Requires **Node.js >= 22.18**. The installer auto-installs opencode if it's missing.
@@ -89,7 +89,7 @@ npx skillenforce doctor
 
 ## The Classifier
 
-Every user prompt passes through the classifier. It scores keywords against 14 categories and picks the top matches.
+Every user prompt passes through the classifier. It scores keywords against 15 categories and picks the top matches.
 
 ```mermaid
 flowchart LR
@@ -106,9 +106,9 @@ flowchart LR
 
 | Prompt | Top Category | Confidence | Skills Required |
 |--------|-------------|------------|-----------------|
-| "fix the auth bug" | `debug` | 0.60 | skillenforce-plan, skillenforce-analyse, skillenforce-implement, skillenforce-converge |
-| "add a landing page" | `design-ui` | 0.50 | impeccable, humanizer |
-| "create supabase migration" | `database-supabase` | 0.60 | supabase, supabase-postgres-best-practices, skillenforce-plan, skillenforce-implement |
+| "fix the auth bug" | `debug` | 0.60 | novahiz-plan, novahiz-analyse, novahiz-implement, novahiz-converge |
+| "add a landing page" | `design-ui` | 0.50 | novahiz-humanizer, anti-AI-design |
+| "create supabase migration" | `database-supabase` | 0.60 | novahiz-supabase, novahiz-postgres, novahiz-plan, novahiz-implement |
 
 ---
 
@@ -121,14 +121,12 @@ flowchart TD
     A[Tool Call: edit / write / patch] --> B[File Class Detection]
     B --> C{Rule Matching}
     
-    C --> D[R1: Code contains prose?<br/>require humanizer]
-    C --> E[R2: File is CSS/HTML?<br/>require impeccable]
-    C --> F[R3: Prompt was Supabase?<br/>require supabase skills]
-    C --> G[R4: Prompt was browser?<br/>require playwright-agent]
-    C --> H[R5: Prompt was design?<br/>require impeccable]
+    C --> D[R1: Content contains prose?<br/>require novahiz-humanizer]
+    C --> F[R3: Prompt was Supabase?<br/>require novahiz-supabase + postgres]
+    C --> G[R4: Prompt was browser?<br/>require novahiz-browser]
+    C --> H[R6: Workflow prompt?<br/>require plan/clarify/analyse/implement/converge]
     
     D --> I{Roadmap Enforcement}
-    E --> I
     F --> I
     G --> I
     H --> I
@@ -159,12 +157,17 @@ flowchart TD
 
 | Rule | Triggers on | Requires |
 |------|-------------|----------|
-| R1 | Code/design file + prose content | humanizer |
-| R2 | Style files (CSS/HTML) | impeccable |
-| R2 | JSX/TSX + style patterns | impeccable |
-| R3 | Supabase prompt category | supabase skills |
-| R4 | Browser prompt category | playwright-agent |
-| R5 | Design prompt category | impeccable |
+| R1-code-prose | Code or design file whose change contains prose | novahiz-humanizer |
+| R1-docs | Text, data or config file, or a docs-writing prompt | novahiz-humanizer |
+| R3-supabase | A Supabase path or a Supabase prompt | novahiz-supabase, novahiz-postgres |
+| R4-playwright | A browser prompt category | novahiz-browser |
+| R6-Novahiz | A prompt in a workflow category | novahiz-plan, -clarify, -analyse, -implement, -converge |
+| R7-assessment | An assessment prompt | novahiz-assess-intake, -research, -define, -shape, -decide |
+| R8-docs | Edits under `novahiz-docs/**/*.md` | novahiz-docs |
+| R9-code-review | A review prompt or a code file under review | novahiz-code-review |
+| R10-security | An audit or security prompt | novahiz-security |
+| R11-accessibility | A design-ui or audit prompt | novahiz-wcag-audit |
+| R12-web-extract | A research prompt | novahiz-web-extract |
 
 ---
 
@@ -237,32 +240,32 @@ flowchart TD
 
 ## Installed skills
 
-skillenforce ships with 173+ skills across all categories:
+Novahiz ships with 172 skills across all categories:
 
 | Category | Skills | Purpose |
 |----------|--------|---------|
-| `code` | typescript-expert, clean-code, zero-hallucination-coder, senior-backend, senior-architect, ... | Code quality, patterns, architecture |
-| `debug` | debug-issue, code-understand, anti-pattern-detector, ... | Root cause analysis, code navigation |
-| `review` | code-reviewer, adversarial-reviewer, review-pr, ... | Structured review, blast radius |
-| `database-supabase` | supabase, supabase-postgres-best-practices, database-designer, ... | Schema, RLS, migrations, optimization |
-| `design-ui` | impeccable, anti-AI-design, design-taste-frontend, apple-hig-expert, ... | UI/UX, visual hierarchy, native feel |
-| `docs-writing` | copywriting, copy-editing, humanizer, ... | Prose, marketing copy, AI de-tell |
-| `browser` | playwright-agent, defuddle, computer-use, ... | Web automation, screenshots, extraction |
-| `audit` | senior-secops, security-guidance, narsil-*, dependency-auditor, ... | Security, compliance, vulnerability |
+| `code` | novahiz-code-review, engineering-code-standards, mcp-server-builder, ... | Code quality, patterns, architecture |
+| `debug` | debug-issue, novahiz-analyse, ... | Root cause analysis, code navigation |
+| `review` | novahiz-code-review, review-pr, ... | Structured review, blast radius |
+| `database-supabase` | supabase, supabase-postgres-best-practices, novahiz-postgres, ... | Schema, RLS, migrations, optimization |
+| `design-ui` | anti-AI-design, frontend-design-taste, apple-hig-audit, ... | UI/UX, visual hierarchy, native feel |
+| `docs-writing` | novahiz-humanizer, copywriting, copy-editing, humanizer, ... | Prose, marketing copy, AI de-tell |
+| `browser` | novahiz-browser, playwright-agent, novahiz-web-extract, computer-use, ... | Web automation, screenshots, extraction |
+| `audit` | novahiz-security, narsil-*, dependency-auditor, ai-security, ... | Security, compliance, vulnerability |
 
-Run `npx skillenforce skills --all` to see the full list.
+Run `npx Novahiz skills --all` to see the full list.
 
 ---
 
 ## Providers
 
-skillenforce auto-registers external MCP servers based on the prompt category:
+Novahiz auto-registers external MCP servers based on the prompt category:
 
 | Provider | Purpose | Categories |
 |----------|---------|------------|
 | context7 | Library documentation | all |
 | narsil | Code intelligence, security scan | code, debug, review, audit |
-| defuddle | Clean markdown from URLs | research, docs-writing |
+| novahiz-web-extract | Clean markdown from URLs | research, docs-writing |
 | playwright | Browser automation | browser, design |
 | supabase | Database operations | database-supabase |
 | supabase-postgres-best-practices | Postgres optimization | database-supabase |
@@ -281,10 +284,10 @@ See [docs/PROVIDERS.md](docs/PROVIDERS.md) for full details.
 NOVAHIZ_GATE=off npx opencode
 
 # Override home directory
-NOVAHIZ_HOME=/path/to/skillenforce npx skillenforce doctor
+NOVAHIZ_HOME=/path/to/Novahiz npx Novahiz doctor
 
 # Force node version
-NOVAHIZ_NODE=/usr/local/bin/node npx skillenforce doctor
+NOVAHIZ_NODE=/usr/local/bin/node npx Novahiz doctor
 ```
 
 See [docs/CONFIGURATION.md](docs/CONFIGURATION.md) for all options.
@@ -295,23 +298,23 @@ See [docs/CONFIGURATION.md](docs/CONFIGURATION.md) for all options.
 
 | Command | Purpose |
 |---------|---------|
-| `skillenforce init` | One-shot setup |
-| `skillenforce doctor` | 10-check health diagnostic |
-| `skillenforce status` | Current classification + gate state |
-| `skillenforce classify <text>` | Classify a prompt |
-| `skillenforce gate` | Check if an edit is allowed |
-| `skillenforce task new <title>` | Start a tracked task |
-| `skillenforce task status` | Task progress |
-| `skillenforce task done <id>` | Mark a todo complete |
-| `skillenforce report` | Session report |
-| `skillenforce skills` | List loaded or available skills |
-| `skillenforce catalog <query>` | Search the skill catalog |
-| `skillenforce roadmap` | Show execution roadmap |
-| `skillenforce dispatch` | Generate work packets |
-| `skillenforce sync` | Rebuild installed-skills index |
-| `skillenforce clean` | Remove old logs |
-| `skillenforce upgrade` | Pull latest + rebuild |
-| `skillenforce version` | Print version |
+| `Novahiz init` | One-shot setup |
+| `Novahiz doctor` | 10-check health diagnostic |
+| `Novahiz status` | Current classification + gate state |
+| `Novahiz classify <text>` | Classify a prompt |
+| `Novahiz gate` | Check if an edit is allowed |
+| `Novahiz task new <title>` | Start a tracked task |
+| `Novahiz task status` | Task progress |
+| `Novahiz task done <id>` | Mark a todo complete |
+| `Novahiz report` | Session report |
+| `Novahiz skills` | List loaded or available skills |
+| `Novahiz catalog <query>` | Search the skill catalog |
+| `Novahiz roadmap` | Show execution roadmap |
+| `Novahiz dispatch` | Generate work packets |
+| `Novahiz sync` | Rebuild installed-skills index |
+| `Novahiz clean` | Remove old logs |
+| `Novahiz upgrade` | Pull latest + rebuild |
+| `Novahiz version` | Print version |
 
 See [docs/CLI.md](docs/CLI.md) for full reference.
 
@@ -341,7 +344,7 @@ See [docs/CLI.md](docs/CLI.md) for full reference.
 
 ## Philosophy
 
-skillenforce treats skills like **locks** and the prompt like a **key**. The classifier determines which locks exist. The gate checks whether you have the right keys loaded. No key, no edit.
+Novahiz treats skills like **locks** and the prompt like a **key**. The classifier determines which locks exist. The gate checks whether you have the right keys loaded. No key, no edit.
 
 Everything is local, deterministic, and JSON. No cloud calls. No model inference in the decision path. Same prompt + same config = same result, every time.
 
@@ -349,4 +352,4 @@ Everything is local, deterministic, and JSON. No cloud calls. No model inference
 
 ## License
 
-MIT
+Apache-2.0

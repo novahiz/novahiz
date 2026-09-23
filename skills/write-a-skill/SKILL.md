@@ -1,57 +1,42 @@
 ---
 name: write-a-skill
 description: Create new agent skills with proper structure, progressive disclosure, and bundled resources. Use when user wants to create, write, build, or author a new skill.
-license: MIT
+license: Apache-2.0
 metadata:
-  derived_from: "https://github.com/mattpocock/skills/tree/main/skills/productivity/write-a-skill"
-  original_author: "Matt Pocock (@mattpocock)"
-  original_license: MIT
-  voice: "Matt Pocock — direct, concrete, imperative, example-driven"
-  version: 1.0.0
+  author: Novahiz
+  organization: Novahiz
+  version: "2.0.0"
+  date: September 2026
 ---
 
-# Writing Skills
-
-> Derived from [Matt Pocock's write-a-skill](https://github.com/mattpocock/skills/tree/main/skills/productivity/write-a-skill) (MIT). Matt's voice and 3-phase workflow preserved verbatim. Additions: validation tools + references + cs-* wrapper (see *Tooling + Companions* below).
+# Writing skills
 
 ## Process
 
-1. **Gather requirements** - ask user about:
-   - What task/domain does the skill cover?
-   - What specific use cases should it handle?
-   - Does it need executable scripts or just instructions?
-   - Any reference materials to include?
+1. **Clarify the need.** Ask about the domain, the concrete cases the skill must handle, whether scripts are required, and what reference material should ship with it.
+2. **Draft the files.** Write SKILL.md first. Push anything past 100 lines into a reference file. Add scripts only for deterministic work the model should not re-derive each time.
+3. **Review with the author.** Present the draft. Ask what is missing, what is unclear, and which sections are too heavy or too thin.
 
-2. **Draft the skill** - create:
-   - SKILL.md with concise instructions
-   - Additional reference files if content exceeds 500 lines
-   - Utility scripts if deterministic operations needed
-
-3. **Review with user** - present draft and ask:
-   - Does this cover your use cases?
-   - Anything missing or unclear?
-   - Should any section be more/less detailed?
-
-## Skill Structure
+## Layout
 
 ```
 skill-name/
-├── SKILL.md           # Main instructions (required)
-├── REFERENCE.md       # Detailed docs (if needed)
-├── EXAMPLES.md        # Usage examples (if needed)
-└── scripts/           # Utility scripts (if needed)
+├── SKILL.md           # required entry point
+├── REFERENCE.md       # optional long-form detail
+├── EXAMPLES.md        # optional worked cases
+└── scripts/           # optional helpers
     └── helper.js
 ```
 
-## SKILL.md Template
+## SKILL.md skeleton
 
 ```md
 ---
 name: skill-name
-description: Brief description of capability. Use when [specific triggers].
+description: What the skill does. Use when [specific triggers].
 ---
 
-# Skill Name
+# Skill name
 
 ## Quick start
 
@@ -59,83 +44,68 @@ description: Brief description of capability. Use when [specific triggers].
 
 ## Workflows
 
-[Step-by-step processes with checklists for complex tasks]
+[Step-by-step processes for complex tasks]
 
 ## Advanced features
 
-[Link to separate files: See [REFERENCE.md](REFERENCE.md)]
+[See REFERENCE.md](REFERENCE.md)
 ```
 
-## Description Requirements
+## Description rules
 
-The description is **the only thing your agent sees** when deciding which skill to load. It's surfaced in the system prompt alongside all other installed skills. Your agent reads these descriptions and picks the relevant skill based on the user's request.
+The description is the only text the agent sees when it decides whether to load the skill. It sits in the system prompt next to every other installed skill, and the agent picks from it alone.
 
-**Goal**: Give your agent just enough info to know:
+Two facts must land:
 
-1. What capability this skill provides
-2. When/why to trigger it (specific keywords, contexts, file types)
+1. What the skill does.
+2. When to fire: keywords, contexts, file types.
 
-**Format**:
+Constraints:
 
-- Max 1024 chars
-- Write in third person
-- First sentence: what it does
-- Second sentence: "Use when [specific triggers]"
+- Hard cap at 1024 characters.
+- Third person throughout.
+- Sentence one: the action.
+- Sentence two: `Use when [specific triggers]`.
 
-**Good example**:
+Good:
 
 ```
 Extract text and tables from PDF files, fill forms, merge documents. Use when working with PDF files or when user mentions PDFs, forms, or document extraction.
 ```
 
-**Bad example**:
+Bad:
 
 ```
 Helps with documents.
 ```
 
-The bad example gives your agent no way to distinguish this from other document skills.
+The weak version gives the agent nothing to match against. Every document skill in the list looks the same from it.
 
-## When to Add Scripts
+## When scripts belong in the skill
 
-Add utility scripts when:
+Ship a script when the work is deterministic (validation, formatting), when the same code would otherwise be generated over and over, or when failure needs explicit handling. Scripts cut token use and remove the chance of two runs inventing two different implementations.
 
-- Operation is deterministic (validation, formatting)
-- Same code would be generated repeatedly
-- Errors need explicit handling
+## When to split the file
 
-Scripts save tokens and improve reliability vs generated code.
+Split when SKILL.md crosses 100 lines, when the content covers distinct domains (finance schemas next to sales schemas), or when advanced paths are rarely needed. The agent should read SKILL.md in full and stop there unless a pointer sends it deeper.
 
-## When to Split Files
+## Review checklist
 
-Split into separate files when:
+- [ ] Description carries triggers (`Use when ...`)
+- [ ] SKILL.md stays under 100 lines
+- [ ] No dates, versions, or `as of YYYY` claims
+- [ ] One word per concept throughout
+- [ ] At least one concrete example
+- [ ] References sit one level deep
 
-- SKILL.md exceeds 100 lines
-- Content has distinct domains (finance vs sales schemas)
-- Advanced features are rarely needed
+## Tooling
 
-## Review Checklist
-
-After drafting, verify:
-
-- [ ] Description includes triggers ("Use when...")
-- [ ] SKILL.md under 100 lines
-- [ ] No time-sensitive info
-- [ ] Consistent terminology
-- [ ] Concrete examples included
-- [ ] References one level deep
-
-## Tooling + Companions
-
-Validation tools + cs-* wrapper sit alongside this skill. Run all 6 review-checklist items programmatically:
+Three stdlib validators sit next to this skill:
 
 ```
+python scripts/skill_description_validator.py path/to/SKILL.md
+python scripts/skill_structure_validator.py path/to/skill-folder
 python scripts/skill_review_checklist_runner.py path/to/skill-folder
 ```
 
-See [references/companion_tooling.md](references/companion_tooling.md) for the tool catalogue, cs-skill-author persona agent, and `/cs:write-a-skill` slash command.
-
----
-
-**Version:** 1.0.0
-**Derived:** Matt Pocock (MIT) + this repo's wrapper
+Catalogue and companions: [references/companion_tooling.md](references/companion_tooling.md).

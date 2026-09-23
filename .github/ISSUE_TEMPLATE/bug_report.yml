@@ -1,5 +1,5 @@
 name: Bug report
-description: Report a defect in Skillenforce
+description: Report a defect in Novahiz
 labels: ["bug"]
 body:
   - type: markdown

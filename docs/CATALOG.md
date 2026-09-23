@@ -1,12 +1,12 @@
 # Catalog System
 
-The catalog is the knowledge base of skillenforce. It defines what categories exist, what keywords trigger them, what skills are required, and what execution roadmaps the agent should follow.
+The catalog is the knowledge base of Novahiz. It defines what categories exist, what keywords trigger them, what skills are required, and what execution roadmaps the agent should follow.
 
 ## Files
 
 ```
 catalog/
-├── categories.json    # 14 categories with keywords, skills, roadmaps
+├── categories.json    # 15 categories with keywords, skills, roadmaps
 ├── rules.json         # 6 pre-edit rules (file class + content triggers)
 ├── providers.json     # 12 external MCP servers and skill packs
 └── overrides.json     # Manual skill curation (power, stars, tags)
@@ -27,8 +27,8 @@ Each category is a JSON object:
   "roadmap": {
     "id": "schema",
     "steps": [
-      { "id": "plan", "label": "Set the change direction", "kind": "skill", "requireSkills": ["skillenforce-plan"] },
-      { "id": "clarify", "label": "Remove ambiguities", "kind": "skill", "requireSkills": ["skillenforce-clarify"] },
+      { "id": "plan", "label": "Set the change direction", "kind": "skill", "requireSkills": ["novahiz-plan"] },
+      { "id": "clarify", "label": "Remove ambiguities", "kind": "skill", "requireSkills": ["novahiz-clarify"] },
       ...
     ]
   }
@@ -93,7 +93,7 @@ Each rule triggers skill requirements based on file class, path, prompt category
 
 ## providers.json
 
-Lists external tools that skillenforce can register as MCP servers:
+Lists external tools that Novahiz can register as MCP servers:
 
 ```json
 {
@@ -120,10 +120,10 @@ Manual curation for skills. Used to adjust scores, add tags, or assign categorie
 
 ## Syncing
 
-Run `skillenforce sync` to rebuild the installed-skills index:
+Run `Novahiz sync` to rebuild the installed-skills index:
 
 ```bash
-skillenforce sync
+Novahiz sync
 ```
 
 This walks all skill roots, parses `SKILL.md` frontmatter, and writes `build/installed-skills.json`.

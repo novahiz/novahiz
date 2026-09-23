@@ -2,8 +2,8 @@
 """Improve a skill description based on eval results.
 
 Takes eval results (from run_eval.py) and generates an improved description
-by calling `claude -p` as a subprocess (same auth pattern as run_eval.py —
-uses the session's Claude Code auth, no separate ANTHROPIC_API_KEY needed).
+by calling `claude -p` as a subprocess (reuses the interactive session's
+auth; no separate API key env var is required).
 """
 
 import argparse
@@ -27,8 +27,8 @@ def _call_claude(prompt: str, model: str | None, timeout: int = 300) -> str:
     if model:
         cmd.extend(["--model", model])
 
-    # Remove CLAUDECODE env var to allow nesting claude -p inside a
-    # Claude Code session. The guard is for interactive terminal conflicts;
+    # Remove CLAUDECODE env var to allow nesting claude -p inside an
+    # interactive agent session. The guard is for interactive terminal conflicts;
     # programmatic subprocess usage is safe. Same pattern as run_eval.py.
     env = {k: v for k, v in os.environ.items() if k != "CLAUDECODE"}
 
@@ -58,7 +58,7 @@ def improve_description(
     log_dir: Path | None = None,
     iteration: int | None = None,
 ) -> str:
-    """Call Claude to improve the description based on eval results."""
+    """Call the model to improve the description based on eval results."""
     failed_triggers = [
         r for r in eval_results["results"]
         if r["should_trigger"] and not r["pass"]
@@ -76,9 +76,9 @@ def improve_description(
     else:
         scores_summary = f"Train: {train_score}"
 
-    prompt = f"""You are optimizing a skill description for a Claude Code skill called "{skill_name}". A "skill" is sort of like a prompt, but with progressive disclosure -- there's a title and description that Claude sees when deciding whether to use the skill, and then if it does use the skill, it reads the .md file which has lots more details and potentially links to other resources in the skill folder like helper files and scripts and additional documentation or examples.
+    prompt = f"""You are optimizing a skill description for an agent skill called "{skill_name}". A "skill" is a layered prompt: a title and description the host sees when deciding whether to load the skill, then the full .md body (plus optional linked resources in the skill folder: helper scripts, docs, examples) read only after loading.
 
-The description appears in Claude's "available_skills" list. When a user sends a query, Claude decides whether to invoke the skill based solely on the title and on this description. Your goal is to write a description that triggers for relevant queries, and doesn't trigger for irrelevant ones.
+The description sits in the host's available-skills list. On each user query the host decides whether to load the skill from that text alone. Write a description that fires on relevant queries and stays quiet on irrelevant ones.
 
 Here's the current description:
 <current_description>
@@ -101,7 +101,7 @@ Current scores ({scores_summary}):
         prompt += "\n"
 
     if history:
-        prompt += "PREVIOUS ATTEMPTS (do NOT repeat these — try something structurally different):\n\n"
+        prompt += "PREVIOUS ATTEMPTS (do NOT repeat these; try something structurally different):\n\n"
         for h in history:
             train_s = f"{h.get('train_passed', h.get('passed', 0))}/{h.get('train_total', h.get('total', 0))}"
             test_s = f"{h.get('test_passed', '?')}/{h.get('test_total', '?')}" if h.get('test_passed') is not None else None
@@ -129,12 +129,12 @@ Based on the failures, write a new and improved description that is more likely 
 1. Avoid overfitting
 2. The list might get loooong and it's injected into ALL queries and there might be a lot of skills, so we don't want to blow too much space on any given description.
 
-Concretely, your description should not be more than about 100-200 words, even if that comes at the cost of accuracy. There is a hard limit of 1024 characters — descriptions over that will be truncated, so stay comfortably under it.
+Concretely, your description should not be more than about 100-200 words, even if that comes at the cost of accuracy. There is a hard limit of 1024 characters: descriptions over that will be truncated, so stay comfortably under it.
 
 Here are some tips that we've found to work well in writing these descriptions:
 - The skill should be phrased in the imperative -- "Use this skill for" rather than "this skill does"
 - The skill description should focus on the user's intent, what they are trying to achieve, vs. the implementation details of how the skill works.
-- The description competes with other skills for Claude's attention — make it distinctive and immediately recognizable.
+- The description competes with other skills for attention; make it distinctive and immediately recognizable.
 - If you're getting lots of failures after repeated attempts, change things up. Try different sentence structures or wordings.
 
 I'd encourage you to be creative and mix up the style in different iterations since you'll have multiple opportunities to try different approaches and we'll just grab the highest-scoring one at the end. 

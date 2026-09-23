@@ -3,15 +3,16 @@ import { spawnSync } from "node:child_process";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { dbPathFor, emit, type Parsed } from "./context.ts";
-import { loadSpec, skillenforceHome } from "../spec.ts";
+import { loadSpec, NovahizHome } from "../spec.ts";
 import { openDb, SCHEMA_VERSION } from "../db.ts";
 import { loadInstalledSkills } from "../catalog.ts";
 import { evaluateGate } from "../gate.ts";
+import { DEFAULT_LIMIT_CHARS, DEFAULT_LIMIT_LINES, MEMORY_DIR } from "../memory.ts";
 import * as ui from "../render.ts";
 
 type DoctorCheck = { id: string; label: string; ok: boolean; detail: string; blocking: boolean };
 
-const SKILL_CLI: Record<string, string> = { defuddle: "defuddle" };
+const SKILL_CLI: Record<string, string> = {};
 
 function hasCommand(name: string): boolean {
   const probe = process.platform === "win32" ? "where" : "which";
@@ -37,7 +38,7 @@ function referencedSkills(spec: ReturnType<typeof loadSpec>): string[] {
 }
 
 export function commandDoctor(parsed: Parsed): void {
-  const root = skillenforceHome();
+  const root = NovahizHome();
   const spec = loadSpec(root);
   const checks: DoctorCheck[] = [];
 
@@ -51,7 +52,7 @@ export function commandDoctor(parsed: Parsed): void {
     id: "index",
     label: "Skills index",
     ok: index.available,
-    detail: index.available ? `${index.skills.size} skills` : "build/installed-skills.json unreadable, run skillenforce sync",
+    detail: index.available ? `${index.skills.size} skills` : "build/installed-skills.json unreadable, run novahiz sync",
     blocking: true
   });
 
@@ -79,7 +80,7 @@ export function commandDoctor(parsed: Parsed): void {
   const probe = evaluateGate({
     tool: "edit",
     filePath: "README.md",
-    content: "texte",
+    content: "This README paragraph is long enough prose for the content rules to match and demand a loaded skill.",
     categories: [],
     loadedSkills: [],
     installedSkills: index.skills,
@@ -125,12 +126,12 @@ export function commandDoctor(parsed: Parsed): void {
   }
   checks.push({ id: "schema", label: "Schema version", ok: true, detail: schemaDetail, blocking: false });
 
-  const adapterSource = join(root, "adapters", "opencode", "skillenforce.ts");
+  const adapterSource = join(root, "adapters", "opencode", "novahiz.ts");
   const opencodeDir =
     process.env.OPENCODE_CONFIG_DIR && process.env.OPENCODE_CONFIG_DIR.length > 0
       ? process.env.OPENCODE_CONFIG_DIR
       : join(homedir(), ".config", "opencode");
-  const adapterInstalled = join(opencodeDir, "plugins", "skillenforce.ts");
+  const adapterInstalled = join(opencodeDir, "plugins", "novahiz.ts");
   let adapterOk = true;
   let adapterDetail = "no installed copy";
   if (existsSync(adapterSource) && existsSync(adapterInstalled)) {
@@ -139,8 +140,32 @@ export function commandDoctor(parsed: Parsed): void {
   }
   checks.push({ id: "adapter", label: "Plugin harness copy", ok: adapterOk, detail: adapterDetail, blocking: false });
 
-  const agentSource = join(root, "adapters", "opencode", "agent", "skillenforce-agent.md");
-  const agentInstalled = join(opencodeDir, "agent", "skillenforce-agent.md");
+  const memoryModule = join(root, "src", "memory.ts");
+  const memoryOk = existsSync(memoryModule) && DEFAULT_LIMIT_CHARS === 8000 && DEFAULT_LIMIT_LINES === 200;
+  checks.push({
+    id: "memory",
+    label: "Memory module",
+    ok: memoryOk,
+    detail: memoryOk
+      ? `${MEMORY_DIR}/ slots ${DEFAULT_LIMIT_CHARS} chars / ${DEFAULT_LIMIT_LINES} lines`
+      : "src/memory.ts missing or limits changed",
+    blocking: false
+  });
+
+  const mcpEntry = join(root, "mcp", "novahiz-tools", "index.mjs");
+  let memoryToolsOk = false;
+  let memoryToolsDetail = "mcp entry missing";
+  if (existsSync(mcpEntry)) {
+    const source = readFileSync(mcpEntry, "utf8");
+    const tools = ["memory_write", "memory_list", "memory_get", "memory_init", "memory_rebuild"];
+    const missing = tools.filter((name) => !source.includes(`"${name}"`));
+    memoryToolsOk = missing.length === 0;
+    memoryToolsDetail = memoryToolsOk ? "5 memory_* tools registered" : `missing: ${missing.join(", ")}`;
+  }
+  checks.push({ id: "memory-tools", label: "MCP memory tools", ok: memoryToolsOk, detail: memoryToolsDetail, blocking: false });
+
+  const agentSource = join(root, "adapters", "opencode", "agent", "novahiz.md");
+  const agentInstalled = join(opencodeDir, "agent", "novahiz.md");
   let agentOk = true;
   let agentDetail = "no installed copy";
   if (existsSync(agentSource) && existsSync(agentInstalled)) {
@@ -169,7 +194,7 @@ export function commandDoctor(parsed: Parsed): void {
 
   emit(parsed, value, () =>
     [
-      ui.heading("Skillenforce doctor"),
+      ui.heading("Novahiz doctor"),
       ui.kv([
         ["Maison", root],
         ["Plateforme", process.platform]
@@ -188,4 +213,5 @@ export function commandDoctor(parsed: Parsed): void {
 
   if (blocking.length > 0) process.exitCode = 1;
 }
+
 

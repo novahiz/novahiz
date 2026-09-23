@@ -23,7 +23,7 @@ test("roadmap steps have a valid shape", () => {
       assert.ok(step.label.length > 0, `empty step label in ${category.id}`);
       assert.ok(kinds.has(step.kind), `invalid kind ${step.kind} in ${category.id}`);
       for (const skill of step.requireSkills ?? []) {
-        assert.match(skill, /^[a-z0-9][a-z0-9-]*$/, `invalid skill id ${skill}`);
+        assert.match(skill, /^[a-z0-9]+(?:-[a-z0-9]+)*$/i, `invalid skill id ${skill}`);
       }
     }
   }

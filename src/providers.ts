@@ -25,6 +25,7 @@ export function buildMcpEntries(spec: Spec): Record<string, McpEntry> {
     if (provider.kind !== "mcp") continue;
     if (provider.transport === "remote") {
       if (!provider.url) continue;
+      try { new URL(provider.url); } catch { continue; }
       entries[provider.id] = { type: "remote", url: provider.url, enabled: true };
     } else {
       // M20b: when a provider has no `command` field, we fall back to using the

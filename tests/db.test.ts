@@ -5,10 +5,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync, openDb } from "../src/db.ts";
 
-const dbPath = join(tmpdir(), `skillenforce-migrate-${Date.now().toString(36)}.sqlite`);
+const dbPath = join(tmpdir(), `novahiz-migrate-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}.sqlite`);
 
 test("openDb records the schema version and the log indexes", () => {
-  const ownPath = join(tmpdir(), `skillenforce-schema-${Date.now().toString(36)}.sqlite`);
+  const ownPath = join(tmpdir(), `novahiz-schema-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}.sqlite`);
   const db = openDb(ownPath);
   const version = db.prepare("PRAGMA user_version").get() as { user_version: number };
   assert.equal(version.user_version, 1);

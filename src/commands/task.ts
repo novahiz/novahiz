@@ -1,6 +1,6 @@
 import { join } from "node:path";
 import { asString, dbPathFor, numberFlag, parse, print, readStdin, splitList, type Parsed } from "./context.ts";
-import { loadSpec, skillenforceHome } from "../spec.ts";
+import { loadSpec, NovahizHome } from "../spec.ts";
 import { openDb } from "../db.ts";
 import { activeTask, addTodos, amendTodo, blockTodo, completeTodo, createTask, dropTodo, getTask, getTodo, insertTodo, ledgerSummary, recordTodoDone, reorderTodos, resume, reviewDue, reviewTask, revisionSignals, startTodo, type ReviewDiff, type TodoAmendment, type TodoInput, type TodoKind } from "../ledger.ts";
 
@@ -25,7 +25,7 @@ export function normalizeTodoInput(item: unknown): TodoInput {
 }
 
 export function commandTask(parsed: Parsed): void {
-  const root = skillenforceHome();
+  const root = NovahizHome();
   const spec = loadSpec(root);
   const action = parsed.positionals[1] ?? "status";
   const session = asString(parsed.flags.session);
@@ -84,7 +84,7 @@ function taskRead(parsed: Parsed, db: ReturnType<typeof openDb>, session: string
     summary.push(
       `  review: ${review.due ? "DUE" : "ok"} (edits ${review.edits}/${review.policy.edits}, todos ${review.todos}/${review.policy.todos})`
     );
-    if (review.due) summary.push(`  -> reconcile with: skillenforce task review --task ${state.task.id} --reason "<what changed>"`);
+    if (review.due) summary.push(`  -> reconcile with: novahiz task review --task ${state.task.id} --reason "<what changed>"`);
     for (const signal of signals) summary.push(`  signal ${signal.type}: ${signal.detail}`);
   }
   print({ ...state, summary, review, signals });

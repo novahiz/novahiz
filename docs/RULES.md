@@ -6,12 +6,13 @@ A rule describes a condition and the skills that condition requires before a fil
 
 ```json
 {
-  "id": "R2-style",
-  "description": "Charger impeccable sur les fichiers de style visuel.",
+  "id": "R1-docs",
+  "description": "Load novahiz-humanizer on text, documentation, and written content.",
   "when": {
-    "pathGlobs": ["**/*.css", "**/*.scss"]
+    "fileClasses": ["text", "data", "config"],
+    "contentMatches": ["prose"]
   },
-  "require": ["impeccable"]
+  "require": ["novahiz-humanizer"]
 }
 ```
 
@@ -23,7 +24,7 @@ Condition fields:
 - `contentMatches` matches the changed text. Use the named matchers `prose` and `style`, or a regex.
 - `contentExcludes` cancels the rule when it matches the changed text.
 - `minChange` skips trivial diffs.
-- `match` combines the selector fields. `any` (default) applies the rule when one selector matches. `all` requires every selector to match.
+- `match` combines the selector fields. `all` (default) requires every selector to match; `any` applies the rule when one selector matches.
 
 Content conditions are combined with AND against the selectors. A rule with `contentMatches` does not apply when no content is provided.
 
@@ -31,12 +32,16 @@ Content conditions are combined with AND against the selectors. A rule with `con
 
 | Id | Condition | Requires |
 | --- | --- | --- |
-| R1-docs | text, data or config file, or a docs-writing prompt | `humanizer` |
-| R1-code-prose | code or design file whose change contains prose | `humanizer` |
-| R2-style | a style file | `impeccable` |
-| R2-styled-component | jsx/tsx whose change touches styling | `impeccable` |
-| R2-design-target | design prompt on a UI file | `impeccable` |
-| R3-supabase | a Supabase path or a Supabase prompt | `supabase`, `supabase-postgres-best-practices` |
+| R1-docs | text, data or config file, or a docs-writing prompt | `novahiz-humanizer` |
+| R1-code-prose | code or design file whose change contains prose | `novahiz-humanizer` |
+| R3-supabase | a Supabase path or a Supabase prompt | `novahiz-supabase`, `novahiz-postgres` |
+| R4-playwright | a browser prompt category | `novahiz-browser` |
+| R6-Novahiz | a prompt in a workflow category | pipeline skills (`novahiz-plan`, `novahiz-clarify`, `novahiz-analyse`, `novahiz-implement`, `novahiz-converge`) |
+| R9-code-review | a review prompt or a code file under review | `novahiz-code-review` |
+| R10-security | an audit or security prompt | `novahiz-security` |
+| R11-accessibility | a design-ui or audit prompt | `novahiz-wcag-audit` |
+| R12-web-extract | a research prompt | `novahiz-web-extract` |
+| R13-design-craft | a design-ui prompt or a style file (css/scss/less/html) | `anti-AI-design`, `frontend-design-taste` |
 
 ## Resolution
 
@@ -48,7 +53,7 @@ For an edit, the gate collects skills from two places:
 Duplicates collapse. The result is filtered against the installed skills index:
 
 - When the index is available, a required skill that is not installed is reported in `unmatchedRequired` and in the `warnings` array, and it does not block. This is deliberate: an installation gap should not make a whole category uneditable. A harness that wants the stricter behaviour can treat a non-empty `unmatchedRequired` as a failure.
-- When the index is missing or unreadable, the gate fails closed and enforces every required skill. Run `skillenforce sync` to rebuild the index.
+- When the index is missing or unreadable, the gate fails closed and enforces every required skill. Run `Novahiz sync` to rebuild the index.
 - Files that match `gate.ignoreFiles` are skipped entirely.
 
 A required skill that is installed but not loaded in the session blocks the call. In `block` mode the gate exits with code 2. In `warn` and `audit` modes it reports and exits 0.
@@ -57,20 +62,20 @@ A required skill that is installed but not loaded in the session blocks the call
 
 The harness records the load, not the gate.
 
-- opencode calls the `skill` tool, and the adapter records it by running `skillenforce session-load --session <id> --skill <name>`.
-- A harness that reads skills some other way records the load itself, by calling `skillenforce session-load` before its edit.
+- opencode calls the `skill` tool, and the adapter records it by running `Novahiz session-load --session <id> --skill <name>`.
+- A harness that reads skills some other way records the load itself, by calling `Novahiz session-load` before its edit.
 
 Anything else leaves the skill unloaded.
 
-A skill whose frontmatter names an `allowed-tools` entry the harness does not recognize fails to launch at all. That is why the bundled `skillenforce-*` skills declare no `allowed-tools`.
+A skill whose frontmatter names an `allowed-tools` entry the harness does not recognize fails to launch at all. That is why the bundled `Novahiz-*` skills declare no `allowed-tools`.
 
 ## Modes and configuration
 
-The `gate` block in `skillenforce.config.json` controls behavior:
+The `gate` block in `novahiz.config.json` controls behavior:
 
 - `enabled`: disable the whole gate.
 - `mode`: `block`, `warn`, or `audit`.
-- `envEscape`: the variable that disables the gate for one session. Defaults to `skillenforce_GATE`; values `off`, `0`, `false`, `no`, `disabled` disable it. Read by the CLI, the hook mode, the MCP gate tool, and the opencode plugin.
+- `envEscape`: the variable that disables the gate for one session. Defaults to `novahiz_GATE`; values `off`, `0`, `false`, `no`, `disabled` disable it. Read by the CLI, the hook mode, the MCP gate tool, and the opencode plugin.
 - `tools`: the tool names the gate intercepts.
 - `ignoreFiles`: globs skipped by the gate.
 

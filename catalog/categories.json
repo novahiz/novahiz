@@ -46,7 +46,7 @@
           "label": "Set the direction",
           "kind": "skill",
           "requireSkills": [
-            "skillenforce-plan"
+            "novahiz-plan"
           ]
         },
         {
@@ -54,7 +54,7 @@
           "label": "Remove ambiguities",
           "kind": "skill",
           "requireSkills": [
-            "skillenforce-clarify"
+            "novahiz-clarify"
           ]
         },
         {
@@ -62,7 +62,7 @@
           "label": "Break into tasks",
           "kind": "skill",
           "requireSkills": [
-            "skillenforce-task"
+            "novahiz-task"
           ]
         },
         {
@@ -70,7 +70,7 @@
           "label": "Analyze the affected code",
           "kind": "skill",
           "requireSkills": [
-            "skillenforce-analyse"
+            "novahiz-analyse"
           ]
         },
         {
@@ -78,7 +78,7 @@
           "label": "Implement incrementally",
           "kind": "edit",
           "requireSkills": [
-            "skillenforce-implement"
+            "novahiz-implement"
           ]
         },
         {
@@ -86,7 +86,7 @@
           "label": "Converge",
           "kind": "verify",
           "requireSkills": [
-            "skillenforce-converge"
+            "novahiz-converge"
           ]
         },
         {
@@ -94,7 +94,7 @@
           "label": "Self-review",
           "kind": "skill",
           "requireSkills": [
-            "code-reviewer"
+            "novahiz-code-review"
           ]
         }
       ]
@@ -137,7 +137,7 @@
           "label": "Set the fix direction",
           "kind": "skill",
           "requireSkills": [
-            "skillenforce-plan"
+            "novahiz-plan"
           ]
         },
         {
@@ -145,7 +145,7 @@
           "label": "Analyze the code",
           "kind": "skill",
           "requireSkills": [
-            "skillenforce-analyse"
+            "novahiz-analyse"
           ]
         },
         {
@@ -153,7 +153,7 @@
           "label": "Fix",
           "kind": "edit",
           "requireSkills": [
-            "skillenforce-implement"
+            "novahiz-implement"
           ]
         },
         {
@@ -161,7 +161,7 @@
           "label": "Verify the fix",
           "kind": "verify",
           "requireSkills": [
-            "skillenforce-converge"
+            "novahiz-converge"
           ]
         },
         {
@@ -192,23 +192,23 @@
           "label": "Gather context",
           "kind": "skill",
           "requireSkills": [
-            "skillenforce-analyse"
+            "novahiz-analyse"
           ]
         },
         {
-          "id": "read",
-          "label": "Read the diff",
+          "id": "delta",
+          "label": "Analyze the diff",
           "kind": "skill",
           "requireSkills": [
-            "review-changes"
+            "novahiz-delta-review"
           ]
         },
         {
           "id": "assess",
-          "label": "Assess",
+          "label": "Deep review",
           "kind": "skill",
           "requireSkills": [
-            "code-reviewer"
+            "novahiz-code-review"
           ]
         },
         {
@@ -255,7 +255,7 @@
           "label": "Scan",
           "kind": "skill",
           "requireSkills": [
-            "security-guidance"
+            "novahiz-security"
           ]
         },
         {
@@ -273,7 +273,7 @@
           "label": "Track remaining items",
           "kind": "verify",
           "requireSkills": [
-            "skillenforce-converge"
+            "novahiz-converge"
           ]
         },
         {
@@ -316,8 +316,8 @@
           "label": "Write tests",
           "kind": "edit",
           "requireSkills": [
-            "skillenforce-implement",
-            "humanizer"
+            "novahiz-implement",
+            "novahiz-humanizer"
           ]
         },
         {
@@ -335,7 +335,7 @@
           "label": "Converge",
           "kind": "verify",
           "requireSkills": [
-            "skillenforce-converge"
+            "novahiz-converge"
           ]
         },
         {
@@ -359,9 +359,7 @@
       "benchmark",
       "best practice"
     ],
-    "defaultSkills": [
-      "defuddle"
-    ],
+    "defaultSkills": [],
     "roadmap": {
       "id": "research",
       "steps": [
@@ -375,7 +373,7 @@
           "label": "Gather sources",
           "kind": "skill",
           "requireSkills": [
-            "defuddle"
+            "novahiz-web-extract"
           ]
         },
         {
@@ -388,7 +386,7 @@
           "label": "Synthesize",
           "kind": "advisory",
           "requireSkills": [
-            "humanizer"
+            "novahiz-humanizer"
           ]
         },
         {
@@ -415,7 +413,7 @@
       "dev server"
     ],
     "defaultSkills": [
-      "playwright-agent"
+      "novahiz-browser"
     ],
     "roadmap": {
       "id": "browse",
@@ -425,7 +423,7 @@
           "label": "Define the goal",
           "kind": "skill",
           "requireSkills": [
-            "skillenforce-plan"
+            "novahiz-plan"
           ]
         },
         {
@@ -433,7 +431,7 @@
           "label": "Break into steps",
           "kind": "skill",
           "requireSkills": [
-            "skillenforce-task"
+            "novahiz-task"
           ]
         },
         {
@@ -441,7 +439,7 @@
           "label": "Start the external server",
           "kind": "advisory",
           "requireSkills": [
-            "playwright-agent"
+            "novahiz-browser"
           ]
         },
         {
@@ -449,7 +447,7 @@
           "label": "Navigate",
           "kind": "advisory",
           "requireSkills": [
-            "playwright-agent"
+            "novahiz-browser"
           ]
         },
         {
@@ -457,7 +455,7 @@
           "label": "Interact",
           "kind": "advisory",
           "requireSkills": [
-            "playwright-agent"
+            "novahiz-browser"
           ]
         },
         {
@@ -465,7 +463,7 @@
           "label": "Capture",
           "kind": "advisory",
           "requireSkills": [
-            "playwright-agent"
+            "novahiz-browser"
           ]
         },
         {
@@ -473,7 +471,7 @@
           "label": "Verify the goal is met",
           "kind": "verify",
           "requireSkills": [
-            "skillenforce-converge"
+            "novahiz-converge"
           ]
         },
         {
@@ -510,7 +508,18 @@
       "a11y",
       "dashboard",
       "form",
-      "onboarding"
+      "onboarding",
+      "frontend design",
+      "ui component",
+      "hero",
+      "navbar",
+      "slop",
+      "ai slop",
+      "anti-ai",
+      "design taste",
+      "design system",
+      "visual hierarchy",
+      "micro-interaction"
     ],
     "negativeKeywords": [
       "migration",
@@ -518,7 +527,8 @@
       "edge function"
     ],
     "defaultSkills": [
-      "impeccable"
+      "anti-AI-design",
+      "frontend-design-taste"
     ],
     "roadmap": {
       "id": "design",
@@ -528,7 +538,7 @@
           "label": "Set the direction",
           "kind": "skill",
           "requireSkills": [
-            "skillenforce-plan"
+            "novahiz-plan"
           ]
         },
         {
@@ -536,7 +546,7 @@
           "label": "Clarify the brief",
           "kind": "skill",
           "requireSkills": [
-            "skillenforce-clarify"
+            "novahiz-clarify"
           ]
         },
         {
@@ -544,31 +554,25 @@
           "label": "Break into tasks",
           "kind": "skill",
           "requireSkills": [
-            "skillenforce-task"
+            "novahiz-task"
           ]
         },
         {
-          "id": "load",
-          "label": "Load impeccable",
-          "kind": "advisory",
+          "id": "design-craft",
+          "label": "Apply design craft and anti-slop pass",
+          "kind": "skill",
           "requireSkills": [
-            "impeccable"
-          ]
-        },
-        {
-          "id": "shape",
-          "label": "Shape the design (/impeccable shape)",
-          "kind": "edit",
-          "requireSkills": [
-            "impeccable"
-          ]
+            "anti-AI-design",
+            "frontend-design-taste"
+          ],
+          "optional": true
         },
         {
           "id": "implement",
           "label": "Implement",
           "kind": "edit",
           "requireSkills": [
-            "skillenforce-implement"
+            "novahiz-implement"
           ]
         },
         {
@@ -581,7 +585,7 @@
           "label": "Verify accessibility",
           "kind": "skill",
           "requireSkills": [
-            "a11y-audit"
+            "novahiz-wcag-audit"
           ],
           "optional": true
         },
@@ -590,23 +594,7 @@
           "label": "Converge",
           "kind": "verify",
           "requireSkills": [
-            "skillenforce-converge"
-          ]
-        },
-        {
-          "id": "critique",
-          "label": "Critique (/impeccable critique)",
-          "kind": "verify",
-          "requireSkills": [
-            "impeccable"
-          ]
-        },
-        {
-          "id": "polish",
-          "label": "Polish (/impeccable polish)",
-          "kind": "advisory",
-          "requireSkills": [
-            "impeccable"
+            "novahiz-converge"
           ]
         }
       ]
@@ -632,8 +620,8 @@
       "landing"
     ],
     "defaultSkills": [
-      "supabase",
-      "supabase-postgres-best-practices"
+      "novahiz-supabase",
+      "novahiz-postgres"
     ],
     "roadmap": {
       "id": "schema",
@@ -643,7 +631,7 @@
           "label": "Set the change direction",
           "kind": "skill",
           "requireSkills": [
-            "skillenforce-plan"
+            "novahiz-plan"
           ]
         },
         {
@@ -651,7 +639,7 @@
           "label": "Remove ambiguities",
           "kind": "skill",
           "requireSkills": [
-            "skillenforce-clarify"
+            "novahiz-clarify"
           ]
         },
         {
@@ -659,7 +647,7 @@
           "label": "Inspect the schema",
           "kind": "skill",
           "requireSkills": [
-            "skillenforce-analyse"
+            "novahiz-analyse"
           ]
         },
         {
@@ -667,7 +655,7 @@
           "label": "Load Supabase skills",
           "kind": "skill",
           "requireSkills": [
-            "supabase"
+            "novahiz-supabase"
           ]
         },
         {
@@ -675,7 +663,7 @@
           "label": "Write the migration",
           "kind": "edit",
           "requireSkills": [
-            "skillenforce-implement"
+            "novahiz-implement"
           ]
         },
         {
@@ -683,7 +671,7 @@
           "label": "Verify RLS and security",
           "kind": "skill",
           "requireSkills": [
-            "supabase-postgres-best-practices"
+            "novahiz-postgres"
           ]
         },
         {
@@ -696,7 +684,7 @@
           "label": "Converge",
           "kind": "verify",
           "requireSkills": [
-            "skillenforce-converge"
+            "novahiz-converge"
           ]
         },
         {
@@ -728,7 +716,7 @@
       "rewrite"
     ],
     "defaultSkills": [
-      "humanizer"
+      "novahiz-humanizer"
     ],
     "roadmap": {
       "id": "writing",
@@ -738,7 +726,7 @@
           "label": "Plan the structure",
           "kind": "advisory",
           "requireSkills": [
-            "skillenforce-plan"
+            "novahiz-plan"
           ]
         },
         {
@@ -746,7 +734,7 @@
           "label": "Clarify the brief",
           "kind": "advisory",
           "requireSkills": [
-            "skillenforce-clarify"
+            "novahiz-clarify"
           ]
         },
         {
@@ -754,7 +742,7 @@
           "label": "Write the draft",
           "kind": "edit",
           "requireSkills": [
-            "humanizer"
+            "novahiz-humanizer"
           ]
         },
         {
@@ -767,7 +755,7 @@
           "label": "Verify coverage",
           "kind": "verify",
           "requireSkills": [
-            "skillenforce-converge"
+            "novahiz-converge"
           ]
         },
         {
@@ -804,7 +792,7 @@
           "label": "Clarify",
           "kind": "skill",
           "requireSkills": [
-            "skillenforce-clarify"
+            "novahiz-clarify"
           ]
         },
         {
@@ -812,7 +800,7 @@
           "label": "Set the direction",
           "kind": "skill",
           "requireSkills": [
-            "skillenforce-plan"
+            "novahiz-plan"
           ]
         },
         {
@@ -820,7 +808,7 @@
           "label": "Break into tasks",
           "kind": "skill",
           "requireSkills": [
-            "skillenforce-task"
+            "novahiz-task"
           ]
         },
         {
@@ -833,7 +821,7 @@
           "label": "Verify coverage",
           "kind": "verify",
           "requireSkills": [
-            "skillenforce-converge"
+            "novahiz-converge"
           ]
         },
         {
@@ -871,7 +859,7 @@
           "label": "Set the change direction",
           "kind": "skill",
           "requireSkills": [
-            "skillenforce-plan"
+            "novahiz-plan"
           ]
         },
         {
@@ -879,7 +867,7 @@
           "label": "Remove ambiguities",
           "kind": "skill",
           "requireSkills": [
-            "skillenforce-clarify"
+            "novahiz-clarify"
           ]
         },
         {
@@ -887,7 +875,7 @@
           "label": "Assess the current state",
           "kind": "skill",
           "requireSkills": [
-            "skillenforce-analyse"
+            "novahiz-analyse"
           ]
         },
         {
@@ -895,7 +883,7 @@
           "label": "Apply the change",
           "kind": "edit",
           "requireSkills": [
-            "skillenforce-implement"
+            "novahiz-implement"
           ]
         },
         {
@@ -913,7 +901,7 @@
           "label": "Verify",
           "kind": "verify",
           "requireSkills": [
-            "skillenforce-converge"
+            "novahiz-converge"
           ]
         }
       ]
@@ -942,7 +930,7 @@
           "label": "Set the analysis direction",
           "kind": "skill",
           "requireSkills": [
-            "skillenforce-plan"
+            "novahiz-plan"
           ]
         },
         {
@@ -950,7 +938,7 @@
           "label": "Understand the data",
           "kind": "skill",
           "requireSkills": [
-            "skillenforce-analyse"
+            "novahiz-analyse"
           ]
         },
         {
@@ -958,7 +946,7 @@
           "label": "Transform",
           "kind": "edit",
           "requireSkills": [
-            "skillenforce-implement"
+            "novahiz-implement"
           ]
         },
         {
@@ -976,7 +964,7 @@
           "label": "Converge",
           "kind": "verify",
           "requireSkills": [
-            "skillenforce-converge"
+            "novahiz-converge"
           ]
         },
         {
@@ -988,16 +976,75 @@
     }
   },
   {
+    "id": "assessment",
+    "label": "Idea Assessment",
+    "priority": 44,
+    "keywords": [
+      "idea",
+      "assess",
+      "evaluate",
+      "feasibility",
+      "market",
+      "competitor",
+      "should i build",
+      "is it worth",
+      "go no-go",
+      "decision",
+      "validate",
+      "viability"
+    ],
+    "defaultSkills": [],
+    "roadmap": {
+      "id": "assessment",
+      "steps": [
+        {
+          "id": "intake",
+          "label": "Capture the idea",
+          "kind": "advisory"
+        },
+        {
+          "id": "research",
+          "label": "Research feasibility and market",
+          "kind": "skill",
+          "requireSkills": [
+            "novahiz-web-extract"
+          ]
+        },
+        {
+          "id": "define",
+          "label": "Define the specification",
+          "kind": "skill",
+          "requireSkills": [
+            "novahiz-clarify"
+          ]
+        },
+        {
+          "id": "shape",
+          "label": "Shape the solution concept",
+          "kind": "skill",
+          "requireSkills": [
+            "novahiz-plan"
+          ]
+        },
+        {
+          "id": "decide",
+          "label": "Go / No-Go decision",
+          "kind": "advisory"
+        }
+      ]
+    }
+  },
+  {
     "id": "general",
     "label": "General",
     "priority": 0,
     "keywords": [],
     "defaultSkills": [
-      "skillenforce-plan",
-      "skillenforce-clarify",
-      "skillenforce-analyse",
-      "skillenforce-implement",
-      "skillenforce-converge"
+      "novahiz-plan",
+      "novahiz-clarify",
+      "novahiz-analyse",
+      "novahiz-implement",
+      "novahiz-converge"
     ],
     "roadmap": {
       "id": "general",
@@ -1007,7 +1054,7 @@
           "label": "Set the direction",
           "kind": "skill",
           "requireSkills": [
-            "skillenforce-plan"
+            "novahiz-plan"
           ]
         },
         {
@@ -1015,7 +1062,7 @@
           "label": "Remove ambiguities",
           "kind": "skill",
           "requireSkills": [
-            "skillenforce-clarify"
+            "novahiz-clarify"
           ]
         },
         {
@@ -1023,8 +1070,8 @@
           "label": "Execute",
           "kind": "advisory",
           "requireSkills": [
-            "humanizer",
-            "skillenforce-implement"
+            "novahiz-humanizer",
+            "novahiz-implement"
           ]
         },
         {
@@ -1032,7 +1079,7 @@
           "label": "Verify",
           "kind": "verify",
           "requireSkills": [
-            "skillenforce-converge"
+            "novahiz-converge"
           ]
         },
         {

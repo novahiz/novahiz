@@ -1,0 +1,36 @@
+{
+  "target": "https://example.com/app",
+  "level": "AA",
+  "findings": [
+    {
+      "sc": "1.1.1",
+      "name": "Non-text Content",
+      "level": "A",
+      "status": "FAIL",
+      "severity": "critical",
+      "location": "src/components/Card.tsx:42",
+      "evidence": "<img src={product.image} /> with no alt",
+      "fix": "alt={product.name} or alt=\"\" if decorative"
+    },
+    {
+      "sc": "1.4.3",
+      "name": "Contrast (Minimum)",
+      "level": "AA",
+      "status": "FAIL",
+      "severity": "major",
+      "location": "src/styles/main.css:128",
+      "evidence": "#999999 on #ffffff = 2.85:1 (need 4.5:1)",
+      "fix": "Use #767676 or darker"
+    },
+    {
+      "sc": "2.4.7",
+      "name": "Focus Visible",
+      "level": "AA",
+      "status": "PASS",
+      "severity": "major",
+      "location": "src/styles/focus.css:1",
+      "evidence": "outline: 2px solid #06d6a0 on :focus-visible",
+      "fix": ""
+    }
+  ]
+}

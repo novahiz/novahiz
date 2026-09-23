@@ -1,21 +1,18 @@
 #!/usr/bin/env python3
-"""skill_description_validator.py — Validate a skill's description against Matt Pocock's rules.
+"""skill_description_validator.py: check a SKILL.md description against Novahiz authoring rules.
 
-Stdlib-only. Parses YAML frontmatter of a SKILL.md and checks the `description`
-field against the criteria from Matt Pocock's write-a-skill:
+Stdlib only. Parses the YAML frontmatter of a SKILL.md and verifies:
 
-  1. Description present (non-empty after `description:` key)
-  2. Length <= 1024 characters
-  3. Written in third person (no first-person pronouns I/me/my; no second-person you)
-  4. Has explicit trigger phrase: "Use when ..." (or similar trigger pattern)
-  5. First sentence describes what the skill does (heuristic: at least one verb)
+  1. description present and non-empty
+  2. length <= 1024 characters
+  3. no first- or second-person pronouns
+  4. an explicit activation trigger ("Use when ...")
+  5. at least one action verb in the first sentence
 
-Outputs pass/fail per check + overall verdict.
-
-Deterministic logic. No LLM calls. Stdlib only.
+Emits a per-check verdict plus an overall PASS / WARN / FAIL.
 
 Usage:
-    python skill_description_validator.py                       # uses embedded sample
+    python skill_description_validator.py                       # embedded sample
     python skill_description_validator.py path/to/SKILL.md
     python skill_description_validator.py path/to/SKILL.md --output json
 """
@@ -27,13 +24,11 @@ import sys
 from typing import Any, Dict, List, Optional
 
 
-# Embedded sample: a SKILL.md description that PASSES all checks
 SAMPLE_DESCRIPTION = (
     "Extract text and tables from PDF files, fill forms, merge documents. "
     "Use when working with PDF files or when user mentions PDFs, forms, or document extraction."
 )
 
-# Embedded sample: SKILL.md content (just the frontmatter + body shell)
 SAMPLE_SKILL_MD = f"""---
 name: pdf-tools
 description: {SAMPLE_DESCRIPTION}
@@ -46,13 +41,9 @@ description: {SAMPLE_DESCRIPTION}
 """
 
 
-# First-person pronouns + second-person pronouns to flag
 FIRST_PERSON = {"i", "me", "my", "myself", "we", "us", "our", "ours", "ourselves"}
 SECOND_PERSON = {"you", "your", "yours", "yourself"}
 
-# Trigger phrases that count as explicit "use when" triggers
-# Per Matt Pocock's rule: descriptions need an explicit trigger so agents know when to invoke.
-# Natural English variants are all accepted: "Use when/before/during/after/for/while ..." etc.
 TRIGGER_PATTERNS = [
     re.compile(r"\buse\s+when\b", re.IGNORECASE),
     re.compile(r"\buse\s+for\b", re.IGNORECASE),
@@ -71,8 +62,7 @@ TRIGGER_PATTERNS = [
 
 
 def extract_frontmatter(text: str) -> Dict[str, str]:
-    """Extract YAML frontmatter as a flat dict. Stdlib-only — minimal YAML parser
-    sufficient for SKILL.md frontmatter (key: value pairs, no nesting)."""
+    """Flat key/value frontmatter parser sufficient for SKILL.md headers."""
     if not text.startswith("---"):
         return {}
     end = text.find("\n---", 3)
@@ -84,7 +74,6 @@ def extract_frontmatter(text: str) -> Dict[str, str]:
     buffer: List[str] = []
     for line in block.splitlines():
         if ":" in line and not line.startswith(" ") and not line.startswith("\t"):
-            # Flush previous
             if current_key:
                 out[current_key] = " ".join(buffer).strip()
                 buffer = []
@@ -144,8 +133,6 @@ def check_trigger(desc: str) -> Dict[str, Any]:
     }
 
 
-# Action verb vocabulary used to detect "first sentence describes what the skill does"
-# This is content data, not an assumption — these are the verbs we look for in skill descriptions.
 ACTION_VERB_VOCABULARY = (
     "extract", "fill", "merge", "create", "build", "generate", "analyze", "analyse",
     "validate", "check", "run", "format", "parse", "render", "review", "audit", "scan",
@@ -161,7 +148,6 @@ ACTION_VERB_RE = re.compile(
 
 
 def check_first_sentence_has_verb(desc: str) -> Dict[str, Any]:
-    # Heuristic: split on first period; first sentence should have an action verb
     parts = re.split(r"\.\s+", desc, maxsplit=1)
     first = parts[0] if parts else desc
     verbs = ACTION_VERB_RE.findall(first)
@@ -213,7 +199,7 @@ def render_text(r: Dict[str, Any], source: str) -> str:
     lines.append("-" * 72)
     lines.append(f"Verdict: {r['overall']}")
     lines.append("")
-    lines.append("Rules (per Matt Pocock's write-a-skill):")
+    lines.append("Rules:")
     lines.append("  - Max 1024 chars")
     lines.append("  - Third person (no I/we/you)")
     lines.append("  - First sentence: what it does (action verb)")
@@ -223,7 +209,7 @@ def render_text(r: Dict[str, Any], source: str) -> str:
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Validate a SKILL.md description per Matt Pocock's rules.",
+        description="Validate a SKILL.md description against Novahiz authoring rules.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=__doc__,
     )

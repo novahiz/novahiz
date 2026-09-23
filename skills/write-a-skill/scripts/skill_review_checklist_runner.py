@@ -1,22 +1,22 @@
 #!/usr/bin/env python3
-"""skill_review_checklist_runner.py — Run Matt Pocock's 6-item review checklist programmatically.
+"""skill_review_checklist_runner.py: run the six-item skill review checklist programmatically.
 
-Stdlib-only. Combines the description-validator + structure-validator into a single
-report that mirrors Matt Pocock's review checklist from write-a-skill:
+Stdlib only. Combines the description validator and the structure validator into one
+report covering:
 
   1. [ ] Description includes triggers ("Use when...")
   2. [ ] SKILL.md under 100 lines
   3. [ ] No time-sensitive info (heuristic: no year mentions / "as of" claims / version-specific dates)
-  4. [ ] Consistent terminology (heuristic: no obvious synonym pairs in same doc — light check)
+  4. [ ] Consistent terminology (heuristic: no obvious synonym pairs in same doc: light check)
   5. [ ] Concrete examples included (>=1 code block)
   6. [ ] References one level deep
 
-This is the canonical pre-commit check for any new skill in this repo.
+Canonical pre-commit check for any new skill in this repository.
 
-Deterministic logic. No LLM calls. Stdlib only.
+Deterministic. No LLM calls. Stdlib only.
 
 Usage:
-    python skill_review_checklist_runner.py                       # uses embedded sample (this skill's own folder)
+    python skill_review_checklist_runner.py                       # embedded sample (this skill's own folder)
     python skill_review_checklist_runner.py path/to/skill-folder/
     python skill_review_checklist_runner.py path/to/skill-folder/ --output json
 """
@@ -29,7 +29,6 @@ import sys
 from typing import Any, Dict, List
 
 
-# Phrases that suggest time-sensitive content
 TIME_SENSITIVE_PATTERNS = [
     re.compile(r"\bas\s+of\s+\d{4}\b", re.IGNORECASE),
     re.compile(r"\bin\s+(20\d{2})\b", re.IGNORECASE),
@@ -44,20 +43,17 @@ def find_skill_md(folder: str) -> str:
 
 
 def extract_frontmatter_description(text: str) -> str:
-    """Extract description from YAML frontmatter (single key)."""
     if not text.startswith("---"):
         return ""
     end = text.find("\n---", 3)
     if end == -1:
         return ""
     block = text[3:end]
-    # Match "description: ..." potentially spanning multiple lines (>- folded)
     match = re.search(r"^description:\s*(.*)$(?:\n[ ]+(.*))*", block, re.MULTILINE)
     if not match:
         return ""
     val = match.group(1).strip()
     if val == ">" or val == "|":
-        # Folded scalar — collect indented continuation lines
         lines_iter = iter(block.splitlines())
         for line in lines_iter:
             if line.strip().startswith("description:"):
@@ -72,8 +68,6 @@ def extract_frontmatter_description(text: str) -> str:
     return val
 
 
-# Trigger phrases that count as explicit "use when ..." triggers in a description.
-# Per Matt Pocock's rule: explicit trigger phrase. Natural English variants all accepted.
 TRIGGER_PATTERNS = [
     re.compile(r"\buse\s+when\b", re.IGNORECASE),
     re.compile(r"\buse\s+for\b", re.IGNORECASE),
@@ -117,7 +111,6 @@ def check_no_time_sensitive(text: str) -> Dict[str, Any]:
     for pattern in TIME_SENSITIVE_PATTERNS:
         for m in pattern.finditer(text):
             flagged.append(m.group(0))
-    # Limit
     flagged = list(dict.fromkeys(flagged))[:5]
     return {
         "rule": "3. No time-sensitive info",
@@ -128,7 +121,6 @@ def check_no_time_sensitive(text: str) -> Dict[str, Any]:
 
 
 def check_consistent_terminology(text: str) -> Dict[str, Any]:
-    """Light check for common synonym mismatches in the same doc."""
     synonyms = [
         ("agent", "bot"),
         ("skill", "tool"),
@@ -149,7 +141,7 @@ def check_consistent_terminology(text: str) -> Dict[str, Any]:
 
 def check_concrete_examples(text: str) -> Dict[str, Any]:
     code_blocks = re.findall(r"```", text)
-    has_examples = len(code_blocks) >= 2  # opening + closing = 1 block
+    has_examples = len(code_blocks) >= 2
     return {
         "rule": "5. Concrete examples included",
         "pass": has_examples,
@@ -158,7 +150,6 @@ def check_concrete_examples(text: str) -> Dict[str, Any]:
 
 
 def _find_nested_md(refs_subdir: str) -> List[str]:
-    """Return .md files nested deeper than refs_subdir."""
     nested: List[str] = []
     if not os.path.isdir(refs_subdir):
         return nested
@@ -219,7 +210,7 @@ def analyze(folder: str) -> Dict[str, Any]:
 def render_text(r: Dict[str, Any]) -> str:
     lines = []
     lines.append("=" * 72)
-    lines.append("SKILL REVIEW CHECKLIST RUNNER (per Matt Pocock's write-a-skill)")
+    lines.append("SKILL REVIEW CHECKLIST RUNNER")
     lines.append(f"Folder: {r['folder']}")
     lines.append("=" * 72)
     lines.append("")
@@ -232,14 +223,12 @@ def render_text(r: Dict[str, Any]) -> str:
     lines.append("")
     lines.append("-" * 72)
     lines.append(f"Verdict: {r['overall']}")
-    lines.append("")
-    lines.append("Reference: Matt Pocock's 6-item review checklist from write-a-skill (MIT).")
     return "\n".join(lines)
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Run Matt Pocock's 6-item review checklist on a skill folder.",
+        description="Run the six-item review checklist on a skill folder.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=__doc__,
     )

@@ -152,7 +152,8 @@ function parseDeps(raw: string | null): string[] {
   try {
     const parsed = JSON.parse(raw || "[]");
     return Array.isArray(parsed) ? parsed.map(String) : [];
-  } catch {
+  } catch (error) {
+    console.warn(`[Novahiz] parseDeps: corrupted JSON ignored: ${error}`);
     return [];
   }
 }
@@ -203,21 +204,18 @@ export function listTodos(db: DatabaseSync, taskId: string): TodoRow[] {
 export function addTodos(db: DatabaseSync, taskId: string, items: TodoInput[]): TodoRow[] {
   const task = getTask(db, taskId);
   if (!task) throw new Error(`unknown task: ${taskId}`);
-  const current = db.prepare("SELECT COALESCE(MAX(seq), 0) AS max FROM todos WHERE task_id = ?").get(taskId) as { max: number };
-  let seq = current.max;
   const insert = db.prepare(
-    "INSERT INTO todos (id, task_id, seq, label, kind, status, acceptance, proof, owner, depends_on, iterations, max_iterations, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+    "INSERT INTO todos (id, task_id, seq, label, kind, status, acceptance, proof, owner, depends_on, iterations, max_iterations, updated_at) VALUES (?, ?, COALESCE((SELECT MAX(seq) FROM todos WHERE task_id = ?), 0) + 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
   );
   const ids: string[] = [];
   db.exec("SAVEPOINT add_todos_sp");
   try {
     for (const item of items) {
-      seq += 1;
       const todoId = genId("todo");
       insert.run(
         todoId,
         taskId,
-        seq,
+        taskId,
         item.label,
         item.kind ?? "edit",
         item.status ?? "pending",
@@ -252,12 +250,13 @@ export function startTodo(db: DatabaseSync, id: string): TodoRow {
   if (unfinished.length > 0) {
     throw new Error(`todo ${id} is blocked by unfinished dependencies: ${unfinished.join(", ")}`);
   }
-  const max = todo.max_iterations ?? DEFAULT_MAX_ITERATIONS;
-  const iterations = todo.iterations + 1;
-  if (iterations > max) {
-    throw new Error(`todo ${id} exceeded its iteration budget (${max})`);
+  const ts = nowIso();
+  const result = db.prepare(
+    "UPDATE todos SET iterations = iterations + 1, status = 'in_progress', updated_at = ? WHERE id = ? AND (max_iterations IS NULL OR iterations < max_iterations) RETURNING iterations, max_iterations"
+  ).get(ts, id) as { iterations: number; max_iterations: number | null } | undefined;
+  if (!result) {
+    throw new Error(`todo ${id} exceeded its iteration budget (${todo.max_iterations ?? DEFAULT_MAX_ITERATIONS})`);
   }
-  db.prepare("UPDATE todos SET status = 'in_progress', iterations = ?, updated_at = ? WHERE id = ?").run(iterations, nowIso(), id);
   return getTodo(db, id) as TodoRow;
 }
 
@@ -323,7 +322,7 @@ export function traceCheck(db: DatabaseSync, options: { sessionId?: string; file
   if (match) return { required: true, ok: true, todo: match, reason: "" };
   const reason =
     inProgress.length === 0
-      ? "no todo is in progress. Start one with `skillenforce task start --id <todo>` before editing."
+      ? "no todo is in progress. Start one with `novahiz task start --id <todo>` before editing."
       : `no in-progress todo owns ${options.filePath}. Active todos own: ${inProgress.map((todo) => todo.owner || "(any file)").join("; ")}`;
   return { required: true, ok: false, todo: null, reason };
 }
@@ -358,6 +357,9 @@ export function amendTodo(db: DatabaseSync, id: string, patch: TodoAmendment): T
   const owner = patch.owner === undefined ? todo.owner : patch.owner;
   const dependsOn = patch.dependsOn === undefined ? todo.depends_on : JSON.stringify(patch.dependsOn);
   const maxIterations = patch.maxIterations === undefined ? todo.max_iterations : patch.maxIterations;
+  if (maxIterations !== null && maxIterations !== undefined && (!Number.isInteger(maxIterations) || maxIterations <= 0)) {
+    throw new Error(`maxIterations must be a positive integer, got: ${maxIterations}`);
+  }
   db.prepare(
     "UPDATE todos SET label = ?, kind = ?, acceptance = ?, owner = ?, depends_on = ?, max_iterations = ?, updated_at = ? WHERE id = ?"
   ).run(label, kind, acceptance, owner, dependsOn, maxIterations, nowIso(), id);
@@ -422,8 +424,11 @@ export function dropTodo(db: DatabaseSync, id: string, reason = ""): TodoRow {
 }
 
 export function recordEdit(db: DatabaseSync, taskId: string): number {
-  db.prepare("UPDATE tasks SET edits_since_review = edits_since_review + 1, updated_at = ? WHERE id = ?").run(nowIso(), taskId);
-  return requireTask(db, taskId).edits_since_review;
+  const result = db.prepare(
+    "UPDATE tasks SET edits_since_review = edits_since_review + 1, updated_at = ? WHERE id = ? RETURNING edits_since_review"
+  ).get(nowIso(), taskId) as { edits_since_review: number } | undefined;
+  if (!result) throw new Error(`task not found: ${taskId}`);
+  return result.edits_since_review;
 }
 
 export function recordTodoDone(db: DatabaseSync, taskId: string): number {
@@ -436,7 +441,7 @@ export function reviewDue(db: DatabaseSync, taskId: string, policy: ReviewPolicy
   if (!task) throw new Error(`unknown task: ${taskId}`);
   const due = task.edits_since_review >= policy.edits || task.todos_since_review >= policy.todos;
   const reason = due
-    ? `plan review due (${task.edits_since_review} edits, ${task.todos_since_review} todos since last review; cadence ${policy.edits} edits / ${policy.todos} todos). Reconcile with \`skillenforce task review\`.`
+    ? `plan review due (${task.edits_since_review} edits, ${task.todos_since_review} todos since last review; cadence ${policy.edits} edits / ${policy.todos} todos). Reconcile with \`novahiz task review\`.`
     : "";
   return { due, edits: task.edits_since_review, todos: task.todos_since_review, policy, reason };
 }

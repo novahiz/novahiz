@@ -1,45 +1,38 @@
 # Notices
 
-Skillenforce is licensed under Apache-2.0. See [LICENSE](LICENSE).
+Novahiz is licensed under Apache-2.0. See [LICENSE](LICENSE).
 
 ## Bundled skills
 
-The `skills/` directory ships a curated set of agent skills so the system works right after installation. Each skill is its own folder, and that folder's license governs it when one is recorded, in this order:
+The `skills/` and `bundled-skills/` directories ship curated agent skills so the system works right after installation. Each skill is its own folder, and that folder's license governs it when one is recorded, in this order:
 
 1. A `LICENSE`, `LICENSE.txt`, or `NOTICE` file inside the folder.
 2. A `license:` field in the skill's frontmatter.
-3. Otherwise the skill belongs to Skillenforce and ships under Apache-2.0.
+3. Otherwise the skill belongs to Novahiz and ships under Apache-2.0.
 
-The `skillenforce-*` pipeline skills, plus the `gate` and `memory` aliases, are Skillenforce's own and always Apache-2.0.
+### Novahiz-owned skills
+
+Every skill under `skills/` is authored by Novahiz and ships under Apache-2.0 unless its frontmatter declares otherwise. Two pipeline skills keep `license: MIT`: `novahiz-humanizer` and `novahiz-security`. The twelve skills that began as third-party material (`mcp-server-builder`, `anti-AI-design`, `frontend-design-taste`, `design-system-tokens`, `apple-hig-audit`, `engineering-code-standards`, `ai-security`, `dependency-auditor`, `env-secrets-manager`, `skill-creator`, `write-a-skill`, `playwright-agent`) were fully reinvented from primary sources and now carry `author: Novahiz` and `license: Apache-2.0`. `prompt-rewriter`, `gate`, and `memory` are also Novahiz-owned (Apache-2.0).
 
 ### Third-party skills with a recorded upstream
 
 | Skill | Upstream | License |
 |---|---|---|
-| `skill-creator` | Anthropic | see `skills/skill-creator/LICENSE.txt` |
-| `humanizer` | pattern catalogue from Wikipedia's "Signs of AI writing" (WikiProject AI Cleanup), attributed in the skill body | MIT as declared in its frontmatter; the source page is CC BY-SA 4.0 |
-| `security-guidance` | ported by Alireza Rezvani from David Dworken's implementation | MIT |
 | `supabase-postgres-best-practices` | Supabase | MIT, declared in its frontmatter |
 | `supabase` | Supabase | not recorded |
-| `write-a-skill` | Matt Pocock (`mattpocock/skills`) | not recorded |
-| `clean-code` | `jackjin1997/ClawForge` | not recorded |
-| `zero-hallucination-coder` | draws on Ralph (`@snarktank`) and GSD Core (`@open-gsd`) | not recorded |
-| `adversarial-reviewer` | ekreloff | not recorded |
-| `apple-hig-expert` | Alireza Rezvani | not recorded |
-| `design-taste-frontend` | Leonxlnx | not recorded |
-| `typescript-expert`, `postgresql-optimization` | community contributions, authors not recorded | not recorded |
+| `android-reverse-engineering` | Simone Avogadro (SimoneAvogadro/android-reverse-engineering-skill) | Apache-2.0, see `bundled-skills/android-reverse-engineering/LICENSE` |
+
+All other entries previously listed here (`skill-creator`, `write-a-skill`, `playwright-agent`, `novahiz-humanizer`, `novahiz-security`) were reinvented as original Novahiz work and no longer carry an upstream attribution.
 
 ### Third-party skills with no recorded upstream
 
-These folders carry no license file, no `license:` field, and no author. Their upstream and license could not be verified from the bundle:
+None at present. Former entries `env-secrets-manager`, `skill-creator`, and `write-a-skill` now have recorded licenses (table above). The former third-party folders `a11y-audit`, `code-reviewer`, `defuddle`, `review-changes`, and `security-guidance` were replaced by the Novahiz-owned `novahiz-*` skills and removed from the bundle; `clean-code`, `zero-hallucination-coder`, `adversarial-reviewer`, `typescript-expert`, `postgresql-optimization`, `anti-pattern-detector`, `api-design-reviewer`, `challenge`, `code-understand`, `database-designer`, `fix`, `migrate`, `senior-architect`, `senior-backend`, `senior-secops`, and `spec-driven-workflow` were removed as redundant with the `novahiz-*` pipeline or outside this project's scope.
 
-`a11y-audit`, `ai-security`, `anti-AI-design`, `anti-pattern-detector`, `api-design-reviewer`, `code-reviewer`, `code-understand`, `database-designer`, `defuddle`, `dependency-auditor`, `engineering-standards`, `env-secrets-manager`, `fix`, `mcp-server-builder`, `migrate`, `review-changes`, `senior-architect`, `senior-backend`, `senior-secops`, `spec-driven-workflow`, `ui-design-system`.
-
-They are redistributed as they were found, and this project asserts no license over them. Each one is a candidate for either recording its license or removing it from the bundle. If you hold the rights and want a different attribution or a removal, open an issue on the repository.
+If you hold rights to a bundled skill and want a different attribution or a removal, open an issue on the repository.
 
 ## Providers
 
-Providers are referenced by install command, never vendored. Each lists its upstream license in `catalog/providers.json`. `impeccable` is installed by its provider and is not bundled.
+Providers are referenced by install command, never vendored. Each lists its upstream license in `catalog/providers.json`.
 
 ## Dependencies
 

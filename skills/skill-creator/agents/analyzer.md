@@ -51,7 +51,7 @@ You receive these parameters in your prompt:
 For each transcript, evaluate:
 - Did the agent follow the skill's explicit instructions?
 - Did the agent use the skill's provided tools/scripts?
-- Were there missed opportunities to leverage skill content?
+- Were there missed opportunities to use skill content more fully?
 - Did the agent add unnecessary steps not in the skill?
 
 Score instruction following 1-10 and note specific issues.

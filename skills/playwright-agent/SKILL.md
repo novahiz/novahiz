@@ -6,43 +6,47 @@ description: |
   bonnes pratiques, le protocole de connexion, et les commandes courantes.
   Use when using Playwright, navigating to localhost, taking screenshots, or interacting with a web app.
   Triggers on: "playwright", "navigateur", "localhost", "serveur", "dev server", "screenshot", "page web".
-license: MIT
+license: Apache-2.0
 compatibility: opencode
+metadata:
+  author: Novahiz
+  organization: Novahiz
+  version: "2.0.0"
+  date: September 2026
 ---
 
-# playwright-agent : Protocole Playwright OpenCode
+# playwright-agent : exécution Playwright sous OpenCode
 
-## Règle absolue — Serveur externe obligatoire
+## Contrainte de départ : le serveur vit hors de la session
 
-**Toute tâche Playwright nécessitant un serveur local DOIT d'abord démarrer ce serveur dans un terminal externe.**
+Une tâche Playwright qui vise un site local commence toujours par lancer le serveur dans un terminal PowerShell externe.
 
-Pourquoi : le navigateur Playwright (MCP) tourne dans un contexte réseau isolé. Un serveur lancé en arrière-plan PowerShell (`Start-Job`) meurt avec la session. Seul un terminal PowerShell externe (`Start-Process`) maintient le serveur en vie.
+Le navigateur piloté par le serveur MCP Playwright s'exécute dans un contexte réseau distinct de celui de la session OpenCode. Un serveur démarré via `Start-Job` PowerShell meurt quand la session se ferme. Seul `Start-Process`, qui ouvre un vrai terminal persistant, maintient le processus en vie après la fin de la commande.
 
 ## Protocole de démarrage
 
-### Étape 1 — Détecter le type de projet
+### 1. Identifier la pile du projet
 
 ```bash
-# Vérifier la présence de fichiers de config
 Test-Path package.json      # Node.js (Vite, Next.js, CRA...)
 Test-Path Cargo.toml        # Rust
 Test-Path pyproject.toml    # Python
 Test-Path go.mod            # Go
 ```
 
-### Étape 2 — Lancer le serveur dans un terminal externe
+### 2. Ouvrir le terminal externe
 
 **Node.js / Vite / Next.js / React :**
 ```powershell
 Start-Process powershell -ArgumentList "-NoExit", "-Command", "cd '<CHEMIN_PROJET>'; npm run dev"
 ```
 
-**Avec port personnalisé :**
+**Port imposé :**
 ```powershell
 Start-Process powershell -ArgumentList "-NoExit", "-Command", "cd '<CHEMIN_PROJET>'; npx vite --port 3000"
 ```
 
-**Avec host explicite (si nécessaire) :**
+**Hôte explicite (si nécessaire) :**
 ```powershell
 Start-Process powershell -ArgumentList "-NoExit", "-Command", "cd '<CHEMIN_PROJET>'; npx vite --host 0.0.0.0"
 ```
@@ -59,31 +63,31 @@ Start-Process powershell -ArgumentList "-NoExit", "-Command", "cd '<CHEMIN_PROJE
 Start-Process powershell -ArgumentList "-NoExit", "-Command", "cd '<CHEMIN_PROJET>'; cargo run"
 ```
 
-### Étape 3 — Attendre et vérifier la disponibilité
+### 3. Attendre que le port réponde
 
 ```powershell
 Start-Sleep -Seconds 5
 Test-NetConnection -ComputerName localhost -Port <PORT> -WarningAction SilentlyContinue | Select-Object TcpTestSucceeded
 ```
 
-Ne passer à l'étape suivante que si `TcpTestSucceeded` est `True`.
+Passer à la suite uniquement quand `TcpTestSucceeded` vaut `True`.
 
-### Étape 4 — Naviguer avec Playwright
+### 4. Naviguer
 
 ```
 playwright_browser_navigate(url="http://localhost:<PORT>/")
 ```
 
-## Erreurs courantes et solutions
+## Pannes fréquentes
 
-| Erreur | Cause | Solution |
+| Erreur | Cause probable | Correctif |
 |---|---|---|
-| `ERR_CONNECTION_REFUSED` | Serveur pas lancé ou port faux | relancer le serveur, vérifier le port |
-| `ERR_CONNECTION_REFUSED` (localhost mais `Test-NetConnection` OK) | IPv6 vs IPv4 | ajouter `--host 0.0.0.0` au serveur |
-| `net::ERR_SOCKET_NOT_CONNECTED` | Serveur en cours de démarrage | attendre plus longtemps |
-| Session PowerShell fermée | Serveur arrêté | relancer le terminal externe |
+| `ERR_CONNECTION_REFUSED` | Serveur absente ou port faux | relancer le serveur, relire le port dans package.json |
+| `ERR_CONNECTION_REFUSED` (localhost joignable via `Test-NetConnection`) | IPv6 contre IPv4 | ajouter `--host 0.0.0.0` au serveur |
+| `net::ERR_SOCKET_NOT_CONNECTED` | Démarrage en cours | laisser plus de temps avant de reconnecter |
+| Terminal fermé | Processus tué | rouvrir un `Start-Process` |
 
-## Commandes Playwright utiles
+## Commandes Playwright
 
 ### Navigation
 ```
@@ -93,7 +97,7 @@ playwright_browser_tabs(action="list")
 playwright_browser_tabs(action="new", url="http://localhost:5173/page2")
 ```
 
-### Interactions
+### Interaction
 ```
 playwright_browser_click(target="<ref>", element="<description>")
 playwright_browser_type(target="<ref>", text="hello")
@@ -123,20 +127,21 @@ playwright_browser_wait_for(textGone="Loading")
 playwright_browser_wait_for(time=3)
 ```
 
-## Bonnes pratiques
+## Habitudes de travail
 
-1. **Toujours vérifier le port** — ne jamais supposer que le serveur tourne sur 5173. Lire `package.json` ou la sortie du serveur.
-2. **Capturer avant d'agir** — faire un screenshot ou snapshot avant une interaction pour vérifier l'état de la page.
-3. **Nommer les éléments** — toujours passer `element` (description lisible) en plus de `target` (ref technique) pour les clicks.
-4. **Vérifier les erreurs console** — après navigation, vérifier `playwright_browser_console_messages(level="error")`.
-5. **Gérer les popups** — `playwright_browser_handle_dialog(accept=true)` pour les confirmations.
-6. **Screenshot = preuve** — chaque étape importante se termine par un screenshot qui sert de preuve de vérification.
+1. **Lire le port, ne pas le supposer.** 5173 est une convention Vite, pas une vérité. Ouvrir package.json ou le script de démarrage.
+2. **Photographier avant de toucher.** Screenshot ou snapshot avant le premier clic : l'état réel de la page est alors figé.
+3. **Nommer la cible.** Passer `element` (description lisible) en plus de `target` (référence technique) sur chaque clic.
+4. **Vérifier la console.** Après chaque navigation : `playwright_browser_console_messages(level="error")`.
+5. **Intercepter les dialogues.** `playwright_browser_handle_dialog(accept=true)` pour confirmer sans bloquer.
+6. **Le screenshot fait preuve.** Une étape importante se clôt par une capture qui servira de preuve au moment de la convergence.
 
-## Intégration skillenforce
+## Place dans Novahiz
 
-Ce skill est invoqué automatiquement quand la catégorie `browser` est détectée. Il complète :
-- `skillenforce-plan` (étape 1 : cadrer l'objectif)
-- `skillenforce-task` (étape 2 : découper les étapes)
-- `skillenforce-converge` (vérification finale)
+Ce skill s'active quand la catégorie `browser` est détectée. Il complète :
 
-Le serveur externe est un prérequis technique, pas une étape du pipeline. Il ne remplace pas la planification.
+- `novahiz-plan` : cadrer l'objectif
+- `novahiz-task` : découper les étapes
+- `novahiz-converge` : vérification finale
+
+Le serveur externe est un prérequis technique. Il ne se substitue ni à la planification ni à la convergence.

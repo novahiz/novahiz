@@ -1,6 +1,6 @@
 {
   "skills": {
-    "humanizer": {
+    "novahiz-humanizer": {
       "power": 5,
       "stars": null,
       "tags": [
@@ -12,18 +12,7 @@
         "docs-writing"
       ]
     },
-    "impeccable": {
-      "power": 5,
-      "stars": null,
-      "tags": [
-        "design",
-        "ui"
-      ],
-      "categories": [
-        "design-ui"
-      ]
-    },
-    "supabase": {
+    "novahiz-supabase": {
       "power": 5,
       "stars": null,
       "tags": [
@@ -34,7 +23,7 @@
         "database-supabase"
       ]
     },
-    "supabase-postgres-best-practices": {
+    "novahiz-postgres": {
       "power": 5,
       "stars": null,
       "tags": [
@@ -49,51 +38,51 @@
       "power": 5,
       "stars": null,
       "tags": [
-        "skillenforce",
+        "Novahiz",
         "workflow"
       ],
       "categories": [
         "general"
       ]
     },
-    "skillenforce-gate": {
+    "novahiz-gate": {
       "power": 5,
       "stars": null,
       "tags": [
-        "skillenforce",
+        "Novahiz",
         "workflow"
       ],
       "categories": [
         "general"
       ]
     },
-    "skillenforce-audit": {
+    "novahiz-audit": {
       "power": 4,
       "stars": null,
       "tags": [
-        "skillenforce",
+        "Novahiz",
         "audit"
       ],
       "categories": [
         "audit"
       ]
     },
-    "skillenforce-memory": {
+    "novahiz-memory": {
       "power": 4,
       "stars": null,
       "tags": [
-        "skillenforce",
+        "Novahiz",
         "memory"
       ],
       "categories": [
         "general"
       ]
     },
-    "skillenforce-planner": {
+    "novahiz-planner": {
       "power": 5,
       "stars": null,
       "tags": [
-        "skillenforce",
+        "Novahiz",
         "workflow"
       ],
       "categories": [
@@ -111,27 +100,6 @@
         "general"
       ]
     },
-    "migrate": {
-      "power": 3,
-      "stars": null,
-      "tags": [
-        "migration"
-      ],
-      "categories": [
-        "code",
-        "devops"
-      ]
-    },
-    "fix": {
-      "power": 4,
-      "stars": null,
-      "tags": [
-        "debug"
-      ],
-      "categories": [
-        "debug"
-      ]
-    },
     "anti-AI-design": {
       "power": 5,
       "stars": null,
@@ -143,29 +111,7 @@
         "design-ui"
       ]
     },
-    "anti-pattern-detector": {
-      "power": 4,
-      "stars": null,
-      "tags": [
-        "quality",
-        "audit"
-      ],
-      "categories": [
-        "code",
-        "audit"
-      ]
-    },
-    "clean-code": {
-      "power": 4,
-      "stars": null,
-      "tags": [
-        "quality"
-      ],
-      "categories": [
-        "code"
-      ]
-    },
-    "engineering-standards": {
+    "engineering-code-standards": {
       "power": 4,
       "stars": null,
       "tags": [
@@ -177,50 +123,20 @@
         "planning"
       ]
     },
-    "zero-hallucination-coder": {
+    "novahiz-code-review": {
       "power": 5,
       "stars": null,
       "tags": [
-        "quality",
-        "code"
-      ],
-      "categories": [
-        "code"
-      ]
-    },
-    "code-reviewer": {
-      "power": 4,
-      "stars": null,
-      "tags": [
-        "review"
-      ],
-      "categories": [
-        "review"
-      ]
-    },
-    "adversarial-reviewer": {
-      "power": 4,
-      "stars": null,
-      "tags": [
-        "review"
-      ],
-      "categories": [
-        "review"
-      ]
-    },
-    "api-design-reviewer": {
-      "power": 4,
-      "stars": null,
-      "tags": [
         "review",
-        "api"
+        "code",
+        "quality"
       ],
       "categories": [
         "review",
         "code"
       ]
     },
-    "design-taste-frontend": {
+    "frontend-design-taste": {
       "power": 5,
       "stars": null,
       "tags": [
@@ -231,7 +147,7 @@
         "design-ui"
       ]
     },
-    "ui-design-system": {
+    "design-system-tokens": {
       "power": 4,
       "stars": null,
       "tags": [
@@ -242,7 +158,7 @@
         "design-ui"
       ]
     },
-    "apple-hig-expert": {
+    "apple-hig-audit": {
       "power": 4,
       "stars": null,
       "tags": [
@@ -253,19 +169,20 @@
         "design-ui"
       ]
     },
-    "a11y-audit": {
+    "novahiz-wcag-audit": {
       "power": 4,
       "stars": null,
       "tags": [
         "accessibility",
-        "audit"
+        "audit",
+        "wcag"
       ],
       "categories": [
         "design-ui",
         "audit"
       ]
     },
-    "security-guidance": {
+    "novahiz-security": {
       "power": 4,
       "stars": null,
       "tags": [
@@ -284,18 +201,6 @@
       ],
       "categories": [
         "audit"
-      ]
-    },
-    "senior-secops": {
-      "power": 4,
-      "stars": null,
-      "tags": [
-        "security",
-        "devops"
-      ],
-      "categories": [
-        "audit",
-        "devops"
       ]
     },
     "dependency-auditor": {
@@ -319,69 +224,6 @@
       "categories": [
         "devops",
         "audit"
-      ]
-    },
-    "senior-architect": {
-      "power": 5,
-      "stars": null,
-      "tags": [
-        "architecture"
-      ],
-      "categories": [
-        "planning",
-        "code"
-      ]
-    },
-    "senior-backend": {
-      "power": 4,
-      "stars": null,
-      "tags": [
-        "backend"
-      ],
-      "categories": [
-        "code"
-      ]
-    },
-    "database-designer": {
-      "power": 4,
-      "stars": null,
-      "tags": [
-        "database"
-      ],
-      "categories": [
-        "database-supabase"
-      ]
-    },
-    "postgresql-optimization": {
-      "power": 4,
-      "stars": null,
-      "tags": [
-        "database",
-        "postgres"
-      ],
-      "categories": [
-        "database-supabase"
-      ]
-    },
-    "typescript-expert": {
-      "power": 4,
-      "stars": null,
-      "tags": [
-        "typescript"
-      ],
-      "categories": [
-        "code"
-      ]
-    },
-    "spec-driven-workflow": {
-      "power": 4,
-      "stars": null,
-      "tags": [
-        "spec",
-        "planning"
-      ],
-      "categories": [
-        "planning"
       ]
     },
     "skill-creator": {
@@ -415,30 +257,20 @@
         "planning"
       ]
     },
-    "code-understand": {
-      "power": 4,
+    "novahiz-delta-review": {
+      "power": 5,
       "stars": null,
       "tags": [
-        "architecture",
+        "review",
+        "diff",
+        "risk"
+      ],
+      "categories": [
+        "review",
         "code"
-      ],
-      "categories": [
-        "code",
-        "debug",
-        "review"
       ]
     },
-    "review-changes": {
-      "power": 4,
-      "stars": null,
-      "tags": [
-        "review"
-      ],
-      "categories": [
-        "review"
-      ]
-    },
-    "defuddle": {
+    "novahiz-web-extract": {
       "power": 3,
       "stars": null,
       "tags": [
@@ -449,11 +281,11 @@
         "research"
       ]
     },
-    "skillenforce-plan": {
+    "novahiz-plan": {
       "power": 5,
       "stars": null,
       "tags": [
-        "skillenforce",
+        "Novahiz",
         "planning"
       ],
       "categories": [
@@ -461,11 +293,11 @@
         "code"
       ]
     },
-    "skillenforce-clarify": {
+    "novahiz-clarify": {
       "power": 5,
       "stars": null,
       "tags": [
-        "skillenforce",
+        "Novahiz",
         "planning"
       ],
       "categories": [
@@ -473,11 +305,11 @@
         "general"
       ]
     },
-    "skillenforce-task": {
+    "novahiz-task": {
       "power": 5,
       "stars": null,
       "tags": [
-        "skillenforce",
+        "Novahiz",
         "planning"
       ],
       "categories": [
@@ -485,11 +317,11 @@
         "code"
       ]
     },
-    "skillenforce-analyse": {
+    "novahiz-analyse": {
       "power": 4,
       "stars": null,
       "tags": [
-        "skillenforce",
+        "Novahiz",
         "analysis"
       ],
       "categories": [
@@ -498,22 +330,22 @@
         "review"
       ]
     },
-    "skillenforce-implement": {
+    "novahiz-implement": {
       "power": 5,
       "stars": null,
       "tags": [
-        "skillenforce",
+        "Novahiz",
         "code"
       ],
       "categories": [
         "code"
       ]
     },
-    "skillenforce-converge": {
+    "novahiz-converge": {
       "power": 5,
       "stars": null,
       "tags": [
-        "skillenforce",
+        "Novahiz",
         "verify"
       ],
       "categories": [

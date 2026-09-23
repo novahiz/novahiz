@@ -11,7 +11,7 @@ const root = fileURLToPath(new URL("..", import.meta.url));
 
 function tempSpec(): { dir: string; spec: ReturnType<typeof loadSpec> } {
   const base = loadSpec(root);
-  const dir = mkdtempSync(join(tmpdir(), "skillenforce-catalog-"));
+  const dir = mkdtempSync(join(tmpdir(), "novahiz-catalog-"));
   const skillDir = join(dir, "skills", "zeta");
   mkdirSync(skillDir, { recursive: true });
   writeFileSync(join(skillDir, "SKILL.md"), "---\nname: zeta\ndescription: demo skill\n---\n\nbody\n", "utf8");

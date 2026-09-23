@@ -181,8 +181,12 @@ export function contentSatisfies(content: string, patterns: string[]): boolean {
     if (!isSafeRegexPattern(pattern)) return false;
     try {
       let re = _regexCache.get(pattern);
-      if (!re) {
-        // M-Gate: simple eviction — drop oldest entry when cache is full
+      if (re) {
+        // M4: LRU-style — move accessed entry to end (newest) so hot entries stay
+        _regexCache.delete(pattern);
+        _regexCache.set(pattern, re);
+      } else {
+        // M-Gate: eviction — drop oldest entry when cache is full
         if (_regexCache.size >= REGEX_CACHE_MAX) {
           const firstKey = _regexCache.keys().next().value;
           if (firstKey !== undefined) _regexCache.delete(firstKey);
@@ -210,8 +214,13 @@ function selectorMatches(rule: Rule, classification: FileClass, path: string, ca
   }
   // M1: a rule with no selectors must match nothing, not everything.
   // An empty `when` is a misconfiguration — fail closed, not open.
-  if (checks.length === 0) return false;
-  return when.match === "all" ? checks.every(Boolean) : checks.some(Boolean);
+  if (checks.length === 0) {
+    console.error(`[Novahiz] rule "${rule.id}" has empty selectors — it will never match`);
+    return false;
+  }
+  // Default to "all" — all selectors must match. This is the safe default:
+  // a rule with fileClasses + promptCategories requires BOTH to match.
+  return when.match === "any" ? checks.some(Boolean) : checks.every(Boolean);
 }
 
 type GateInput = {
@@ -267,7 +276,7 @@ export function evaluateGate(input: GateInput): GateResult {
     }
 
     // H3: Determine complexity tier BEFORE rule evaluation so that trivial
-    // prompts can skip skillenforce-specific rules entirely.
+    // prompts can skip Novahiz-specific rules entirely.
     const tier = input.tier ?? determineTier(content);
 
     const requiredSkills: string[] = [];
@@ -275,6 +284,20 @@ export function evaluateGate(input: GateInput): GateResult {
 
     for (const rule of input.spec.rules) {
       if (!selectorMatches(rule, classification, path, categories)) continue;
+      // Tier gating for R6-Novahiz: trivial = skip entirely, lite = only implement+converge
+      if (rule.id === "R6-Novahiz") {
+        if (tier === "trivial") continue;
+        if (tier === "lite") {
+          // Only add implement and converge from R6's require list
+          for (const skill of rule.require) {
+            if (skill === "novahiz-implement" || skill === "novahiz-converge") {
+              if (!requiredSkills.includes(skill)) requiredSkills.push(skill);
+            }
+          }
+          matchedRules.push(rule.id);
+          continue;
+        }
+      }
       if (rule.when.minChange && isTrivial(content, rule.when.minChange)) continue;
       // H1: contentSatisfies now throws on regex errors (fail-closed).
       // For contentExcludes: regex error → treat as "exclude matched" → skip rule.
@@ -310,7 +333,7 @@ export function evaluateGate(input: GateInput): GateResult {
           if (tier === "lite") {
             // Lite: only implement + converge skills (skip plan, clarify, etc.)
             const allowed = (step.requireSkills ?? []).filter(
-              s => s === "skillenforce-implement" || s === "skillenforce-converge"
+              s => s === "novahiz-implement" || s === "novahiz-converge"
             );
             if (allowed.length === 0) continue;
             for (const skill of allowed) {

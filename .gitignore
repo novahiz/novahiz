@@ -3,8 +3,9 @@ novahiz.config.json
 .novahiz-install.json
 novahiz.sqlite
 novahiz.sqlite-*
-skillenforce.sqlite
-skillenforce.sqlite-*
+novahiz.sqlite.stale-*
+Novahiz.sqlite
+Novahiz.sqlite-*
 .graft/
 build/
 *.novahiz-bak
@@ -16,3 +17,4 @@ Thumbs.db
 after-full.txt
 prov.txt
 test-results.txt
+project-memory/

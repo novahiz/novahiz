@@ -18,7 +18,7 @@ test("extracts change text from several tool payloads", () => {
   assert.equal(changeText("edit", { newString: "abc" }), "abc");
   assert.equal(changeText("write", { content: "body" }), "body");
   assert.equal(changeText("patch", { patchText: "+line" }), "+line");
-  assert.equal(changeText("bash", { command: "echo hi" }), "echo hi");
+  assert.equal(changeText("bash", { command: "echo hi" }), "");
   assert.equal(changeText("edit", { oldString: "old" }), "");
 });
 

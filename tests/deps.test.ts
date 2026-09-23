@@ -12,7 +12,7 @@ test("detects an installed command", () => {
 });
 
 test("detects a missing command", () => {
-  assert.equal(commandExists("skillenforce-definitely-missing-cmd"), false);
+  assert.equal(commandExists("novahiz-definitely-missing-cmd"), false);
 });
 
 test("checks dependencies for every provider", () => {

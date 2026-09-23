@@ -8,7 +8,7 @@ For work that spans more than a few steps, the ledger keeps the plan in SQLite i
 ┌─────────────────────────────────────────────────────────────┐
 │                    TASK CREATION                            │
 │                                                             │
-│  skillenforce task new "Add CSV export"                     │
+│  Novahiz task new "Add CSV export"                     │
 │                                                             │
 │  Creates:                                                   │
 │  • Task row in `tasks` table                                │
@@ -33,7 +33,7 @@ For work that spans more than a few steps, the ledger keeps the plan in SQLite i
 ┌─────────────────────────────────────────────────────────────┐
 │                    DISPATCH                                 │
 │                                                             │
-│  skillenforce dispatch --task <id>                          │
+│  Novahiz dispatch --task <id>                          │
 │                                                             │
 │  Generates work packets:                                    │
 │  • Each packet = one todo                                   │
@@ -88,7 +88,7 @@ Each todo has a `max_iterations` (default: 12). If the budget is exhausted, the 
 
 ## Work packets
 
-`skillenforce dispatch` turns open todos into work packets for parallel sub-agents:
+`Novahiz dispatch` turns open todos into work packets for parallel sub-agents:
 
 ```json
 {
@@ -110,7 +110,7 @@ Each packet has **exclusive file ownership** — no two packets can edit the sam
 The current plan summary is injected into the system prompt on every turn:
 
 ```
-[Skillenforce task] Add CSV export
+[Novahiz task] Add CSV export
   t1 ✓ Read the data model
   t2 ✓ Design the CSV format
   t3 → Write the export function (in_progress)

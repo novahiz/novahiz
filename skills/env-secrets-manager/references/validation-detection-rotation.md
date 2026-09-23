@@ -1,358 +1,76 @@
-# env-secrets-manager reference
+# Validate, detect, rotate
 
-## Required Variable Validation Script
+The three ongoing activities that keep credentials from becoming incidents. Validation stops bad configuration before boot, detection catches leaks while the window is still small, rotation limits how long any single secret stays useful to an attacker.
 
-```bash
-#!/bin/bash
-# scripts/validate-env.sh
-# Run at app startup or in CI before deploy
-# Exit 1 if any required var is missing or empty
+## Validation
 
-set -euo pipefail
+Validation answers one question: will this process start, and can it reach what it needs?
 
-MISSING=()
-WARNINGS=()
+What to check at startup:
 
-# --- Define required vars by environment ---
-ALWAYS_REQUIRED=(
-  APP_SECRET
-  APP_URL
-  DATABASE_URL
-  AUTH_JWT_SECRET
-  AUTH_REFRESH_SECRET
-)
+- Required keys are present (fail the boot with the list of missing names, never with a partial start that dies later on the first request).
+- Values are not placeholders. Compare against a blocklist of documentation filler and against the `.env.example` values themselves; shipping the example value to production is a classic failure.
+- Shape checks per key type: URL parses, port is an integer in range, duration strings match the expected grammar, enum-like flags are in the allowed set, secret values meet a minimum length.
+- Optional reachability probes only in staging. Production boots should not depend on a third party answering during startup or a provider outage becomes your outage.
 
-PROD_REQUIRED=(
-  STRIPE_SECRET_KEY
-  STRIPE_WEBHOOK_SECRET
-  SENTRY_DSN
-)
+Where the checks live: one module that loads and validates configuration once, at process start, and hands typed settings to the rest of the app. Scattered `getenv` calls with local defaults recreate the problem this module exists to prevent.
 
-# --- Check always-required vars ---
-for var in "${ALWAYS_REQUIRED[@]}"; do
-  if [ -z "${!var:-}" ]; then
-    MISSING+=("$var")
-  fi
-done
+Example contract for a required secret:
 
-# --- Check prod-only vars ---
-if [ "${APP_ENV:-}" = "production" ] || [ "${NODE_ENV:-}" = "production" ]; then
-  for var in "${PROD_REQUIRED[@]}"; do
-    if [ -z "${!var:-}" ]; then
-      MISSING+=("$var (required in production)")
-    fi
-  done
-fi
-
-# --- Validate format/length constraints ---
-if [ -n "${AUTH_JWT_SECRET:-}" ] && [ ${#AUTH_JWT_SECRET} -lt 32 ]; then
-  WARNINGS+=("AUTH_JWT_SECRET is shorter than 32 chars — insecure")
-fi
-
-if [ -n "${DATABASE_URL:-}" ]; then
-  if ! echo "$DATABASE_URL" | grep -qE "^(postgres|postgresql|mysql|mongodb|redis)://"; then
-    WARNINGS+=("DATABASE_URL doesn't look like a valid connection string")
-  fi
-fi
-
-if [ -n "${APP_PORT:-}" ]; then
-  if ! [[ "$APP_PORT" =~ ^[0-9]+$ ]] || [ "$APP_PORT" -lt 1 ] || [ "$APP_PORT" -gt 65535 ]; then
-    WARNINGS+=("APP_PORT=$APP_PORT is not a valid port number")
-  fi
-fi
-
-# --- Report ---
-if [ ${#WARNINGS[@]} -gt 0 ]; then
-  echo "WARNINGS:"
-  for w in "${WARNINGS[@]}"; do
-    echo "  ⚠️  $w"
-  done
-fi
-
-if [ ${#MISSING[@]} -gt 0 ]; then
-  echo ""
-  echo "FATAL: Missing required environment variables:"
-  for var in "${MISSING[@]}"; do
-    echo "  ❌  $var"
-  done
-  echo ""
-  echo "Copy .env.example to .env and fill in missing values."
-  exit 1
-fi
-
-echo "✅  All required environment variables are set"
+```text
+name:        STRIPE_SECRET_KEY
+required in: production
+shape:       sk_live_ prefix, minimum 20 chars after prefix
+reject:      values present in .env.example, values shorter than floor
+on failure:  abort boot with "STRIPE_SECRET_KEY missing or placeholder"
 ```
 
-Node.js equivalent:
-```typescript
-// src/config/validateEnv.ts
-const required = [
-  'APP_SECRET', 'APP_URL', 'DATABASE_URL',
-  'AUTH_JWT_SECRET', 'AUTH_REFRESH_SECRET',
-]
+## Detection
 
-const missing = required.filter(key => !process.env[key])
+Detection has three layers. Run them at different times so each one catches what the others miss.
 
-if (missing.length > 0) {
-  console.error('FATAL: Missing required environment variables:', missing)
-  process.exit(1)
-}
+| Layer | When | Tooling | Catches |
+|---|---|---|---|
+| Pre-commit | Every commit | `env_auditor.py` or a git hook wrapper around it | Fresh credentials about to enter history |
+| CI gate | Every push and pull request | `env_auditor.py --json`, plus a history scanner (gitleaks, detect-secrets) | Working-tree leaks and history that was force-added, plus regression when someone disables the hook |
+| Continuous | Scheduled, and on demand after incidents | History scan of the full repo, image scan of built artifacts, log sample review | Old secrets still live in history, secrets baked into images, secrets printed by the app |
 
-if (process.env.AUTH_JWT_SECRET && process.env.AUTH_JWT_SECRET.length < 32) {
-  console.error('FATAL: AUTH_JWT_SECRET must be at least 32 characters')
-  process.exit(1)
-}
+Tune for signal: silence the placeholder rules only for known test fixtures, keep critical provider-prefix rules always on, and treat any newly introduced high finding as a build failure rather than a warning. A warning that appears every week is a warning nobody reads.
 
-export const config = {
-  appSecret: process.env.APP_SECRET!,
-  appUrl: process.env.APP_URL!,
-  databaseUrl: process.env.DATABASE_URL!,
-  jwtSecret: process.env.AUTH_JWT_SECRET!,
-  refreshSecret: process.env.AUTH_REFRESH_SECRET!,
-  stripeKey: process.env.STRIPE_SECRET_KEY,  // optional
-  port: parseInt(process.env.APP_PORT ?? '3000', 10),
-} as const
-```
+Secrets that already reached a log aggregation system count as leaked. Scrubbing the log store is part of detection response, not an afterthought.
 
----
+## Rotation
 
-## Secret Leak Detection
+Rotation replaces a live credential and retires the old one. Renaming the variable without revoking the old value does nothing for an attacker who already copied it.
 
-### Scan Working Tree
-```bash
-#!/bin/bash
-# scripts/scan-secrets.sh
-# Scan staged files and working tree for common secret patterns
+### Planned rotation (no known exposure)
 
-FAIL=0
+1. Inventory consumers. Search code, CI variables, secret manager entries, vendor dashboards, and scheduled jobs for the key name. Write the list down; it is the work plan.
+2. Create the replacement next to the original. Providers that allow two live keys make this trivial; where only one key can exist, use the provider's grace window or deploy code that accepts either value for one release.
+3. Distribute the new value through the secret manager. Never paste it in chat, tickets, or commits.
+4. Redeploy or refresh each consumer. Confirm each one with a synthetic call that touches the provider.
+5. Watch provider logs until the old credential goes quiet.
+6. Revoke the old credential. This step has its own ticket and its own owner.
+7. Record the rotation date, operator, and consumer list in the audit note.
 
-check() {
-  local label="$1"
-  local pattern="$2"
-  local matches
+Aim for a rotation interval that fits the credential's blast radius: long-lived root-style keys get short intervals and automation; per-service scoped tokens can live longer. Pick intervals the team can actually hit and put them on a calendar.
 
-  matches=$(git diff --cached -U0 2>/dev/null | grep "^+" | grep -vE "^(\+\+\+|#|\/\/)" | \
-    grep -E "$pattern" | grep -v ".env.example" | grep -v "test\|mock\|fixture\|fake" || true)
+### Emergency rotation (exposure suspected or confirmed)
 
-  if [ -n "$matches" ]; then
-    echo "SECRET DETECTED [$label]:"
-    echo "$matches" | head -5
-    FAIL=1
-  fi
-}
+Order changes under pressure:
 
-# AWS Access Keys
-check "AWS Access Key" "AKIA[0-9A-Z]{16}"
-check "AWS Secret Key" "aws_secret_access_key\s*=\s*['\"]?[A-Za-z0-9/+]{40}"
+1. Revoke first. An attacker holding a live key gains nothing by your being methodical.
+2. Issue the replacement and roll consumers.
+3. Pull provider activity logs across the exposure window and write down what was accessed.
+4. Fix the leak path (the file, the log line, the chat paste) and re-run detection across history.
+5. Only then write the incident note.
 
-# Stripe
-check "Stripe Live Key"   "sk_live_[0-9a-zA-Z]{24,}"
-check "Stripe Test Key"   "sk_test_[0-9a-zA-Z]{24,}"
-check "Stripe Webhook"    "whsec_[0-9a-zA-Z]{32,}"
+### Zero-downtime patterns
 
-# JWT / Generic secrets
-check "Hardcoded JWT"     "eyJ[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{20,}"
-check "Generic Secret"    "(secret|password|passwd|api_key|apikey|token)\s*[:=]\s*['\"][^'\"]{12,}['\"]"
+- Dual-accept: code reads `KEY` and `KEY_PREVIOUS`, prefers `KEY`, and falls back during the rollout window.
+- Lease-based delivery: short-lived tokens (cloud IAM sessions, OIDC-exchanged credentials) that renew on their own, so rotation is a non-event.
+- Per-consumer keys: revoke one consumer's key without touching the others, which also shrinks the blast radius of any single leak.
 
-# Private keys
-check "Private Key Block" "-----BEGIN (RSA |EC |DSA |OPENSSH )?PRIVATE KEY-----"
-check "PEM Certificate"   "-----BEGIN CERTIFICATE-----"
+## Ownership
 
-# Connection strings with credentials
-check "DB Connection"     "(postgres|mysql|mongodb)://[^:]+:[^@]+@"
-check "Redis Auth"        "redis://:[^@]+@\|rediss://:[^@]+@"
-
-# Google
-check "Google API Key"    "AIza[0-9A-Za-z_-]{35}"
-check "Google OAuth"      "[0-9]+-[0-9A-Za-z_]{32}\.apps\.googleusercontent\.com"
-
-# GitHub
-check "GitHub Token"      "gh[ps]_[A-Za-z0-9]{36,}"
-check "GitHub Fine-grained" "github_pat_[A-Za-z0-9_]{82}"
-
-# Slack
-check "Slack Token"       "xox[baprs]-[0-9A-Za-z]{10,}"
-check "Slack Webhook"     "https://hooks\.slack\.com/services/[A-Z0-9]{9,}/[A-Z0-9]{9,}/[A-Za-z0-9]{24,}"
-
-# Twilio
-check "Twilio SID"        "AC[a-z0-9]{32}"
-check "Twilio Token"      "SK[a-z0-9]{32}"
-
-if [ $FAIL -eq 1 ]; then
-  echo ""
-  echo "BLOCKED: Secrets detected in staged changes."
-  echo "Remove secrets before committing. Use environment variables instead."
-  echo "If this is a false positive, add it to .secretsignore or use:"
-  echo "  git commit --no-verify  (only if you're 100% certain it's safe)"
-  exit 1
-fi
-
-echo "No secrets detected in staged changes."
-```
-
-### Scan Git History (post-incident)
-```bash
-#!/bin/bash
-# scripts/scan-history.sh — scan entire git history for leaked secrets
-
-PATTERNS=(
-  "AKIA[0-9A-Z]{16}"
-  "sk_live_[0-9a-zA-Z]{24}"
-  "sk_test_[0-9a-zA-Z]{24}"
-  "-----BEGIN.*PRIVATE KEY-----"
-  "AIza[0-9A-Za-z_-]{35}"
-  "ghp_[A-Za-z0-9]{36}"
-  "xox[baprs]-[0-9A-Za-z]{10,}"
-)
-
-for pattern in "${PATTERNS[@]}"; do
-  echo "Scanning for: $pattern"
-  git log --all -p --no-color 2>/dev/null | \
-    grep -n "$pattern" | \
-    grep "^+" | \
-    grep -v "^+++" | \
-    head -10
-done
-
-# Alternative: use truffleHog or gitleaks for comprehensive scanning
-# gitleaks detect --source . --log-opts="--all"
-# trufflehog git file://. --only-verified
-```
-
----
-
-## Pre-commit Hook Installation
-
-```bash
-#!/bin/bash
-# Install the pre-commit hook
-HOOK_PATH=".git/hooks/pre-commit"
-
-cat > "$HOOK_PATH" << 'HOOK'
-#!/bin/bash
-# Pre-commit: scan for secrets before every commit
-
-SCRIPT="scripts/scan-secrets.sh"
-
-if [ -f "$SCRIPT" ]; then
-  bash "$SCRIPT"
-else
-  # Inline fallback if script not present
-  if git diff --cached -U0 | grep "^+" | grep -qE "AKIA[0-9A-Z]{16}|sk_live_|-----BEGIN.*PRIVATE KEY"; then
-    echo "BLOCKED: Possible secret detected in staged changes."
-    exit 1
-  fi
-fi
-HOOK
-
-chmod +x "$HOOK_PATH"
-echo "Pre-commit hook installed at $HOOK_PATH"
-```
-
-Using `pre-commit` framework (recommended for teams):
-```yaml
-# .pre-commit-config.yaml
-repos:
-  - repo: https://github.com/gitleaks/gitleaks
-    rev: v8.18.0
-    hooks:
-      - id: gitleaks
-
-  - repo: local
-    hooks:
-      - id: validate-env-example
-        name: "check-envexample-is-up-to-date"
-        language: script
-        entry: bash scripts/check-env-example.sh
-        pass_filenames: false
-```
-
----
-
-## Credential Rotation Workflow
-
-When a secret is leaked or compromised:
-
-### Step 1 — Detect & Confirm
-```bash
-# Confirm which secret was exposed
-git log --all -p --no-color | grep -A2 -B2 "AKIA\|sk_live_\|SECRET"
-
-# Check if secret is in any open PRs
-gh pr list --state open | while read pr; do
-  gh pr diff $(echo $pr | awk '{print $1}') | grep -E "AKIA|sk_live_" && echo "Found in PR: $pr"
-done
-```
-
-### Step 2 — Identify Exposure Window
-```bash
-# Find first commit that introduced the secret
-git log --all -p --no-color -- "*.env" "*.json" "*.yaml" "*.ts" "*.py" | \
-  grep -B 10 "THE_LEAKED_VALUE" | grep "^commit" | tail -1
-
-# Get commit date
-git show --format="%ci" COMMIT_HASH | head -1
-
-# Check if secret appears in public repos (GitHub)
-gh api search/code -X GET -f q="THE_LEAKED_VALUE" | jq '.total_count, .items[].html_url'
-```
-
-### Step 3 — Rotate Credential
-Per service — rotate immediately:
-- **AWS**: IAM console → delete access key → create new → update everywhere
-- **Stripe**: Dashboard → Developers → API keys → Roll key
-- **GitHub PAT**: Settings → Developer Settings → Personal access tokens → Revoke → Create new
-- **DB password**: `ALTER USER app_user PASSWORD 'new-strong-password-here';`
-- **JWT secret**: Rotate key (all existing sessions invalidated — users re-login)
-
-### Step 4 — Update All Environments
-```bash
-# Update secret manager (source of truth)
-# Then redeploy to pull new values
-
-# Vault KV v2
-vault kv put secret/myapp/prod \
-  STRIPE_SECRET_KEY="sk_live_NEW..." \
-  APP_SECRET="new-secret-here"
-
-# AWS SSM
-aws ssm put-parameter \
-  --name "/myapp/prod/STRIPE_SECRET_KEY" \
-  --value "sk_live_NEW..." \
-  --type "SecureString" \
-  --overwrite
-
-# 1Password
-op item edit "MyApp Prod" \
-  --field "STRIPE_SECRET_KEY[password]=sk_live_NEW..."
-
-# Doppler
-doppler secrets set STRIPE_SECRET_KEY="sk_live_NEW..." --project myapp --config prod
-```
-
-### Step 5 — Remove from Git History
-```bash
-# WARNING: rewrites history — coordinate with team first
-git filter-repo --path-glob "*.env" --invert-paths
-
-# Or remove specific string from all commits
-git filter-repo --replace-text <(echo "LEAKED_VALUE==>REDACTED")
-
-# Force push all branches (requires team coordination + force push permissions)
-git push origin --force --all
-
-# Notify all developers to re-clone
-```
-
-### Step 6 — Verify
-```bash
-# Confirm secret no longer in history
-git log --all -p | grep "LEAKED_VALUE" | wc -l  # should be 0
-
-# Test new credentials work
-curl -H "Authorization: Bearer $NEW_TOKEN" https://api.service.com/test
-
-# Monitor for unauthorized usage of old credential (check service audit logs)
-```
-
----
+Every credential has an owner (a team, not a person who might leave), a revoke path documented next to it, and a review date. When a service is decommissioned, its keys get revoked in the same checklist item that deletes the service; orphaned credentials are how dormant systems come back to life in an attacker's inventory.

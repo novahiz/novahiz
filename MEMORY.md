@@ -1,4 +1,4 @@
-# Skillenforce — Project Memory
+# Novahiz — Project Memory
 
 Durable facts about this repository. The change history lives in [CHANGELOG.md](CHANGELOG.md).
 
@@ -13,24 +13,27 @@ An enforcement and execution layer for coding agents. It classifies a request in
 - **Categories and roadmaps live in `catalog/categories.json`.** The six-stage pipeline (plan, clarify, tasks, analyse, implement, converge) applies to `code`, `debug`, `browser`, `design-ui`, `database-supabase`, `planning`, `devops`, and `data`.
 - **The ledger requires proof.** A `verify` todo does not close without `proof` (`src/ledger.ts`).
 - **Providers are referenced, never vendored** (`catalog/providers.json`).
-- **Every Skillenforce skill exists twice**: the source under `skills/` and the installed copy in the harness config directory. When several scanned roots carry the same skill id, the catalog keeps the copy whose `sourcePath` sorts first alphabetically. `~/.config/humanizer` beats `skills/humanizer`, and `skills/` beats `~/.config/opencode/skills`. That is why `sync` has to run after a skill changes.
-- **The opencode adapter exists twice**: `adapters/opencode/skillenforce.ts` in the repository, and its copy in `~/.config/opencode/plugins/`. opencode runs the installed copy, so editing the repository file changes nothing until that copy is refreshed (the installer does it) and opencode restarts.
+- **Every Novahiz skill exists twice**: the source under `skills/` and the installed copy in the harness config directory. When several scanned roots carry the same skill id, the catalog keeps the copy whose `sourcePath` sorts first alphabetically. `~/.config/humanizer` beats `skills/humanizer`, and `skills/` beats `~/.config/opencode/skills`. That is why `sync` has to run after a skill changes.
+- **The opencode adapter exists twice**: `adapters/opencode/novahiz.ts` in the repository, and its copy in `~/.config/opencode/plugins/`. opencode runs the installed copy, so editing the repository file changes nothing until that copy is refreshed (the installer does it) and opencode restarts.
 
 ## Configuration
 
-- `skillenforce.config.json` holds `dbPath`, `skillRoots`, `gate` (enabled, mode, envEscape, tools), `classify`, `providers`, and `ledger`.
-- `SKILLEFORCE_HOME` relocates the home directory. `SKILLEFORCE_DB` overrides the database path, which is how the tests stay off the real ledger.
-- `SKILLEFORCE_GATE=off` disables the gate for a session.
+- `novahiz.config.json` holds `dbPath`, `skillRoots`, `gate` (enabled, mode, envEscape, tools), `classify`, `providers`, and `ledger`.
+- `NOVAHIZ_HOME` relocates the home directory. `NOVAHIZ_DB` overrides the database path, which is how the tests stay off the real ledger.
+- `NOVAHIZ_GATE=off` disables the gate for a session.
 
 ## Gotchas
 
-- **Windows env vars are case-sensitive through spawnSync.** Passing `skilleforce_HOME` (lowercase) in `spawnSync` env does NOT make `SKILLEFORCE_HOME` (uppercase) visible to the child process. All test env overrides and plugin env vars MUST use uppercase keys (`SKILLEFORCE_HOME`, `SKILLEFORCE_DB`, `SKILLEFORCE_GATE`).
-- Any change to `catalog/*.json` or to a skill needs `skillenforce sync`, or the catalog and the index keep describing the previous state.
-- The gate logs every decision to `enforcement_log`, so the database grows during ordinary use. `skillenforce clean` prunes it.
-- `defuddle` is a real external dependency of the `research` roadmap step, and `skillenforce doctor` checks for it.
+- **Windows env vars are case-sensitive through spawnSync.** Passing `NOVAHIZ_HOME` (lowercase) in `spawnSync` env does NOT make `NOVAHIZ_HOME` (uppercase) visible to the child process. All test env overrides and plugin env vars MUST use uppercase keys (`NOVAHIZ_HOME`, `NOVAHIZ_DB`, `NOVAHIZ_GATE`).
+- Any change to `catalog/*.json` or to a skill needs `Novahiz sync`, or the catalog and the index keep describing the previous state.
+- The gate logs every decision to `enforcement_log`, so the database grows during ordinary use. `Novahiz clean` prunes it.
+- `novahiz-web-extract` replaced the external `defuddle` CLI on the `research` roadmap step; `Novahiz doctor` no longer checks for external CLIs (`SKILL_CLI` is empty).
 - `skills/` is partly third-party. `NOTICE.md` records each licence, and says plainly which ones have no upstream information.
+- Pipeline skills (`Novahiz-*`) are Apache-2.0 in their frontmatter; only `novahiz-humanizer` and `novahiz-security` stay MIT, as recorded in NOTICE.
+- `opencode.jsonc` does not list a `Novahiz/skills` path, and does not need one: that directory duplicates `opencode/skills` (56 = 56), and every `bundled-skills/` skill is already covered by an existing root (`~/.agents/skills`, `.config/.agents/skills`, `marketingskills`, `code-review-graph`, the android path). Adding paths would only create duplicates. Decided 2026-09-22: leave the file alone.
+- The MCP `novahiz_gate` tool accepts `file` or `filePath`: some harnesses rename the parameter when they surface the tool. Neither being a non-empty string fails closed with -32602.
 - The package ships no runtime dependency. Anything added has to earn its place.
 
 ## Open work
 
-Tracked in the execution ledger and in `CHANGELOG.md`, not here. Run `skillenforce doctor` to see what blocks.
+Tracked in the execution ledger and in `CHANGELOG.md`, not here. Run `Novahiz doctor` to see what blocks.

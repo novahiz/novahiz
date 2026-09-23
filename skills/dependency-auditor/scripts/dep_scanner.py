@@ -1,794 +1,595 @@
 #!/usr/bin/env python3
+"""Offline dependency scanner for eight package ecosystems.
+
+Reads manifests and lockfiles, builds an inventory, and matches versions
+against a built-in advisory snapshot. No network access.
+
+Usage:
+    python3 dep_scanner.py /path/to/project
+    python3 dep_scanner.py /path/to/project --format json -o scan.json
+    python3 dep_scanner.py /path/to/project --fail-on-high --quick-scan
+    python3 dep_scanner.py /path/to/project --ecosystems javascript,python
+
+Exit codes:
+    0  completed without high/critical findings (or --fail-on-high unset)
+    1  high or critical findings present with --fail-on-high
+    2  bad invocation
 """
-Dependency Scanner - Multi-language dependency vulnerability and analysis tool.
 
-This script parses dependency files from various package managers, extracts direct
-and transitive dependencies, checks against built-in vulnerability databases,
-and provides comprehensive security analysis with actionable recommendations.
+from __future__ import annotations
 
-Author: Claude Skills Engineering Team
-License: MIT
-"""
-
+import argparse
 import json
-import os
 import re
 import sys
-import argparse
-from typing import Dict, List, Set, Any, Optional, Tuple
+from dataclasses import asdict, dataclass, field
+from datetime import datetime, timezone
 from pathlib import Path
-from dataclasses import dataclass, asdict
-from datetime import datetime
-import hashlib
-import subprocess
+from typing import Dict, Iterable, List, Optional, Tuple
 
-@dataclass
-class Vulnerability:
-    """Represents a security vulnerability."""
-    id: str
-    summary: str
+SEVERITY_RANK = {"low": 0, "medium": 1, "high": 2, "critical": 3}
+
+
+@dataclass(frozen=True)
+class Advisory:
+    advisory_id: str
+    package: str
+    ecosystem: str
     severity: str
-    cvss_score: float
-    affected_versions: str
-    fixed_version: Optional[str]
-    published_date: str
-    references: List[str]
+    summary: str
+    fixed_in: str
+
 
 @dataclass
-class Dependency:
-    """Represents a project dependency."""
+class PackageRec:
     name: str
     version: str
     ecosystem: str
     direct: bool
-    license: Optional[str] = None
-    description: Optional[str] = None
-    homepage: Optional[str] = None
-    vulnerabilities: List[Vulnerability] = None
-    
-    def __post_init__(self):
-        if self.vulnerabilities is None:
-            self.vulnerabilities = []
+    source: str
 
-class DependencyScanner:
-    """Main dependency scanner class."""
-    
-    def __init__(self):
-        self.known_vulnerabilities = self._load_vulnerability_database()
-        self.supported_files = {
-            'package.json': self._parse_package_json,
-            'package-lock.json': self._parse_package_lock,
-            'yarn.lock': self._parse_yarn_lock,
-            'requirements.txt': self._parse_requirements_txt,
-            'pyproject.toml': self._parse_pyproject_toml,
-            'Pipfile.lock': self._parse_pipfile_lock,
-            'poetry.lock': self._parse_poetry_lock,
-            'go.mod': self._parse_go_mod,
-            'go.sum': self._parse_go_sum,
-            'Cargo.toml': self._parse_cargo_toml,
-            'Cargo.lock': self._parse_cargo_lock,
-            'Gemfile': self._parse_gemfile,
-            'Gemfile.lock': self._parse_gemfile_lock,
-        }
-    
-    def _load_vulnerability_database(self) -> Dict[str, List[Vulnerability]]:
-        """Load built-in vulnerability database with common CVE patterns."""
-        return {
-            # JavaScript/Node.js vulnerabilities
-            'lodash': [
-                Vulnerability(
-                    id='CVE-2021-23337',
-                    summary='Prototype pollution in lodash',
-                    severity='HIGH',
-                    cvss_score=7.2,
-                    affected_versions='<4.17.21',
-                    fixed_version='4.17.21',
-                    published_date='2021-02-15',
-                    references=['https://nvd.nist.gov/vuln/detail/CVE-2021-23337']
-                )
-            ],
-            'axios': [
-                Vulnerability(
-                    id='CVE-2023-45857',
-                    summary='Cross-site request forgery in axios',
-                    severity='MEDIUM',
-                    cvss_score=6.1,
-                    affected_versions='>=1.0.0 <1.6.0',
-                    fixed_version='1.6.0',
-                    published_date='2023-10-11',
-                    references=['https://nvd.nist.gov/vuln/detail/CVE-2023-45857']
-                )
-            ],
-            'express': [
-                Vulnerability(
-                    id='CVE-2022-24999',
-                    summary='Open redirect in express',
-                    severity='MEDIUM',
-                    cvss_score=6.1,
-                    affected_versions='<4.18.2',
-                    fixed_version='4.18.2',
-                    published_date='2022-11-26',
-                    references=['https://nvd.nist.gov/vuln/detail/CVE-2022-24999']
-                )
-            ],
-            
-            # Python vulnerabilities
-            'django': [
-                Vulnerability(
-                    id='CVE-2024-27351',
-                    summary='SQL injection in Django',
-                    severity='HIGH',
-                    cvss_score=9.8,
-                    affected_versions='>=3.2 <4.2.11',
-                    fixed_version='4.2.11',
-                    published_date='2024-02-06',
-                    references=['https://nvd.nist.gov/vuln/detail/CVE-2024-27351']
-                )
-            ],
-            'requests': [
-                Vulnerability(
-                    id='CVE-2023-32681',
-                    summary='Proxy-authorization header leak in requests',
-                    severity='MEDIUM',
-                    cvss_score=6.1,
-                    affected_versions='>=2.3.0 <2.31.0',
-                    fixed_version='2.31.0',
-                    published_date='2023-05-26',
-                    references=['https://nvd.nist.gov/vuln/detail/CVE-2023-32681']
-                )
-            ],
-            'pillow': [
-                Vulnerability(
-                    id='CVE-2023-50447',
-                    summary='Arbitrary code execution in Pillow',
-                    severity='HIGH',
-                    cvss_score=8.8,
-                    affected_versions='<10.2.0',
-                    fixed_version='10.2.0',
-                    published_date='2024-01-02',
-                    references=['https://nvd.nist.gov/vuln/detail/CVE-2023-50447']
-                )
-            ],
-            
-            # Go vulnerabilities
-            'github.com/gin-gonic/gin': [
-                Vulnerability(
-                    id='CVE-2023-26125',
-                    summary='Path traversal in gin',
-                    severity='HIGH',
-                    cvss_score=7.5,
-                    affected_versions='<1.9.1',
-                    fixed_version='1.9.1',
-                    published_date='2023-02-28',
-                    references=['https://nvd.nist.gov/vuln/detail/CVE-2023-26125']
-                )
-            ],
-            
-            # Rust vulnerabilities
-            'serde': [
-                Vulnerability(
-                    id='RUSTSEC-2022-0061',
-                    summary='Deserialization vulnerability in serde',
-                    severity='HIGH',
-                    cvss_score=8.2,
-                    affected_versions='<1.0.152',
-                    fixed_version='1.0.152',
-                    published_date='2022-12-07',
-                    references=['https://rustsec.org/advisories/RUSTSEC-2022-0061']
-                )
-            ],
-            
-            # Ruby vulnerabilities
-            'rails': [
-                Vulnerability(
-                    id='CVE-2023-28362',
-                    summary='ReDoS vulnerability in Rails',
-                    severity='HIGH',
-                    cvss_score=7.5,
-                    affected_versions='>=7.0.0 <7.0.4.3',
-                    fixed_version='7.0.4.3',
-                    published_date='2023-03-13',
-                    references=['https://nvd.nist.gov/vuln/detail/CVE-2023-28362']
-                )
-            ]
-        }
-    
-    def scan_project(self, project_path: str) -> Dict[str, Any]:
-        """Scan a project directory for dependencies and vulnerabilities."""
-        project_path = Path(project_path)
-        
-        if not project_path.exists():
-            raise FileNotFoundError(f"Project path does not exist: {project_path}")
-        
-        scan_results = {
-            'timestamp': datetime.now().isoformat(),
-            'project_path': str(project_path),
-            'dependencies': [],
-            'vulnerabilities_found': 0,
-            'high_severity_count': 0,
-            'medium_severity_count': 0,
-            'low_severity_count': 0,
-            'ecosystems': set(),
-            'scan_summary': {},
-            'recommendations': []
-        }
-        
-        # Find and parse dependency files
-        for file_pattern, parser in self.supported_files.items():
-            matching_files = list(project_path.rglob(file_pattern))
-            
-            for dep_file in matching_files:
-                try:
-                    dependencies = parser(dep_file)
-                    scan_results['dependencies'].extend(dependencies)
-                    
-                    for dep in dependencies:
-                        scan_results['ecosystems'].add(dep.ecosystem)
-                        
-                        # Check for vulnerabilities
-                        vulnerabilities = self._check_vulnerabilities(dep)
-                        dep.vulnerabilities = vulnerabilities
-                        
-                        scan_results['vulnerabilities_found'] += len(vulnerabilities)
-                        
-                        for vuln in vulnerabilities:
-                            if vuln.severity == 'HIGH':
-                                scan_results['high_severity_count'] += 1
-                            elif vuln.severity == 'MEDIUM':
-                                scan_results['medium_severity_count'] += 1
-                            else:
-                                scan_results['low_severity_count'] += 1
-                
-                except Exception as e:
-                    print(f"Error parsing {dep_file}: {e}")
-                    continue
-        
-        scan_results['ecosystems'] = list(scan_results['ecosystems'])
-        scan_results['scan_summary'] = self._generate_scan_summary(scan_results)
-        scan_results['recommendations'] = self._generate_recommendations(scan_results)
-        
-        return scan_results
-    
-    def _check_vulnerabilities(self, dependency: Dependency) -> List[Vulnerability]:
-        """Check if a dependency has known vulnerabilities."""
-        vulnerabilities = []
-        
-        # Check package name (exact match and common variations)
-        package_names = [dependency.name, dependency.name.lower()]
-        
-        for pkg_name in package_names:
-            if pkg_name in self.known_vulnerabilities:
-                for vuln in self.known_vulnerabilities[pkg_name]:
-                    if self._version_matches_vulnerability(dependency.version, vuln.affected_versions):
-                        vulnerabilities.append(vuln)
-        
-        return vulnerabilities
-    
-    def _version_matches_vulnerability(self, version: str, affected_pattern: str) -> bool:
-        """Check if a version matches a vulnerability pattern."""
-        # Simple version matching - in production, use proper semver library
-        try:
-            # Handle common patterns like "<4.17.21", ">=1.0.0 <1.6.0"
-            if '<' in affected_pattern and '>' not in affected_pattern:
-                # Pattern like "<4.17.21"
-                max_version = affected_pattern.replace('<', '').strip()
-                return self._compare_versions(version, max_version) < 0
-            elif '>=' in affected_pattern and '<' in affected_pattern:
-                # Pattern like ">=1.0.0 <1.6.0"
-                parts = affected_pattern.split('<')
-                min_part = parts[0].replace('>=', '').strip()
-                max_part = parts[1].strip()
-                return (self._compare_versions(version, min_part) >= 0 and 
-                       self._compare_versions(version, max_part) < 0)
-        except:
-            pass
-        
-        return False
-    
-    def _compare_versions(self, v1: str, v2: str) -> int:
-        """Simple version comparison. Returns -1, 0, or 1."""
-        try:
-            def normalize(v):
-                return [int(x) for x in re.sub(r'(\.0+)*$','', v).split('.')]
-            
-            v1_parts = normalize(v1)
-            v2_parts = normalize(v2)
-            
-            if v1_parts < v2_parts:
-                return -1
-            elif v1_parts > v2_parts:
-                return 1
-            else:
-                return 0
-        except:
-            return 0
-    
-    # Package file parsers
-    
-    def _parse_package_json(self, file_path: Path) -> List[Dependency]:
-        """Parse package.json for Node.js dependencies."""
-        dependencies = []
-        
-        try:
-            with open(file_path, 'r') as f:
-                data = json.load(f)
-            
-            # Parse dependencies
-            for dep_type in ['dependencies', 'devDependencies']:
-                if dep_type in data:
-                    for name, version in data[dep_type].items():
-                        dep = Dependency(
-                            name=name,
-                            version=version.replace('^', '').replace('~', '').replace('>=', '').replace('<=', ''),
-                            ecosystem='npm',
-                            direct=True
-                        )
-                        dependencies.append(dep)
-        
-        except Exception as e:
-            print(f"Error parsing package.json: {e}")
-        
-        return dependencies
-    
-    def _parse_package_lock(self, file_path: Path) -> List[Dependency]:
-        """Parse package-lock.json for Node.js transitive dependencies."""
-        dependencies = []
-        
-        try:
-            with open(file_path, 'r') as f:
-                data = json.load(f)
-            
-            if 'packages' in data:
-                for path, pkg_info in data['packages'].items():
-                    if path == '':  # Skip root package
-                        continue
-                    
-                    name = path.split('/')[-1] if '/' in path else path
-                    version = pkg_info.get('version', '')
-                    
-                    dep = Dependency(
-                        name=name,
-                        version=version,
-                        ecosystem='npm',
-                        direct=False,
-                        description=pkg_info.get('description', '')
-                    )
-                    dependencies.append(dep)
-        
-        except Exception as e:
-            print(f"Error parsing package-lock.json: {e}")
-        
-        return dependencies
-    
-    def _parse_yarn_lock(self, file_path: Path) -> List[Dependency]:
-        """Parse yarn.lock for Node.js dependencies."""
-        dependencies = []
-        
-        try:
-            with open(file_path, 'r') as f:
-                content = f.read()
-            
-            # Simple yarn.lock parsing
-            packages = re.findall(r'^([^#\s][^:]+):\s*\n(?:\s+.*\n)*?\s+version\s+"([^"]+)"', content, re.MULTILINE)
-            
-            for package_spec, version in packages:
-                name = package_spec.split('@')[0] if '@' in package_spec else package_spec
-                name = name.strip('"')
-                
-                dep = Dependency(
-                    name=name,
-                    version=version,
-                    ecosystem='npm',
-                    direct=False
-                )
-                dependencies.append(dep)
-        
-        except Exception as e:
-            print(f"Error parsing yarn.lock: {e}")
-        
-        return dependencies
-    
-    def _parse_requirements_txt(self, file_path: Path) -> List[Dependency]:
-        """Parse requirements.txt for Python dependencies."""
-        dependencies = []
-        
-        try:
-            with open(file_path, 'r') as f:
-                lines = f.readlines()
-            
-            for line in lines:
-                line = line.strip()
-                if line and not line.startswith('#') and not line.startswith('-'):
-                    # Parse package==version or package>=version patterns
-                    match = re.match(r'^([a-zA-Z0-9_-]+)([><=!]+)(.+)$', line)
-                    if match:
-                        name, operator, version = match.groups()
-                        dep = Dependency(
-                            name=name,
-                            version=version,
-                            ecosystem='pypi',
-                            direct=True
-                        )
-                        dependencies.append(dep)
-        
-        except Exception as e:
-            print(f"Error parsing requirements.txt: {e}")
-        
-        return dependencies
-    
-    def _parse_pyproject_toml(self, file_path: Path) -> List[Dependency]:
-        """Parse pyproject.toml for Python dependencies."""
-        dependencies = []
-        
-        try:
-            with open(file_path, 'r') as f:
-                content = f.read()
-            
-            # Simple TOML parsing for dependencies
-            dep_section = re.search(r'\[tool\.poetry\.dependencies\](.*?)(?=\[|\Z)', content, re.DOTALL)
-            if dep_section:
-                for line in dep_section.group(1).split('\n'):
-                    match = re.match(r'^([a-zA-Z0-9_-]+)\s*=\s*["\']([^"\']+)["\']', line.strip())
-                    if match:
-                        name, version = match.groups()
-                        if name != 'python':
-                            dep = Dependency(
-                                name=name,
-                                version=version.replace('^', '').replace('~', ''),
-                                ecosystem='pypi',
-                                direct=True
-                            )
-                            dependencies.append(dep)
-        
-        except Exception as e:
-            print(f"Error parsing pyproject.toml: {e}")
-        
-        return dependencies
-    
-    def _parse_pipfile_lock(self, file_path: Path) -> List[Dependency]:
-        """Parse Pipfile.lock for Python dependencies."""
-        dependencies = []
-        
-        try:
-            with open(file_path, 'r') as f:
-                data = json.load(f)
-            
-            for section in ['default', 'develop']:
-                if section in data:
-                    for name, info in data[section].items():
-                        version = info.get('version', '').replace('==', '')
-                        dep = Dependency(
-                            name=name,
-                            version=version,
-                            ecosystem='pypi',
-                            direct=(section == 'default')
-                        )
-                        dependencies.append(dep)
-        
-        except Exception as e:
-            print(f"Error parsing Pipfile.lock: {e}")
-        
-        return dependencies
-    
-    def _parse_poetry_lock(self, file_path: Path) -> List[Dependency]:
-        """Parse poetry.lock for Python dependencies."""
-        dependencies = []
-        
-        try:
-            with open(file_path, 'r') as f:
-                content = f.read()
-            
-            # Extract package entries from TOML
-            packages = re.findall(r'\[\[package\]\]\nname\s*=\s*"([^"]+)"\nversion\s*=\s*"([^"]+)"', content)
-            
-            for name, version in packages:
-                dep = Dependency(
-                    name=name,
-                    version=version,
-                    ecosystem='pypi',
-                    direct=False
-                )
-                dependencies.append(dep)
-        
-        except Exception as e:
-            print(f"Error parsing poetry.lock: {e}")
-        
-        return dependencies
-    
-    def _parse_go_mod(self, file_path: Path) -> List[Dependency]:
-        """Parse go.mod for Go dependencies."""
-        dependencies = []
-        
-        try:
-            with open(file_path, 'r') as f:
-                content = f.read()
-            
-            # Parse require block
-            require_match = re.search(r'require\s*\((.*?)\)', content, re.DOTALL)
-            if require_match:
-                requires = require_match.group(1)
-                for line in requires.split('\n'):
-                    match = re.match(r'\s*([^\s]+)\s+v?([^\s]+)', line.strip())
-                    if match:
-                        name, version = match.groups()
-                        dep = Dependency(
-                            name=name,
-                            version=version,
-                            ecosystem='go',
-                            direct=True
-                        )
-                        dependencies.append(dep)
-        
-        except Exception as e:
-            print(f"Error parsing go.mod: {e}")
-        
-        return dependencies
-    
-    def _parse_go_sum(self, file_path: Path) -> List[Dependency]:
-        """Parse go.sum for Go dependency checksums."""
-        return []  # go.sum mainly contains checksums, dependencies are in go.mod
-    
-    def _parse_cargo_toml(self, file_path: Path) -> List[Dependency]:
-        """Parse Cargo.toml for Rust dependencies."""
-        dependencies = []
-        
-        try:
-            with open(file_path, 'r') as f:
-                content = f.read()
-            
-            # Parse [dependencies] section
-            dep_section = re.search(r'\[dependencies\](.*?)(?=\[|\Z)', content, re.DOTALL)
-            if dep_section:
-                for line in dep_section.group(1).split('\n'):
-                    match = re.match(r'^([a-zA-Z0-9_-]+)\s*=\s*["\']([^"\']+)["\']', line.strip())
-                    if match:
-                        name, version = match.groups()
-                        dep = Dependency(
-                            name=name,
-                            version=version,
-                            ecosystem='cargo',
-                            direct=True
-                        )
-                        dependencies.append(dep)
-        
-        except Exception as e:
-            print(f"Error parsing Cargo.toml: {e}")
-        
-        return dependencies
-    
-    def _parse_cargo_lock(self, file_path: Path) -> List[Dependency]:
-        """Parse Cargo.lock for Rust dependencies."""
-        dependencies = []
-        
-        try:
-            with open(file_path, 'r') as f:
-                content = f.read()
-            
-            # Parse [[package]] entries
-            packages = re.findall(r'\[\[package\]\]\nname\s*=\s*"([^"]+)"\nversion\s*=\s*"([^"]+)"', content)
-            
-            for name, version in packages:
-                dep = Dependency(
-                    name=name,
-                    version=version,
-                    ecosystem='cargo',
-                    direct=False
-                )
-                dependencies.append(dep)
-        
-        except Exception as e:
-            print(f"Error parsing Cargo.lock: {e}")
-        
-        return dependencies
-    
-    def _parse_gemfile(self, file_path: Path) -> List[Dependency]:
-        """Parse Gemfile for Ruby dependencies."""
-        dependencies = []
-        
-        try:
-            with open(file_path, 'r') as f:
-                content = f.read()
-            
-            # Parse gem declarations
-            gems = re.findall(r'gem\s+["\']([^"\']+)["\'](?:\s*,\s*["\']([^"\']+)["\'])?', content)
-            
-            for gem_info in gems:
-                name = gem_info[0]
-                version = gem_info[1] if len(gem_info) > 1 and gem_info[1] else ''
-                
-                dep = Dependency(
-                    name=name,
-                    version=version,
-                    ecosystem='rubygems',
-                    direct=True
-                )
-                dependencies.append(dep)
-        
-        except Exception as e:
-            print(f"Error parsing Gemfile: {e}")
-        
-        return dependencies
-    
-    def _parse_gemfile_lock(self, file_path: Path) -> List[Dependency]:
-        """Parse Gemfile.lock for Ruby dependencies."""
-        dependencies = []
-        
-        try:
-            with open(file_path, 'r') as f:
-                content = f.read()
-            
-            # Extract GEM section
-            gem_section = re.search(r'GEM\s*\n(.*?)(?=\n\S|\Z)', content, re.DOTALL)
-            if gem_section:
-                specs = gem_section.group(1)
-                gems = re.findall(r'\s+([a-zA-Z0-9_-]+)\s+\(([^)]+)\)', specs)
-                
-                for name, version in gems:
-                    dep = Dependency(
-                        name=name,
-                        version=version,
-                        ecosystem='rubygems',
-                        direct=False
-                    )
-                    dependencies.append(dep)
-        
-        except Exception as e:
-            print(f"Error parsing Gemfile.lock: {e}")
-        
-        return dependencies
-    
-    def _generate_scan_summary(self, scan_results: Dict[str, Any]) -> Dict[str, Any]:
-        """Generate a summary of the scan results."""
-        total_deps = len(scan_results['dependencies'])
-        unique_deps = len(set(dep.name for dep in scan_results['dependencies']))
-        
-        return {
-            'total_dependencies': total_deps,
-            'unique_dependencies': unique_deps,
-            'ecosystems_found': len(scan_results['ecosystems']),
-            'vulnerable_dependencies': len([dep for dep in scan_results['dependencies'] if dep.vulnerabilities]),
-            'vulnerability_breakdown': {
-                'high': scan_results['high_severity_count'],
-                'medium': scan_results['medium_severity_count'],
-                'low': scan_results['low_severity_count']
-            }
-        }
-    
-    def _generate_recommendations(self, scan_results: Dict[str, Any]) -> List[str]:
-        """Generate actionable recommendations based on scan results."""
-        recommendations = []
-        
-        high_count = scan_results['high_severity_count']
-        medium_count = scan_results['medium_severity_count']
-        
-        if high_count > 0:
-            recommendations.append(f"URGENT: Address {high_count} high-severity vulnerabilities immediately")
-        
-        if medium_count > 0:
-            recommendations.append(f"Schedule fixes for {medium_count} medium-severity vulnerabilities within 30 days")
-        
-        vulnerable_deps = [dep for dep in scan_results['dependencies'] if dep.vulnerabilities]
-        if vulnerable_deps:
-            for dep in vulnerable_deps[:3]:  # Top 3 most critical
-                for vuln in dep.vulnerabilities:
-                    if vuln.fixed_version:
-                        recommendations.append(f"Update {dep.name} from {dep.version} to {vuln.fixed_version} to fix {vuln.id}")
-        
-        if len(scan_results['ecosystems']) > 3:
-            recommendations.append("Consider consolidating package managers to reduce complexity")
-        
-        return recommendations
-    
-    def generate_report(self, scan_results: Dict[str, Any], format: str = 'text') -> str:
-        """Generate a human-readable or JSON report."""
-        if format == 'json':
-            # Convert Dependency objects to dicts for JSON serialization
-            serializable_results = scan_results.copy()
-            serializable_results['dependencies'] = [
-                {
-                    'name': dep.name,
-                    'version': dep.version,
-                    'ecosystem': dep.ecosystem,
-                    'direct': dep.direct,
-                    'license': dep.license,
-                    'vulnerabilities': [asdict(vuln) for vuln in dep.vulnerabilities]
-                }
-                for dep in scan_results['dependencies']
-            ]
-            return json.dumps(serializable_results, indent=2, default=str)
-        
-        # Text format report
-        report = []
-        report.append("=" * 60)
-        report.append("DEPENDENCY SECURITY SCAN REPORT")
-        report.append("=" * 60)
-        report.append(f"Scan Date: {scan_results['timestamp']}")
-        report.append(f"Project: {scan_results['project_path']}")
-        report.append("")
-        
-        # Summary
-        summary = scan_results['scan_summary']
-        report.append("SUMMARY:")
-        report.append(f"  Total Dependencies: {summary['total_dependencies']}")
-        report.append(f"  Unique Dependencies: {summary['unique_dependencies']}")
-        report.append(f"  Ecosystems: {', '.join(scan_results['ecosystems'])}")
-        report.append(f"  Vulnerabilities Found: {scan_results['vulnerabilities_found']}")
-        report.append(f"    High Severity: {summary['vulnerability_breakdown']['high']}")
-        report.append(f"    Medium Severity: {summary['vulnerability_breakdown']['medium']}")
-        report.append(f"    Low Severity: {summary['vulnerability_breakdown']['low']}")
-        report.append("")
-        
-        # Vulnerable dependencies
-        vulnerable_deps = [dep for dep in scan_results['dependencies'] if dep.vulnerabilities]
-        if vulnerable_deps:
-            report.append("VULNERABLE DEPENDENCIES:")
-            report.append("-" * 30)
-            
-            for dep in vulnerable_deps:
-                report.append(f"Package: {dep.name} v{dep.version} ({dep.ecosystem})")
-                for vuln in dep.vulnerabilities:
-                    report.append(f"  • {vuln.id}: {vuln.summary}")
-                    report.append(f"    Severity: {vuln.severity} (CVSS: {vuln.cvss_score})")
-                    if vuln.fixed_version:
-                        report.append(f"    Fixed in: {vuln.fixed_version}")
-                    report.append("")
-        
-        # Recommendations
-        if scan_results['recommendations']:
-            report.append("RECOMMENDATIONS:")
-            report.append("-" * 20)
-            for i, rec in enumerate(scan_results['recommendations'], 1):
-                report.append(f"{i}. {rec}")
-            report.append("")
-        
-        report.append("=" * 60)
-        return '\n'.join(report)
 
-def main():
-    """Main entry point for the dependency scanner."""
-    parser = argparse.ArgumentParser(
-        description='Scan project dependencies for vulnerabilities and security issues',
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
-Examples:
-  python dep_scanner.py /path/to/project
-  python dep_scanner.py . --format json --output results.json
-  python dep_scanner.py /app --fail-on-high
-        """
-    )
-    
-    parser.add_argument('project_path', 
-                       help='Path to the project directory to scan')
-    parser.add_argument('--format', choices=['text', 'json'], default='text',
-                       help='Output format (default: text)')
-    parser.add_argument('--output', '-o',
-                       help='Output file path (default: stdout)')
-    parser.add_argument('--fail-on-high', action='store_true',
-                       help='Exit with error code if high-severity vulnerabilities found')
-    parser.add_argument('--quick-scan', action='store_true',
-                       help='Perform quick scan (skip transitive dependencies)')
-    
-    args = parser.parse_args()
-    
+@dataclass
+class Finding:
+    package: str
+    version: str
+    ecosystem: str
+    advisory_id: str
+    severity: str
+    summary: str
+    fixed_in: str
+
+
+@dataclass
+class ScanReport:
+    root: str
+    generated_at: str
+    ecosystems: Dict[str, int] = field(default_factory=dict)
+    packages: List[PackageRec] = field(default_factory=list)
+    findings: List[Finding] = field(default_factory=list)
+    stats: Dict[str, int] = field(default_factory=dict)
+
+
+ADVISORIES: List[Advisory] = [
+    Advisory("SF-LDASH-001", "lodash", "javascript", "high",
+             "Command injection in template compilation", "4.17.21"),
+    Advisory("SF-MINIMIST-001", "minimist", "javascript", "high",
+             "Prototype pollution in argument parsing", "1.2.6"),
+    Advisory("SF-NODEFETCH-001", "node-fetch", "javascript", "medium",
+             "Sensitive data exposure across redirects", "2.6.7"),
+    Advisory("SF-AXIOS-001", "axios", "javascript", "medium",
+             "Server-side request forgery via unvalidated redirect", "0.21.1"),
+    Advisory("SF-PYYAML-001", "pyyaml", "python", "critical",
+             "Arbitrary code execution through unsafe load variants", "5.4"),
+    Advisory("SF-URLLIB3-001", "urllib3", "python", "high",
+             "Denial of service in URL authority parsing", "1.26.5"),
+    Advisory("SF-JINJA2-001", "jinja2", "python", "medium",
+             "Attribute injection in the xmlattr filter", "3.1.3"),
+    Advisory("SF-XTEXT-001", "golang.org/x/text", "go", "high",
+             "Parsing denial of service in language tag handling", "0.3.7"),
+    Advisory("SF-LOG4J-001", "org.apache.logging.log4j:log4j-core", "java", "critical",
+             "Remote code execution via JNDI lookup in logged messages", "2.17.1"),
+]
+
+
+def parse_version(raw: str) -> Tuple[int, ...]:
+    cleaned = raw.strip().lstrip("vV")
+    cleaned = re.split(r"[+~]", cleaned, maxsplit=1)[0]
+    cleaned = re.split(r"[-\s]", cleaned, maxsplit=1)[0]
+    parts: List[int] = []
+    for chunk in cleaned.split("."):
+        m = re.match(r"\d+", chunk)
+        if not m:
+            break
+        parts.append(int(m.group()))
+        if len(parts) >= 4:
+            break
+    while len(parts) < 3:
+        parts.append(0)
+    return tuple(parts)
+
+
+def older_than(version: str, floor: str) -> bool:
     try:
-        scanner = DependencyScanner()
-        results = scanner.scan_project(args.project_path)
-        report = scanner.generate_report(results, args.format)
-        
-        if args.output:
-            with open(args.output, 'w') as f:
-                f.write(report)
-            print(f"Report saved to {args.output}")
-        else:
-            print(report)
-        
-        # Exit with error if high-severity vulnerabilities found and --fail-on-high is set
-        if args.fail_on_high and results['high_severity_count'] > 0:
-            sys.exit(1)
-    
-    except Exception as e:
-        print(f"Error: {e}", file=sys.stderr)
-        sys.exit(1)
+        return parse_version(version) < parse_version(floor)
+    except Exception:
+        return False
 
-if __name__ == '__main__':
-    main()
+
+def read_text(path: Path) -> str:
+    try:
+        return path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return ""
+
+
+def first_existing(root: Path, names: Iterable[str]) -> Optional[Path]:
+    for name in names:
+        candidate = root / name
+        if candidate.is_file():
+            return candidate
+    return None
+
+
+def find_files(root: Path, suffix: str, limit: int = 40) -> List[Path]:
+    out: List[Path] = []
+    skip = {".git", "node_modules", "vendor", "venv", ".venv", "dist", "build", "target"}
+    for path in sorted(root.rglob(f"*{suffix}")):
+        if not path.is_file():
+            continue
+        if any(part in skip for part in path.parts):
+            continue
+        out.append(path)
+        if len(out) >= limit:
+            break
+    return out
+
+
+def add(recs: List[PackageRec], name: str, version: str, ecosystem: str,
+        direct: bool, source: str) -> None:
+    name = name.strip()
+    version = version.strip().strip('"').strip("'")
+    if not name or not version or version.startswith("${"):
+        return
+    version = version.lstrip("vV=^~<> ")
+    if not version:
+        return
+    recs.append(PackageRec(name=name, version=version, ecosystem=ecosystem,
+                           direct=direct, source=source))
+
+
+def parse_requirements(text: str) -> List[Tuple[str, str]]:
+    rows: List[Tuple[str, str]] = []
+    for line in text.splitlines():
+        line = line.strip()
+        if not line or line.startswith(("#", "-", " ", "\t")):
+            continue
+        line = line.split("#", 1)[0].strip()
+        m = re.match(r"([A-Za-z0-9._-]+)\s*(?:==|===)\s*([A-Za-z0-9._+]+)", line)
+        if m:
+            rows.append((m.group(1).lower(), m.group(2)))
+    return rows
+
+
+def parse_js(root: Path) -> List[PackageRec]:
+    recs: List[PackageRec] = []
+    manifest = first_existing(root, ["package.json"])
+    if manifest:
+        try:
+            data = json.loads(read_text(manifest))
+        except json.JSONDecodeError:
+            data = {}
+        for section in ("dependencies", "devDependencies", "peerDependencies"):
+            for name, spec in (data.get(section) or {}).items():
+                ver = re.sub(r"^[\^~>=<\s]+", "", str(spec))
+                if re.match(r"^\d", ver) or re.match(r"^\d", str(spec)):
+                    add(recs, name, ver, "javascript", True, manifest.name)
+                else:
+                    m = re.search(r"(\d+\.\d+(?:\.\d+)?)", str(spec))
+                    if m:
+                        add(recs, name, m.group(1), "javascript", True, manifest.name)
+    lock = first_existing(root, ["package-lock.json"])
+    if lock:
+        try:
+            data = json.loads(read_text(lock))
+        except json.JSONDecodeError:
+            data = {}
+        packages = data.get("packages")
+        if isinstance(packages, dict):
+            for path_key, meta in packages.items():
+                if not path_key or not isinstance(meta, dict):
+                    continue
+                name = meta.get("name") or path_key.split("node_modules/")[-1]
+                version = meta.get("version")
+                if name and version:
+                    direct = "node_modules/" not in path_key
+                    add(recs, str(name), str(version), "javascript", direct, lock.name)
+        else:
+            for name, meta in (data.get("dependencies") or {}).items():
+                if isinstance(meta, dict) and meta.get("version"):
+                    add(recs, name, str(meta["version"]), "javascript", False, lock.name)
+    yarn = first_existing(root, ["yarn.lock"])
+    if yarn:
+        text = read_text(yarn)
+        blocks = re.split(r"\n(?=\S)", text)
+        for block in blocks:
+            header = block.split("\n", 1)[0]
+            m_ver = re.search(r'\n\s+version\s+"([^"]+)"', "\n" + block)
+            if not m_ver:
+                continue
+            first_alias = header.split(",")[0].strip().rstrip(":")
+            name = first_alias.rsplit("@", 1)[0]
+            if name.startswith("@"):
+                name = "@" + name[1:].split("@")[0]
+            add(recs, name, m_ver.group(1), "javascript", True, "yarn.lock")
+    return recs
+
+
+def parse_python(root: Path) -> List[PackageRec]:
+    recs: List[PackageRec] = []
+    req = first_existing(root, ["requirements.txt", "requirements/prod.txt"])
+    if req:
+        for name, version in parse_requirements(read_text(req)):
+            add(recs, name, version, "python", True, req.name)
+    pyproject = first_existing(root, ["pyproject.toml"])
+    if pyproject:
+        text = read_text(pyproject)
+        for m in re.finditer(
+            r'^([A-Za-z0-9._-]+)\s*=\s*["\']([^"\']+)["\']',
+            text, re.M,
+        ):
+            name, spec = m.group(1), m.group(2)
+            if name in {"name", "version", "description", "readme", "license"}:
+                continue
+            vm = re.search(r"(\d+(?:\.\d+){1,3})", spec)
+            if vm and re.search(r"(==|>=|~=)", spec):
+                add(recs, name, vm.group(1), "python", True, pyproject.name)
+    poetry = first_existing(root, ["poetry.lock"])
+    if poetry:
+        text = read_text(poetry)
+        names = re.findall(r'^name\s*=\s*"([^"]+)"', text, re.M)
+        versions = re.findall(r'^version\s*=\s*"([^"]+)"', text, re.M)
+        for name, version in zip(names, versions):
+            add(recs, name, version, "python", False, poetry.name)
+    pipfile = first_existing(root, ["Pipfile.lock"])
+    if pipfile:
+        try:
+            data = json.loads(read_text(pipfile))
+        except json.JSONDecodeError:
+            data = {}
+        for section in ("default", "develop"):
+            for name, meta in (data.get(section) or {}).items():
+                if isinstance(meta, dict) and meta.get("version"):
+                    ver = re.sub(r"^==", "", str(meta["version"]))
+                    add(recs, name, ver, "python", section == "default", pipfile.name)
+    return recs
+
+
+def parse_go(root: Path) -> List[PackageRec]:
+    recs: List[PackageRec] = []
+    gomod = first_existing(root, ["go.mod"])
+    if not gomod:
+        return recs
+    text = read_text(gomod)
+    body = text
+    block = re.search(r"require\s*\((.*?)\)", text, re.S)
+    if block:
+        body += "\n" + block.group(1)
+    for m in re.finditer(r"^\s*([^\s//]+)\s+v([0-9][^\s]+)", body, re.M):
+        add(recs, m.group(1), m.group(2), "go", True, gomod.name)
+    return recs
+
+
+def parse_rust(root: Path) -> List[PackageRec]:
+    recs: List[PackageRec] = []
+    cargo = first_existing(root, ["Cargo.toml"])
+    if cargo:
+        text = read_text(cargo)
+        in_deps = False
+        for line in text.splitlines():
+            stripped = line.strip()
+            if stripped.startswith("[") and stripped.endswith("]"):
+                in_deps = stripped in {"[dependencies]", "[dependencies.dev-dependencies]"}
+                continue
+            if not in_deps:
+                continue
+            m = re.match(r'^([A-Za-z0-9_-]+)\s*=\s*"([^"]+)"', stripped)
+            if m:
+                add(recs, m.group(1), m.group(2), "rust", True, cargo.name)
+                continue
+            m2 = re.match(r'^([A-Za-z0-9_-]+)\s*=\s*\{[^}]*version\s*=\s*"([^"]+)"', stripped)
+            if m2:
+                add(recs, m2.group(1), m2.group(2), "rust", True, cargo.name)
+    lock = first_existing(root, ["Cargo.lock"])
+    if lock:
+        text = read_text(lock)
+        names = re.findall(r'^name\s*=\s*"([^"]+)"', text, re.M)
+        versions = re.findall(r'^version\s*=\s*"([^"]+)"', text, re.M)
+        for name, version in zip(names, versions):
+            add(recs, name, version, "rust", False, lock.name)
+    return recs
+
+
+def parse_ruby(root: Path) -> List[PackageRec]:
+    recs: List[PackageRec] = []
+    gemfile = first_existing(root, ["Gemfile"])
+    if gemfile:
+        for m in re.finditer(
+            r"""gem\s+["']([^"']+)["']\s*(?:,\s*["']([^"']+)["'])?""",
+            read_text(gemfile),
+        ):
+            spec = m.group(2) or ""
+            vm = re.search(r"(\d+(?:\.\d+)+)", spec)
+            if vm:
+                add(recs, m.group(1), vm.group(1), "ruby", True, gemfile.name)
+    lock = first_existing(root, ["Gemfile.lock"])
+    if lock:
+        in_specs = False
+        for line in read_text(lock).splitlines():
+            if line.strip() == "specs:":
+                in_specs = True
+                continue
+            if in_specs and not line.startswith(" "):
+                if line.strip().endswith(":") and not line.startswith("    "):
+                    in_specs = line.strip() != "PLATFORMS:" and in_specs
+                if line.strip() in {"PLATFORMS", "DEPENDENCIES", "RUBY VERSION", "BUNDLED WITH"}:
+                    in_specs = False
+                continue
+            if in_specs:
+                m = re.match(r"^\s{4}([A-Za-z0-9_-]+)\s+\(([^)]+)\)", line)
+                if m:
+                    add(recs, m.group(1), m.group(2), "ruby", True, lock.name)
+    return recs
+
+
+def parse_java(root: Path) -> List[PackageRec]:
+    recs: List[PackageRec] = []
+    pom = first_existing(root, ["pom.xml"])
+    if pom:
+        try:
+            import xml.etree.ElementTree as ET
+            tree = ET.fromstring(read_text(pom))
+        except ET.ParseError:
+            tree = None
+        if tree is not None:
+            ns = ""
+            if tree.tag.startswith("{"):
+                ns = tree.tag.split("}")[0] + "}"
+            for dep in tree.iter(f"{ns}dependency"):
+                group = dep.findtext(f"{ns}groupId", default="").strip()
+                artifact = dep.findtext(f"{ns}artifactId", default="").strip()
+                version = dep.findtext(f"{ns}version", default="").strip()
+                if group and artifact and version and not version.startswith("${"):
+                    add(recs, f"{group}:{artifact}", version, "java", True, pom.name)
+    gradle = first_existing(root, ["gradle.lockfile"])
+    if gradle:
+        for line in read_text(gradle).splitlines():
+            if "=" in line and not line.startswith("#"):
+                coord, _, version = line.partition("=")
+                add(recs, coord.strip(), version.strip(), "java", False, gradle.name)
+    return recs
+
+
+def parse_php(root: Path) -> List[PackageRec]:
+    recs: List[PackageRec] = []
+    manifest = first_existing(root, ["composer.json"])
+    if manifest:
+        try:
+            data = json.loads(read_text(manifest))
+        except json.JSONDecodeError:
+            data = {}
+        for section in ("require", "require-dev"):
+            for name, spec in (data.get(section) or {}).items():
+                if name == "php" or name.startswith("ext-"):
+                    continue
+                vm = re.search(r"(\d+(?:\.\d+)+)", str(spec))
+                if vm:
+                    add(recs, name, vm.group(1), "php", True, manifest.name)
+    lock = first_existing(root, ["composer.lock"])
+    if lock:
+        try:
+            data = json.loads(read_text(lock))
+        except json.JSONDecodeError:
+            data = {}
+        for section in ("packages", "packages-dev"):
+            for meta in data.get(section) or []:
+                if isinstance(meta, dict) and meta.get("name") and meta.get("version"):
+                    add(recs, str(meta["name"]), str(meta["version"]),
+                        "php", section == "packages", lock.name)
+    return recs
+
+
+def parse_dotnet(root: Path) -> List[PackageRec]:
+    recs: List[PackageRec] = []
+    for proj in find_files(root, ".csproj"):
+        text = read_text(proj)
+        for m in re.finditer(
+            r'<PackageReference\s+[^>]*Include="([^"]+)"[^>]*Version="([^"]+)"',
+            text,
+        ):
+            add(recs, m.group(1), m.group(2), "dotnet", True, proj.name)
+        for m in re.finditer(
+            r'<PackageReference\s+Include="([^"]+)"\s*>\s*<Version>([^<]+)</Version>',
+            text, re.S,
+        ):
+            add(recs, m.group(1), m.group(2), "dotnet", True, proj.name)
+    packages = first_existing(root, ["packages.config"])
+    if packages:
+        text = read_text(packages)
+        for m in re.finditer(r'id="([^"]+)"\s+version="([^"]+)"', text):
+            add(recs, m.group(1), m.group(2), "dotnet", True, packages.name)
+    lock = first_existing(root, ["packages.lock.json"])
+    if lock:
+        try:
+            data = json.loads(read_text(lock))
+        except json.JSONDecodeError:
+            data = {}
+        for _, deps in (data.get("dependencies") or {}).items():
+            for name, meta in (deps or {}).items():
+                if isinstance(meta, dict) and meta.get("resolved"):
+                    add(recs, name, str(meta["resolved"]), "dotnet", False, lock.name)
+    return recs
+
+
+PARSERS = {
+    "javascript": parse_js,
+    "python": parse_python,
+    "go": parse_go,
+    "rust": parse_rust,
+    "ruby": parse_ruby,
+    "java": parse_java,
+    "php": parse_php,
+    "dotnet": parse_dotnet,
+}
+
+
+def dedupe(packages: List[PackageRec]) -> List[PackageRec]:
+    seen: Dict[Tuple[str, str], PackageRec] = {}
+    for rec in packages:
+        key = (rec.ecosystem, rec.name.lower())
+        existing = seen.get(key)
+        if existing is None:
+            seen[key] = rec
+            continue
+        if rec.direct and not existing.direct:
+            seen[key] = rec
+        elif rec.source.endswith(("lock", "lock.json")) and not existing.source.endswith(
+            ("lock", "lock.json")
+        ):
+            seen[key] = rec
+    return list(seen.values())
+
+
+def match_advisories(packages: List[PackageRec]) -> List[Finding]:
+    findings: List[Finding] = []
+    for rec in packages:
+        for adv in ADVISORIES:
+            if adv.ecosystem != rec.ecosystem:
+                continue
+            if adv.package.lower() != rec.name.lower():
+                continue
+            if older_than(rec.version, adv.fixed_in):
+                findings.append(Finding(
+                    package=rec.name,
+                    version=rec.version,
+                    ecosystem=rec.ecosystem,
+                    advisory_id=adv.advisory_id,
+                    severity=adv.severity,
+                    summary=adv.summary,
+                    fixed_in=adv.fixed_in,
+                ))
+    findings.sort(key=lambda f: (-SEVERITY_RANK[f.severity], f.package))
+    return findings
+
+
+def build_report(root: Path, ecosystems: List[str], quick: bool) -> ScanReport:
+    packages: List[PackageRec] = []
+    for name in ecosystems:
+        packages.extend(PARSERS[name](root))
+    packages = dedupe(packages)
+    if quick:
+        packages = [p for p in packages if p.direct]
+    findings = match_advisories(packages)
+    counts: Dict[str, int] = {}
+    for rec in packages:
+        counts[rec.ecosystem] = counts.get(rec.ecosystem, 0) + 1
+    report = ScanReport(
+        root=str(root),
+        generated_at=datetime.now(timezone.utc).isoformat(),
+        ecosystems=counts,
+        packages=packages,
+        findings=findings,
+    )
+    report.stats = {
+        "packages": len(packages),
+        "findings": len(findings),
+        "high_or_critical": sum(
+            1 for f in findings if SEVERITY_RANK[f.severity] >= SEVERITY_RANK["high"]
+        ),
+    }
+    return report
+
+
+def render_text(report: ScanReport) -> str:
+    lines = [
+        f"dep_scanner: {report.root}",
+        "ecosystems: "
+        + (", ".join(f"{k}={v}" for k, v in sorted(report.ecosystems.items())) or "none"),
+        "stats: "
+        + ", ".join(f"{k}={v}" for k, v in report.stats.items()),
+    ]
+    for f in report.findings:
+        lines.append(
+            f"[{f.severity.upper()}] {f.package}@{f.version} ({f.ecosystem}) "
+            f"{f.advisory_id}: {f.summary}; fixed in {f.fixed_in}"
+        )
+    if not report.findings:
+        lines.append("no advisory hits in the built-in snapshot")
+    return "\n".join(lines)
+
+
+def render_json(report: ScanReport) -> str:
+    payload = {
+        "root": report.root,
+        "generated_at": report.generated_at,
+        "ecosystems": report.ecosystems,
+        "packages": [asdict(p) for p in report.packages],
+        "findings": [asdict(f) for f in report.findings],
+        "stats": report.stats,
+    }
+    return json.dumps(payload, indent=2)
+
+
+def build_parser() -> argparse.ArgumentParser:
+    p = argparse.ArgumentParser(
+        description="Offline dependency scanner (manifests, lockfiles, advisory snapshot)."
+    )
+    p.add_argument("target", type=Path, help="Project root to scan")
+    p.add_argument("--format", choices=["text", "json"], default="text")
+    p.add_argument("-o", "--output", type=Path, help="Write the report to a file")
+    p.add_argument("--fail-on-high", action="store_true",
+                   help="Exit 1 when high or critical findings exist")
+    p.add_argument("--quick-scan", action="store_true",
+                   help="Direct manifest dependencies only")
+    p.add_argument(
+        "--ecosystems",
+        help="Comma-separated subset: " + ",".join(PARSERS),
+    )
+    return p
+
+
+def main(argv: Optional[List[str]] = None) -> int:
+    args = build_parser().parse_args(argv)
+
+    if not args.target.exists():
+        print(f"path not found: {args.target}", file=sys.stderr)
+        return 2
+
+    if args.ecosystems:
+        selected = [e.strip() for e in args.ecosystems.split(",") if e.strip()]
+        unknown = [e for e in selected if e not in PARSERS]
+        if unknown:
+            print(f"unknown ecosystems: {', '.join(unknown)}", file=sys.stderr)
+            return 2
+    else:
+        selected = list(PARSERS)
+
+    report = build_report(args.target, selected, args.quick_scan)
+    body = render_json(report) if args.format == "json" else render_text(report)
+
+    if args.output:
+        try:
+            args.output.write_text(body + "\n", encoding="utf-8")
+        except OSError as exc:
+            print(f"cannot write output: {exc}", file=sys.stderr)
+            return 2
+    else:
+        print(body)
+
+    if args.fail_on_high and report.stats.get("high_or_critical", 0) > 0:
+        return 1
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

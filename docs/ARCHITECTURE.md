@@ -1,6 +1,6 @@
 # Architecture
 
-skillenforce has one core and thin adapters. The core holds every decision. An adapter only translates between a harness and the core.
+Novahiz has one core and thin adapters. The core holds every decision. An adapter only translates between a harness and the core.
 
 ```
 ┌─────────────────────────────────────────────────────────┐
@@ -16,7 +16,7 @@ skillenforce has one core and thin adapters. The core holds every decision. An a
        │
        ▼
 ┌─────────────────────────────────────────────────────────┐
-│                   SKILLENFORCE CORE                     │
+│                   Novahiz CORE                     │
 │                                                         │
 │  ┌─────────────┐  ┌──────────────┐  ┌───────────────┐  │
 │  │  CLASSIFIER  │  │     GATE     │  │    LEDGER     │  │
@@ -41,7 +41,7 @@ skillenforce has one core and thin adapters. The core holds every decision. An a
 
 Three versioned JSON files under `catalog/`:
 
-- `categories.json` — lists 14 categories with keywords, required skills, and execution roadmaps.
+- `categories.json` — lists 15 categories with keywords, required skills, and execution roadmaps.
 - `rules.json` — lists 6 pre-edit rules with conditions (file class, path glob, prompt category, content match) and required skills.
 - `providers.json` — lists external MCP servers with their purpose and the categories they serve.
 - `overrides.json` — carries manual skill curation (power, stars, tags, categories).
@@ -69,11 +69,11 @@ Three versioned JSON files under `catalog/`:
 
 ### opencode adapter
 
-`adapters/opencode/skillenforce.ts` is a plugin. It runs the CLI for classification and gating, tracks loaded skills per session in memory, and injects enforcement text through `experimental.chat.system.transform`. The gate call runs in `tool.execute.before`, which can throw and cancel the tool call.
+`adapters/opencode/novahiz.ts` is a plugin. It runs the CLI for classification and gating, tracks loaded skills per session in memory, and injects enforcement text through `experimental.chat.system.transform`. The gate call runs in `tool.execute.before`, which can throw and cancel the tool call.
 
 ### Content rules and roadmaps
 
-`src/content.ts` provides `changeText`, `hasProse`, and `hasStyle`. Rules in `catalog/rules.json` use them through `when.contentMatches` and `when.contentExcludes`, so `humanizer` and `impeccable` are required only for prose and style changes. `when.match` combines class, path, and category selectors.
+`src/content.ts` provides `changeText`, `hasProse`, and `hasStyle`. Rules in `catalog/rules.json` use them through `when.contentMatches` and `when.contentExcludes`, so `novahiz-humanizer` is required only for prose changes. `when.match` combines class, path, and category selectors.
 
 Each category carries a `roadmap`. The classifier returns the category order, the primary category, the union of required skills, and the roadmaps. The gate adds the primary roadmap `skill` steps to its requirements.
 
@@ -108,7 +108,7 @@ Each category carries a `roadmap`. The classifier returns the category order, th
 1. The user sends a message. `chat.message` classifies it, stores the categories and required skills for the session, and reads the active ledger task.
 2. `experimental.chat.system.transform` adds a short enforcement block to the system prompt, including the ledger summary and any review signal.
 3. The model calls `skill` to load a skill. The adapter records it for the session.
-4. The model calls `edit`, `write`, or `patch`. The adapter runs `skillenforce gate` with the file path, the session categories, and the loaded skills.
+4. The model calls `edit`, `write`, or `patch`. The adapter runs `Novahiz gate` with the file path, the session categories, and the loaded skills.
 5. If the gate blocks, the adapter throws and the model sees the list of missing skills or the review reason.
 
 ## Determinism
@@ -117,15 +117,15 @@ The only inputs to a gate decision are the spec files, the file path, the prompt
 
 ## Portability
 
-The core runs on Node with no dependencies. A new harness adapter needs two things: a way to run `skillenforce classify` and `skillenforce gate`, and a pre-tool hook that can abort a call. When the harness has no such hook, the classifier and the system-prompt injection still work, but the gate cannot block.
+The core runs on Node with no dependencies. A new harness adapter needs two things: a way to run `Novahiz classify` and `Novahiz gate`, and a pre-tool hook that can abort a call. When the harness has no such hook, the classifier and the system-prompt injection still work, but the gate cannot block.
 
 ## Installer
 
-`install/install.mjs` detects whether opencode is installed (auto-installs it if missing), copies the core, the bundled skills, and the plugin into place. It backs up any user file it overwrites (`*.skillenforce-bak`) and records what it created in `.skillenforce-install.json`, so `install/uninstall.mjs` can restore and reverse.
+`install/install.mjs` detects whether opencode is installed (auto-installs it if missing), copies the core, the bundled skills, and the plugin into place. It backs up any user file it overwrites (`*.novahiz-bak`) and records what it created in `.novahiz-install.json`, so `install/uninstall.mjs` can restore and reverse.
 
 ## MCP server
 
-`mcp/skillenforce-tools/index.mjs` exposes `skillenforce_classify`, `skillenforce_catalog`, `skillenforce_roadmap`, `skillenforce_providers`, `skillenforce_deps`, `skillenforce_step`, `skillenforce_list_skills`, `skillenforce_gate`, `skillenforce_task`, and `skillenforce_dispatch` over stdio using newline-delimited JSON-RPC. It has no dependencies and reuses the core modules directly. The opencode plugin registers it through the plugin `config` hook.
+`mcp/novahiz-tools/index.mjs` exposes `novahiz_classify`, `novahiz_catalog`, `novahiz_roadmap`, `novahiz_providers`, `novahiz_deps`, `novahiz_step`, `novahiz_list_skills`, `novahiz_gate`, `novahiz_task`, and `novahiz_dispatch` over stdio using newline-delimited JSON-RPC. It has no dependencies and reuses the core modules directly. The opencode plugin registers it through the plugin `config` hook.
 
 ## Providers
 

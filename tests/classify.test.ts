@@ -13,8 +13,8 @@ test("classifies a design prompt as design-ui with a roadmap", () => {
   assert.equal(result.primary, "design-ui");
   assert.equal(result.tier, "lite");
   // Lite tier only includes implement + converge skills
-  assert.ok(result.requiredSkills.includes("skillenforce-implement"));
-  assert.ok(result.requiredSkills.includes("skillenforce-converge"));
+  assert.ok(result.requiredSkills.includes("novahiz-implement"));
+  assert.ok(result.requiredSkills.includes("novahiz-converge"));
   assert.equal(result.roadmaps[0].category, "design-ui");
   assert.ok(result.categories[0].confidence > 0 && result.categories[0].confidence <= 1);
 });
@@ -22,8 +22,8 @@ test("classifies a design prompt as design-ui with a roadmap", () => {
 test("classifies a supabase prompt and requires supabase skills", () => {
   const result = classify(spec, "ajoute une migration supabase avec une policy rls");
   assert.equal(result.categories[0].id, "database-supabase");
-  assert.ok(result.requiredSkills.includes("supabase"));
-  assert.ok(result.requiredSkills.includes("supabase-postgres-best-practices"));
+  assert.ok(result.requiredSkills.includes("novahiz-supabase"));
+  assert.ok(result.requiredSkills.includes("novahiz-postgres"));
 });
 
 test("classification is deterministic", () => {
@@ -37,8 +37,8 @@ test("classifies a refactor prompt as code", () => {
   assert.equal(result.primary, "code");
   assert.equal(result.tier, "lite");
   // Lite tier only includes implement + converge skills
-  assert.ok(result.requiredSkills.includes("skillenforce-implement"));
-  assert.ok(result.requiredSkills.includes("skillenforce-converge"));
+  assert.ok(result.requiredSkills.includes("novahiz-implement"));
+  assert.ok(result.requiredSkills.includes("novahiz-converge"));
 });
 
 test("falls back to general with trivial tier (no roadmap skills)", () => {
@@ -77,7 +77,7 @@ test("exposes skill invocations with their roadmap step", () => {
   const result = classify(spec, "refactor le module de paiement et corrige le total");
   const skills = result.invocations.flatMap((entry) => entry.skills);
   assert.ok(result.invocations.length > 0);
-  assert.ok(skills.includes("skillenforce-plan"));
+  assert.ok(skills.includes("novahiz-plan"));
   assert.ok(result.invocations.every((entry) => entry.kind === "skill"));
 });
 

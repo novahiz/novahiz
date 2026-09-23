@@ -1,6 +1,6 @@
 # Configuration
 
-skillenforce uses two layers of configuration: versioned catalog files and machine-specific settings.
+Novahiz uses two layers of configuration: versioned catalog files and machine-specific settings.
 
 ## Catalog files (versioned)
 
@@ -15,11 +15,11 @@ These files live in `catalog/` and are part of the git repository:
 
 ## User config
 
-`skillenforce.config.json` in the skillenforce home directory. Machine-specific, gitignored.
+`novahiz.config.json` in the Novahiz home directory. Machine-specific, gitignored.
 
 ```json
 {
-  "dbPath": "skillenforce.sqlite",
+  "dbPath": "novahiz.sqlite",
   "skillRoots": ["./skills", "./bundled-skills"],
   "gate": {
     "enabled": true,
@@ -57,7 +57,7 @@ These files live in `catalog/` and are part of the git repository:
 
 | Key | Default | Purpose |
 |-----|---------|---------|
-| `dbPath` | `skillenforce.sqlite` | SQLite database path |
+| `dbPath` | `novahiz.sqlite` | SQLite database path |
 | `skillRoots` | `["./skills", "./bundled-skills"]` | Directories to scan for skills |
 | `gate.enabled` | `true` | Enable/disable the gate |
 | `gate.mode` | `block` | `block`, `warn`, or `audit` |
@@ -78,7 +78,7 @@ These files live in `catalog/` and are part of the git repository:
 
 | Variable | Purpose |
 |----------|---------|
-| `NOVAHIZ_HOME` | Override skillenforce home directory |
+| `NOVAHIZ_HOME` | Override Novahiz home directory |
 | `NOVAHIZ_GATE` | Set to `off` to disable the gate |
 | `NOVAHIZ_NODE` | Override node executable path |
 | `NOVAHIZ_DB` | Override database path |
@@ -94,4 +94,4 @@ The installer generates `opencode.jsonc` with:
 - Compaction settings
 - Shell preference
 
-Do not edit `opencode.jsonc` by hand for skillenforce — the plugin handles registration automatically.
+Do not edit `opencode.jsonc` by hand for Novahiz — the plugin handles registration automatically.

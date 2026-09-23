@@ -6,15 +6,15 @@ import { join } from "node:path";
 import { underHome, withinDir } from "../install/uninstall.mjs";
 
 test("underHome keeps only paths inside the home directory", () => {
-  assert.equal(underHome(join(homedir(), "skillenforce", "settings.json")), true);
+  assert.equal(underHome(join(homedir(), "novahiz", "settings.json")), true);
   assert.equal(underHome("/etc/passwd"), false);
 });
 
 test("withinDir scopes an uninstall to one harness", () => {
   const claude = join(homedir(), ".claude");
   assert.equal(withinDir(join(claude, "settings.json"), claude), true);
-  assert.equal(withinDir(join(claude, "skills", "humanizer", "SKILL.md"), claude), true);
+  assert.equal(withinDir(join(claude, "skills", "novahiz-humanizer", "SKILL.md"), claude), true);
   assert.equal(withinDir(claude, claude), true);
-  assert.equal(withinDir(join(homedir(), ".config", "opencode", "plugins", "skillenforce.ts"), claude), false);
+  assert.equal(withinDir(join(homedir(), ".config", "opencode", "plugins", "novahiz.ts"), claude), false);
   assert.equal(withinDir(join(homedir(), ".claudex", "settings.json"), claude), false);
 });

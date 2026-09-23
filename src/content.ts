@@ -1,7 +1,7 @@
 export function changeText(tool: string, args: unknown): string {
   const record = (args && typeof args === "object" ? args : {}) as Record<string, unknown>;
   const parts: string[] = [];
-  for (const key of ["newString", "new_string", "content", "patchText", "patch", "command", "newText"]) {
+  for (const key of ["newString", "new_string", "content", "patchText", "patch", "newText"]) {
     const value = record[key];
     if (typeof value === "string" && value.length > 0) parts.push(value);
   }
