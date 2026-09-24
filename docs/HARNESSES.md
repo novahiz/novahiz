@@ -17,6 +17,17 @@ opencode denies the `question` tool to every agent by default. Only the built-in
 
 Source: opencode plugin docs (`~/.config/opencode/plugins/`).
 
+### Third-party opencode plugins
+
+Besides the Novahiz adapter, the bootstrap and installer may pin these packages in `opencode.jsonc` under `plugin[]`. They ship from npm and are not vendored here.
+
+| Package | Repository | License |
+| --- | --- | --- |
+| `@mohak34/opencode-notifier` | https://github.com/mohak34/opencode-notifier | MIT |
+| `@tarquinen/opencode-dcp` | https://github.com/Opencode-DCP/opencode-dynamic-context-pruning | AGPL-3.0-or-later |
+
+`opencode-dcp` is AGPL-3.0-or-later. Installing it accepts that license for the plugin package. Full provider MCP provenance lives in [PROVIDERS.md](PROVIDERS.md) and `catalog/providers.json`.
+
 ## Other clients
 
 Any harness with a stdio MCP client can use the same server, `mcp/novahiz-tools/index.mjs`, for `classify`, `catalog`, `roadmap`, `providers`, `deps`, `step`, `list_skills`, `gate`, `task`, and `dispatch`. Register it with that client's own MCP command. Novahiz writes no other harness's configuration.

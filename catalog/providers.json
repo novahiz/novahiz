@@ -3,35 +3,45 @@
     "id": "playwright",
     "label": "Playwright MCP",
     "kind": "mcp",
-    "command": ["npx", "-y", "@anthropic-ai/mcp-playwright@latest"],
+    "command": ["npx", "-y", "@playwright/mcp@latest"],
+    "source": "https://github.com/microsoft/playwright-mcp",
+    "license": "Apache-2.0",
     "categories": ["browser", "design-ui"]
   },
   {
     "id": "security",
     "label": "Security MCP",
     "kind": "mcp",
-    "command": ["npx", "-y", "@anthropic-ai/mcp-security@latest"],
-    "categories": ["security"]
+    "command": ["npx", "-y", "security-mcp@latest", "serve"],
+    "source": "https://github.com/AbrahamOO/security-mcp",
+    "license": "MIT",
+    "categories": ["audit"]
   },
   {
     "id": "narsil",
     "label": "Narsil Code Intelligence",
     "kind": "mcp",
-    "command": ["npx", "-y", "@anthropic-ai/mcp-narsil@latest"],
+    "command": ["npx", "-y", "narsil-mcp@latest", "--repos", "."],
+    "source": "https://github.com/postrv/narsil-mcp",
+    "license": "MIT OR Apache-2.0",
     "categories": ["code", "review"]
   },
   {
     "id": "context7",
     "label": "Context7 Documentation",
     "kind": "mcp",
-    "command": ["npx", "-y", "@anthropic-ai/mcp-context7@latest"],
+    "command": ["npx", "-y", "@upstash/context7-mcp@latest"],
+    "source": "https://github.com/upstash/context7",
+    "license": "MIT",
     "categories": ["code"]
   },
   {
     "id": "cron",
     "label": "Cron Scheduler",
     "kind": "mcp",
-    "command": ["npx", "-y", "@anthropic-ai/mcp-cron@latest"],
+    "command": ["npx", "-y", "mcp-cron@latest"],
+    "source": "https://github.com/jolks/mcp-cron",
+    "license": "AGPL-3.0-only",
     "categories": ["devops"]
   },
   {
@@ -39,6 +49,8 @@
     "label": "novahiz",
     "kind": "mcp",
     "command": ["node", "C:/Users/hiz/.config/novahiz/mcp/novahiz-tools/index.mjs"],
+    "source": "https://github.com/novahiz/novahiz",
+    "license": "Apache-2.0",
     "categories": ["code", "planning"]
   }
 ]

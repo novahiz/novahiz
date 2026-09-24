@@ -34,15 +34,18 @@ Novahiz references providers, it never vendors them. Each entry lists the upstre
 
 ## Bundled providers
 
-MCP servers:
+MCP servers, with provenance from `catalog/providers.json`:
 
-| Id | Purpose | Categories |
-| --- | --- | --- |
-| `playwright` | Browser automation | browser, design-ui |
-| `security` | SAST/DAST and compliance | audit |
-| `narsil` | Code intelligence | code, debug, review, audit |
-| `context7` | Library docs | code, research |
-| `cron` | Scheduling | devops, general |
+| Id | Package | Upstream | License | Categories |
+| --- | --- | --- | --- | --- |
+| `playwright` | `@playwright/mcp` | [microsoft/playwright-mcp](https://github.com/microsoft/playwright-mcp) | Apache-2.0 | browser, design-ui |
+| `security` | `security-mcp` | [AbrahamOO/security-mcp](https://github.com/AbrahamOO/security-mcp) | MIT | audit |
+| `narsil` | `narsil-mcp` | [postrv/narsil-mcp](https://github.com/postrv/narsil-mcp) | MIT OR Apache-2.0 | code, debug, review, audit |
+| `context7` | `@upstash/context7-mcp` | [upstash/context7](https://github.com/upstash/context7) | MIT | code, research |
+| `cron` | `mcp-cron` | [jolks/mcp-cron](https://github.com/jolks/mcp-cron) | AGPL-3.0-only | devops, general |
+| `novahiz` | local (`mcp/novahiz-tools`) | [novahiz/novahiz](https://github.com/novahiz/novahiz) | Apache-2.0 | code, planning |
+
+`cron` is AGPL-3.0-only. Enabling it means you accept that license for the install command, not for Novahiz itself.
 
 Skill and command packs:
 

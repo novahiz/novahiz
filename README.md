@@ -261,16 +261,16 @@ Run `npx Novahiz skills --all` to see the full list.
 
 Novahiz auto-registers external MCP servers based on the prompt category:
 
-| Provider | Purpose | Categories |
-|----------|---------|------------|
-| context7 | Library documentation | code, research |
-| narsil | Code intelligence, security scan | code, review |
-| novahiz | Novahiz MCP tools | code, planning |
-| playwright | Browser automation | browser, design-ui |
-| security | Security orchestration | audit |
-| cron | Scheduled tasks | devops |
+| Provider | Package | License | Categories |
+|----------|---------|---------|------------|
+| context7 | `@upstash/context7-mcp` | MIT | code, research |
+| narsil | `narsil-mcp` | MIT OR Apache-2.0 | code, review |
+| novahiz | local (`mcp/novahiz-tools`) | Apache-2.0 | code, planning |
+| playwright | `@playwright/mcp` | Apache-2.0 | browser, design-ui |
+| security | `security-mcp` | MIT | audit |
+| cron | `mcp-cron` | AGPL-3.0-only | devops |
 
-See [docs/PROVIDERS.md](docs/PROVIDERS.md) for full details.
+Upstream repositories and full provenance for MCP providers and opencode plugins: [docs/PROVIDERS.md](docs/PROVIDERS.md), [docs/HARNESSES.md](docs/HARNESSES.md), [NOTICE.md](NOTICE.md).
 
 ---
 

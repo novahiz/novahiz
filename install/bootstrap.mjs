@@ -94,8 +94,8 @@ function generateOpenCodeJson(configDir, NovahizHome) {
       paths: [skillsDir],
     },
     plugin: [
-      "@mohak34/opencode-notifier@0.2.8",
-      "@tarquinen/opencode-dcp@latest",
+      "@mohak34/opencode-notifier@0.3.0",
+      "@tarquinen/opencode-dcp@3.2.0",
       join(NovahizHome, "adapters", "opencode", "novahiz.ts"),
     ],
     compaction: {
@@ -168,8 +168,9 @@ async function main() {
   log("Installing MCP servers...");
   const mcpServers = [
     { pkg: "@upstash/context7-mcp", bin: "context7-mcp" },
-    { pkg: "@anthropic-ai/narsil-mcp", bin: "narsil-mcp" },
-    { pkg: "@anthropic-ai/mcp-cron", bin: "mcp-cron" },
+    { pkg: "narsil-mcp", bin: "narsil-mcp" },
+    { pkg: "mcp-cron", bin: "mcp-cron" },
+    { pkg: "security-mcp", bin: "security-mcp" },
   ];
 
   for (const server of mcpServers) {
@@ -189,8 +190,8 @@ async function main() {
   log("");
   log("Installing opencode plugins...");
   const plugins = [
-    "@mohak34/opencode-notifier@0.2.8",
-    "@tarquinen/opencode-dcp@latest",
+    "@mohak34/opencode-notifier@0.3.0",
+    "@tarquinen/opencode-dcp@3.2.0",
   ];
 
   for (const plugin of plugins) {

@@ -22,7 +22,27 @@ If you hold rights to a skill and want a different attribution or a removal, ope
 
 ## Providers
 
-Providers are referenced by install command, never vendored. Each lists its upstream license in `catalog/providers.json`.
+Providers are referenced by install command, never vendored. Each lists its upstream package, repository, and SPDX license in `catalog/providers.json`.
+
+| Id | Upstream package | Repository | License |
+| --- | --- | --- | --- |
+| `playwright` | `@playwright/mcp` | https://github.com/microsoft/playwright-mcp | Apache-2.0 |
+| `security` | `security-mcp` | https://github.com/AbrahamOO/security-mcp | MIT |
+| `narsil` | `narsil-mcp` | https://github.com/postrv/narsil-mcp | MIT OR Apache-2.0 |
+| `context7` | `@upstash/context7-mcp` | https://github.com/upstash/context7 | MIT |
+| `cron` | `mcp-cron` | https://github.com/jolks/mcp-cron | AGPL-3.0-only |
+| `novahiz` | local Novahiz MCP | https://github.com/novahiz/novahiz | Apache-2.0 |
+
+## opencode plugins (third-party)
+
+The installer may register these OpenCode plugins from `opencode.jsonc` `plugin[]`. They are installed from npm, never vendored in this repository.
+
+| Package | Repository | License |
+| --- | --- | --- |
+| `@mohak34/opencode-notifier` | https://github.com/mohak34/opencode-notifier | MIT |
+| `@tarquinen/opencode-dcp` | https://github.com/Opencode-DCP/opencode-dynamic-context-pruning | AGPL-3.0-or-later |
+
+The Novahiz adapter (`adapters/opencode/novahiz.ts`) is first-party under Apache-2.0.
 
 ## Dependencies
 

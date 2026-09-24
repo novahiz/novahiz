@@ -307,8 +307,9 @@ async function main() {
   // Install MCP servers globally
   const mcpServers = [
     { pkg: "@upstash/context7-mcp", bin: "context7-mcp", name: "context7" },
-    { pkg: "@anthropic-ai/narsil-mcp", bin: "narsil-mcp", name: "narsil" },
-    { pkg: "@anthropic-ai/mcp-cron", bin: "mcp-cron", name: "cron" },
+    { pkg: "narsil-mcp", bin: "narsil-mcp", name: "narsil" },
+    { pkg: "mcp-cron", bin: "mcp-cron", name: "cron" },
+    { pkg: "security-mcp", bin: "security-mcp", name: "security" },
   ];
 
   if (!dryRun) {
@@ -337,8 +338,8 @@ async function main() {
 
   // Install opencode plugins globally
   const plugins = [
-    "@mohak34/opencode-notifier@0.2.8",
-    "@tarquinen/opencode-dcp@latest",
+    "@mohak34/opencode-notifier@0.3.0",
+    "@tarquinen/opencode-dcp@3.2.0",
   ];
 
   if (!dryRun) {
@@ -393,8 +394,8 @@ async function main() {
           "paths": [skillsDir]
         },
         "plugin": [
-          "@mohak34/opencode-notifier@0.2.8",
-          "@tarquinen/opencode-dcp@latest",
+          "@mohak34/opencode-notifier@0.3.0",
+          "@tarquinen/opencode-dcp@3.2.0",
           join(home, "adapters", "opencode", "novahiz.ts")
         ],
         "compaction": {
