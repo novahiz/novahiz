@@ -1,6 +1,6 @@
 {
   "name": "novahiz",
-  "version": "0.2.4",
+  "version": "0.2.5",
   "description": "Enforce AI agent skills before every file edit: prompt classifier, skill catalog, and pre-edit gate.",
   "type": "module",
   "license": "Apache-2.0",

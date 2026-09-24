@@ -99,7 +99,8 @@ test("catalog rejects a non-numeric limit", () => {
 });
 
 test("an unknown command exits non-zero with a single clean line", () => {
-  const result = spawnSync(process.execPath, [cli, "bogus"], {
+  // Node 22 emits ExperimentalWarning (type stripping) on stderr; silence Node noise so only the CLI line remains.
+  const result = spawnSync(process.execPath, ["--no-warnings", cli, "bogus"], {
     encoding: "utf8",
     input: "",
     env: { ...process.env, NOVAHIZ_HOME: root, NOVAHIZ_DB: testDb }
@@ -112,7 +113,7 @@ test("an unknown command exits non-zero with a single clean line", () => {
 
 test("a missing install reports one clean line instead of a stack trace", () => {
   const missing = join(tmpdir(), `novahiz-absent-${Date.now().toString(36)}`);
-  const result = spawnSync(process.execPath, [cli, "check"], {
+  const result = spawnSync(process.execPath, ["--no-warnings", cli, "check"], {
     encoding: "utf8",
     input: "",
     env: { ...process.env, NOVAHIZ_HOME: missing }

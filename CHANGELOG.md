@@ -6,6 +6,16 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [0.2.5] - 2026-09-24
+
+Single release combining the planned 0.2.4 fixes with the unreleased work below. 0.2.4 was never published to npm.
+
+### Fixed
+
+- Plan review due no longer forces `allow: false` on every gate target. The gate now blocks only paths owned by an open todo with a non-empty owner pattern (`reviewBlockReason`); unrelated files stay allowed, and a due review with no owned open todo is reported as a warning instead of a lock-out.
+- `R4-playwright` also matches browser test paths (`**/*.spec.ts`, `**/e2e/**`, `**/playwright/**`, and related globs) with `match: "any"`, so editing those files loads `novahiz-browser` even without a `browser` prompt category.
+- `docs/INSTALL.md` listed nine doctor checks; there are twelve. The same page now documents the `NOVAHIZ_GATE` kill-switch and that `gate.envEscape` is schema-only.
+
 ### Removed
 
 - `novahiz-humanizer` and `ui-slop-remover` are no longer required by default on every prose, docs, or code edit. Gate rules `R1-docs` and `R1-code-prose` are gone. Both skills (plus `ui-craft-rules`) are now required only under `R13-design-craft`, which fires on `design-ui` prompts or style files (`css`/`scss`/`sass`/`less`/`html`/`htm`). `docs-writing.defaultSkills` is empty; `research → synthesize` no longer lists `novahiz-humanizer`. README count drops to 10 gate rules. Catalog, adapters, instructions, agent prompt, plugin gate message, docs, skills, and tests are aligned.
@@ -17,14 +27,6 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - README / NOTICE / docs counts and tables match the new surface: 41 skills, 6 MCP providers. Tests assert the new numbers (`providers.test.ts`, `cli.test.ts`, `plugin.hygiene.test.ts`).
 - Provenance for third-party MCP providers and opencode plugins is documented: `catalog/providers.json` gains `source` and `license` for each provider (real npm packages, not the former `@anthropic-ai/mcp-*` placeholders that 404), NOTICE lists package/repo/license for MCP and plugins, `docs/PROVIDERS.md` shows a provenance table, and `docs/HARNESSES.md` records `@mohak34/opencode-notifier` (MIT) and `@tarquinen/opencode-dcp` (AGPL-3.0-or-later). `install.mjs` / `bootstrap.mjs` now install `narsil-mcp`, `mcp-cron`, and `security-mcp` from their real package names, and pin the OpenCode plugins to `@mohak34/opencode-notifier@0.3.0` and `@tarquinen/opencode-dcp@3.2.0` to match the live `opencode.jsonc`.
 - The twelve remaining third-party skill folders were replaced by Novahiz-authored skills under new names, written from scratch against primary sources: `anti-AI-design` → `ui-slop-remover`, `frontend-design-taste` → `ui-craft-rules`, `design-system-tokens` → `design-token-pipeline`, `apple-hig-audit` → `apple-ui-audit`, `engineering-code-standards` → `code-standards`, `ai-security` → `llm-threat-review`, `dependency-auditor` → `package-risk-audit`, `env-secrets-manager` → `secrets-hygiene`, `mcp-server-builder` → `openapi-mcp-server`, `skill-creator` → `skill-eval-loop`, `write-a-skill` → `skill-authoring`, `playwright-agent` → `browser-session`. Rewired: `catalog/rules.json` (R13), `opencode/catalog/rules.json` (R2), `catalog/categories.json` (design-ui defaults and design-craft step), `catalog/overrides.json`, `tests/gate.test.ts`, `tests/relevance.test.ts`, `tests/mcp.test.ts`, `agent/novahiz.md`, `docs/RULES.md`, `docs/ROADMAPS.md`, `README.md`, `novahiz-planner`. Old folders are removed from `skills/` and the `opencode/skills` mirror.
-
-## [0.2.4] - 2026-09-23
-
-### Fixed
-
-- Plan review due no longer forces `allow: false` on every gate target. The gate now blocks only paths owned by an open todo with a non-empty owner pattern (`reviewBlockReason`); unrelated files stay allowed, and a due review with no owned open todo is reported as a warning instead of a lock-out.
-- `R4-playwright` also matches browser test paths (`**/*.spec.ts`, `**/e2e/**`, `**/playwright/**`, and related globs) with `match: "any"`, so editing those files loads `novahiz-browser` even without a `browser` prompt category.
-- `docs/INSTALL.md` listed nine doctor checks; there are twelve. The same page now documents the `NOVAHIZ_GATE` kill-switch and that `gate.envEscape` is schema-only.
 
 ## [0.2.3] - 2026-09-23
 
