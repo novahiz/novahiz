@@ -89,22 +89,37 @@ export function commandDoctor(parsed: Parsed): void {
     blocking: missingCli.length > 0
   });
 
-  const probe = evaluateGate({
+  // Two probes, one per live enforcement layer, both deterministic against the
+  // current ruleset (the old single probe fed README.md with empty categories,
+  // which matches no rule since the prose content rules were removed):
+  // - path probe: R13/R14 match a style file through pathGlobs alone.
+  // - category probe: R6 matches a classified code prompt; tier is set
+  //   explicitly because probe text is file content, not a prompt, and
+  //   determineTier would call it trivial and skip R6.
+  const probeInput = {
     tool: "edit",
-    filePath: "README.md",
-    content: "This README paragraph is long enough prose for the content rules to match and demand a loaded skill.",
-    categories: [],
-    loadedSkills: [],
+    content: "",
+    categories: [] as string[],
+    loadedSkills: [] as string[],
     installedSkills: index.skills,
     installedIndexAvailable: index.available,
     spec
+  };
+  const pathProbe = evaluateGate({ ...probeInput, filePath: "src/hero.css" });
+  const classProbe = evaluateGate({
+    ...probeInput,
+    filePath: "README.md",
+    categories: ["code"],
+    tier: "full"
   });
-  const gateOk = spec.rules.length === 0 || (probe.allow === false && probe.missingSkills.length > 0);
+  const blocked = (r: typeof pathProbe) => r.allow === false && r.missingSkills.length > 0;
+  const gateOk = spec.rules.length === 0 || (blocked(pathProbe) && blocked(classProbe));
+  const probeSkills = [...new Set([...pathProbe.missingSkills, ...classProbe.missingSkills])];
   checks.push({
     id: "gate",
     label: "Operational gate",
     ok: gateOk,
-    detail: gateOk ? `blocks a write without a loaded skill (${probe.missingSkills.join(", ")})` : "did not block a write without a loaded skill",
+    detail: gateOk ? `blocks a write without a loaded skill (${probeSkills.join(", ")})` : "did not block a write without a loaded skill",
     blocking: true
   });
 

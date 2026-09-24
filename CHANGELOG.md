@@ -47,6 +47,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 ### Fixed
 
 - `Novahiz doctor` `referenced` check: skill-pack ids (`flutter-skills`, `dart-skills`, `expo-skills`) were collected as if they were index entries, but a pack id never matches a `SKILL.md` name, so the check reported "missing" since packs were introduced. It now collects only gate-referenced skills (categories, roadmap steps, rules) — 32 present, check green.
+- `Novahiz doctor` `gate` check: the smoke probe edited `README.md` with `categories: []`, which matches no current rule (R6 needs prompt categories, R9 needs the `code` class, R13/R14 need a style path, and no rule matches prose content since the old content rules were removed), so the check always reported "did not block". The probe now runs two deterministic evaluations against the live ruleset — a style-file edit (path rules) and a classified code edit with an explicit full tier (R6 plus roadmap steps) — and requires both to block. Doctor reports `No blocking anomaly.`
 - `skills/novahiz-code-review/SKILL.md` (source and installed copy): the unquoted `description` contained `: `, which made the frontmatter invalid YAML so the skill never registered as loadable; it is now quoted.
 
 ## [0.2.5] - 2026-09-24
