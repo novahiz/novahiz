@@ -84,5 +84,15 @@
     "license": "BSD-3-Clause",
     "categories": ["code", "debug", "flutter"],
     "purpose": "15 official Dart skills (subset of flutter/agent-plugins, kept for provenance)."
+  },
+  {
+    "id": "expo-skills",
+    "label": "Expo agent skills",
+    "kind": "skill",
+    "install": ["npx", "-y", "skills", "add", "expo/skills", "--skill", "expo-overview", "expo-project-structure", "expo-router", "expo-animation", "expo-native-ui", "expo-design-system", "expo-ui", "expo-data-fetching", "expo-dom", "expo-web-to-native", "expo-module", "expo-brownfield", "expo-dev-client", "expo-examples", "expo-app-clip", "expo-upgrade", "expo-skill-feedback", "-g", "-a", "opencode", "-y"],
+    "source": "https://github.com/expo/skills",
+    "license": "MIT",
+    "categories": ["code", "expo"],
+    "purpose": "17 official Expo framework skills (expo-* group); the 7 eas-* paid-service skills are excluded. Installed to ~/.agents/skills; when git clone fails, fetch the tarball from codeload.github.com and copy the skill folders."
   }
 ]

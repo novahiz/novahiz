@@ -36,12 +36,13 @@ Providers are referenced by install command, never vendored. Each lists its upst
 
 ## Skill packs (upstream, not vendored)
 
-Installed on demand with `npx skills add`; this repository does not copy their files.
+Installed on demand with `npx skills add` (or an upstream tarball when git transport fails); this repository does not copy their files.
 
 | Id | Repository | License |
 | --- | --- | --- |
 | `flutter-skills` | https://github.com/flutter/agent-plugins | BSD-3-Clause |
 | `dart-skills` | https://github.com/dart-lang/skills | BSD-3-Clause |
+| `expo-skills` | https://github.com/expo/skills | MIT |
 
 ## opencode plugins (third-party)
 

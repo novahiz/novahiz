@@ -21,6 +21,32 @@ Stages 1 to 4 write no application file; they produce a plan and decisions. Clar
 
 `review` runs analyse and then the diff review. `audit` and `test` keep their own steps and end on a converge. `research` drives a single gather step.
 
+## Expo (progressive gate)
+
+`expo` (`expo-feature`, 11 steps) runs the six stages and inserts four **optional** `expo-*` skills between analyse and implement: `expo-router` (routes, links, modals), `expo-module` (native code), `expo-dev-client` (dev client / EAS build), `expo-upgrade` (SDK upgrades). Optional steps guide without blocking — only the pipeline skills are enforced — and `expo-overview` loads through `defaultSkills` as the entry point. `flutter` is excluded through negative keywords, so a prompt naming both picks the right category.
+
+Task-to-skill routing, the full `expo-*` pack (17 skills, `eas-*` paid services excluded):
+
+| Task | Skill |
+|------|-------|
+| Any Expo request (entry point) | `expo-overview` |
+| Routes, links, modals, tabs | `expo-router` |
+| Folder structure, file-based layout | `expo-project-structure` |
+| Native modules (Swift / Kotlin) | `expo-module` |
+| Dev client, EAS build setup | `expo-dev-client` |
+| SDK upgrade | `expo-upgrade` |
+| Animations, gestures | `expo-animation` |
+| Data fetching, caching | `expo-data-fetching` |
+| Design system, tokens | `expo-design-system` |
+| Native-feeling styling | `expo-native-ui` |
+| `@expo/ui` components | `expo-ui` |
+| Web → native migration | `expo-web-to-native` |
+| DOM components | `expo-dom` |
+| Brownfield (existing app) | `expo-brownfield` |
+| Example patterns | `expo-examples` |
+| App Clip (iOS) | `expo-app-clip` |
+| Feedback / telemetry control | `expo-skill-feedback` |
+
 ## Model
 
 Roadmaps live inline in `catalog/categories.json`:

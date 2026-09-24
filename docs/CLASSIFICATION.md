@@ -75,11 +75,12 @@ The classifier is the brain of Novahiz. It maps a natural language prompt to cat
 
 ## Categories
 
-Novahiz defines 16 categories, each with its own keywords, priority, and roadmap:
+Novahiz defines 17 categories, each with its own keywords, priority, and roadmap:
 
 | Category | Priority | Keywords (examples) | Roadmap |
 |----------|----------|---------------------|---------|
 | `flutter` | 61 | flutter, dart, widget, pubspec, riverpod | `flutter-feature` (10 steps) |
+| `expo` | 61 | expo, react native, expo router, eas build | `expo-feature` (11 steps) |
 | `code` | 60 | code, function, class, typescript, react, api | `feature` (7 steps) |
 | `debug` | 58 | bug, error, crash, fix, regression | `bugfix` (7 steps) |
 | `database-supabase` | 57 | supabase, postgres, sql, rls, migration | `schema` (9 steps) |

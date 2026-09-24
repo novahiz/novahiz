@@ -26,6 +26,23 @@ test("classifies a supabase prompt and requires supabase skills", () => {
   assert.ok(result.requiredSkills.includes("novahiz-postgres"));
 });
 
+test("classifies an English Expo prompt as expo with optional expo skills", () => {
+  const result = classify(spec, "build an Expo Router screen with tabs and a native module");
+  assert.equal(result.primary, "expo");
+  assert.ok(result.requiredSkills.includes("expo-overview"));
+  assert.ok(result.requiredSkills.includes("expo-router"));
+  // Progressive gate: expo domain skills guide, only the pipeline is enforced.
+  assert.equal(result.enforcedSkills.includes("expo-router"), false);
+  assert.ok(result.enforcedSkills.includes("novahiz-plan"));
+  assert.ok(result.providers.includes("expo-skills"));
+});
+
+test("classifies a French Expo prompt as expo", () => {
+  const result = classify(spec, "ajoute un ecran de navigation expo router");
+  assert.equal(result.primary, "expo");
+  assert.ok(result.providers.includes("expo-skills"));
+});
+
 test("classification is deterministic", () => {
   const first = classify(spec, "audit securite owasp de l api et des dependances");
   const second = classify(spec, "audit securite owasp de l api et des dependances");

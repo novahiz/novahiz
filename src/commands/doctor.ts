@@ -33,7 +33,10 @@ function referencedSkills(spec: ReturnType<typeof loadSpec>): string[] {
     }
   }
   for (const rule of spec.rules) for (const skill of rule.require) ids.add(skill);
-  for (const provider of spec.providers) if (provider.kind === "skill") ids.add(provider.id);
+  // Skill packs (kind: "skill") are delivery mechanisms, not index entries:
+  // their id ("flutter-skills", "expo-skills") never matches a SKILL.md name,
+  // so adding it made this check permanently red. Pack skills land in the
+  // index individually and are referenced through categories and rules above.
   return [...ids].sort();
 }
 

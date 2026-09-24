@@ -2,7 +2,7 @@
 
 > **Zero-dependency enforcement layer for AI coding agents** — classifies prompts, assigns execution roadmaps, blocks unsafe edits, and injects session-level skills, all deterministically without model calls.
 
-16 categories, 42 skills, 11 gate rules, 7 MCP providers — all deterministic, all local, all JSON.
+17 categories, 84 skills, 11 gate rules, 7 MCP providers — all deterministic, all local, all JSON.
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
@@ -52,7 +52,7 @@
 └──────────────────────────────────────────────────────────────────────────┘
 ```
 
-**16 categories**, **42 skills**, **11 gate rules**, **7 MCP providers** — all deterministic, all local, all JSON.
+**17 categories**, **84 skills**, **11 gate rules**, **7 MCP providers** — all deterministic, all local, all JSON.
 
 ---
 
@@ -89,7 +89,7 @@ npx Novahiz doctor
 
 ## The Classifier
 
-Every user prompt passes through the classifier. It scores keywords against 16 categories and picks the top matches.
+Every user prompt passes through the classifier. It scores keywords against 17 categories and picks the top matches.
 
 ```mermaid
 flowchart LR
@@ -242,7 +242,7 @@ flowchart TD
 
 ## Installed skills
 
-Novahiz ships with 42 skills across all categories:
+Novahiz ships with 84 skills across all categories:
 
 | Category | Skills | Purpose |
 |----------|--------|---------|
@@ -254,6 +254,7 @@ Novahiz ships with 42 skills across all categories:
 | `docs-writing` | ... | Prose, marketing copy, AI de-tell |
 | `browser` | novahiz-browser, browser-session, novahiz-web-extract, ... | Web automation, screenshots, extraction |
 | `audit` | novahiz-security, package-risk-audit, llm-threat-review, ... | Security, compliance, vulnerability |
+| `expo` | expo-overview, expo-router, expo-module, expo-dev-client, ... | Expo / React Native: routes, native modules, builds |
 
 Run `npx Novahiz skills --all` to see the full list.
 
@@ -273,7 +274,7 @@ Novahiz auto-registers external MCP servers based on the prompt category:
 | cron | `scheduler-mcp` (local venv clone) | MIT | devops |
 | dart | `dart mcp-server` (Dart SDK) | BSD-3-Clause | code, debug, design-ui, flutter |
 
-Skill packs (installed from official repos, never vendored): `flutter/agent-plugins` (25 skills), `dart-lang/skills` (15 skills). See [docs/PROVIDERS.md](docs/PROVIDERS.md).
+Skill packs (installed from official repos, never vendored): `flutter/agent-plugins` (25 skills), `dart-lang/skills` (15 skills), `expo/skills` (17 skills, the `expo-*` group only; `eas-*` paid services excluded). See [docs/PROVIDERS.md](docs/PROVIDERS.md).
 
 Upstream repositories and full provenance for MCP providers and opencode plugins: [docs/PROVIDERS.md](docs/PROVIDERS.md), [docs/HARNESSES.md](docs/HARNESSES.md), [NOTICE.md](NOTICE.md).
 

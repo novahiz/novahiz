@@ -8,6 +8,15 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
+- Expo / React Native category with precise skill routing (progressive gate):
+  - `catalog/categories.json` gains `expo` (priority 61, tied with `flutter`) with weighted keywords (`expo`×3, `react native`×3, expo router / eas build / app.json / metro bundler / …), negative keywords `flutter`/`pubspec`, and `defaultSkills: ["expo-overview"]`.
+  - Roadmap `expo-feature` (11 steps): the six-stage pipeline plus four **optional** `expo-*` steps between analyse and implement (`expo-router`, `expo-module`, `expo-dev-client`, `expo-upgrade`) and a final `novahiz-code-review`. Only pipeline skills are enforced; optional steps guide without blocking.
+  - `R6-Novahiz` `promptCategories` includes `expo`.
+  - `catalog/providers.json` gains `expo-skills` (10 entries = 7 MCP + 3 skill packs): MIT, categories `code`/`expo`, install command naming the 17 `expo-*` skills explicitly; the 7 `eas-*` paid-service skills are excluded.
+  - 17 `expo-*` skills installed to `~/.agents/skills` via upstream tarball fallback (git transport to GitHub fails on this machine); `novahiz.config.json` `skillRoots` adds `C:/Users/hiz/.agents/skills`, so `novahiz sync` now indexes **84 skills** (dart/flutter packs finally indexed too).
+  - Tests: hygiene counts (17 categories, 10 providers, 84 skills), classify tests for English and French Expo prompts (primary `expo`, `expo-overview` required, `enforcedSkills` stays pipeline-only, `expo-skills` provider proposed).
+  - Docs: README, CLASSIFICATION, CATALOG, ARCHITECTURE, ROADMAPS (task→skill matrix for all 17 skills), PROVIDERS, NOTICE (MIT pack), planner skill.
+
 - Impeccable design skill integrated as a first-class gate rule and roadmap steps:
   - `catalog/rules.json` gains `R14-impeccable` (11 rules total): same selectors as `R13-design-craft` (`design-ui` prompts or css/scss/sass/less/html/htm files), requiring the `impeccable` skill.
   - `catalog/categories.json`: design-ui roadmap gains optional `impeccable-critique`, `impeccable-audit`, `impeccable-polish` steps after implement; `flutter-feature` gains an optional `impeccable-critique` step after tests. Optional steps guide without blocking (roadmap tests assert `impeccable` never gates a non-optional step).
@@ -32,11 +41,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Changed
 
-- README / PROVIDERS / CATALOG counts: 7 MCP providers, 9 catalog entries (tests updated in `providers.test.ts` and `plugin.hygiene.test.ts`).
+- README / PROVIDERS / CATALOG counts: 7 MCP providers, 10 catalog entries, 17 categories, 84 indexed skills (tests updated in `providers.test.ts` and `plugin.hygiene.test.ts`).
 - MCP list refreshed to match `catalog/providers.json`: `docs/PROVIDERS.md`, `README.md` and `NOTICE.md` now describe `cron` as the local MIT `scheduler-mcp` clone (replacing the AGPL `mcp-cron` npm package), and narsil/context7/dart categories align with the registry.
 
 ### Fixed
 
+- `Novahiz doctor` `referenced` check: skill-pack ids (`flutter-skills`, `dart-skills`, `expo-skills`) were collected as if they were index entries, but a pack id never matches a `SKILL.md` name, so the check reported "missing" since packs were introduced. It now collects only gate-referenced skills (categories, roadmap steps, rules) — 32 present, check green.
 - `skills/novahiz-code-review/SKILL.md` (source and installed copy): the unquoted `description` contained `: `, which made the frontmatter invalid YAML so the skill never registered as loadable; it is now quoted.
 
 ## [0.2.5] - 2026-09-24

@@ -51,11 +51,11 @@ Practical consequence: if implementation or convergence never happens, nothing m
 
 Steps 1, 2, and 4 modify no files. Step 3 writes only to the execution ledger. Code writing begins at step 5.
 
-## The 16 categories
+## The 17 categories
 
-code, flutter, debug, review, audit, test, research, browser, design-ui, database-supabase, docs-writing, planning, devops, data, assessment, general.
+code, flutter, expo, debug, review, audit, test, research, browser, design-ui, database-supabase, docs-writing, planning, devops, data, assessment, general.
 
-The full pipeline applies to `code`, `debug`, `browser`, `design-ui`, `database-supabase`, `planning`, `devops`, and `data`. `flutter` adds architecture, static analysis, and unit-test skills on top of the same stages. `review`, `audit`, and `test` keep their business steps and end with convergence. `assessment` keeps its own domain steps and ends with a go/no-go decision. `research` and `general` enforce no steps.
+The full pipeline applies to `code`, `debug`, `browser`, `design-ui`, `database-supabase`, `planning`, `devops`, and `data`. `flutter` adds architecture, static analysis, and unit-test skills on top of the same stages. `expo` runs the same stages with optional `expo-router` / `expo-module` / `expo-dev-client` / `expo-upgrade` steps that guide without blocking. `review`, `audit`, and `test` keep their business steps and end with convergence. `assessment` keeps its own domain steps and ends with a go/no-go decision. `research` and `general` enforce no steps.
 
 ## Additional steps by category
 
@@ -63,6 +63,7 @@ The full pipeline applies to `code`, `debug`, `browser`, `design-ui`, `database-
 |---|---|---|---|---|---|
 | `code` | yes | yes | yes | yes | yes |
 | `flutter` | yes | yes | yes | yes | yes |
+| `expo` | yes | yes | yes | yes | yes |
 | `debug` | yes | yes | yes | yes | yes |
 | `database-supabase` | yes | yes | yes | yes | yes |
 | `browser` | yes | no | yes | yes | yes |

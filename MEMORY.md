@@ -30,7 +30,7 @@ An enforcement and execution layer for coding agents. It classifies a request in
 - `novahiz-web-extract` replaced the external `defuddle` CLI on the `research` roadmap step; `Novahiz doctor` no longer checks for external CLIs (`SKILL_CLI` is empty).
 - `skills/` is entirely Novahiz-owned. `NOTICE.md` records each licence.
 - Pipeline skills (`novahiz-*`) are Apache-2.0 in their frontmatter; only `novahiz-humanizer` and `novahiz-security` stay MIT, as recorded in NOTICE.
-- `bundled-skills/` was removed on 2026-09-24: third-party skill packs are no longer vendored. Catalog has 7 MCP providers (context7, cron, dart, narsil, novahiz, playwright, security) plus skill packs `flutter-skills` and `dart-skills` (9 entries total; install via `npx skills add`, licences BSD-3-Clause).
+- `bundled-skills/` was removed on 2026-09-24: third-party skill packs are no longer vendored. Catalog has 7 MCP providers (context7, cron, dart, narsil, novahiz, playwright, security) plus skill packs `flutter-skills`, `dart-skills` (BSD-3-Clause) and `expo-skills` (MIT, 17 `expo-*` skills, `eas-*` excluded) — 10 entries total; install via `npx skills add` (tarball fallback on this machine, git transport fails).
 - The MCP `novahiz_gate` tool accepts `file` or `filePath`: some harnesses rename the parameter when they surface the tool. Neither being a non-empty string fails closed with -32602.
 - The package ships no runtime dependency. Anything added has to earn its place.
 

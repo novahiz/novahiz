@@ -14,6 +14,7 @@ test("loads the bundled providers", () => {
     "cron",
     "dart",
     "dart-skills",
+    "expo-skills",
     "flutter-skills",
     "narsil",
     "novahiz",

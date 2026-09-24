@@ -207,6 +207,108 @@
     }
   },
   {
+    "id": "expo",
+    "label": "Expo / React Native",
+    "priority": 61,
+    "keywords": [
+      { "term": "expo", "weight": 3 },
+      { "term": "react native", "weight": 3 },
+      "expo router",
+      "expo sdk",
+      "expo install",
+      "expo-go",
+      "eas build",
+      "eas update",
+      "app.json",
+      "app.config",
+      "react-native",
+      "metro bundler",
+      "dev client"
+    ],
+    "negativeKeywords": [
+      "flutter",
+      "pubspec"
+    ],
+    "defaultSkills": [
+      "expo-overview"
+    ],
+    "roadmap": {
+      "id": "expo-feature",
+      "steps": [
+        {
+          "id": "plan",
+          "label": "Set the direction",
+          "kind": "skill",
+          "requireSkills": ["novahiz-plan"]
+        },
+        {
+          "id": "clarify",
+          "label": "Remove ambiguities",
+          "kind": "skill",
+          "requireSkills": ["novahiz-clarify"]
+        },
+        {
+          "id": "tasks",
+          "label": "Break into tasks",
+          "kind": "skill",
+          "requireSkills": ["novahiz-task"]
+        },
+        {
+          "id": "analyse",
+          "label": "Analyze the affected code",
+          "kind": "skill",
+          "requireSkills": ["novahiz-analyse"]
+        },
+        {
+          "id": "expo-routes",
+          "label": "Expo Router navigation (route or screen work)",
+          "kind": "skill",
+          "requireSkills": ["expo-router"],
+          "optional": true
+        },
+        {
+          "id": "expo-native",
+          "label": "Expo native module (native code work)",
+          "kind": "skill",
+          "requireSkills": ["expo-module"],
+          "optional": true
+        },
+        {
+          "id": "expo-build",
+          "label": "Dev client / EAS build setup",
+          "kind": "skill",
+          "requireSkills": ["expo-dev-client"],
+          "optional": true
+        },
+        {
+          "id": "expo-upgrade",
+          "label": "Expo SDK upgrade",
+          "kind": "skill",
+          "requireSkills": ["expo-upgrade"],
+          "optional": true
+        },
+        {
+          "id": "implement",
+          "label": "Implement incrementally",
+          "kind": "edit",
+          "requireSkills": ["novahiz-implement"]
+        },
+        {
+          "id": "converge",
+          "label": "Converge",
+          "kind": "verify",
+          "requireSkills": ["novahiz-converge"]
+        },
+        {
+          "id": "review",
+          "label": "Self-review",
+          "kind": "skill",
+          "requireSkills": ["novahiz-code-review"]
+        }
+      ]
+    }
+  },
+  {
     "id": "debug",
     "label": "Debug",
     "priority": 58,

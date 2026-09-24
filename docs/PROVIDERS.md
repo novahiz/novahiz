@@ -56,8 +56,11 @@ Skill and command packs:
 | --- | --- | --- | --- | --- |
 | `flutter-skills` | `npx skills add flutter/agent-plugins --skill '*' -g -a opencode -y` | [flutter/agent-plugins](https://github.com/flutter/agent-plugins) | BSD-3-Clause | code, design-ui, flutter |
 | `dart-skills` | `npx skills add dart-lang/skills --skill '*' -g -a opencode -y` | [dart-lang/skills](https://github.com/dart-lang/skills) | BSD-3-Clause | code, debug, flutter |
+| `expo-skills` | `npx skills add expo/skills --skill expo-overview ... -g -a opencode -y` | [expo/skills](https://github.com/expo/skills) | MIT | code, expo |
 
 Installed skills land under `~/.agents/skills` for OpenCode. They are referenced by install command, never vendored in this repository. `dart-lang/skills` is a subset of `flutter/agent-plugins` (same 15 Dart skills); both are listed for provenance.
+
+`expo-skills` names the 17 `expo-*` skills explicitly; the 7 `eas-*` skills (paid EAS services) are excluded. When `npx skills add` cannot reach the repo (git clone failures), fetch the tarball from `codeload.github.com` and copy the skill folders into `~/.agents/skills`, then run `Novahiz sync` — that fallback was used on this machine.
 
 Design and text skills ship as ordinary Novahiz skills under `skills/`, not as providers.
 
