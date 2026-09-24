@@ -12,14 +12,10 @@ test("loads the bundled providers", () => {
   assert.deepEqual(ids, [
     "context7",
     "cron",
-    "dart",
-    "expo",
     "narsil",
     "novahiz",
-    "obsidian",
     "playwright",
-    "security",
-    "sequential-thinking"
+    "security"
   ]);
 });
 
@@ -27,12 +23,12 @@ test("maps providers to categories across kinds", () => {
   const design = providersForCategories(spec, ["design-ui"]).map((provider) => provider.id);
   assert.ok(design.includes("playwright"));
   const planning = providersForCategories(spec, ["planning"]).map((provider) => provider.id);
-  assert.deepEqual(planning, ["sequential-thinking", "novahiz"]);
+  assert.deepEqual(planning, ["novahiz"]);
 });
 
 test("builds mcp entries only for mcp providers", () => {
   const entries = buildMcpEntries(spec);
-  assert.equal(Object.keys(entries).length, 10);
+  assert.equal(Object.keys(entries).length, 6);
   assert.ok(entries.playwright?.command?.some((c) => c.includes("playwright")));
   assert.equal("playwright" in entries, true);
 });

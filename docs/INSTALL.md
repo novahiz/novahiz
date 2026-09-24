@@ -19,7 +19,7 @@ node /path/to/novahiz/install/install.mjs --home ~/.config/novahiz
 
 The installer runs `git`-free and never deletes your files. When run in a terminal it is interactive: it prints the plan and the provider list, then asks before writing anything or installing packages. It:
 
-1. Copies the core, the bundled skills, and the plugin into place.
+1. Copies the core, the skills, and the plugin into place.
 2. Merges `skills/` into your opencode skills directory, skipping any skill that another scanned root already provides.
 3. Drops the opencode plugin into the plugins directory.
 4. Writes `novahiz.config.json` only if it does not exist.
@@ -34,8 +34,8 @@ Restart opencode afterward. The plugin in `~/.config/opencode/plugins/novahiz.ts
 - `--home <path>` installs the core to a custom location.
 - `--scope project` targets `./.opencode` instead of the global config.
 - `--dry-run` prints the actions and writes nothing.
-- `--no-skills` skips the bundled skills.
-- `--force-skills` recopies a bundled skill even when another scanned root already provides it.
+- `--no-skills` skips the skills copy.
+- `--force-skills` recopies a skill even when another scanned root already provides it.
 - `--install-providers` runs the provider dependency bootstrap and install commands.
 - `--force` rewrites `novahiz.config.json` (the previous file is backed up as `novahiz.config.json.novahiz-bak`).
 - `--yes` skips every prompt. Use it in scripts and CI, where there is no terminal to answer.

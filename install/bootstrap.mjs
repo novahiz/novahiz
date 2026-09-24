@@ -63,7 +63,6 @@ function detectShell() {
 
 function generateOpenCodeJson(configDir, NovahizHome) {
   const skillsDir = join(configDir, "skills");
-  const bundledDir = join(NovahizHome, "bundled-skills");
   const agentsSkillsDir = join(homedir(), ".config", ".agents", "skills");
 
   const config = {
@@ -90,11 +89,6 @@ function generateOpenCodeJson(configDir, NovahizHome) {
         command: ["npx", "@playwright/mcp@latest", "--browser=msedge"],
         enabled: true,
       },
-      expo: {
-        type: "remote",
-        url: "https://mcp.expo.dev/mcp",
-        enabled: true,
-      },
     },
     skills: {
       paths: [skillsDir],
@@ -111,11 +105,6 @@ function generateOpenCodeJson(configDir, NovahizHome) {
     },
     shell: detectShell(),
   };
-
-  // Add bundled-skills if it exists
-  if (existsSync(bundledDir)) {
-    config.skills.paths.push(bundledDir);
-  }
 
   // Add .agents/skills if it exists
   if (existsSync(agentsSkillsDir)) {

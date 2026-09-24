@@ -20,7 +20,7 @@ These files live in `catalog/` and are part of the git repository:
 ```json
 {
   "dbPath": "novahiz.sqlite",
-  "skillRoots": ["./skills", "./bundled-skills"],
+  "skillRoots": ["./skills"],
   "gate": {
     "enabled": true,
     "mode": "block",
@@ -58,7 +58,7 @@ These files live in `catalog/` and are part of the git repository:
 | Key | Default | Purpose |
 |-----|---------|---------|
 | `dbPath` | `novahiz.sqlite` | SQLite database path |
-| `skillRoots` | `["./skills", "./bundled-skills"]` | Directories to scan for skills |
+| `skillRoots` | `["./skills"]` | Directories to scan for skills |
 | `gate.enabled` | `true` | Enable/disable the gate |
 | `gate.mode` | `block` | `block`, `warn`, or `audit` |
 | `gate.envEscape` | `NOVAHIZ_GATE` | Schema field only. The kill-switch name is hardcoded to `NOVAHIZ_GATE` in the CLI, MCP gate, and plugin; a config value cannot redirect it. |
@@ -88,7 +88,7 @@ These files live in `catalog/` and are part of the git repository:
 
 The installer generates `opencode.jsonc` with:
 
-- MCP server registrations (context7, narsil, cron, playwright, supabase, expo)
+- MCP server registrations (context7, narsil, cron, playwright, supabase)
 - Skill paths
 - Plugin list
 - Compaction settings

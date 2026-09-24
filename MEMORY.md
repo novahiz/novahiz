@@ -28,9 +28,9 @@ An enforcement and execution layer for coding agents. It classifies a request in
 - Any change to `catalog/*.json` or to a skill needs `Novahiz sync`, or the catalog and the index keep describing the previous state.
 - The gate logs every decision to `enforcement_log`, so the database grows during ordinary use. `Novahiz clean` prunes it.
 - `novahiz-web-extract` replaced the external `defuddle` CLI on the `research` roadmap step; `Novahiz doctor` no longer checks for external CLIs (`SKILL_CLI` is empty).
-- `skills/` is partly third-party. `NOTICE.md` records each licence, and says plainly which ones have no upstream information.
-- Pipeline skills (`Novahiz-*`) are Apache-2.0 in their frontmatter; only `novahiz-humanizer` and `novahiz-security` stay MIT, as recorded in NOTICE.
-- `opencode.jsonc` does not list a `Novahiz/skills` path, and does not need one: that directory duplicates `opencode/skills` (56 = 56), and every `bundled-skills/` skill is already covered by an existing root (`~/.agents/skills`, `.config/.agents/skills`, `marketingskills`, `code-review-graph`, the android path). Adding paths would only create duplicates. Decided 2026-09-22: leave the file alone.
+- `skills/` is entirely Novahiz-owned. `NOTICE.md` records each licence.
+- Pipeline skills (`novahiz-*`) are Apache-2.0 in their frontmatter; only `novahiz-humanizer` and `novahiz-security` stay MIT, as recorded in NOTICE.
+- `bundled-skills/` was removed on 2026-09-24: third-party skill packs are no longer vendored. Catalog has 6 MCP providers (context7, cron, narsil, novahiz, playwright, security).
 - The MCP `novahiz_gate` tool accepts `file` or `filePath`: some harnesses rename the parameter when they surface the tool. Neither being a non-empty string fails closed with -32602.
 - The package ships no runtime dependency. Anything added has to earn its place.
 

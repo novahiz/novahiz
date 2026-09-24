@@ -121,7 +121,7 @@ The core runs on Node with no dependencies. A new harness adapter needs two thin
 
 ## Installer
 
-`install/install.mjs` detects whether opencode is installed (auto-installs it if missing), copies the core, the bundled skills, and the plugin into place. It backs up any user file it overwrites (`*.novahiz-bak`) and records what it created in `.novahiz-install.json`, so `install/uninstall.mjs` can restore and reverse.
+`install/install.mjs` detects whether opencode is installed (auto-installs it if missing), copies the core, the skills, and the plugin into place. It backs up any user file it overwrites (`*.novahiz-bak`) and records what it created in `.novahiz-install.json`, so `install/uninstall.mjs` can restore and reverse.
 
 ## MCP server
 

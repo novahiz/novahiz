@@ -42,7 +42,6 @@ MCP servers:
 | `security` | SAST/DAST and compliance | audit |
 | `narsil` | Code intelligence | code, debug, review, audit |
 | `context7` | Library docs | code, research |
-| `sequential-thinking` | Structured reasoning | planning, debug, audit |
 | `cron` | Scheduling | devops, general |
 
 Skill and command packs:

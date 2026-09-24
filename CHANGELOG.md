@@ -6,6 +6,15 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Removed
+
+- `bundled-skills/` (132 vendored third-party skill folders) is gone. The package ships only `skills/`; `package.json` `files`, `install.mjs` / `bootstrap.mjs`, and `skillRoots` no longer reference it.
+- MCP providers `expo`, `dart`, `sequential-thinking`, and `obsidian` removed from `opencode.jsonc` and from `catalog/providers.json` (otherwise `autoRegister` would restore them). Six providers remain: playwright, security, narsil, context7, cron, novahiz.
+
+### Changed
+
+- README / NOTICE / docs counts and tables match the new surface: 41 skills, 6 MCP providers. Tests assert the new numbers (`providers.test.ts`, `cli.test.ts`, `plugin.hygiene.test.ts`).
+
 ## [0.2.4] - 2026-09-23
 
 ### Fixed

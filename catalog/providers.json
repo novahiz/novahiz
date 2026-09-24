@@ -28,39 +28,11 @@
     "categories": ["code"]
   },
   {
-    "id": "sequential-thinking",
-    "label": "Sequential Thinking",
-    "kind": "mcp",
-    "command": ["npx", "-y", "@anthropic-ai/mcp-sequential-thinking@latest"],
-    "categories": ["code", "planning"]
-  },
-  {
     "id": "cron",
     "label": "Cron Scheduler",
     "kind": "mcp",
     "command": ["npx", "-y", "@anthropic-ai/mcp-cron@latest"],
     "categories": ["devops"]
-  },
-  {
-    "id": "obsidian",
-    "label": "Obsidian Vault",
-    "kind": "mcp",
-    "command": ["npx", "-y", "@anthropic-ai/mcp-obsidian@latest"],
-    "categories": ["docs-writing"]
-  },
-  {
-    "id": "dart",
-    "label": "Dart/Flutter",
-    "kind": "mcp",
-    "command": ["npx", "-y", "@anthropic-ai/mcp-dart@latest"],
-    "categories": ["code"]
-  },
-  {
-    "id": "expo",
-    "label": "Expo/EAS",
-    "kind": "mcp",
-    "command": ["npx", "-y", "@anthropic-ai/mcp-expo@latest"],
-    "categories": ["code"]
   },
   {
     "id": "novahiz",

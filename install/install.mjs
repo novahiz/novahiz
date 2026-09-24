@@ -29,7 +29,6 @@ const CORE_ITEMS = [
   "mcp",
   "adapters",
   "skills",
-  "bundled-skills",
   "docs",
   "package.json",
   "tsconfig.json",
@@ -42,7 +41,7 @@ const CORE_ITEMS = [
 function defaultConfig(skillsDir) {
   return {
     dbPath: "novahiz.sqlite",
-    skillRoots: ["./skills", "./bundled-skills"],
+    skillRoots: ["./skills"],
     gate: {
       enabled: true,
       mode: "block",
@@ -196,19 +195,6 @@ async function main() {
       }
     } else {
       note(`No skills folder found at ${skillsSource}`);
-    }
-
-    // Copy bundled-skills
-    const bundledSource = existsSync(join(home, "bundled-skills")) ? join(home, "bundled-skills") : join(root, "bundled-skills");
-    if (existsSync(bundledSource)) {
-      const bundledTarget = join(home, "bundled-skills");
-      note(`Installing bundled-skills in ${bundledTarget}`);
-      if (!dryRun) {
-        const result = copyInto(bundledSource, bundledTarget, true);
-        created.push(...result.created);
-        backups.push(...result.backups);
-        note(`  ${result.total} files copied`);
-      }
     }
   }
 
@@ -376,7 +362,6 @@ async function main() {
     const configPath = join(configDir, "opencode.jsonc");
     if (!existsSync(configPath)) {
       note(`\nCreating ${configPath}`);
-      const bundledDir = join(home, "bundled-skills");
       const agentsSkillsDir = join(homedir(), ".config", ".agents", "skills");
       
       const openCodeConfig = {
@@ -402,11 +387,6 @@ async function main() {
             "type": "local",
             "command": ["npx", "@playwright/mcp@latest", "--browser=msedge"],
             "enabled": true
-          },
-          "expo": {
-            "type": "remote",
-            "url": "https://mcp.expo.dev/mcp",
-            "enabled": true
           }
         },
         "skills": {
@@ -424,11 +404,6 @@ async function main() {
         },
         "shell": process.platform === "win32" ? "pwsh" : "bash"
       };
-
-      // Add bundled-skills if it exists
-      if (existsSync(bundledDir)) {
-        openCodeConfig.skills.paths.push(bundledDir);
-      }
 
       // Add .agents/skills if it exists
       if (existsSync(agentsSkillsDir)) {

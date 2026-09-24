@@ -2,7 +2,7 @@
 
 > **Zero-dependency enforcement layer for AI coding agents** — classifies prompts, assigns execution roadmaps, blocks unsafe edits, and injects session-level skills, all deterministically without model calls.
 
-15 categories, 173 skills, 12 gate rules, 10 MCP providers — all deterministic, all local, all JSON.
+15 categories, 41 skills, 12 gate rules, 6 MCP providers — all deterministic, all local, all JSON.
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
@@ -52,7 +52,7 @@
 └──────────────────────────────────────────────────────────────────────────┘
 ```
 
-**15 categories**, **173 skills**, **12 gate rules**, **10 MCP providers** — all deterministic, all local, all JSON.
+**15 categories**, **41 skills**, **12 gate rules**, **6 MCP providers** — all deterministic, all local, all JSON.
 
 ---
 
@@ -240,18 +240,18 @@ flowchart TD
 
 ## Installed skills
 
-Novahiz ships with 173 skills across all categories:
+Novahiz ships with 41 skills across all categories:
 
 | Category | Skills | Purpose |
 |----------|--------|---------|
 | `code` | novahiz-code-review, engineering-code-standards, mcp-server-builder, ... | Code quality, patterns, architecture |
-| `debug` | debug-issue, novahiz-analyse, ... | Root cause analysis, code navigation |
-| `review` | novahiz-code-review, review-pr, ... | Structured review, blast radius |
-| `database-supabase` | supabase, supabase-postgres-best-practices, novahiz-postgres, ... | Schema, RLS, migrations, optimization |
+| `debug` | novahiz-analyse, ... | Root cause analysis |
+| `review` | novahiz-code-review, novahiz-delta-review, ... | Structured review, blast radius |
+| `database-supabase` | novahiz-postgres, novahiz-supabase, ... | Schema, RLS, migrations, optimization |
 | `design-ui` | anti-AI-design, frontend-design-taste, apple-hig-audit, ... | UI/UX, visual hierarchy, native feel |
-| `docs-writing` | novahiz-humanizer, copywriting, copy-editing, humanizer, ... | Prose, marketing copy, AI de-tell |
-| `browser` | novahiz-browser, playwright-agent, novahiz-web-extract, computer-use, ... | Web automation, screenshots, extraction |
-| `audit` | novahiz-security, narsil-*, dependency-auditor, ai-security, ... | Security, compliance, vulnerability |
+| `docs-writing` | novahiz-humanizer, ... | Prose, marketing copy, AI de-tell |
+| `browser` | novahiz-browser, playwright-agent, novahiz-web-extract, ... | Web automation, screenshots, extraction |
+| `audit` | novahiz-security, dependency-auditor, ai-security, ... | Security, compliance, vulnerability |
 
 Run `npx Novahiz skills --all` to see the full list.
 
@@ -263,15 +263,12 @@ Novahiz auto-registers external MCP servers based on the prompt category:
 
 | Provider | Purpose | Categories |
 |----------|---------|------------|
-| context7 | Library documentation | all |
-| narsil | Code intelligence, security scan | code, debug, review, audit |
-| novahiz-web-extract | Clean markdown from URLs | research, docs-writing |
-| playwright | Browser automation | browser, design |
-| supabase | Database operations | database-supabase |
-| supabase-postgres-best-practices | Postgres optimization | database-supabase |
+| context7 | Library documentation | code, research |
+| narsil | Code intelligence, security scan | code, review |
+| novahiz | Novahiz MCP tools | code, planning |
+| playwright | Browser automation | browser, design-ui |
 | security | Security orchestration | audit |
 | cron | Scheduled tasks | devops |
-| dart | Dart/Flutter tools | code |
 
 See [docs/PROVIDERS.md](docs/PROVIDERS.md) for full details.
 

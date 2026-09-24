@@ -129,7 +129,7 @@ test("check reports the stored last sync", () => {
 
 test("providers command lists the bundled providers", () => {
   const parsed = JSON.parse(run(["providers"]));
-  assert.equal(parsed.length, 10);
+  assert.equal(parsed.length, 6);
 });
 
 test("providers --mcp-json returns mcp entries", () => {
@@ -140,7 +140,7 @@ test("providers --mcp-json returns mcp entries", () => {
 test("deps command reports dependency status", () => {
   const parsed = JSON.parse(run(["deps"]));
   assert.ok(Array.isArray(parsed.dependencies));
-  assert.equal(parsed.dependencies.length, 10);
+  assert.equal(parsed.dependencies.length, 6);
 });
 
 test("sync reports the scanned skill count", () => {
