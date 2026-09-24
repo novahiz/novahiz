@@ -27,9 +27,10 @@ Le gate pose une seule question : les skills exigées par le contexte sont-elles
 | Règle | Se déclenche sur | Exige |
 |---|---|---|
 | R13-design-craft | tâche design frontend (catégorie design-ui, fichiers style css/scss/html/…) | `novahiz-humanizer`, `ui-slop-remover`, `ui-craft-rules` |
+| R14-impeccable | mêmes sélecteurs que R13 (design-ui ou fichiers style) | `impeccable` |
 | R3-supabase | chemin `**/supabase/**` ou `**/migrations/**`, catégorie `database-supabase` | `supabase`, `supabase-postgres-best-practices` |
 
-Hors design frontend, `novahiz-humanizer` et `ui-slop-remover` ne sont plus exigés par le gate.
+Hors design frontend, `novahiz-humanizer` et `ui-slop-remover` ne sont plus exigés par le gate. `impeccable` suit la même logique via R14.
 
 **Les étapes de roadmap** (`catalog/categories.json`) : seules celles marquées `kind: "skill"` sans `optional` bloquent. Les étapes `edit`, `verify` et `advisory` apparaissent dans `requiredSkills` mais ne refusent rien.
 

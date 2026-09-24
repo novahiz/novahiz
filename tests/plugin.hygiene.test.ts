@@ -68,7 +68,7 @@ test("installed plugin does not import a non-existent ../../src path", () => {
   );
 });
 
-test("README counts match catalog (16 categories, 10 rules, 9 providers)", () => {
+test("README counts match catalog (16 categories, 11 rules, 9 providers)", () => {
   const rules = JSON.parse(readFileSync(join(root, "catalog", "rules.json"), "utf8"));
   const categories = JSON.parse(
     readFileSync(join(root, "catalog", "categories.json"), "utf8")
@@ -84,17 +84,17 @@ test("README counts match catalog (16 categories, 10 rules, 9 providers)", () =>
     ? providers
     : (providers.providers ?? Object.values(providers));
   assert.equal(Array.isArray(catList) ? catList.length : 0, 16);
-  assert.equal(ruleCount, 10);
+  assert.equal(ruleCount, 11);
   assert.equal(Array.isArray(provList) ? provList.length : 0, 9);
 
   const readme = readFileSync(join(root, "README.md"), "utf8");
-  assert.ok(readme.includes("41 skills"), "README skill count");
-  assert.ok(readme.includes("10 gate rules"), "README rule count");
+  assert.ok(readme.includes("42 skills"), "README skill count");
+  assert.ok(readme.includes("11 gate rules"), "README rule count");
   assert.ok(readme.includes("7 MCP providers"), "README provider count");
   assert.ok(readme.includes("12 health checks") || readme.includes("12-check"), "README doctor count");
   assert.ok(!/185 skills/.test(readme), "stale 185 skills");
   assert.ok(!/173 skills/.test(readme), "stale 173 skills");
-  assert.ok(!/11 gate rules/.test(readme), "stale 11 gate rules");
+  assert.ok(!/10 gate rules/.test(readme), "stale 10 gate rules");
   assert.ok(!/12 gate rules/.test(readme), "stale 12 gate rules");
   assert.ok(!/12 MCP providers/.test(readme), "stale 12 MCP providers");
   assert.ok(!/10 MCP providers/.test(readme), "stale 10 MCP providers");

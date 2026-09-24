@@ -185,6 +185,13 @@
           "requireSkills": ["dart-add-unit-test"]
         },
         {
+          "id": "impeccable-critique",
+          "label": "Impeccable critique (UI work)",
+          "kind": "skill",
+          "requireSkills": ["impeccable"],
+          "optional": true
+        },
+        {
           "id": "converge",
           "label": "Converge",
           "kind": "verify",
@@ -671,6 +678,33 @@
           "requireSkills": [
             "novahiz-implement"
           ]
+        },
+        {
+          "id": "impeccable-critique",
+          "label": "Impeccable critique (systematic after UI work)",
+          "kind": "skill",
+          "requireSkills": [
+            "impeccable"
+          ],
+          "optional": true
+        },
+        {
+          "id": "impeccable-audit",
+          "label": "Impeccable audit (a11y/perf/responsive, when the UI warrants it)",
+          "kind": "skill",
+          "requireSkills": [
+            "impeccable"
+          ],
+          "optional": true
+        },
+        {
+          "id": "impeccable-polish",
+          "label": "Impeccable polish (final pass before ship)",
+          "kind": "skill",
+          "requireSkills": [
+            "impeccable"
+          ],
+          "optional": true
         },
         {
           "id": "responsive",

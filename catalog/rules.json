@@ -105,5 +105,22 @@
       ]
     },
     "require": ["novahiz-humanizer", "ui-slop-remover", "ui-craft-rules"]
+  },
+  {
+    "id": "R14-impeccable",
+    "description": "Load the impeccable design skill on frontend design tasks so critique/audit/polish playbooks stay available.",
+    "when": {
+      "match": "any",
+      "promptCategories": ["design-ui"],
+      "pathGlobs": [
+        "**/*.css",
+        "**/*.scss",
+        "**/*.sass",
+        "**/*.less",
+        "**/*.html",
+        "**/*.htm"
+      ]
+    },
+    "require": ["impeccable"]
   }
 ]

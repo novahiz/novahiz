@@ -41,8 +41,9 @@ Content conditions are combined with AND against the selectors. A rule with `con
 | R11-accessibility | a design-ui or audit prompt | `novahiz-wcag-audit` |
 | R12-web-extract | a research prompt | `novahiz-web-extract` |
 | R13-design-craft | a design-ui prompt or a style file (css/scss/less/html) | `novahiz-humanizer`, `ui-slop-remover`, `ui-craft-rules` |
+| R14-impeccable | a design-ui prompt or a style file (css/scss/less/html) | `impeccable` |
 
-`novahiz-humanizer` and `ui-slop-remover` are required only by R13, on frontend design tasks. They are not required on ordinary text, docs, or code edits.
+`novahiz-humanizer` and `ui-slop-remover` are required only by R13, on frontend design tasks. They are not required on ordinary text, docs, or code edits. `impeccable` loads under R14 on the same selectors, so the critique, audit, and polish playbooks stay reachable after UI work.
 
 ## Resolution
 

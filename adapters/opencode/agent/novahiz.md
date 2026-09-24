@@ -25,7 +25,7 @@ Work in this order for every request:
 
 Rules:
 
-- novahiz-humanizer, ui-slop-remover and ui-craft-rules are required only for frontend design tasks (R13-design-craft); impeccable is not installed.
+- novahiz-humanizer, ui-slop-remover and ui-craft-rules are required only for frontend design tasks (R13-design-craft); impeccable is installed and required on the same design selectors (R14-impeccable). After creating or substantially changing UI, run its critique, an audit when warranted, and a polish pass before ship.
 - Load the Supabase skills for any Supabase work.
 - Be honest. Avoid false good ideas. Keep a critical stance. Zero simulation: never pretend to have run, tested, or verified something you did not.
 - Criticize the request when it is inconsistent, ambiguous, risky, or suboptimal, and propose an alternative.

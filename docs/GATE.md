@@ -38,6 +38,11 @@ The gate is the enforcement mechanism. It inspects every file edit and decides w
 │              + ui-slop-remover + ui-craft-rules             │
 │    (Humanizer and ui-slop-remover are design-only.)         │
 │                                                             │
+│  R14-impeccable:                                            │
+│    match: any                                               │
+│    promptCategories: ["design-ui"] OR pathGlobs: css/html   │
+│    → require impeccable (critique/audit/polish playbooks)   │
+│                                                             │
 │  R3-supabase:                                               │
 │    promptCategories: ["database-supabase"]                  │
 │    → Was the prompt classified as Supabase?                 │

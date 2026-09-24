@@ -62,6 +62,7 @@ When several categories match, the one with the highest score provides the roadm
 - Both skills are required on design-ui prompts and style file edits (css/scss/less/html).
 - Outside frontend design, neither skill is required by the gate.
 - The design-ui roadmap also carries an optional `design-craft` step for guidance; it does not block.
+- `R14-impeccable` requires the `impeccable` skill on the same design selectors. The design-ui roadmap adds optional `impeccable-critique`, `impeccable-audit`, and `impeccable-polish` steps after implement, and the flutter roadmap an optional `impeccable-critique` step for UI work; optional steps guide without blocking.
 
 Rules express this with `when.contentMatches` (`prose`, `style`, or a regex), `when.contentExcludes`, `when.minChange`, and `when.match` (`any` or `all`) to combine the class, path, and category selectors.
 

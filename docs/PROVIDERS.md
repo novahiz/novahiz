@@ -40,13 +40,13 @@ MCP servers, with provenance from `catalog/providers.json`:
 | --- | --- | --- | --- | --- |
 | `playwright` | `@playwright/mcp` | [microsoft/playwright-mcp](https://github.com/microsoft/playwright-mcp) | Apache-2.0 | browser, design-ui |
 | `security` | `security-mcp` | [AbrahamOO/security-mcp](https://github.com/AbrahamOO/security-mcp) | MIT | audit |
-| `narsil` | `narsil-mcp` | [postrv/narsil-mcp](https://github.com/postrv/narsil-mcp) | MIT OR Apache-2.0 | code, debug, review, audit |
-| `context7` | `@upstash/context7-mcp` | [upstash/context7](https://github.com/upstash/context7) | MIT | code, research |
-| `cron` | `mcp-cron` | [jolks/mcp-cron](https://github.com/jolks/mcp-cron) | AGPL-3.0-only | devops, general |
+| `narsil` | `narsil-mcp` | [postrv/narsil-mcp](https://github.com/postrv/narsil-mcp) | MIT OR Apache-2.0 | code, review |
+| `context7` | `@upstash/context7-mcp` | [upstash/context7](https://github.com/upstash/context7) | MIT | code |
+| `cron` | `scheduler-mcp` (local venv) | [PhialsBasement/scheduler-mcp](https://github.com/PhialsBasement/scheduler-mcp) | MIT | devops |
 | `novahiz` | local (`mcp/novahiz-tools`) | [novahiz/novahiz](https://github.com/novahiz/novahiz) | Apache-2.0 | code, planning |
 | `dart` | `dart mcp-server` (Dart SDK) | [dart-lang/ai · dart_mcp_server](https://github.com/dart-lang/ai/tree/main/pkgs/dart_mcp_server) | BSD-3-Clause | code, debug, design-ui, flutter |
 
-`cron` is AGPL-3.0-only. Enabling it means you accept that license for the install command, not for Novahiz itself.
+`cron` runs `scheduler-mcp` (MIT) from a local clone at `C:/Users/hiz/.local/share/mcp-scheduler` with its own virtualenv. It replaced the former AGPL `mcp-cron` npm package; there is no npm install step for it.
 
 `dart` requires the Dart SDK on `PATH` (`requires: ["dart"]`). Without it the MCP entry still registers, but the server fails to start; disable it or install the SDK.
 

@@ -39,10 +39,11 @@
     "id": "cron",
     "label": "Cron Scheduler",
     "kind": "mcp",
-    "command": ["npx", "-y", "mcp-cron@latest"],
-    "source": "https://github.com/jolks/mcp-cron",
-    "license": "AGPL-3.0-only",
-    "categories": ["devops"]
+    "command": ["C:/Users/hiz/.local/share/mcp-scheduler/.venv/Scripts/python.exe", "C:/Users/hiz/.local/share/mcp-scheduler/main.py"],
+    "source": "https://github.com/PhialsBasement/scheduler-mcp",
+    "license": "MIT",
+    "categories": ["devops"],
+    "purpose": "Local MIT scheduler clone at C:/Users/hiz/.local/share/mcp-scheduler (requirements pin mcp<2)."
   },
   {
     "id": "novahiz",

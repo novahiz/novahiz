@@ -42,7 +42,7 @@ Novahiz has one core and thin adapters. The core holds every decision. An adapte
 Three versioned JSON files under `catalog/`:
 
 - `categories.json` — lists 16 categories with keywords, required skills, and execution roadmaps.
-- `rules.json` — lists 6 pre-edit rules with conditions (file class, path glob, prompt category, content match) and required skills.
+- `rules.json` — lists 11 pre-edit rules with conditions (file class, path glob, prompt category, content match) and required skills.
 - `providers.json` — lists external MCP servers with their purpose and the categories they serve.
 - `overrides.json` — carries manual skill curation (power, stars, tags, categories).
 

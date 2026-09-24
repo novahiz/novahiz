@@ -8,6 +8,13 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Added
 
+- Impeccable design skill integrated as a first-class gate rule and roadmap steps:
+  - `catalog/rules.json` gains `R14-impeccable` (11 rules total): same selectors as `R13-design-craft` (`design-ui` prompts or css/scss/sass/less/html/htm files), requiring the `impeccable` skill.
+  - `catalog/categories.json`: design-ui roadmap gains optional `impeccable-critique`, `impeccable-audit`, `impeccable-polish` steps after implement; `flutter-feature` gains an optional `impeccable-critique` step after tests. Optional steps guide without blocking (roadmap tests assert `impeccable` never gates a non-optional step).
+  - `novahiz.config.json` `skillRoots` adds the installed skill folder (`~/.config/.agents/skills/impeccable`); `novahiz sync` indexes 42 skills.
+  - Adapters, agent prompt, instructions, README, docs (RULES, GATE, ROADMAPS, CATALOG, ARCHITECTURE) and `plugin.hygiene.test.ts` counts aligned (11 rules, 42 skills).
+  - Workspace `opencode.jsonc` loads `C:/Users/hiz/.config/.agents/skills`; `opencode/NOTICE.md` records the Apache-2.0 attribution for pbakaus/impeccable.
+
 - Deterministic Flutter category in the catalog:
   - `catalog/categories.json` gains `flutter` (priority 61, above `code`) with weighted keywords (`flutter`×3, `dart`×2, widget/pubspec/riverpod/…), negative keywords for Supabase, and default skills architecture + static analysis + unit tests.
   - Roadmap `flutter-feature` (10 steps): the six-stage pipeline plus non-optional `flutter-apply-architecture-best-practices` and `dart-run-static-analysis` before implement, `dart-add-unit-test` after, and a final `novahiz-code-review`.
@@ -26,6 +33,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 ### Changed
 
 - README / PROVIDERS / CATALOG counts: 7 MCP providers, 9 catalog entries (tests updated in `providers.test.ts` and `plugin.hygiene.test.ts`).
+- MCP list refreshed to match `catalog/providers.json`: `docs/PROVIDERS.md`, `README.md` and `NOTICE.md` now describe `cron` as the local MIT `scheduler-mcp` clone (replacing the AGPL `mcp-cron` npm package), and narsil/context7/dart categories align with the registry.
+
+### Fixed
+
+- `skills/novahiz-code-review/SKILL.md` (source and installed copy): the unquoted `description` contained `: `, which made the frontmatter invalid YAML so the skill never registered as loadable; it is now quoted.
 
 ## [0.2.5] - 2026-09-24
 

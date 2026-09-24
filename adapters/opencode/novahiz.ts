@@ -457,7 +457,7 @@ export const NovahizPlugin: Plugin = async ({ client }) => {
           }
         }
         lines.push("The gate blocks edit/write/patch/apply_patch/bash/shell until the required skills are loaded via skill({name:\"...\"}).");
-        lines.push("The gate is content-aware: novahiz-humanizer, ui-slop-remover and ui-craft-rules are required only on frontend design tasks (R13).");
+        lines.push("The gate is content-aware: novahiz-humanizer, ui-slop-remover and ui-craft-rules are required only on frontend design tasks (R13), and impeccable on the same design selectors (R14).");
         lines.push("Config edited = opencode restart required (config read at import).");
         lines.push("Memory lives in project-memory/ under the project root (cwd): index.json + fixed-size slots (8000 chars / 200 lines) with compact → archive → new-slot rotation. Use the MCP memory_* tools to read and append.");
         enforcementBySession.set(input.sessionID, lines.join("\n"));

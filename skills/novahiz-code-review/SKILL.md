@@ -1,6 +1,6 @@
 ---
 name: novahiz-code-review
-description: novahiz-code-review is a three-layer intelligent code review: deterministic analysis, contextual review, human verdict. Triggers on reviewing PRs, analyzing code quality, assessing change risk, generating review reports.
+description: "novahiz-code-review is a three-layer intelligent code review: deterministic analysis, contextual review, human verdict. Triggers on reviewing PRs, analyzing code quality, assessing change risk, generating review reports."
 license: Apache-2.0
 compatibility: opencode
 metadata:

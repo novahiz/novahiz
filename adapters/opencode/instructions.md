@@ -29,7 +29,8 @@ Playwright uses a **persistent profile** that preserves data across sessions (co
 ## Behavioral & Quality Rules
 
 1. **Mandatory design skills on frontend design tasks** — `novahiz-humanizer`, `ui-slop-remover` and `ui-craft-rules` are required only on frontend design work (design-ui prompts and style files). Load them with `skill({name})` before any design edit. Outside design, they are not required by the gate. Browser tasks (navigation, search, extraction) proceed as direct actions without a roadmap.
-2. **Supabase** — On any Supabase task (database, auth, RLS, Edge Functions, migrations, Storage, Realtime, CLI/MCP), load the `novahiz-supabase` and `novahiz-postgres` skills before acting.
+2. **Impeccable after UI work** — `impeccable` is installed and required on the same design selectors (gate rule R14). Whenever a page, component, section, or screen design is created or substantially changed, run its critique systematically afterwards, an audit when the change warrants it (a11y, performance, responsive), and a polish pass before shipping. The design-ui roadmap carries optional `impeccable-critique`, `impeccable-audit`, and `impeccable-polish` steps for exactly this.
+3. **Supabase** — On any Supabase task (database, auth, RLS, Edge Functions, migrations, Storage, Realtime, CLI/MCP), load the `novahiz-supabase` and `novahiz-postgres` skills before acting.
 5. **Honesty and critical thinking** — Always be honest. Avoid false good ideas. Maintain critical thinking. **Zero simulation objective:** never claim to have executed, tested, or verified what was not. Explicitly report uncertainties and assumptions.
 6. **Propose next steps** — After completing a task, always honestly propose the relevant next step. Do not invent unnecessary work or mask failures.
 7. **Challenge the request** — Take the initiative to question the user's request when it is inconsistent, ambiguous, risky, or suboptimal. Explain why and propose an alternative.

@@ -2,7 +2,7 @@
 
 > **Zero-dependency enforcement layer for AI coding agents** — classifies prompts, assigns execution roadmaps, blocks unsafe edits, and injects session-level skills, all deterministically without model calls.
 
-16 categories, 41 skills, 10 gate rules, 7 MCP providers — all deterministic, all local, all JSON.
+16 categories, 42 skills, 11 gate rules, 7 MCP providers — all deterministic, all local, all JSON.
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
@@ -52,7 +52,7 @@
 └──────────────────────────────────────────────────────────────────────────┘
 ```
 
-**16 categories**, **41 skills**, **10 gate rules**, **7 MCP providers** — all deterministic, all local, all JSON.
+**16 categories**, **42 skills**, **11 gate rules**, **7 MCP providers** — all deterministic, all local, all JSON.
 
 ---
 
@@ -167,8 +167,9 @@ flowchart TD
 | R11-accessibility | A design-ui or audit prompt | novahiz-wcag-audit |
 | R12-web-extract | A research prompt | novahiz-web-extract |
 | R13-design-craft | A design-ui prompt or a style file (css/scss/less/html) | novahiz-humanizer, ui-slop-remover, ui-craft-rules |
+| R14-impeccable | A design-ui prompt or a style file (css/scss/less/html) | impeccable |
 
-`novahiz-humanizer` and `ui-slop-remover` are required only on frontend design tasks (R13).
+`novahiz-humanizer` and `ui-slop-remover` are required only on frontend design tasks (R13); `impeccable` loads the same way (R14) so critique, audit and polish playbooks stay reachable.
 
 ---
 
@@ -241,7 +242,7 @@ flowchart TD
 
 ## Installed skills
 
-Novahiz ships with 41 skills across all categories:
+Novahiz ships with 42 skills across all categories:
 
 | Category | Skills | Purpose |
 |----------|--------|---------|
@@ -264,13 +265,13 @@ Novahiz auto-registers external MCP servers based on the prompt category:
 
 | Provider | Package | License | Categories |
 |----------|---------|---------|------------|
-| context7 | `@upstash/context7-mcp` | MIT | code, research |
+| context7 | `@upstash/context7-mcp` | MIT | code |
 | narsil | `narsil-mcp` | MIT OR Apache-2.0 | code, review |
 | novahiz | local (`mcp/novahiz-tools`) | Apache-2.0 | code, planning |
 | playwright | `@playwright/mcp` | Apache-2.0 | browser, design-ui |
 | security | `security-mcp` | MIT | audit |
-| cron | `mcp-cron` | AGPL-3.0-only | devops |
-| dart | `dart mcp-server` (Dart SDK) | BSD-3-Clause | code, debug, design-ui |
+| cron | `scheduler-mcp` (local venv clone) | MIT | devops |
+| dart | `dart mcp-server` (Dart SDK) | BSD-3-Clause | code, debug, design-ui, flutter |
 
 Skill packs (installed from official repos, never vendored): `flutter/agent-plugins` (25 skills), `dart-lang/skills` (15 skills). See [docs/PROVIDERS.md](docs/PROVIDERS.md).
 
