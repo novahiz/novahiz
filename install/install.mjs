@@ -86,16 +86,20 @@ async function main() {
 
   // Check for opencode and auto-install if missing
   if (!which("opencode")) {
-    note("opencode not detected. Global installation...");
-    const installResult = spawnSync("npm", ["install", "-g", "opencode"], {
-      encoding: "utf8",
-      stdio: "inherit"
-    });
-    if (installResult.status !== 0) {
-      process.stderr.write("Failed to install opencode. Try: npm install -g opencode\n");
-      process.exit(1);
+    if (dryRun) {
+      note("opencode not detected. Would install globally (npm install -g opencode-ai).");
+    } else {
+      note("opencode not detected. Global installation...");
+      const installResult = spawnSync("npm", ["install", "-g", "opencode-ai"], {
+        encoding: "utf8",
+        stdio: "inherit"
+      });
+      if (installResult.status !== 0) {
+        process.stderr.write("Failed to install opencode. Try: npm install -g opencode-ai\n");
+        process.exit(1);
+      }
+      note("opencode installed successfully.");
     }
-    note("opencode installed successfully.");
   } else {
     note("opencode detected.");
   }

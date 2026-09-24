@@ -140,8 +140,8 @@ async function main() {
   // 3. Install opencode globally if not present
   if (!which("opencode")) {
     log("Installing opencode globally...");
-    if (!run("npm", ["install", "-g", "opencode"])) {
-      error("Failed to install opencode. Try: npm install -g opencode");
+    if (!run("npm", ["install", "-g", "opencode-ai"])) {
+      error("Failed to install opencode. Try: npm install -g opencode-ai");
       process.exit(1);
     }
     log("opencode installed");
