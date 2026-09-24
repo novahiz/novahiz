@@ -10,7 +10,7 @@ An enforcement and execution layer for coding agents. It classifies a request in
 
 - **Gate semantics.** A requirement reaches the gate from two sources: `catalog/rules.json`, which is content-aware and keyed by file class, and the roadmap's steps that have `kind: "skill"` and are not `optional`. Steps of the other kinds shape the checklist and never block (`src/gate.ts`).
 - **An unindexed skill fails open.** A required skill missing from the installed index lands in `unmatchedRequired`, is reported in `warnings`, and stops being enforced. See `src/gate.ts:229-236`. The index is `build/installed-skills.json`, written by `sync`.
-- **Categories and roadmaps live in `catalog/categories.json`.** The six-stage pipeline (plan, clarify, tasks, analyse, implement, converge) applies to `code`, `debug`, `browser`, `design-ui`, `database-supabase`, `planning`, `devops`, and `data`.
+- **Categories and roadmaps live in `catalog/categories.json`.** The six-stage pipeline (plan, clarify, tasks, analyse, implement, converge) applies to `code`, `debug`, `browser`, `design-ui`, `database-supabase`, `planning`, `devops`, and `data`. `flutter` reuses the same stages and inserts architecture, `dart analyze`, and unit-test skills (non-optional on full tier).
 - **The ledger requires proof.** A `verify` todo does not close without `proof` (`src/ledger.ts`).
 - **Providers are referenced, never vendored** (`catalog/providers.json`).
 - **Every Novahiz skill exists twice**: the source under `skills/` and the installed copy in the harness config directory. When several scanned roots carry the same skill id, the catalog keeps the copy whose `sourcePath` sorts first alphabetically. `~/.config/humanizer` beats `skills/humanizer`, and `skills/` beats `~/.config/opencode/skills`. That is why `sync` has to run after a skill changes.
@@ -30,7 +30,7 @@ An enforcement and execution layer for coding agents. It classifies a request in
 - `novahiz-web-extract` replaced the external `defuddle` CLI on the `research` roadmap step; `Novahiz doctor` no longer checks for external CLIs (`SKILL_CLI` is empty).
 - `skills/` is entirely Novahiz-owned. `NOTICE.md` records each licence.
 - Pipeline skills (`novahiz-*`) are Apache-2.0 in their frontmatter; only `novahiz-humanizer` and `novahiz-security` stay MIT, as recorded in NOTICE.
-- `bundled-skills/` was removed on 2026-09-24: third-party skill packs are no longer vendored. Catalog has 6 MCP providers (context7, cron, narsil, novahiz, playwright, security).
+- `bundled-skills/` was removed on 2026-09-24: third-party skill packs are no longer vendored. Catalog has 7 MCP providers (context7, cron, dart, narsil, novahiz, playwright, security) plus skill packs `flutter-skills` and `dart-skills` (9 entries total; install via `npx skills add`, licences BSD-3-Clause).
 - The MCP `novahiz_gate` tool accepts `file` or `filePath`: some harnesses rename the parameter when they surface the tool. Neither being a non-empty string fails closed with -32602.
 - The package ships no runtime dependency. Anything added has to earn its place.
 

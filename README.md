@@ -2,7 +2,7 @@
 
 > **Zero-dependency enforcement layer for AI coding agents** — classifies prompts, assigns execution roadmaps, blocks unsafe edits, and injects session-level skills, all deterministically without model calls.
 
-15 categories, 41 skills, 10 gate rules, 6 MCP providers — all deterministic, all local, all JSON.
+16 categories, 41 skills, 10 gate rules, 7 MCP providers — all deterministic, all local, all JSON.
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
@@ -52,7 +52,7 @@
 └──────────────────────────────────────────────────────────────────────────┘
 ```
 
-**15 categories**, **41 skills**, **10 gate rules**, **6 MCP providers** — all deterministic, all local, all JSON.
+**16 categories**, **41 skills**, **10 gate rules**, **7 MCP providers** — all deterministic, all local, all JSON.
 
 ---
 
@@ -89,7 +89,7 @@ npx Novahiz doctor
 
 ## The Classifier
 
-Every user prompt passes through the classifier. It scores keywords against 15 categories and picks the top matches.
+Every user prompt passes through the classifier. It scores keywords against 16 categories and picks the top matches.
 
 ```mermaid
 flowchart LR
@@ -270,6 +270,9 @@ Novahiz auto-registers external MCP servers based on the prompt category:
 | playwright | `@playwright/mcp` | Apache-2.0 | browser, design-ui |
 | security | `security-mcp` | MIT | audit |
 | cron | `mcp-cron` | AGPL-3.0-only | devops |
+| dart | `dart mcp-server` (Dart SDK) | BSD-3-Clause | code, debug, design-ui |
+
+Skill packs (installed from official repos, never vendored): `flutter/agent-plugins` (25 skills), `dart-lang/skills` (15 skills). See [docs/PROVIDERS.md](docs/PROVIDERS.md).
 
 Upstream repositories and full provenance for MCP providers and opencode plugins: [docs/PROVIDERS.md](docs/PROVIDERS.md), [docs/HARNESSES.md](docs/HARNESSES.md), [NOTICE.md](NOTICE.md).
 

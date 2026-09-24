@@ -77,7 +77,7 @@ Fix it, or block the step with `novahiz_task action="block"` and a reason. Do no
 
 ## Categories involved
 
-The implementation step appears in `code`, `debug`, `test`, `design-ui`, `database-supabase`, `devops`, and `data`.
+The implementation step appears in `code`, `flutter`, `debug`, `test`, `design-ui`, `database-supabase`, `devops`, and `data`.
 
 ## Exit
 

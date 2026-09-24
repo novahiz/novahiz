@@ -52,5 +52,36 @@
     "source": "https://github.com/novahiz/novahiz",
     "license": "Apache-2.0",
     "categories": ["code", "planning"]
+  },
+  {
+    "id": "dart",
+    "label": "Dart / Flutter MCP",
+    "kind": "mcp",
+    "command": ["dart", "mcp-server"],
+    "requires": ["dart"],
+    "source": "https://github.com/dart-lang/ai/tree/main/pkgs/dart_mcp_server",
+    "license": "BSD-3-Clause",
+    "categories": ["code", "debug", "design-ui", "flutter"],
+    "purpose": "Official Dart SDK MCP: analyzer diagnostics, symbols, test launch, runtime inspection."
+  },
+  {
+    "id": "flutter-skills",
+    "label": "Flutter agent skills",
+    "kind": "skill",
+    "install": ["npx", "-y", "skills", "add", "flutter/agent-plugins", "--skill", "*", "-g", "-a", "opencode", "-y"],
+    "source": "https://github.com/flutter/agent-plugins",
+    "license": "BSD-3-Clause",
+    "categories": ["code", "design-ui", "flutter"],
+    "purpose": "25 official Flutter/Dart agent skills (layouts, tests, architecture, routing, l10n)."
+  },
+  {
+    "id": "dart-skills",
+    "label": "Dart agent skills",
+    "kind": "skill",
+    "install": ["npx", "-y", "skills", "add", "dart-lang/skills", "--skill", "*", "-g", "-a", "opencode", "-y"],
+    "source": "https://github.com/dart-lang/skills",
+    "license": "BSD-3-Clause",
+    "categories": ["code", "debug", "flutter"],
+    "purpose": "15 official Dart skills (subset of flutter/agent-plugins, kept for provenance)."
   }
 ]

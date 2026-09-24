@@ -44,12 +44,22 @@ MCP servers, with provenance from `catalog/providers.json`:
 | `context7` | `@upstash/context7-mcp` | [upstash/context7](https://github.com/upstash/context7) | MIT | code, research |
 | `cron` | `mcp-cron` | [jolks/mcp-cron](https://github.com/jolks/mcp-cron) | AGPL-3.0-only | devops, general |
 | `novahiz` | local (`mcp/novahiz-tools`) | [novahiz/novahiz](https://github.com/novahiz/novahiz) | Apache-2.0 | code, planning |
+| `dart` | `dart mcp-server` (Dart SDK) | [dart-lang/ai · dart_mcp_server](https://github.com/dart-lang/ai/tree/main/pkgs/dart_mcp_server) | BSD-3-Clause | code, debug, design-ui, flutter |
 
 `cron` is AGPL-3.0-only. Enabling it means you accept that license for the install command, not for Novahiz itself.
 
+`dart` requires the Dart SDK on `PATH` (`requires: ["dart"]`). Without it the MCP entry still registers, but the server fails to start; disable it or install the SDK.
+
 Skill and command packs:
 
-None are bundled. Design and text skills ship as ordinary skills under the `Novahiz-*` prefix (or the catalog), not as providers.
+| Id | Install command | Upstream | License | Categories |
+| --- | --- | --- | --- | --- |
+| `flutter-skills` | `npx skills add flutter/agent-plugins --skill '*' -g -a opencode -y` | [flutter/agent-plugins](https://github.com/flutter/agent-plugins) | BSD-3-Clause | code, design-ui, flutter |
+| `dart-skills` | `npx skills add dart-lang/skills --skill '*' -g -a opencode -y` | [dart-lang/skills](https://github.com/dart-lang/skills) | BSD-3-Clause | code, debug, flutter |
+
+Installed skills land under `~/.agents/skills` for OpenCode. They are referenced by install command, never vendored in this repository. `dart-lang/skills` is a subset of `flutter/agent-plugins` (same 15 Dart skills); both are listed for provenance.
+
+Design and text skills ship as ordinary Novahiz skills under `skills/`, not as providers.
 
 ## Mapping
 
@@ -95,6 +105,7 @@ Installation is opt-in on purpose. The commands download third-party packages, i
 Each provider declares its prerequisites in `requires` (the executable it needs) and, when it can be bootstrapped, a per-platform `bootstrap` command. No provider currently declares a `bootstrap`; `Novahiz deps --install` supports the field for future entries.
 
 - `npx` based providers need `npx`, which ships with Node.
+- `dart` needs the Dart SDK on `PATH` (`dart --version`). Flutter installs ship it.
 
 `Novahiz deps` checks every prerequisite and reports what is missing. `Novahiz deps --install` first bootstraps a missing prerequisite through its official installer, then runs each provider's install command. The installer runs the check on every install and, when `providers.autoInstall` is true or `--install-providers` is passed, runs the installs too.
 

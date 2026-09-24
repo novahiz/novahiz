@@ -32,6 +32,16 @@ Providers are referenced by install command, never vendored. Each lists its upst
 | `context7` | `@upstash/context7-mcp` | https://github.com/upstash/context7 | MIT |
 | `cron` | `mcp-cron` | https://github.com/jolks/mcp-cron | AGPL-3.0-only |
 | `novahiz` | local Novahiz MCP | https://github.com/novahiz/novahiz | Apache-2.0 |
+| `dart` | Dart SDK (`dart mcp-server`) | https://github.com/dart-lang/ai (pkgs/dart_mcp_server) | BSD-3-Clause |
+
+## Skill packs (upstream, not vendored)
+
+Installed on demand with `npx skills add`; this repository does not copy their files.
+
+| Id | Repository | License |
+| --- | --- | --- |
+| `flutter-skills` | https://github.com/flutter/agent-plugins | BSD-3-Clause |
+| `dart-skills` | https://github.com/dart-lang/skills | BSD-3-Clause |
 
 ## opencode plugins (third-party)
 

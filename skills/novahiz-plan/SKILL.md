@@ -65,7 +65,7 @@ Walk the dependency graph from the bottom up: foundations first, then the surfac
 
 ## Eight categories require this step
 
-The gate demands `novahiz-plan` for `code`, `debug`, `browser`, `design-ui`, `database-supabase`, `planning`, `devops`, and `data`.
+The gate demands `novahiz-plan` for `code`, `flutter`, `debug`, `browser`, `design-ui`, `database-supabase`, `planning`, `devops`, and `data`.
 
 ## Validate before you execute
 

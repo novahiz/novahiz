@@ -338,6 +338,38 @@ async function main() {
         note(`  ${server.name} already installed`);
       }
     }
+    // Official Dart/Flutter MCP ships with the Dart SDK (dart mcp-server), not npm.
+    const dartCheck = spawnSync(process.platform === "win32" ? "where" : "which", ["dart"], {
+      encoding: "utf8",
+      stdio: "pipe"
+    });
+    if (dartCheck.status === 0) {
+      note("  dart (mcp-server) available via Dart SDK");
+    } else {
+      note("  WARNING: Dart SDK not on PATH — MCP `dart` will not start until `dart` is installed");
+    }
+  }
+
+  // Optional official Flutter/Dart skill packs (upstream install, never vendored).
+  const skillPacks = [
+    { id: "flutter-skills", repo: "flutter/agent-plugins" },
+    { id: "dart-skills", repo: "dart-lang/skills" },
+  ];
+  if (!dryRun && flags["flutter-skills"]) {
+    note("\nInstalling official Flutter/Dart skill packs...");
+    for (const pack of skillPacks) {
+      note(`  ${pack.repo}...`);
+      const result = spawnSync(
+        "npx",
+        ["-y", "skills", "add", pack.repo, "--skill", "*", "-g", "-a", "opencode", "-y"],
+        { encoding: "utf8", stdio: "inherit" }
+      );
+      if (result.status !== 0) {
+        note(`  WARNING: Failed to install ${pack.repo} (non-blocking)`);
+      }
+    }
+  } else if (!dryRun) {
+    note("\nSkipping Flutter/Dart skill packs (pass --flutter-skills to install from official repos).");
   }
 
   // Install opencode plugins globally
@@ -367,8 +399,9 @@ async function main() {
     const configPath = join(configDir, "opencode.jsonc");
     if (!existsSync(configPath)) {
       note(`\nCreating ${configPath}`);
-      const agentsSkillsDir = join(homedir(), ".config", ".agents", "skills");
-      
+      const agentsSkillsDir = join(homedir(), ".agents", "skills");
+      const agentsSkillsDirLegacy = join(homedir(), ".config", ".agents", "skills");
+
       const openCodeConfig = {
         "$schema": "https://opencode.ai/config.json",
         "mcp": {
@@ -392,6 +425,11 @@ async function main() {
             "type": "local",
             "command": ["npx", "@playwright/mcp@latest", "--browser=msedge"],
             "enabled": true
+          },
+          "dart": {
+            "type": "local",
+            "command": ["dart", "mcp-server"],
+            "enabled": true
           }
         },
         "skills": {
@@ -410,9 +448,11 @@ async function main() {
         "shell": process.platform === "win32" ? "pwsh" : "bash"
       };
 
-      // Add .agents/skills if it exists
-      if (existsSync(agentsSkillsDir)) {
-        openCodeConfig.skills.paths.push(agentsSkillsDir);
+      // Official skills land in ~/.agents/skills (skills CLI) — load them too.
+      for (const dir of [agentsSkillsDir, agentsSkillsDirLegacy]) {
+        if (existsSync(dir) && !openCodeConfig.skills.paths.includes(dir)) {
+          openCodeConfig.skills.paths.push(dir);
+        }
       }
 
       writeFileSync(configPath, JSON.stringify(openCodeConfig, null, 2) + "\n", "utf8");

@@ -125,6 +125,75 @@ test("applies the primary roadmap skill steps", () => {
   assert.ok(result.requiredSkills.includes("novahiz-code-review"));
 });
 
+test("applies the flutter roadmap quality skills on a dart file", () => {
+  const result = evaluateGate({
+    tool: "edit",
+    filePath: "lib/main.dart",
+    spec,
+    installedSkills: null,
+    categories: ["flutter"],
+    content: "void main() {}",
+    tier: "full"
+  });
+  assert.equal(result.roadmap, "flutter-feature");
+  assert.ok(result.missingSkills.includes("flutter-apply-architecture-best-practices"));
+  assert.ok(result.missingSkills.includes("dart-run-static-analysis"));
+  assert.ok(result.missingSkills.includes("dart-add-unit-test"));
+  assert.equal(result.allow, false);
+});
+
+test("flutter quality skills load when already present", () => {
+  const result = evaluateGate({
+    tool: "edit",
+    filePath: "lib/main.dart",
+    spec,
+    installedSkills: new Set([
+      "flutter-apply-architecture-best-practices",
+      "dart-run-static-analysis",
+      "dart-add-unit-test",
+      "novahiz-plan",
+      "novahiz-clarify",
+      "novahiz-task",
+      "novahiz-analyse",
+      "novahiz-implement",
+      "novahiz-converge",
+      "novahiz-code-review"
+    ]),
+    loadedSkills: [
+      "flutter-apply-architecture-best-practices",
+      "dart-run-static-analysis",
+      "dart-add-unit-test",
+      "novahiz-plan",
+      "novahiz-clarify",
+      "novahiz-task",
+      "novahiz-analyse",
+      "novahiz-implement",
+      "novahiz-converge",
+      "novahiz-code-review"
+    ],
+    categories: ["flutter"],
+    content: "void main() {}",
+    tier: "full"
+  });
+  assert.equal(result.missingSkills.length, 0);
+  assert.equal(result.allow, true);
+});
+
+test("lite tier skips flutter architecture skills", () => {
+  const result = evaluateGate({
+    tool: "edit",
+    filePath: "lib/main.dart",
+    spec,
+    installedSkills: null,
+    categories: ["flutter"],
+    content: "void main() {}",
+    tier: "lite"
+  });
+  assert.equal(result.missingSkills.includes("flutter-apply-architecture-best-practices"), false);
+  assert.ok(result.missingSkills.includes("novahiz-implement"));
+  assert.ok(result.missingSkills.includes("novahiz-converge"));
+});
+
 test("reports design craft skills that are not installed separately", () => {
   const result = evaluateGate({
     tool: "edit",

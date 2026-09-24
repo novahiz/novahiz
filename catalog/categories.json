@@ -25,8 +25,6 @@
       "kotlin",
       "swift",
       "php",
-      "dart",
-      "flutter",
       "react",
       "vue",
       "angular",
@@ -96,6 +94,107 @@
           "requireSkills": [
             "novahiz-code-review"
           ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "flutter",
+    "label": "Flutter / Dart",
+    "priority": 61,
+    "keywords": [
+      { "term": "flutter", "weight": 3 },
+      { "term": "dart", "weight": 2 },
+      "widget",
+      "widgets",
+      "pubspec",
+      "hot reload",
+      "hot restart",
+      "cupertino",
+      "materialapp",
+      "material design",
+      "riverpod",
+      "bloc",
+      "getx",
+      "sliver",
+      "scaffold",
+      "dart analyze",
+      "flutter test",
+      "widget test",
+      "integration_test",
+      "platform channel"
+    ],
+    "negativeKeywords": [
+      "supabase",
+      "rls"
+    ],
+    "defaultSkills": [
+      "flutter-apply-architecture-best-practices",
+      "dart-run-static-analysis",
+      "dart-add-unit-test"
+    ],
+    "roadmap": {
+      "id": "flutter-feature",
+      "steps": [
+        {
+          "id": "plan",
+          "label": "Set the direction",
+          "kind": "skill",
+          "requireSkills": ["novahiz-plan"]
+        },
+        {
+          "id": "clarify",
+          "label": "Remove ambiguities",
+          "kind": "skill",
+          "requireSkills": ["novahiz-clarify"]
+        },
+        {
+          "id": "tasks",
+          "label": "Break into tasks",
+          "kind": "skill",
+          "requireSkills": ["novahiz-task"]
+        },
+        {
+          "id": "analyse",
+          "label": "Analyze the affected code",
+          "kind": "skill",
+          "requireSkills": ["novahiz-analyse"]
+        },
+        {
+          "id": "architecture",
+          "label": "Apply Flutter architecture best practices",
+          "kind": "skill",
+          "requireSkills": ["flutter-apply-architecture-best-practices"]
+        },
+        {
+          "id": "analyze",
+          "label": "Run Dart static analysis",
+          "kind": "skill",
+          "requireSkills": ["dart-run-static-analysis"]
+        },
+        {
+          "id": "implement",
+          "label": "Implement incrementally",
+          "kind": "edit",
+          "requireSkills": ["novahiz-implement"]
+        },
+        {
+          "id": "tests",
+          "label": "Add unit or widget tests",
+          "kind": "skill",
+          "requireSkills": ["dart-add-unit-test"]
+        },
+        {
+          "id": "converge",
+          "label": "Converge",
+          "kind": "verify",
+          "requireSkills": ["novahiz-converge"]
+        },
+        {
+          "id": "review",
+          "label": "Self-review",
+          "kind": "skill",
+          "requireSkills": ["novahiz-code-review"]
         }
       ]
     }

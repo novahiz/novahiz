@@ -51,17 +51,18 @@ Practical consequence: if implementation or convergence never happens, nothing m
 
 Steps 1, 2, and 4 modify no files. Step 3 writes only to the execution ledger. Code writing begins at step 5.
 
-## The 15 categories
+## The 16 categories
 
-code, debug, review, audit, test, research, browser, design-ui, database-supabase, docs-writing, planning, devops, data, assessment, general.
+code, flutter, debug, review, audit, test, research, browser, design-ui, database-supabase, docs-writing, planning, devops, data, assessment, general.
 
-The full pipeline applies to `code`, `debug`, `browser`, `design-ui`, `database-supabase`, `planning`, `devops`, and `data`. `review`, `audit`, and `test` keep their business steps and end with convergence. `assessment` keeps its own domain steps and ends with a go/no-go decision. `research` and `general` enforce no steps.
+The full pipeline applies to `code`, `debug`, `browser`, `design-ui`, `database-supabase`, `planning`, `devops`, and `data`. `flutter` adds architecture, static analysis, and unit-test skills on top of the same stages. `review`, `audit`, and `test` keep their business steps and end with convergence. `assessment` keeps its own domain steps and ends with a go/no-go decision. `research` and `general` enforce no steps.
 
 ## Additional steps by category
 
 | Category | Pipeline 1 to 6 | Code review | Memory | Audit | Next steps |
 |---|---|---|---|---|---|
 | `code` | yes | yes | yes | yes | yes |
+| `flutter` | yes | yes | yes | yes | yes |
 | `debug` | yes | yes | yes | yes | yes |
 | `database-supabase` | yes | yes | yes | yes | yes |
 | `browser` | yes | no | yes | yes | yes |

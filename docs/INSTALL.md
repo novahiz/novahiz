@@ -37,6 +37,7 @@ Restart opencode afterward. The plugin in `~/.config/opencode/plugins/novahiz.ts
 - `--no-skills` skips the skills copy.
 - `--force-skills` recopies a skill even when another scanned root already provides it.
 - `--install-providers` runs the provider dependency bootstrap and install commands.
+- `--flutter-skills` installs the official skill packs from `flutter/agent-plugins` and `dart-lang/skills` via `npx skills add -g -a opencode` (upstream licences apply; nothing is vendored).
 - `--force` rewrites `novahiz.config.json` (the previous file is backed up as `novahiz.config.json.novahiz-bak`).
 - `--yes` skips every prompt. Use it in scripts and CI, where there is no terminal to answer.
 - `--interactive` forces the prompts even when the output is not a terminal.

@@ -71,7 +71,7 @@ Report three lists: what is satisfied and proven, what remains open, what could 
 
 ## Categories involved
 
-The convergence step appears in `code`, `debug`, `test`, `audit`, `browser`, `design-ui`, `database-supabase`, `docs-writing`, `planning`, `devops`, and `data`.
+The convergence step appears in `code`, `flutter`, `debug`, `test`, `audit`, `browser`, `design-ui`, `database-supabase`, `docs-writing`, `planning`, `devops`, and `data`.
 
 ## Pitfalls
 

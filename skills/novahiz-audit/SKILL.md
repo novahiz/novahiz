@@ -43,7 +43,7 @@ Agent memory is never evidence. If a claim cannot be traced to one of the four s
 
 ## Categories
 
-Fourteen categories are checked when encountered: `code`, `debug`, `review`, `audit`, `browser`, `design-ui`, `database-supabase`, `docs-writing`, `planning`, `devops`, `data`, `test`, `security`, `general`.
+Fourteen categories are checked when encountered: `code`, `flutter`, `debug`, `review`, `audit`, `browser`, `design-ui`, `database-supabase`, `docs-writing`, `planning`, `devops`, `data`, `test`, `security`, `general`.
 
 `general` carries the rules that apply everywhere (honesty, todo discipline). Design skills (`novahiz-humanizer`, `ui-slop-remover`) are checked only under `design-ui`. A category not in the list falls back to `general` only.
 

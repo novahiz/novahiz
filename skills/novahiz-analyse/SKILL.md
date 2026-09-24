@@ -62,9 +62,9 @@ Write the synthesis after the preceding phases and never before them. Each claim
 
 Destination: the project's documentation directory if one exists, otherwise the execution ledger. Do not invent `docs/analysis/` in a project with no such convention.
 
-## Six categories require this step
+## Categories that require this step
 
-`code`, `debug`, `review`, `database-supabase`, `devops`, and `data`.
+`code`, `debug`, `review`, `database-supabase`, `devops`, and `data`. `flutter` also requires it via its own roadmap.
 
 ## Rules
 

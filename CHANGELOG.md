@@ -6,6 +6,27 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Added
+
+- Deterministic Flutter category in the catalog:
+  - `catalog/categories.json` gains `flutter` (priority 61, above `code`) with weighted keywords (`flutter`×3, `dart`×2, widget/pubspec/riverpod/…), negative keywords for Supabase, and default skills architecture + static analysis + unit tests.
+  - Roadmap `flutter-feature` (10 steps): the six-stage pipeline plus non-optional `flutter-apply-architecture-best-practices` and `dart-run-static-analysis` before implement, `dart-add-unit-test` after, and a final `novahiz-code-review`.
+  - `dart`/`flutter` keywords moved out of the generic `code` category so Flutter prompts classify as `flutter`.
+  - `R6-Novahiz` `promptCategories` includes `flutter`; providers `dart`, `flutter-skills`, `dart-skills` serve the `flutter` category.
+  - `catalog/overrides.json` adds ten Flutter skill entries (architecture/analyze/tests power 5).
+  - Tests: classify Flutter prompts, roadmap quality gates, gate full/lite tiers on `lib/main.dart`, hygiene count 16 categories.
+  - Docs: CLASSIFICATION, CATALOG, ARCHITECTURE, ROADMAPS, README, planner skill (16 categories).
+
+- Official Flutter/Dart integration as providers, not vendored packages:
+  - MCP `dart` (`dart mcp-server`, Dart SDK, BSD-3-Clause) in `catalog/providers.json`, re-enabled after the 0.2.x removal (`providers.disabled` no longer lists `dart`).
+  - Skill packs `flutter-skills` (`flutter/agent-plugins`, 25 skills) and `dart-skills` (`dart-lang/skills`, 15 skills) with official `npx skills add` install commands.
+  - `install.mjs` / `bootstrap.mjs` generated `opencode.jsonc` include the `dart` MCP entry and merge `~/.agents/skills` into `skills.paths`.
+- Documentation and NOTICE record provenance and licences for the Dart MCP and both skill packs.
+
+### Changed
+
+- README / PROVIDERS / CATALOG counts: 7 MCP providers, 9 catalog entries (tests updated in `providers.test.ts` and `plugin.hygiene.test.ts`).
+
 ## [0.2.5] - 2026-09-24
 
 Single release combining the planned 0.2.4 fixes with the unreleased work below. 0.2.4 was never published to npm.

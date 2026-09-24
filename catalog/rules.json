@@ -32,7 +32,7 @@
     "id": "R6-Novahiz",
     "description": "Load Novahiz pipeline skills for any task triggering the workflow.",
     "when": {
-      "promptCategories": ["code", "debug", "review", "audit", "browser", "design-ui", "database-supabase", "docs-writing", "planning", "devops", "data", "general"]
+      "promptCategories": ["code", "debug", "review", "audit", "browser", "design-ui", "database-supabase", "docs-writing", "planning", "devops", "data", "general", "flutter"]
     },
     "require": ["novahiz-plan", "novahiz-clarify", "novahiz-analyse", "novahiz-implement", "novahiz-converge"]
   },

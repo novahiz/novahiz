@@ -85,3 +85,22 @@ test("a clear prompt separates the top category from the next", () => {
   const result = classify(spec, "audit securite owasp de l api et des dependances");
   assert.ok(result.categories[0].margin > 0);
 });
+
+test("classifies a Flutter prompt as flutter with quality skills", () => {
+  const result = classify(
+    spec,
+    "Ajoute un widget Flutter avec un test unitaire et lance dart analyze sur le projet"
+  );
+  assert.equal(result.primary, "flutter");
+  assert.ok(result.requiredSkills.includes("flutter-apply-architecture-best-practices"));
+  assert.ok(result.requiredSkills.includes("dart-run-static-analysis"));
+  assert.ok(result.requiredSkills.includes("dart-add-unit-test"));
+  assert.ok(result.providers.includes("dart"));
+  assert.ok(result.providers.includes("flutter-skills"));
+  assert.equal(result.roadmaps[0]?.id, "flutter-feature");
+});
+
+test("pure Dart function prompt still hits flutter over generic code", () => {
+  const result = classify(spec, "Écris une fonction Dart qui parse un pubspec.yaml");
+  assert.equal(result.primary, "flutter");
+});

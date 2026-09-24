@@ -63,7 +63,8 @@ function detectShell() {
 
 function generateOpenCodeJson(configDir, NovahizHome) {
   const skillsDir = join(configDir, "skills");
-  const agentsSkillsDir = join(homedir(), ".config", ".agents", "skills");
+  const agentsSkillsDir = join(homedir(), ".agents", "skills");
+  const agentsSkillsDirLegacy = join(homedir(), ".config", ".agents", "skills");
 
   const config = {
     $schema: "https://opencode.ai/config.json",
@@ -89,6 +90,11 @@ function generateOpenCodeJson(configDir, NovahizHome) {
         command: ["npx", "@playwright/mcp@latest", "--browser=msedge"],
         enabled: true,
       },
+      dart: {
+        type: "local",
+        command: ["dart", "mcp-server"],
+        enabled: true,
+      },
     },
     skills: {
       paths: [skillsDir],
@@ -106,9 +112,11 @@ function generateOpenCodeJson(configDir, NovahizHome) {
     shell: detectShell(),
   };
 
-  // Add .agents/skills if it exists
-  if (existsSync(agentsSkillsDir)) {
-    config.skills.paths.push(agentsSkillsDir);
+  // Official skills land in ~/.agents/skills (skills CLI) — load them too.
+  for (const dir of [agentsSkillsDir, agentsSkillsDirLegacy]) {
+    if (existsSync(dir) && !config.skills.paths.includes(dir)) {
+      config.skills.paths.push(dir);
+    }
   }
 
   return config;

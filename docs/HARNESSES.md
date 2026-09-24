@@ -28,6 +28,10 @@ Besides the Novahiz adapter, the bootstrap and installer may pin these packages 
 
 `opencode-dcp` is AGPL-3.0-or-later. Installing it accepts that license for the plugin package. Full provider MCP provenance lives in [PROVIDERS.md](PROVIDERS.md) and `catalog/providers.json`.
 
+### Official Flutter / Dart providers
+
+The installer can register the Dart MCP (`dart mcp-server`) and, with `--flutter-skills`, install the official skill packs into `~/.agents/skills` (merged into `skills.paths`). Nothing is vendored here; commands and licences are in [PROVIDERS.md](PROVIDERS.md) and `NOTICE.md`. After a config change, restart opencode so the new MCP entry is read at import.
+
 ## Other clients
 
 Any harness with a stdio MCP client can use the same server, `mcp/novahiz-tools/index.mjs`, for `classify`, `catalog`, `roadmap`, `providers`, `deps`, `step`, `list_skills`, `gate`, `task`, and `dispatch`. Register it with that client's own MCP command. Novahiz writes no other harness's configuration.

@@ -351,6 +351,117 @@
         "planning",
         "code"
       ]
+    },
+    "flutter-apply-architecture-best-practices": {
+      "power": 5,
+      "stars": null,
+      "tags": [
+        "flutter",
+        "architecture",
+        "quality"
+      ],
+      "categories": [
+        "flutter",
+        "code"
+      ]
+    },
+    "dart-run-static-analysis": {
+      "power": 5,
+      "stars": null,
+      "tags": [
+        "dart",
+        "quality",
+        "analyze"
+      ],
+      "categories": [
+        "flutter",
+        "code",
+        "audit"
+      ]
+    },
+    "dart-add-unit-test": {
+      "power": 5,
+      "stars": null,
+      "tags": [
+        "dart",
+        "test",
+        "quality"
+      ],
+      "categories": [
+        "flutter",
+        "test"
+      ]
+    },
+    "flutter-build-responsive-layout": {
+      "power": 4,
+      "stars": null,
+      "tags": [
+        "flutter",
+        "layout",
+        "quality"
+      ],
+      "categories": [
+        "flutter",
+        "design-ui"
+      ]
+    },
+    "flutter-fix-layout-issues": {
+      "power": 4,
+      "stars": null,
+      "tags": [
+        "flutter",
+        "layout",
+        "debug"
+      ],
+      "categories": [
+        "flutter",
+        "debug"
+      ]
+    },
+    "flutter-add-widget-test": {
+      "power": 4,
+      "stars": null,
+      "tags": [
+        "flutter",
+        "test"
+      ],
+      "categories": [
+        "flutter",
+        "test"
+      ]
+    },
+    "flutter-setup-declarative-routing": {
+      "power": 3,
+      "stars": null,
+      "tags": [
+        "flutter",
+        "routing"
+      ],
+      "categories": [
+        "flutter"
+      ]
+    },
+    "flutter-implement-json-serialization": {
+      "power": 3,
+      "stars": null,
+      "tags": [
+        "flutter",
+        "json"
+      ],
+      "categories": [
+        "flutter"
+      ]
+    },
+    "flutter-setup-localization": {
+      "power": 3,
+      "stars": null,
+      "tags": [
+        "flutter",
+        "i18n"
+      ],
+      "categories": [
+        "flutter"
+      ]
     }
   }
 }

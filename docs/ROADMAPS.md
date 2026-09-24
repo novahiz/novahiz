@@ -6,6 +6,8 @@ A roadmap is an ordered list of steps attached to a category. The classifier pic
 
 Eight categories run the same pipeline: `code`, `debug`, `browser`, `design-ui`, `database-supabase`, `planning`, `devops`, and `data`. Every stage is a skill, and `novahiz-planner` is the orchestrator that fixes the order.
 
+`flutter` (`flutter-feature`) follows the same six stages and inserts three non-optional quality skills: `flutter-apply-architecture-best-practices`, `dart-run-static-analysis` before implement, then `dart-add-unit-test` after implement, plus a final self-review. On `lite` and `trivial` tiers those architecture/analyze/test steps are filtered like every other roadmap (lite keeps only implement and converge).
+
 | # | Stage | Skill | Produces |
 |---|---|---|---|
 | 1 | Plan | `novahiz-plan` | direction, scope, dependency order, slicing strategy, risks |

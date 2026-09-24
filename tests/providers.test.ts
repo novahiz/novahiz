@@ -12,6 +12,9 @@ test("loads the bundled providers", () => {
   assert.deepEqual(ids, [
     "context7",
     "cron",
+    "dart",
+    "dart-skills",
+    "flutter-skills",
     "narsil",
     "novahiz",
     "playwright",
@@ -28,9 +31,11 @@ test("maps providers to categories across kinds", () => {
 
 test("builds mcp entries only for mcp providers", () => {
   const entries = buildMcpEntries(spec);
-  assert.equal(Object.keys(entries).length, 6);
+  assert.equal(Object.keys(entries).length, 7);
   assert.ok(entries.playwright?.command?.some((c) => c.includes("playwright")));
   assert.equal("playwright" in entries, true);
+  assert.deepEqual(entries.dart?.command, ["dart", "mcp-server"]);
+  assert.equal("flutter-skills" in entries, false);
 });
 
 test("exposes official install commands for providers with install field", () => {
