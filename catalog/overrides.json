@@ -100,7 +100,7 @@
         "general"
       ]
     },
-    "anti-AI-design": {
+    "ui-slop-remover": {
       "power": 5,
       "stars": null,
       "tags": [
@@ -111,7 +111,7 @@
         "design-ui"
       ]
     },
-    "engineering-code-standards": {
+    "code-standards": {
       "power": 4,
       "stars": null,
       "tags": [
@@ -136,7 +136,7 @@
         "code"
       ]
     },
-    "frontend-design-taste": {
+    "ui-craft-rules": {
       "power": 5,
       "stars": null,
       "tags": [
@@ -147,7 +147,7 @@
         "design-ui"
       ]
     },
-    "design-system-tokens": {
+    "design-token-pipeline": {
       "power": 4,
       "stars": null,
       "tags": [
@@ -158,7 +158,7 @@
         "design-ui"
       ]
     },
-    "apple-hig-audit": {
+    "apple-ui-audit": {
       "power": 4,
       "stars": null,
       "tags": [
@@ -192,7 +192,7 @@
         "audit"
       ]
     },
-    "ai-security": {
+    "llm-threat-review": {
       "power": 4,
       "stars": null,
       "tags": [
@@ -203,7 +203,7 @@
         "audit"
       ]
     },
-    "dependency-auditor": {
+    "package-risk-audit": {
       "power": 3,
       "stars": null,
       "tags": [
@@ -214,7 +214,7 @@
         "audit"
       ]
     },
-    "env-secrets-manager": {
+    "secrets-hygiene": {
       "power": 3,
       "stars": null,
       "tags": [
@@ -226,7 +226,7 @@
         "audit"
       ]
     },
-    "skill-creator": {
+    "skill-eval-loop": {
       "power": 3,
       "stars": null,
       "tags": [
@@ -236,7 +236,7 @@
         "general"
       ]
     },
-    "write-a-skill": {
+    "skill-authoring": {
       "power": 3,
       "stars": null,
       "tags": [
@@ -246,7 +246,7 @@
         "general"
       ]
     },
-    "mcp-server-builder": {
+    "openapi-mcp-server": {
       "power": 4,
       "stars": null,
       "tags": [

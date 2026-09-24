@@ -14,6 +14,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 ### Changed
 
 - README / NOTICE / docs counts and tables match the new surface: 41 skills, 6 MCP providers. Tests assert the new numbers (`providers.test.ts`, `cli.test.ts`, `plugin.hygiene.test.ts`).
+- The twelve remaining third-party skill folders were replaced by Novahiz-authored skills under new names, written from scratch against primary sources: `anti-AI-design` → `ui-slop-remover`, `frontend-design-taste` → `ui-craft-rules`, `design-system-tokens` → `design-token-pipeline`, `apple-hig-audit` → `apple-ui-audit`, `engineering-code-standards` → `code-standards`, `ai-security` → `llm-threat-review`, `dependency-auditor` → `package-risk-audit`, `env-secrets-manager` → `secrets-hygiene`, `mcp-server-builder` → `openapi-mcp-server`, `skill-creator` → `skill-eval-loop`, `write-a-skill` → `skill-authoring`, `playwright-agent` → `browser-session`. Rewired: `catalog/rules.json` (R13), `opencode/catalog/rules.json` (R2), `catalog/categories.json` (design-ui defaults and design-craft step), `catalog/overrides.json`, `tests/gate.test.ts`, `tests/relevance.test.ts`, `tests/mcp.test.ts`, `agent/novahiz.md`, `docs/RULES.md`, `docs/ROADMAPS.md`, `README.md`, `novahiz-planner`. Old folders are removed from `skills/` and the `opencode/skills` mirror.
 
 ## [0.2.4] - 2026-09-23
 

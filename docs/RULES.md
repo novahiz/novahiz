@@ -41,7 +41,7 @@ Content conditions are combined with AND against the selectors. A rule with `con
 | R10-security | an audit or security prompt | `novahiz-security` |
 | R11-accessibility | a design-ui or audit prompt | `novahiz-wcag-audit` |
 | R12-web-extract | a research prompt | `novahiz-web-extract` |
-| R13-design-craft | a design-ui prompt or a style file (css/scss/less/html) | `anti-AI-design`, `frontend-design-taste` |
+| R13-design-craft | a design-ui prompt or a style file (css/scss/less/html) | `ui-slop-remover`, `ui-craft-rules` |
 
 ## Resolution
 

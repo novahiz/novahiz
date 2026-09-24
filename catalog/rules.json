@@ -109,7 +109,7 @@
   },
   {
     "id": "R13-design-craft",
-    "description": "Load anti-AI-design and frontend-design-taste on design UI prompts or style file edits.",
+    "description": "Load ui-slop-remover and ui-craft-rules on design UI prompts or style file edits.",
     "when": {
       "match": "any",
       "promptCategories": ["design-ui"],
@@ -122,6 +122,6 @@
         "**/*.htm"
       ]
     },
-    "require": ["anti-AI-design", "frontend-design-taste"]
+    "require": ["ui-slop-remover", "ui-craft-rules"]
   }
 ]

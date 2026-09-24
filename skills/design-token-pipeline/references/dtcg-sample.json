@@ -1,0 +1,37 @@
+{
+  "$description": "Example DTCG 2025.10 snippet: base → semantic → component aliases.",
+  "color": {
+    "base": {
+      "$type": "color",
+      "brand": {
+        "600": {
+          "$value": { "colorSpace": "oklch", "components": [0.55, 0.15, 250] },
+          "$description": "Primary brand",
+          "$extensions": { "novahiz.fallbackHex": "#3B5BDB" }
+        }
+      },
+      "neutral": {
+        "0": { "$value": { "colorSpace": "oklch", "components": [1, 0, 0] } },
+        "900": { "$value": { "colorSpace": "oklch", "components": [0.2, 0.02, 250] } }
+      }
+    },
+    "semantic": {
+      "text": {
+        "default": { "$value": "{color.base.neutral.900}", "$type": "color" },
+        "muted": {
+          "$value": "{color.base.neutral.900}",
+          "$type": "color",
+          "$description": "Secondary text; raise contrast if it drops below AA"
+        }
+      },
+      "action": {
+        "primary": { "$value": "{color.base.brand.600}", "$type": "color" }
+      }
+    }
+  },
+  "button": {
+    "primary": {
+      "bg": { "$value": "{color.semantic.action.primary}", "$type": "color" }
+    }
+  }
+}

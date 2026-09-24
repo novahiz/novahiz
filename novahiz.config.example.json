@@ -2,11 +2,7 @@
   "dbPath": "novahiz.sqlite",
   "skillRoots": [
     "./skills",
-    "~/.config/opencode/skills",
-    "~/.agents/skills",
-    "~/.config/.agents/skills",
-    "~/.config/marketingskills/skills",
-    "~/.config/humanizer"
+    "~/.config/opencode/skills"
   ],
   "gate": {
     "enabled": true,

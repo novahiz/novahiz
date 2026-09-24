@@ -89,11 +89,11 @@ test("returns a roadmap by category", () => {
 
 test("ranks catalog skills by relevance", () => {
   const out = call([
-    '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"novahiz_catalog","arguments":{"query":"anti-AI-design", "limit": 3}}}'
+    '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"novahiz_catalog","arguments":{"query":"ui-slop-remover", "limit": 3}}}'
   ]);
   const payload = JSON.parse(out[0].result.content[0].text);
   assert.ok(Array.isArray(payload.results));
-  assert.equal(payload.results[0].id, "anti-AI-design");
+  assert.equal(payload.results[0].id, "ui-slop-remover");
 });
 
 test("reports a parse error for invalid json", () => {

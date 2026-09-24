@@ -1,0 +1,5 @@
+[
+  { "tool": "playwright_browser_navigate", "url": "http://localhost:3000" },
+  { "tool": "playwright_browser_snapshot" },
+  { "tool": "playwright_browser_click", "target": "ref=e1" }
+]

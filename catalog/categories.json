@@ -527,8 +527,8 @@
       "edge function"
     ],
     "defaultSkills": [
-      "anti-AI-design",
-      "frontend-design-taste"
+      "ui-slop-remover",
+      "ui-craft-rules"
     ],
     "roadmap": {
       "id": "design",
@@ -562,8 +562,8 @@
           "label": "Apply design craft and anti-slop pass",
           "kind": "skill",
           "requireSkills": [
-            "anti-AI-design",
-            "frontend-design-taste"
+            "ui-slop-remover",
+            "ui-craft-rules"
           ],
           "optional": true
         },

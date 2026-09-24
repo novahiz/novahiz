@@ -107,7 +107,7 @@ flowchart LR
 | Prompt | Top Category | Confidence | Skills Required |
 |--------|-------------|------------|-----------------|
 | "fix the auth bug" | `debug` | 0.60 | novahiz-plan, novahiz-analyse, novahiz-implement, novahiz-converge |
-| "add a landing page" | `design-ui` | 0.50 | novahiz-humanizer, anti-AI-design |
+| "add a landing page" | `design-ui` | 0.50 | novahiz-humanizer, ui-slop-remover |
 | "create supabase migration" | `database-supabase` | 0.60 | novahiz-supabase, novahiz-postgres, novahiz-plan, novahiz-implement |
 
 ---
@@ -244,14 +244,14 @@ Novahiz ships with 41 skills across all categories:
 
 | Category | Skills | Purpose |
 |----------|--------|---------|
-| `code` | novahiz-code-review, engineering-code-standards, mcp-server-builder, ... | Code quality, patterns, architecture |
+| `code` | novahiz-code-review, code-standards, openapi-mcp-server, ... | Code quality, patterns, architecture |
 | `debug` | novahiz-analyse, ... | Root cause analysis |
 | `review` | novahiz-code-review, novahiz-delta-review, ... | Structured review, blast radius |
 | `database-supabase` | novahiz-postgres, novahiz-supabase, ... | Schema, RLS, migrations, optimization |
-| `design-ui` | anti-AI-design, frontend-design-taste, apple-hig-audit, ... | UI/UX, visual hierarchy, native feel |
+| `design-ui` | ui-slop-remover, ui-craft-rules, apple-ui-audit, ... | UI/UX, visual hierarchy, native feel |
 | `docs-writing` | novahiz-humanizer, ... | Prose, marketing copy, AI de-tell |
-| `browser` | novahiz-browser, playwright-agent, novahiz-web-extract, ... | Web automation, screenshots, extraction |
-| `audit` | novahiz-security, dependency-auditor, ai-security, ... | Security, compliance, vulnerability |
+| `browser` | novahiz-browser, browser-session, novahiz-web-extract, ... | Web automation, screenshots, extraction |
+| `audit` | novahiz-security, package-risk-audit, llm-threat-review, ... | Security, compliance, vulnerability |
 
 Run `npx Novahiz skills --all` to see the full list.
 

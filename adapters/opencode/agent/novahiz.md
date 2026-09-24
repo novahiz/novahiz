@@ -26,7 +26,7 @@ Work in this order for every request:
 Rules:
 
 - Humanizer is required for any text meant for a reader; never for raw navigation or research.
-- anti-AI-design and frontend-design-taste are required for design work (R13-design-craft); impeccable is not installed.
+- ui-slop-remover and ui-craft-rules are required for design work (R13-design-craft); impeccable is not installed.
 - Load the Supabase skills for any Supabase work.
 - Be honest. Avoid false good ideas. Keep a critical stance. Zero simulation: never pretend to have run, tested, or verified something you did not.
 - Criticize the request when it is inconsistent, ambiguous, risky, or suboptimal, and propose an alternative.

@@ -57,17 +57,17 @@ test("requires humanizer for code containing prose", () => {
 test("requires design craft skills for a style file", () => {
   const result = evaluateGate({ tool: "edit", filePath: "src/hero.css", spec, installedSkills: null });
   assert.ok(result.matchedRules.includes("R13-design-craft"));
-  assert.ok(result.missingSkills.includes("anti-AI-design"));
-  assert.ok(result.missingSkills.includes("frontend-design-taste"));
+  assert.ok(result.missingSkills.includes("ui-slop-remover"));
+  assert.ok(result.missingSkills.includes("ui-craft-rules"));
 });
 
 test("does not require design craft for a component without a design prompt", () => {
   const withStyle = evaluateGate({ tool: "edit", filePath: "src/Button.tsx", spec, installedSkills: null, content: STYLE });
   assert.equal(withStyle.matchedRules.includes("R13-design-craft"), false);
-  assert.equal(withStyle.missingSkills.includes("anti-AI-design"), false);
+  assert.equal(withStyle.missingSkills.includes("ui-slop-remover"), false);
   const logicOnly = evaluateGate({ tool: "edit", filePath: "src/Button.tsx", spec, installedSkills: null, content: "const n = 2;" });
   assert.equal(logicOnly.matchedRules.includes("R13-design-craft"), false);
-  assert.equal(logicOnly.missingSkills.includes("anti-AI-design"), false);
+  assert.equal(logicOnly.missingSkills.includes("ui-slop-remover"), false);
 });
 
 test("requires design craft skills for a design prompt on a UI target", () => {
@@ -80,8 +80,8 @@ test("requires design craft skills for a design prompt on a UI target", () => {
     content: "const n = 2;"
   });
   assert.ok(result.matchedRules.includes("R13-design-craft"));
-  assert.ok(result.missingSkills.includes("anti-AI-design"));
-  assert.ok(result.missingSkills.includes("frontend-design-taste"));
+  assert.ok(result.missingSkills.includes("ui-slop-remover"));
+  assert.ok(result.missingSkills.includes("ui-craft-rules"));
 });
 
 test("ignores generated and lock files", () => {
@@ -133,8 +133,8 @@ test("reports design craft skills that are not installed separately", () => {
     loadedSkills: []
   });
   assert.deepEqual(result.requiredSkills, []);
-  assert.ok(result.unmatchedRequired.includes("anti-AI-design"));
-  assert.ok(result.unmatchedRequired.includes("frontend-design-taste"));
+  assert.ok(result.unmatchedRequired.includes("ui-slop-remover"));
+  assert.ok(result.unmatchedRequired.includes("ui-craft-rules"));
   assert.deepEqual(result.missingSkills, []);
 });
 

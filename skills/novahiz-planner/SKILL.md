@@ -81,7 +81,7 @@ The full pipeline applies to `code`, `debug`, `browser`, `design-ui`, `database-
 
 - **Choices through the interface**: every user-facing decision runs through the `question` tool. Interactive table, options described by consequence, recommended option first. No prose questions or confirmation requests in chat. Chat carries context and content; the interface carries choices.
 - **humanizer** on all prose: text, documentation, interface messages, comments.
-- **anti-AI-design** / catalog design skills on everything that touches visual style.
+- **ui-slop-remover** / catalog design skills on everything that touches visual style.
 - **Supabase skills** (`supabase`, `supabase-postgres-best-practices`) on the `database-supabase` category.
 - **Honesty**: no claimed execution without real output. Uncertainty gets stated.
 - **Critique**: an inconsistent, ambiguous, risky, or weak request gets challenged, with an alternative on the table.
