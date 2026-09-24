@@ -8,6 +8,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Removed
 
+- `novahiz-humanizer` and `ui-slop-remover` are no longer required by default on every prose, docs, or code edit. Gate rules `R1-docs` and `R1-code-prose` are gone. Both skills (plus `ui-craft-rules`) are now required only under `R13-design-craft`, which fires on `design-ui` prompts or style files (`css`/`scss`/`sass`/`less`/`html`/`htm`). `docs-writing.defaultSkills` is empty; `research → synthesize` no longer lists `novahiz-humanizer`. README count drops to 10 gate rules. Catalog, adapters, instructions, agent prompt, plugin gate message, docs, skills, and tests are aligned.
 - `bundled-skills/` (132 vendored third-party skill folders) is gone. The package ships only `skills/`; `package.json` `files`, `install.mjs` / `bootstrap.mjs`, and `skillRoots` no longer reference it.
 - MCP providers `expo`, `dart`, `sequential-thinking`, and `obsidian` removed from `opencode.jsonc` and from `catalog/providers.json` (otherwise `autoRegister` would restore them). Six providers remain: playwright, security, narsil, context7, cron, novahiz.
 

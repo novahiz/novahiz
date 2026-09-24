@@ -84,7 +84,7 @@ Match strictness to fragility: heuristics for open-ended work; exact steps and s
 - [ ] references linked with explicit “when to read”.
 - [ ] scripts runnable; errors actionable.
 - [ ] no secrets, no absolute machine paths, no time bombs.
-- [ ] humanizer pass if prose is user-facing.
+- [ ] humanizer pass on design-frontend prose (R13); outside design it is optional, not gate-required.
 - [ ] implicit trigger test + explicit execution test (`skill-eval-loop`).
 - [ ] versioned with the repo.
 

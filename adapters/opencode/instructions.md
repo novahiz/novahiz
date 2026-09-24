@@ -28,7 +28,7 @@ Playwright uses a **persistent profile** that preserves data across sessions (co
 
 ## Behavioral & Quality Rules
 
-1. **Mandatory humanizer on text and code** — On every code or text modification meant for a reader, load the `novahiz-humanizer` skill and apply its rules (remove AI writing tics: not-X-but-Y contrasts, forced triads, excessive dashes, empty phrases, marketing jargon). Browser tasks (navigation, search, extraction) proceed as direct actions without a roadmap.
+1. **Mandatory design skills on frontend design tasks** — `novahiz-humanizer`, `ui-slop-remover` and `ui-craft-rules` are required only on frontend design work (design-ui prompts and style files). Load them with `skill({name})` before any design edit. Outside design, they are not required by the gate. Browser tasks (navigation, search, extraction) proceed as direct actions without a roadmap.
 2. **Supabase** — On any Supabase task (database, auth, RLS, Edge Functions, migrations, Storage, Realtime, CLI/MCP), load the `novahiz-supabase` and `novahiz-postgres` skills before acting.
 5. **Honesty and critical thinking** — Always be honest. Avoid false good ideas. Maintain critical thinking. **Zero simulation objective:** never claim to have executed, tested, or verified what was not. Explicitly report uncertainties and assumptions.
 6. **Propose next steps** — After completing a task, always honestly propose the relevant next step. Do not invent unnecessary work or mask failures.

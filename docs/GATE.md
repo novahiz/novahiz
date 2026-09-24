@@ -30,17 +30,13 @@ The gate is the enforcement mechanism. It inspects every file edit and decides w
 │                                                             │
 │  For each rule in catalog/rules.json:                       │
 │                                                             │
-│  R1-code-prose:                                             │
-│    fileClasses: ["code", "design"] ✓                       │
-│    contentMatches: ["prose"] → check content                │
-│    → Does the diff contain prose?                           │
-│      If YES: require novahiz-humanizer                 │
-│                                                             │
-│  R1-docs:                                                   │
-│    fileClasses: ["text", "data", "config"] ✓                │
-│    contentMatches: ["prose"] → check content                │
-│    → Does the diff contain prose?                           │
-│      If YES: require novahiz-humanizer                 │
+│  R13-design-craft:                                          │
+│    match: any                                               │
+│    promptCategories: ["design-ui"] OR pathGlobs: css/html   │
+│    → Is this a frontend design task?                        │
+│      If YES: require novahiz-humanizer                      │
+│              + ui-slop-remover + ui-craft-rules             │
+│    (Humanizer and ui-slop-remover are design-only.)         │
 │                                                             │
 │  R3-supabase:                                               │
 │    promptCategories: ["database-supabase"]                  │

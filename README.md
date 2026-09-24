@@ -2,7 +2,7 @@
 
 > **Zero-dependency enforcement layer for AI coding agents** — classifies prompts, assigns execution roadmaps, blocks unsafe edits, and injects session-level skills, all deterministically without model calls.
 
-15 categories, 41 skills, 12 gate rules, 6 MCP providers — all deterministic, all local, all JSON.
+15 categories, 41 skills, 10 gate rules, 6 MCP providers — all deterministic, all local, all JSON.
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
@@ -52,7 +52,7 @@
 └──────────────────────────────────────────────────────────────────────────┘
 ```
 
-**15 categories**, **41 skills**, **12 gate rules**, **6 MCP providers** — all deterministic, all local, all JSON.
+**15 categories**, **41 skills**, **10 gate rules**, **6 MCP providers** — all deterministic, all local, all JSON.
 
 ---
 
@@ -121,7 +121,7 @@ flowchart TD
     A[Tool Call: edit / write / patch] --> B[File Class Detection]
     B --> C{Rule Matching}
     
-    C --> D[R1: Content contains prose?<br/>require novahiz-humanizer]
+    C --> D[R13: Design-ui prompt or style file?<br/>require humanizer + ui-slop + ui-craft]
     C --> F[R3: Prompt was Supabase?<br/>require novahiz-supabase + postgres]
     C --> G[R4: Prompt was browser?<br/>require novahiz-browser]
     C --> H[R6: Workflow prompt?<br/>require plan/clarify/analyse/implement/converge]
@@ -157,8 +157,6 @@ flowchart TD
 
 | Rule | Triggers on | Requires |
 |------|-------------|----------|
-| R1-code-prose | Code or design file whose change contains prose | novahiz-humanizer |
-| R1-docs | Text, data or config file, or a docs-writing prompt | novahiz-humanizer |
 | R3-supabase | A Supabase path or a Supabase prompt | novahiz-supabase, novahiz-postgres |
 | R4-playwright | A browser prompt category, or a browser test path (`**/*.spec.ts`, `**/e2e/**`, `**/playwright/**`, …) | novahiz-browser |
 | R6-Novahiz | A prompt in a workflow category | novahiz-plan, -clarify, -analyse, -implement, -converge |
@@ -168,6 +166,9 @@ flowchart TD
 | R10-security | An audit or security prompt | novahiz-security |
 | R11-accessibility | A design-ui or audit prompt | novahiz-wcag-audit |
 | R12-web-extract | A research prompt | novahiz-web-extract |
+| R13-design-craft | A design-ui prompt or a style file (css/scss/less/html) | novahiz-humanizer, ui-slop-remover, ui-craft-rules |
+
+`novahiz-humanizer` and `ui-slop-remover` are required only on frontend design tasks (R13).
 
 ---
 
@@ -248,8 +249,8 @@ Novahiz ships with 41 skills across all categories:
 | `debug` | novahiz-analyse, ... | Root cause analysis |
 | `review` | novahiz-code-review, novahiz-delta-review, ... | Structured review, blast radius |
 | `database-supabase` | novahiz-postgres, novahiz-supabase, ... | Schema, RLS, migrations, optimization |
-| `design-ui` | ui-slop-remover, ui-craft-rules, apple-ui-audit, ... | UI/UX, visual hierarchy, native feel |
-| `docs-writing` | novahiz-humanizer, ... | Prose, marketing copy, AI de-tell |
+| `design-ui` | novahiz-humanizer, ui-slop-remover, ui-craft-rules, apple-ui-audit, ... | UI/UX, visual hierarchy, native feel |
+| `docs-writing` | ... | Prose, marketing copy, AI de-tell |
 | `browser` | novahiz-browser, browser-session, novahiz-web-extract, ... | Web automation, screenshots, extraction |
 | `audit` | novahiz-security, package-risk-audit, llm-threat-review, ... | Security, compliance, vulnerability |
 

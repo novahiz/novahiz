@@ -47,7 +47,7 @@ novahiz_task action="done"  id="<todo>" proof="<command and result>"
 
 ## The gate will trigger
 
-Writing code fires rules: R1-code-prose requires `novahiz-humanizer` whenever the content carries prose (comments, messages, labels). Load it before writing, ahead of the refusal.
+Writing code fires rules. On frontend design work, R13 requires `novahiz-humanizer`, `ui-slop-remover` and `ui-craft-rules`. Outside design, those skills are not required by the gate. Load design skills before writing, ahead of the refusal.
 
 ## Writing rules
 

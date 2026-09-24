@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { rankSkills, type CatalogSkill } from "../src/relevance.ts";
 
 const catalog: CatalogSkill[] = [
-  { id: "novahiz-humanizer", name: "novahiz-humanizer", description: "Remove AI writing patterns from text", power: 5, stars: null, tags: ["text", "quality"], categories: ["code", "docs-writing"] },
+  { id: "novahiz-humanizer", name: "novahiz-humanizer", description: "Remove AI writing patterns from text", power: 5, stars: null, tags: ["text", "quality"], categories: ["design-ui"] },
   { id: "ui-slop-remover", name: "ui-slop-remover", description: "Eliminate generic AI-generated design patterns from UI", power: 5, stars: null, tags: ["design", "ui"], categories: ["design-ui"] },
   { id: "supabase", name: "supabase", description: "Supabase database auth and edge functions", power: 5, stars: null, tags: ["database"], categories: ["database-supabase"] },
   { id: "novahiz-code-review", name: "novahiz-code-review", description: "Review pull requests and code quality", power: 4, stars: null, tags: ["review"], categories: ["review"] }

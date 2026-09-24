@@ -73,7 +73,7 @@ Three versioned JSON files under `catalog/`:
 
 ### Content rules and roadmaps
 
-`src/content.ts` provides `changeText`, `hasProse`, and `hasStyle`. Rules in `catalog/rules.json` use them through `when.contentMatches` and `when.contentExcludes`, so `novahiz-humanizer` is required only for prose changes. `when.match` combines class, path, and category selectors.
+`src/content.ts` provides `changeText`, `hasProse`, and `hasStyle`. Rules in `catalog/rules.json` use them through `when.contentMatches` and `when.contentExcludes`. `novahiz-humanizer` and `ui-slop-remover` are required only by R13 on frontend design tasks. `when.match` combines class, path, and category selectors.
 
 Each category carries a `roadmap`. The classifier returns the category order, the primary category, the union of required skills, and the roadmaps. The gate adds the primary roadmap `skill` steps to its requirements.
 

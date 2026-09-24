@@ -1,6 +1,6 @@
 ---
 name: novahiz-humanizer
-description: "Remove AI writing patterns from text. Rewrite AI-sounding prose so it reads like the human writer: not-X-but-Y contrasts, forced triads, em dashes, chatbot residue, inflated significance, and statistical tells. Use novahiz-humanizer on every text, documentation, commit message, PR description, or code comment meant for a reader."
+description: "Remove AI writing patterns from text. Rewrite AI-sounding prose so it reads like the human writer: not-X-but-Y contrasts, forced triads, em dashes, chatbot residue, inflated significance, and statistical tells. Use novahiz-humanizer on frontend design tasks (R13); it is not required by the gate outside design."
 license: MIT
 metadata:
   author: Novahiz

@@ -6,13 +6,14 @@ A rule describes a condition and the skills that condition requires before a fil
 
 ```json
 {
-  "id": "R1-docs",
-  "description": "Load novahiz-humanizer on text, documentation, and written content.",
+  "id": "R13-design-craft",
+  "description": "Load novahiz-humanizer, ui-slop-remover and ui-craft-rules on frontend design tasks only.",
   "when": {
-    "fileClasses": ["text", "data", "config"],
-    "contentMatches": ["prose"]
+    "match": "any",
+    "promptCategories": ["design-ui"],
+    "pathGlobs": ["**/*.css", "**/*.scss", "**/*.html"]
   },
-  "require": ["novahiz-humanizer"]
+  "require": ["novahiz-humanizer", "ui-slop-remover", "ui-craft-rules"]
 }
 ```
 
@@ -32,8 +33,6 @@ Content conditions are combined with AND against the selectors. A rule with `con
 
 | Id | Condition | Requires |
 | --- | --- | --- |
-| R1-docs | text, data or config file, or a docs-writing prompt | `novahiz-humanizer` |
-| R1-code-prose | code or design file whose change contains prose | `novahiz-humanizer` |
 | R3-supabase | a Supabase path or a Supabase prompt | `novahiz-supabase`, `novahiz-postgres` |
 | R4-playwright | a browser prompt category, or a browser test path (`**/*.spec.ts`, `**/e2e/**`, `**/playwright/**`, …) | `novahiz-browser` |
 | R6-Novahiz | a prompt in a workflow category | pipeline skills (`novahiz-plan`, `novahiz-clarify`, `novahiz-analyse`, `novahiz-implement`, `novahiz-converge`) |
@@ -41,7 +40,9 @@ Content conditions are combined with AND against the selectors. A rule with `con
 | R10-security | an audit or security prompt | `novahiz-security` |
 | R11-accessibility | a design-ui or audit prompt | `novahiz-wcag-audit` |
 | R12-web-extract | a research prompt | `novahiz-web-extract` |
-| R13-design-craft | a design-ui prompt or a style file (css/scss/less/html) | `ui-slop-remover`, `ui-craft-rules` |
+| R13-design-craft | a design-ui prompt or a style file (css/scss/less/html) | `novahiz-humanizer`, `ui-slop-remover`, `ui-craft-rules` |
+
+`novahiz-humanizer` and `ui-slop-remover` are required only by R13, on frontend design tasks. They are not required on ordinary text, docs, or code edits.
 
 ## Resolution
 

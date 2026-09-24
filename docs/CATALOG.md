@@ -66,13 +66,14 @@ Each rule triggers skill requirements based on file class, path, prompt category
 
 ```json
 {
-  "id": "R1-code-prose",
-  "description": "Load humanizer when code changes contain prose",
+  "id": "R13-design-craft",
+  "description": "Load novahiz-humanizer, ui-slop-remover and ui-craft-rules on frontend design tasks only.",
   "when": {
-    "fileClasses": ["code", "design"],
-    "contentMatches": ["prose"]
+    "match": "any",
+    "promptCategories": ["design-ui"],
+    "pathGlobs": ["**/*.css", "**/*.scss", "**/*.html"]
   },
-  "require": ["humanizer"]
+  "require": ["novahiz-humanizer", "ui-slop-remover", "ui-craft-rules"]
 }
 ```
 

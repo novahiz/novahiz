@@ -55,10 +55,11 @@ When several categories match, the one with the highest score provides the roadm
 
 ## Content-aware rules
 
-`novahiz-humanizer` is governed by rules, not by roadmap steps, so it is required only when it matters:
+`novahiz-humanizer` and `ui-slop-remover` load only through `R13-design-craft` on frontend design tasks:
 
-- `novahiz-humanizer` applies to text and documentation, and to code whose change contains prose.
-- `ui-slop-remover` and `ui-craft-rules` load through `R13-design-craft` on design-ui prompts and style file edits (css/scss/less/html). The design-ui roadmap also carries an optional `design-craft` step for guidance; it does not block.
+- Both skills are required on design-ui prompts and style file edits (css/scss/less/html).
+- Outside frontend design, neither skill is required by the gate.
+- The design-ui roadmap also carries an optional `design-craft` step for guidance; it does not block.
 
 Rules express this with `when.contentMatches` (`prose`, `style`, or a regex), `when.contentExcludes`, `when.minChange`, and `when.match` (`any` or `all`) to combine the class, path, and category selectors.
 

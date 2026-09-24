@@ -316,8 +316,7 @@
           "label": "Write tests",
           "kind": "edit",
           "requireSkills": [
-            "novahiz-implement",
-            "novahiz-humanizer"
+            "novahiz-implement"
           ]
         },
         {
@@ -384,10 +383,7 @@
         {
           "id": "synthesize",
           "label": "Synthesize",
-          "kind": "advisory",
-          "requireSkills": [
-            "novahiz-humanizer"
-          ]
+          "kind": "advisory"
         },
         {
           "id": "cite",
@@ -527,6 +523,7 @@
       "edge function"
     ],
     "defaultSkills": [
+      "novahiz-humanizer",
       "ui-slop-remover",
       "ui-craft-rules"
     ],
@@ -559,9 +556,10 @@
         },
         {
           "id": "design-craft",
-          "label": "Apply design craft and anti-slop pass",
+          "label": "Apply design craft, humanizer and anti-slop pass",
           "kind": "skill",
           "requireSkills": [
+            "novahiz-humanizer",
             "ui-slop-remover",
             "ui-craft-rules"
           ],
@@ -715,9 +713,7 @@
       "changelog",
       "rewrite"
     ],
-    "defaultSkills": [
-      "novahiz-humanizer"
-    ],
+    "defaultSkills": [],
     "roadmap": {
       "id": "writing",
       "steps": [
@@ -740,10 +736,7 @@
         {
           "id": "draft",
           "label": "Write the draft",
-          "kind": "edit",
-          "requireSkills": [
-            "novahiz-humanizer"
-          ]
+          "kind": "edit"
         },
         {
           "id": "review",
@@ -1070,7 +1063,6 @@
           "label": "Execute",
           "kind": "advisory",
           "requireSkills": [
-            "novahiz-humanizer",
             "novahiz-implement"
           ]
         },

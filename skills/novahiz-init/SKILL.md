@@ -74,7 +74,7 @@ Edit only the four files under `novahiz-docs/`:
 - Keep DECISIONS.md empty until a real decision exists
 - If older docs live in `README.md` or `docs/`, migrate unique facts into the right file, then leave a pointer in the README. Do not delete the README.
 
-Load `novahiz-humanizer` before writing prose.
+On frontend design docs or style copy, load `novahiz-humanizer` (R13). Outside design it is not required by the gate.
 
 ### 4. Seed memory
 

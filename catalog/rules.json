@@ -1,23 +1,5 @@
 [
   {
-    "id": "R1-code-prose",
-    "description": "Load novahiz-humanizer when code or design changes contain prose.",
-    "when": {
-      "fileClasses": ["code", "design"],
-      "contentMatches": ["prose"]
-    },
-    "require": ["novahiz-humanizer"]
-  },
-  {
-    "id": "R1-docs",
-    "description": "Load novahiz-humanizer on text, documentation, and written content.",
-    "when": {
-      "fileClasses": ["text", "data", "config"],
-      "contentMatches": ["prose"]
-    },
-    "require": ["novahiz-humanizer"]
-  },
-  {
     "id": "R3-supabase",
     "description": "Load Supabase skills on any Supabase task.",
     "when": {
@@ -109,7 +91,7 @@
   },
   {
     "id": "R13-design-craft",
-    "description": "Load ui-slop-remover and ui-craft-rules on design UI prompts or style file edits.",
+    "description": "Load novahiz-humanizer, ui-slop-remover and ui-craft-rules on frontend design tasks only.",
     "when": {
       "match": "any",
       "promptCategories": ["design-ui"],
@@ -122,6 +104,6 @@
         "**/*.htm"
       ]
     },
-    "require": ["ui-slop-remover", "ui-craft-rules"]
+    "require": ["novahiz-humanizer", "ui-slop-remover", "ui-craft-rules"]
   }
 ]

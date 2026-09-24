@@ -30,11 +30,10 @@ test("globs match nested paths", () => {
   assert.equal(globToRegExp("**/*.sql").test("src/index.ts"), false);
 });
 
-test("requires humanizer for a markdown edit containing prose", () => {
+test("does not require humanizer for a markdown edit containing prose", () => {
   const result = evaluateGate({ tool: "edit", filePath: "README.md", spec, installedSkills: null, content: "## Installation\n\nThis section explains how to install the package." });
-  assert.equal(result.allow, false);
-  assert.ok(result.missingSkills.includes("novahiz-humanizer"));
-  assert.ok(result.matchedRules.includes("R1-docs"));
+  assert.equal(result.missingSkills.includes("novahiz-humanizer"), false);
+  assert.equal(result.matchedRules.includes("R1-docs"), false);
 });
 
 test("does not require humanizer for a markdown edit without prose content", () => {
@@ -48,15 +47,16 @@ test("does not require humanizer for pure logic code", () => {
   assert.equal(result.matchedRules.includes("R1-code-prose"), false);
 });
 
-test("requires humanizer for code containing prose", () => {
+test("does not require humanizer for code containing prose outside design", () => {
   const result = evaluateGate({ tool: "edit", filePath: "src/app.ts", spec, installedSkills: null, content: PROSE });
-  assert.ok(result.missingSkills.includes("novahiz-humanizer"));
-  assert.ok(result.matchedRules.includes("R1-code-prose"));
+  assert.equal(result.missingSkills.includes("novahiz-humanizer"), false);
+  assert.equal(result.matchedRules.includes("R1-code-prose"), false);
 });
 
 test("requires design craft skills for a style file", () => {
   const result = evaluateGate({ tool: "edit", filePath: "src/hero.css", spec, installedSkills: null });
   assert.ok(result.matchedRules.includes("R13-design-craft"));
+  assert.ok(result.missingSkills.includes("novahiz-humanizer"));
   assert.ok(result.missingSkills.includes("ui-slop-remover"));
   assert.ok(result.missingSkills.includes("ui-craft-rules"));
 });
@@ -80,6 +80,7 @@ test("requires design craft skills for a design prompt on a UI target", () => {
     content: "const n = 2;"
   });
   assert.ok(result.matchedRules.includes("R13-design-craft"));
+  assert.ok(result.missingSkills.includes("novahiz-humanizer"));
   assert.ok(result.missingSkills.includes("ui-slop-remover"));
   assert.ok(result.missingSkills.includes("ui-craft-rules"));
 });
@@ -132,25 +133,25 @@ test("reports design craft skills that are not installed separately", () => {
     installedSkills: new Set(["novahiz-humanizer"]),
     loadedSkills: []
   });
-  assert.deepEqual(result.requiredSkills, []);
+  assert.ok(result.requiredSkills.includes("novahiz-humanizer"));
   assert.ok(result.unmatchedRequired.includes("ui-slop-remover"));
   assert.ok(result.unmatchedRequired.includes("ui-craft-rules"));
-  assert.deepEqual(result.missingSkills, []);
+  assert.equal(result.missingSkills.includes("ui-slop-remover"), false);
 });
 
 test("fails closed when the installed index is unavailable", () => {
   const result = evaluateGate({
     tool: "edit",
-    filePath: "README.md",
+    filePath: "src/hero.css",
     spec,
     installedSkills: new Set(),
     installedIndexAvailable: false,
-    loadedSkills: [],
-    content: "## Installation\n\nThis section explains how to install the package."
+    loadedSkills: []
   });
   assert.equal(result.allow, false);
   assert.equal(result.indexMissing, true);
   assert.ok(result.missingSkills.includes("novahiz-humanizer"));
+  assert.ok(result.missingSkills.includes("ui-slop-remover"));
 });
 
 test("does not block a valid empty index", () => {
@@ -195,9 +196,8 @@ test("does not flag clean code as a placeholder", () => {
 
 test("gates a bash command that writes prose to a file", () => {
   const result = evaluateGate({ tool: "bash", filePath: "output.md", spec, installedSkills: null, content: "# This is a detailed explanation of the installation steps for the project." });
-  assert.equal(result.allow, false);
-  assert.ok(result.missingSkills.length > 0);
-  assert.ok(result.matchedRules.length > 0);
+  assert.equal(result.matchedRules.includes("R1-docs"), false);
+  assert.equal(result.missingSkills.includes("novahiz-humanizer"), false);
 });
 
 test("gates a shell command targeting a supabase migration", () => {
@@ -212,7 +212,8 @@ test("allows a bash command targeting an ignored file", () => {
   assert.equal(result.ignored, true);
 });
 
-test("explains each missing skill in reasons", () => {
-  const result = evaluateGate({ tool: "edit", filePath: "README.md", spec, installedSkills: null, loadedSkills: [], content: "## Installation\n\nThis section explains how to install the package." });
+test("explains each missing skill in reasons on design", () => {
+  const result = evaluateGate({ tool: "edit", filePath: "src/hero.css", spec, installedSkills: null, loadedSkills: [] });
   assert.ok(result.reasons.some((entry) => entry.includes("novahiz-humanizer")));
+  assert.ok(result.reasons.some((entry) => entry.includes("ui-slop-remover")));
 });

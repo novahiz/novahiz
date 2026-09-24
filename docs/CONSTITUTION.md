@@ -19,7 +19,7 @@ Rationale: auditability and simple installation. The tool is meant to be read an
 ### III. Enforce Before Writing
 The gate blocks file mutations until the skills required by the prompt's category are loaded. Advice that can be ignored is not enforcement.
 - `edit`, `write`, `patch`, `apply_patch`, and shell writes are gated. Read-only tools are not.
-- Rules are content-aware: `novahiz-humanizer` is required only for prose.
+- Rules are content-aware: `novahiz-humanizer` and `ui-slop-remover` are required only on frontend design tasks.
 - A block states what is missing and why. A silent or unexplained block counts as a bug.
 Rationale: the tool exists to make quality gates unavoidable. A gate that can be waved through is theatre.
 
@@ -46,7 +46,7 @@ Rationale: the enforcement promise is only as strong as the evidence behind it. 
 ## Development Workflow
 
 - Run `npx tsc --noEmit` and `node --test` locally. Both must be green before a commit.
-- Dogfood the rules. Load `novahiz-humanizer` for prose changes, because the gate requires it of everyone.
+- Dogfood the rules. Load `novahiz-humanizer` and `ui-slop-remover` on frontend design changes, because the gate requires them there.
 - Commit messages describe the behavior change, not the file touched.
 - Before 1.0 the public interface may move. Such changes are called out in the commit and, when relevant, in the README.
 

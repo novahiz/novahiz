@@ -26,9 +26,10 @@ Le gate pose une seule question : les skills exigées par le contexte sont-elles
 
 | Règle | Se déclenche sur | Exige |
 |---|---|---|
-| R1-docs | texte, data, config | `novahiz-humanizer` |
-| R1-code-prose | code ou design dont le contenu porte de la prose | `novahiz-humanizer` |
+| R13-design-craft | tâche design frontend (catégorie design-ui, fichiers style css/scss/html/…) | `novahiz-humanizer`, `ui-slop-remover`, `ui-craft-rules` |
 | R3-supabase | chemin `**/supabase/**` ou `**/migrations/**`, catégorie `database-supabase` | `supabase`, `supabase-postgres-best-practices` |
+
+Hors design frontend, `novahiz-humanizer` et `ui-slop-remover` ne sont plus exigés par le gate.
 
 **Les étapes de roadmap** (`catalog/categories.json`) : seules celles marquées `kind: "skill"` sans `optional` bloquent. Les étapes `edit`, `verify` et `advisory` apparaissent dans `requiredSkills` mais ne refusent rien.
 
@@ -50,11 +51,11 @@ Trois conséquences à connaître :
 ```json
 {
   "allow": false,
-  "missingSkills": ["humanizer"],
+  "missingSkills": ["novahiz-humanizer", "ui-slop-remover"],
   "indexMissing": false,
   "targets": [{
-    "path": "...", "fileClass": "text", "roadmap": "feature",
-    "matchedRules": ["R1-docs"], "reasons": ["missing skill: humanizer"]
+    "path": "...", "fileClass": "design", "roadmap": "design",
+    "matchedRules": ["R13-design-craft"], "reasons": ["missing skill: novahiz-humanizer"]
   }]
 }
 ```
