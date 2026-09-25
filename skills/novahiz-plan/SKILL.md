@@ -63,9 +63,9 @@ Walk the dependency graph from the bottom up: foundations first, then the surfac
 
 **Risk-first.** One unknown dominates: prove the shakiest piece before spending elsewhere.
 
-## Eight categories require this step
+## Ten categories require this step
 
-The gate demands `novahiz-plan` for `code`, `flutter`, `debug`, `browser`, `design-ui`, `database-supabase`, `planning`, `devops`, and `data`.
+The gate demands `novahiz-plan` for `code`, `flutter`, `expo`, `debug`, `browser`, `design-ui`, `database-supabase`, `planning`, `devops`, and `data`.
 
 ## Validate before you execute
 

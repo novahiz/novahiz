@@ -74,7 +74,7 @@ Split again when the work runs past one focused sitting, when the criteria overf
 
 ## Categories that require this step
 
-`code`, `flutter`, `browser`, `design-ui`, and `planning`.
+`code`, `flutter`, `expo`, `browser`, `design-ui`, and `planning`.
 
 ## Discipline
 

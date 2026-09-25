@@ -64,7 +64,7 @@ Destination: the project's documentation directory if one exists, otherwise the 
 
 ## Categories that require this step
 
-`code`, `debug`, `review`, `database-supabase`, `devops`, and `data`. `flutter` also requires it via its own roadmap.
+`code`, `debug`, `review`, `database-supabase`, `devops`, and `data`. `flutter` and `expo` also require it via their own roadmaps.
 
 ## Rules
 
