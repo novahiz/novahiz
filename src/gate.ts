@@ -1,6 +1,13 @@
 import type { Rule, Spec } from "./spec.ts";
 import { hasPlaceholder, hasProse, hasStyle, isTrivial } from "./content.ts";
 import { determineTier, type ComplexityTier } from "./complexity.ts";
+// Shared ledger enforcement (audit P1-D/M1): the CLI command and the MCP
+// novahiz_gate tool both run these checks so their verdicts cannot diverge.
+import { activeTask, recordEdit, reviewBlockReason, reviewDue, traceCheck } from "./ledger.ts";
+import { autoCommit } from "./graft.ts";
+import type { openDb } from "./db.ts";
+
+type GateDb = ReturnType<typeof openDb>;
 
 type FileClass = "code" | "text" | "design" | "data" | "config" | "other";
 
@@ -223,10 +230,21 @@ function selectorMatches(rule: Rule, classification: FileClass, path: string, ca
   return when.match === "any" ? checks.some(Boolean) : checks.every(Boolean);
 }
 
+// C3: files whose content defines what the gate requires. They live under
+// build/ but must never be treated as ignored build output.
+const PROTECTED_INDEX_SUFFIXES = ["/build/installed-skills.json", "/build/catalog.json"];
+
+function isProtectedIndexPath(path: string): boolean {
+  return PROTECTED_INDEX_SUFFIXES.some((suffix) => path === suffix.slice(1) || path.endsWith(suffix));
+}
 type GateInput = {
   tool: string;
   filePath: string;
   content?: string;
+  /** C1: user prompt that triggered the edit. The complexity tier is
+   * computed from it when present — the edited content alone under-reports
+   * how much pipeline a short edit of a complex request needs. */
+  prompt?: string;
   categories?: string[];
   loadedSkills?: string[];
   installedSkills?: ReadonlySet<string> | null;
@@ -257,7 +275,12 @@ export function evaluateGate(input: GateInput): GateResult {
   const content = input.content ?? "";
 
   try {
-    const ignored = input.spec.config.gate.ignoreFiles.some((glob) => globToRegExp(glob).test(path));
+    // C3: the skill index lives under build/ (matched by the default
+    // **/build/** ignore glob). Editing it must never bypass the gate —
+    // dropping a skill from the index would silently un-require it.
+    const ignored =
+      !isProtectedIndexPath(path) &&
+      input.spec.config.gate.ignoreFiles.some((glob) => globToRegExp(glob).test(path));
     if (ignored) {
       return {
         allow: true,
@@ -277,7 +300,10 @@ export function evaluateGate(input: GateInput): GateResult {
 
     // H3: Determine complexity tier BEFORE rule evaluation so that trivial
     // prompts can skip Novahiz-specific rules entirely.
-    const tier = input.tier ?? determineTier(content);
+    // C1: compute the tier from the user prompt when available; content is
+    // only a fallback for callers that do not carry a prompt (probes).
+    const prompt = (input.prompt ?? "").trim();
+    const tier = input.tier ?? determineTier(prompt.length > 0 ? prompt : content);
 
     const requiredSkills: string[] = [];
     const matchedRules: string[] = [];
@@ -366,6 +392,11 @@ export function evaluateGate(input: GateInput): GateResult {
 
     const reasons: string[] = [];
     for (const skill of missingSkills) reasons.push(`missing skill: ${skill}`);
+    // C3: an index gap must be visible, not silent. The skill is not enforced
+    // (kept out of requiredSkills) — say so loudly so a sync gets triggered.
+    for (const skill of unmatchedRequired) {
+      reasons.push(`required skill not in index, not enforced: ${skill} — run "novahiz" sync to realign`);
+    }
     if (placeholder) reasons.push("placeholder marker found in content");
 
     return {
@@ -398,4 +429,86 @@ export function evaluateGate(input: GateInput): GateResult {
       reasons: [`gate error: ${String((error as Error)?.message ?? error)}`]
     };
   }
+}
+
+// Ledger + trace enforcement shared by the CLI gate command and the MCP
+// novahiz_gate tool (audit P1-D/M1): same checks and the same log rows, so the
+// two entry points cannot drift apart. Mutates results[].allow exactly like
+// the original CLI block; returns aggregate reasons and the review warning.
+export function enforceLedgerChecks(
+  db: GateDb,
+  input: {
+    session: string;
+    tool: string;
+    paths: string[];
+    categories: string[];
+    results: (GateResult & { path: string })[];
+    spec: Spec;
+    gateConfig: Spec["config"]["gate"];
+  }
+): { reasons: string[]; reviewWarning: string } {
+  const { session, tool, paths, categories, results, spec, gateConfig } = input;
+  const reasons: string[] = [];
+  let reviewWarning = "";
+
+  const traceConfig = gateConfig.trace;
+  const traceRequired =
+    traceConfig?.enabled === true &&
+    session.length > 0 &&
+    categories.some((category) => traceConfig.categories.includes(category));
+  if (traceRequired) {
+    for (const entry of results) {
+      const trace = traceCheck(db, { sessionId: session, filePath: entry.path, required: true });
+      if (!trace.ok) {
+        entry.allow = false;
+        reasons.push(trace.reason);
+      }
+    }
+  }
+
+  const ledgerConfig = spec.config.ledger;
+  if (ledgerConfig?.enabled !== false) {
+    const task = activeTask(db, session || undefined);
+    if (task) {
+      if (["edit", "write", "patch", "apply_patch"].includes(tool)) recordEdit(db, task.id);
+      // Targeted review: block only paths owned by an open todo with an owner
+      // pattern. A due review no longer freezes every target.
+      for (const entry of results) {
+        const reason = reviewBlockReason(db, task.id, entry.path, ledgerConfig.review);
+        if (reason && !entry.ignored) {
+          entry.allow = false;
+          entry.reasons.push(reason);
+        }
+      }
+      if (results.some((entry) => entry.reasons.some((reason) => reason.startsWith("plan review due")))) {
+        reasons.push(reviewDue(db, task.id, ledgerConfig.review).reason);
+      } else if (reviewDue(db, task.id, ledgerConfig.review).due) {
+        reviewWarning = reviewDue(db, task.id, ledgerConfig.review).reason;
+      }
+    }
+  }
+
+  const currentAllow = results.every((entry) => entry.allow);
+  if (session.length > 0) {
+    const missing = [...new Set(results.flatMap((entry) => entry.missingSkills))];
+    db.prepare(
+      "INSERT INTO enforcement_log (session_id, tool, file_path, file_class, decision, missing, matched_rules, logged_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+    ).run(
+      session,
+      tool,
+      paths.join(","),
+      results[0]?.fileClass ?? "other",
+      currentAllow ? "allow" : gateConfig.mode === "block" ? "block" : gateConfig.mode,
+      JSON.stringify(missing),
+      JSON.stringify(results.flatMap((entry) => entry.matchedRules)),
+      new Date().toISOString()
+    );
+    try {
+      autoCommit("enforcement", `${currentAllow ? "allow" : "block"} ${tool}`);
+    } catch {
+      // autoCommit failures are non-critical; the enforcement is logged regardless
+    }
+  }
+
+  return { reasons, reviewWarning };
 }

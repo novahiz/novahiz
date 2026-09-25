@@ -1,7 +1,11 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { evaluateGate, fileClass, globToRegExp } from "../src/gate.ts";
+import { enforceLedgerChecks, evaluateGate, fileClass, globToRegExp } from "../src/gate.ts";
+import { openDb } from "../src/db.ts";
 import { loadSpec } from "../src/spec.ts";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
@@ -285,4 +289,110 @@ test("explains each missing skill in reasons on design", () => {
   const result = evaluateGate({ tool: "edit", filePath: "src/hero.css", spec, installedSkills: null, loadedSkills: [] });
   assert.ok(result.reasons.some((entry) => entry.includes("novahiz-humanizer")));
   assert.ok(result.reasons.some((entry) => entry.includes("ui-slop-remover")));
+});
+
+test("C1: the user prompt drives the complexity tier, not the edited content", () => {
+  const prompt =
+    "Implement a complete authentication system with database schema, security tests and session handling across multiple files";
+  const withPrompt = evaluateGate({
+    tool: "edit",
+    filePath: "src/app.ts",
+    spec,
+    installedSkills: null,
+    categories: ["code"],
+    content: "const x = 1;",
+    prompt
+  });
+  assert.equal(withPrompt.tier, "full");
+  assert.ok(withPrompt.requiredSkills.includes("novahiz-plan"));
+  const withoutPrompt = evaluateGate({
+    tool: "edit",
+    filePath: "src/app.ts",
+    spec,
+    installedSkills: null,
+    categories: ["code"],
+    content: "const x = 1;"
+  });
+  assert.equal(withoutPrompt.tier, "trivial");
+  assert.equal(withoutPrompt.requiredSkills.includes("novahiz-plan"), false);
+});
+
+test("C3: the installed skills index is never ignored as build output", () => {
+  const indexFile = evaluateGate({ tool: "edit", filePath: "build/installed-skills.json", spec, installedSkills: null });
+  assert.equal(indexFile.ignored, false);
+  const otherBuild = evaluateGate({ tool: "edit", filePath: "build/report.json", spec, installedSkills: null });
+  assert.equal(otherBuild.ignored, true);
+});
+
+test("C3: an index gap is reported in reasons", () => {
+  const result = evaluateGate({
+    tool: "edit",
+    filePath: "src/hero.css",
+    spec,
+    installedSkills: new Set(["novahiz-humanizer"]),
+    loadedSkills: []
+  });
+  assert.ok(result.reasons.some((entry) => entry.includes("not in index")));
+});
+
+test("enforceLedgerChecks logs one row per session and skips empty sessions", () => {
+  const tmp = mkdtempSync(join(tmpdir(), "novahiz-gate-enforce-"));
+  const db = openDb(join(tmp, "enforce.sqlite"));
+  try {
+    const runChecks = (session: string) => {
+      const result = evaluateGate({ tool: "edit", filePath: "src/app.ts", spec, installedSkills: null });
+      return enforceLedgerChecks(db, {
+        session,
+        tool: "edit",
+        paths: ["src/app.ts"],
+        categories: [],
+        results: [{ path: "src/app.ts", ...result }],
+        spec,
+        gateConfig: spec.config.gate
+      });
+    };
+    const enforced = runChecks("s_enforce_test");
+    assert.deepEqual(enforced.reasons, []);
+    const rows = db
+      .prepare("SELECT COUNT(*) AS n FROM enforcement_log WHERE session_id = ?")
+      .get("s_enforce_test") as { n: number };
+    assert.equal(rows.n, 1);
+    runChecks("");
+    const total = db.prepare("SELECT COUNT(*) AS n FROM enforcement_log").get() as { n: number };
+    assert.equal(total.n, 1);
+  } finally {
+    db.close();
+    try {
+      rmSync(tmp, { recursive: true, force: true });
+    } catch {
+      // best effort cleanup
+    }
+  }
+});
+
+test("P2-A: rules stay coherent with the real categories and globs", () => {
+  const rules = JSON.parse(readFileSync(join(root, "catalog", "rules.json"), "utf8")) as Array<{
+    id: string;
+    when: { promptCategories?: string[]; pathGlobs?: string[] };
+  }>;
+  const categories = JSON.parse(readFileSync(join(root, "catalog", "categories.json"), "utf8")) as Array<{ id: string }>;
+  const ids = categories.map((category) => category.id);
+  for (const rule of rules) {
+    for (const category of rule.when?.promptCategories ?? []) {
+      assert.ok(ids.includes(category), `${rule.id} references unknown category ${category}`);
+    }
+  }
+  const r8Glob = rules.find((rule) => rule.id === "R8-docs")?.when.pathGlobs?.[0] ?? "";
+  assert.ok(globToRegExp(r8Glob).test("novahiz-docs/guide.md"), "R8 must match workspace-relative paths");
+  assert.ok(
+    globToRegExp(r8Glob).test("C:/Users/dev/project/novahiz-docs/guide.md"),
+    "R8 must match absolute paths"
+  );
+  const r9Globs = rules.find((rule) => rule.id === "R9-code-review")?.when.pathGlobs ?? [];
+  assert.ok(r9Globs.includes("**/*.tsx"), "R9-code-review misses the tsx glob");
+  assert.ok(r9Globs.includes("**/*.jsx"), "R9-code-review misses the jsx glob");
+  // R13/R14 stay prompt-scoped for components: design craft must not be
+  // demanded on every .tsx edit without a design prompt (existing guard above).
+  const r6 = rules.find((rule) => rule.id === "R6-Novahiz");
+  assert.ok(r6?.when.promptCategories?.includes("test"), "R6 must cover the test category");
 });

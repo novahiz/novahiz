@@ -176,3 +176,54 @@ test("tool.execute.after ignores non-edit tools and non-major paths", async () =
     }
   }
 });
+
+test("P0-B: a failed classify refuses later gate tool calls", async () => {
+  // Session "s-fail" classified against a missing CLI earlier in this file —
+  // the failure flag must turn subsequent gate calls into refusals.
+  await assert.rejects(
+    hooks["tool.execute.before"](
+      { tool: "write", sessionID: "s-fail", callID: "c-p0b1" },
+      { args: { filePath: "/tmp/p0b1.ts", content: "x" } }
+    ),
+    /classification failed/i
+  );
+});
+
+test("P0-B: an invalid session ID refuses gate tools and skill loads", async () => {
+  await assert.rejects(
+    hooks["tool.execute.before"](
+      { tool: "write", sessionID: "", callID: "c-p0b2" },
+      { args: { filePath: "/tmp/p0b2.ts", content: "x" } }
+    ),
+    /invalid session ID/i
+  );
+  await assert.rejects(
+    hooks["tool.execute.before"](
+      { tool: "skill", sessionID: "", callID: "c-p0b3" },
+      { args: { name: "novahiz-plan" } }
+    ),
+    /invalid session ID/i
+  );
+  // Tools outside gate.tools need no session and still pass.
+  await hooks["tool.execute.before"](
+    { tool: "read", sessionID: "", callID: "c-p0b4" },
+    { args: { filePath: "/tmp/p0b2.ts" } }
+  );
+});
+
+test("P0-B: a malformed skill name is refused before recording", async () => {
+  await assert.rejects(
+    hooks["tool.execute.before"](
+      { tool: "skill", sessionID: "s-badname", callID: "c-p0b5" },
+      { args: { name: "legit,evil-skill" } }
+    ),
+    /invalid skill name/i
+  );
+  await assert.rejects(
+    hooks["tool.execute.before"](
+      { tool: "skill", sessionID: "s-badname", callID: "c-p0b6" },
+      { args: { name: 42 } }
+    ),
+    /must be a string/i
+  );
+});

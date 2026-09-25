@@ -32,7 +32,23 @@
     "id": "R6-Novahiz",
     "description": "Load Novahiz pipeline skills for any task triggering the workflow.",
     "when": {
-      "promptCategories": ["code", "debug", "review", "audit", "browser", "design-ui", "database-supabase", "docs-writing", "planning", "devops", "data", "general", "flutter", "expo"]
+      "promptCategories": [
+        "code",
+        "debug",
+        "review",
+        "audit",
+        "browser",
+        "design-ui",
+        "database-supabase",
+        "docs-writing",
+        "planning",
+        "devops",
+        "data",
+        "general",
+        "flutter",
+        "expo",
+        "test"
+      ]
     },
     "require": ["novahiz-plan", "novahiz-clarify", "novahiz-analyse", "novahiz-implement", "novahiz-converge"]
   },
@@ -48,7 +64,7 @@
     "id": "R8-docs",
     "description": "Load novahiz-docs when editing project documentation.",
     "when": {
-      "pathGlobs": ["novahiz-docs/**/*.md"]
+      "pathGlobs": ["**/novahiz-docs/**/*.md"]
     },
     "require": ["novahiz-docs"]
   },
@@ -58,7 +74,8 @@
     "when": {
       "match": "any",
       "promptCategories": ["review"],
-      "fileClasses": ["code"]
+      "fileClasses": ["code"],
+      "pathGlobs": ["**/*.tsx", "**/*.jsx"]
     },
     "require": ["novahiz-code-review"]
   },
@@ -67,7 +84,7 @@
     "description": "Load novahiz-security on any security audit or hardening task.",
     "when": {
       "match": "any",
-      "promptCategories": ["audit", "security"]
+      "promptCategories": ["audit"]
     },
     "require": ["novahiz-security"]
   },

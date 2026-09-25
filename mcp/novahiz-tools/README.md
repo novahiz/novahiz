@@ -14,6 +14,11 @@ Tools:
 - `novahiz_deps` reports provider dependency status.
 - `novahiz_task` drives the durable task ledger (create, plan, todo, start, done, block, review, amend, insert, drop, reorder, signals, status, resume, current).
 - `novahiz_dispatch` turns pending todos into work packets and reports file-ownership conflicts.
+- `memory_init` creates the `project-memory/` skeleton (index + slots) under a project root.
+- `memory_list` lists project-memory slots from `index.json`.
+- `memory_get` reads one slot (frontmatter, Résumé, Détails).
+- `memory_write` appends a dated entry to the matching slot, rotating when full.
+- `memory_rebuild` regenerates `index.json` from the slot markdown files.
 
 It speaks newline-delimited JSON-RPC over stdio. No npm install is needed.
 

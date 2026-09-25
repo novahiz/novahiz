@@ -1,5 +1,5 @@
 import { join } from "node:path";
-import { asString, dbPathFor, numberFlag, print, safeJsonArray, type Parsed } from "./context.ts";
+import { asString, dbPathFor, flagOn, numberFlag, print, readStdin, safeJsonArray, type Parsed } from "./context.ts";
 import { loadSpec, NovahizHome } from "../spec.ts";
 import { getMeta, openDb, setMeta } from "../db.ts";
 import { loadCatalog, loadInstalledSkills, persistCatalog, scanSkills, writeCatalog, writeSkillIndex } from "../catalog.ts";
@@ -48,7 +48,13 @@ export function commandSync(): void {
 export function commandClassify(parsed: Parsed): void {
   const root = NovahizHome();
   const spec = loadSpec(root);
-  const text = (parsed.positionals.slice(1).join(" ") || asString(parsed.flags.text)).trim();
+  // P0-B: --stdin keeps the prompt off argv — argv allowed option injection
+  // (--home), broke past the Windows 32k limit, and leaked the prompt into
+  // the process list. The slice bounds a hostile stdin (full fix in P2-C).
+  const raw = flagOn(parsed, "stdin")
+    ? readStdin().slice(0, 200_000)
+    : parsed.positionals.slice(1).join(" ") || asString(parsed.flags.text);
+  const text = raw.trim();
   if (text.length === 0) {
     throw new Error("classify needs a prompt: pass it as an argument or with --text");
   }
@@ -108,6 +114,22 @@ export function commandSessionLoad(parsed: Parsed): void {
   // M12: basic session ID format validation (alphanumeric, hyphens, underscores)
   if (!/^[a-zA-Z0-9_-]+$/.test(session)) {
     print({ error: `invalid session ID format: "${session}" (expected alphanumeric, hyphens, underscores)` });
+    process.exitCode = 1;
+    return;
+  }
+  // P0-B: the plugin joins recorded names with commas and the gate re-splits
+  // them — a loose name could inject extra "loaded" skills.
+  if (!/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(skill)) {
+    print({ error: `invalid skill name format: "${skill.slice(0, 64)}"` });
+    process.exitCode = 1;
+    return;
+  }
+  // P0-B: only skills present in the installed index may count as loaded.
+  // An unreadable index cannot verify anything — accept the record (the gate
+  // degrades on its own side via indexMissing).
+  const installed = loadInstalledSkills(spec);
+  if (installed.available && !installed.skills.has(skill)) {
+    print({ error: `unknown skill "${skill}" — not in the installed index. Run "novahiz sync" to rebuild it.` });
     process.exitCode = 1;
     return;
   }
@@ -197,6 +219,10 @@ export function commandStep(parsed: Parsed): void {
   }
   const db = openDb(dbPathFor(root, spec));
   if (done.length > 0) {
+    const ts = new Date().toISOString();
+    // roadmap_progress.session_id has a foreign key to sessions(id):
+    // ensure the session row exists before recording a step.
+    db.prepare("INSERT OR IGNORE INTO sessions (id, categories, required_skills, updated_at) VALUES (?, '[]', '[]', ?)").run(session, ts);
     db.prepare(
       "INSERT INTO roadmap_progress (session_id, step_id, status, updated_at) VALUES (?, ?, 'done', ?) ON CONFLICT(session_id, step_id) DO UPDATE SET status = 'done', updated_at = excluded.updated_at"
     ).run(session, done, new Date().toISOString());

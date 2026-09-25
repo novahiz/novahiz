@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { runCommand, runScript, unsafeToken } from "../src/exec.ts";
+import { isCodeRunnerFlag, runCommand, runScript, unsafeToken } from "../src/exec.ts";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
 
@@ -52,6 +52,40 @@ test("runScript runs a safe bootstrap argv", () => {
   const result = runScript(["node", "--version"]);
   assert.equal(result.ok, true, result.error ?? result.stderr);
   assert.match(result.stdout.trim(), /^v\d+/);
+});
+
+test("runScript refuses shell bootstrap binaries", () => {
+  for (const bin of ["sh", "bash", "pwsh", "powershell", "cmd", "cmd.exe"]) {
+    const result = runScript([bin, "--version"]);
+    assert.equal(result.ok, false, bin);
+    assert.match(result.error ?? "", /refused disallowed bootstrap binary/, bin);
+  }
+});
+
+test("runScript validates bootstrap arguments and code-runner flags", () => {
+  const metachar = runScript(["node", "a; b"]);
+  assert.equal(metachar.ok, false);
+  assert.match(metachar.error ?? "", /refused unsafe token/);
+  const emptyArg = runScript(["node", ""]);
+  assert.equal(emptyArg.ok, false);
+  assert.match(emptyArg.error ?? "", /refused unsafe token/);
+  const pythonInline = runScript(["python", "-c", "x"]);
+  assert.equal(pythonInline.ok, false);
+  assert.match(pythonInline.error ?? "", /refused code-runner flag/);
+  const nodeAttached = runScript(["node", "--eval=x"]);
+  assert.equal(nodeAttached.ok, false);
+  assert.match(nodeAttached.error ?? "", /refused code-runner flag/);
+  assert.match(runScript(["python", "-cx=1"]).error ?? "", /refused code-runner flag/);
+});
+
+test("isCodeRunnerFlag targets only the interpreters that run inline code", () => {
+  assert.equal(isCodeRunnerFlag("python", "-c"), true);
+  assert.equal(isCodeRunnerFlag("python", "-ccode"), true);
+  assert.equal(isCodeRunnerFlag("node", "-e"), true);
+  assert.equal(isCodeRunnerFlag("node", "--eval=x"), true);
+  assert.equal(isCodeRunnerFlag("node", "--version"), false);
+  assert.equal(isCodeRunnerFlag("uv", "-e"), false);
+  assert.equal(isCodeRunnerFlag("npm", "--command"), false);
 });
 
 function walk(dir: string): string[] {

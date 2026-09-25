@@ -2,7 +2,7 @@ import { readFileSync, existsSync } from "node:fs";
 import { join, dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
-import { parse, print } from "./commands/context.ts";
+import { parse, print, flagOn, type Parsed } from "./commands/context.ts";
 import { expandHome } from "./spec.ts";
 
 import { commandCheck, commandSync, commandClassify, commandSkills, commandCategories, commandRules, commandSessionLoad, commandSessionState, commandCatalog, commandRoadmap, commandStep, commandProviders, commandDeps, commandDispatch } from "./commands/inspect.ts";
@@ -105,15 +105,35 @@ function runInit(): void {
   process.stdout.write("\nDone! Restart opencode to activate Novahiz.\n");
 }
 
-function runUpgrade(): void {
+function runUpgrade(parsed: Parsed): void {
   const home = homeDir();
   if (!existsSync(join(home, ".git"))) {
     process.stderr.write("Not a git repository. Install from source first.\n");
     process.exitCode = 1;
     return;
   }
+  // P2-C (LOW): `git pull` rewrote the running code (hooks included) with no
+  // preview. Default to a dry run; `--apply` is required to actually pull.
+  if (!flagOn(parsed, "apply")) {
+    const dry = spawnSync("git", ["pull", "--dry-run"], { cwd: home, encoding: "utf8" });
+    const preview = `${dry.stdout ?? ""}${dry.stderr ?? ""}`.trim();
+    if (preview) process.stdout.write(preview + "\n");
+    if (dry.status !== 0) {
+      process.stderr.write("Dry run failed; fix git first.\n");
+      process.exitCode = 1;
+      return;
+    }
+    process.stdout.write("Dry run only. Re-run `novahiz upgrade --apply` to pull and rebuild.\n");
+    process.exitCode = 1;
+    return;
+  }
   process.stdout.write("Pulling latest changes...\n");
-  spawnSync("git", ["pull"], { cwd: home, stdio: "inherit" });
+  const pull = spawnSync("git", ["pull", "--ff-only"], { cwd: home, stdio: "inherit" });
+  if (pull.status !== 0) {
+    process.stderr.write("Pull failed; nothing rebuilt.\n");
+    process.exitCode = 1;
+    return;
+  }
   process.stdout.write("\nRebuilding skill catalog...\n");
   runSync();
   process.stdout.write("\nUpgraded! Restart opencode to apply changes.\n");
@@ -151,7 +171,7 @@ function main(argv: string[]): void {
       return commandClean(parsed);
     case "upgrade":
     case "update":
-      return runUpgrade();
+      return runUpgrade(parsed);
     case "version":
     case "-v":
     case "--version":

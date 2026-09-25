@@ -4,6 +4,8 @@ import { loadSpec, NovahizHome } from "../spec.ts";
 import { openDb } from "../db.ts";
 import { activeTask, addTodos, amendTodo, blockTodo, completeTodo, createTask, dropTask, dropTodo, getTask, getTodo, insertTodo, ledgerSummary, recordTodoDone, reorderTodos, resume, reviewDue, reviewTask, revisionSignals, startTodo, type ReviewDiff, type TodoAmendment, type TodoInput, type TodoKind } from "../ledger.ts";
 
+const TODO_KINDS: readonly string[] = ["read", "edit", "verify", "delegate"];
+
 export function normalizeTodoInput(item: unknown): TodoInput {
   const record = (item ?? {}) as Record<string, unknown>;
   const owners = Array.isArray(record.owner)
@@ -14,9 +16,13 @@ export function normalizeTodoInput(item: unknown): TodoInput {
   const dependsRaw = record.dependsOn ?? record.depends_on;
   const dependsOn = Array.isArray(dependsRaw) ? dependsRaw.map(String) : [];
   const maxIterations = Number(record.maxIterations ?? record.max_iterations);
+  const kind = record.kind ? String(record.kind) : "edit";
+  if (!TODO_KINDS.includes(kind)) {
+    throw new Error(`invalid todo kind: ${kind} (expected one of ${TODO_KINDS.join(", ")})`);
+  }
   return {
     label: String(record.label ?? record.title ?? "").trim(),
-    kind: (record.kind ? String(record.kind) : "edit") as TodoKind,
+    kind: kind as TodoKind,
     acceptance: record.acceptance ? String(record.acceptance) : undefined,
     owner: owners.length > 0 ? owners.join(",") : undefined,
     dependsOn,
@@ -62,6 +68,8 @@ export function commandTask(parsed: Parsed): void {
 
     if (action === "read") return taskRead(parsed, db, session, spec);
     if (action === "status") return taskRead(parsed, db, session, spec);
+    if (action === "resume") return taskResume(db, session);
+    if (action === "current") return taskCurrent(db, session);
 
     print({ error: `unknown task action: ${action}`, actions: ["new", "plan", "todo", "start", "done", "block", "review", "amend", "insert", "drop", "reorder", "signals", "status", "resume", "current"] });
     process.exitCode = 1;
@@ -88,6 +96,22 @@ function taskRead(parsed: Parsed, db: ReturnType<typeof openDb>, session: string
     for (const signal of signals) summary.push(`  signal ${signal.type}: ${signal.detail}`);
   }
   print({ ...state, summary, review, signals });
+}
+
+function taskResume(db: ReturnType<typeof openDb>, session: string): void {
+  const state = resume(db, session || undefined);
+  const summary = ledgerSummary(state);
+  const next = state.todos.find((todo) => todo.status === "pending");
+  print({
+    ...state,
+    summary,
+    next: next ? { id: next.id, seq: next.seq, label: next.label, kind: next.kind } : null
+  });
+}
+
+function taskCurrent(db: ReturnType<typeof openDb>, session: string): void {
+  const state = resume(db, session || undefined);
+  print({ task: state.task, current: state.current, todos: state.todos.length });
 }
 
 function taskReorder(parsed: Parsed, db: ReturnType<typeof openDb>, session: string, spec: ReturnType<typeof loadSpec>): void {
@@ -166,6 +190,11 @@ function taskAmend(parsed: Parsed, db: ReturnType<typeof openDb>, session: strin
   const label = asString(parsed.flags.label);
   if (label) patch.label = label;
   const kind = asString(parsed.flags.kind);
+  if (kind && !TODO_KINDS.includes(kind)) {
+    print({ error: `invalid todo kind: ${kind} (expected one of ${TODO_KINDS.join(", ")})` });
+    process.exitCode = 1;
+    return;
+  }
   if (kind) patch.kind = kind as TodoKind;
   if (parsed.flags.acceptance !== undefined) patch.acceptance = asString(parsed.flags.acceptance);
   const owners = splitList(parsed.flags.owner);

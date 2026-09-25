@@ -1,5 +1,5 @@
 import type { DatabaseSync } from "node:sqlite";
-import { globToRegExp } from "./gate.ts";
+import { globToRegExp, isSafeRegexPattern } from "./gate.ts";
 import { autoCommit } from "./graft.ts";
 
 export type TodoKind = "read" | "edit" | "verify" | "delegate";
@@ -311,7 +311,9 @@ export function ownedBy(todo: TodoRow, filePath: string): boolean {
     .split(",")
     .map((part) => part.trim())
     .filter(Boolean)
-    .some((pattern) => globToRegExp(pattern).test(normalized));
+    // P2-C (LOW): owner globs come from todo labels; reject nested-quantifier
+    // shapes before compiling so a crafted owner cannot ReDoS every edit check.
+    .some((pattern) => isSafeRegexPattern(pattern) && globToRegExp(pattern).test(normalized));
 }
 
 export function traceCheck(db: DatabaseSync, options: { sessionId?: string; filePath: string; required: boolean }): TraceResult {
@@ -531,10 +533,18 @@ export function reviewTask(db: DatabaseSync, options: { taskId: string } & Revie
     for (const item of removals) {
       const id = typeof item === "string" ? item : item.id;
       const reason = typeof item === "string" ? "" : item.reason ?? "";
+      const target = getTodo(db, id);
+      if (!target || target.task_id !== options.taskId) {
+        throw new Error(`review removal targets a todo outside this task: ${id}`);
+      }
       dropTodo(db, id, reason);
     }
     for (const change of amendments) {
       const { id, ...patch } = change;
+      const target = getTodo(db, id);
+      if (!target || target.task_id !== options.taskId) {
+        throw new Error(`review amendment targets a todo outside this task: ${id}`);
+      }
       amendTodo(db, id, patch);
     }
     for (const item of additions) insertTodo(db, options.taskId, item, "end");

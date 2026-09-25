@@ -11,11 +11,14 @@ import {
   findTargetSlot,
   getSlot,
   isFull,
+  isSafeSlotFile,
   listSlots,
   memoryRoot,
   parseSlotInput,
   rebuildIndex,
+  readIndex,
   relatedness,
+  slotPath,
   writeEntry
 } from "../src/memory.ts";
 
@@ -155,4 +158,40 @@ test("rebuildIndex restores index.json from markdown files", () => {
   const disk = JSON.parse(readFileSync(join(rebuildRoot, "index.json"), "utf8"));
   assert.equal(disk.slots.length, 2);
   assert.equal(disk.slots[0].id, "slot-001");
+});
+
+test("isSafeSlotFile rejects traversal, absolute and empty paths", () => {
+  assert.equal(isSafeSlotFile("../../evil.md"), false);
+  assert.equal(isSafeSlotFile("..\\..\\evil.md"), false);
+  assert.equal(isSafeSlotFile("/etc/passwd"), false);
+  assert.equal(isSafeSlotFile("C:\\Windows\\evil.md"), false);
+  assert.equal(isSafeSlotFile(""), false);
+  assert.equal(isSafeSlotFile(42), false);
+  assert.equal(isSafeSlotFile("slots/slot-001.md"), true);
+});
+
+test("slotPath throws on an unsafe slot file", () => {
+  assert.throws(() => slotPath(root, { file: "../../evil.md" }), /slot.file invalide/);
+});
+
+test("readIndex filters unsafe slot files from the index", () => {
+  const evilRoot = join(base, "evil-root");
+  ensureMemoryRoot(evilRoot);
+  writeFileSync(
+    join(evilRoot, "index.json"),
+    JSON.stringify({
+      version: 1,
+      updated: new Date().toISOString(),
+      slots: [
+        { id: "slot-001", file: "../../evil.md", status: "active" },
+        { id: "slot-002", file: "slots/slot-002.md", status: "active" }
+      ]
+    })
+  );
+  const filtered = readIndex(evilRoot);
+  assert.deepEqual(
+    filtered.slots.map((slot) => slot.id),
+    ["slot-002"]
+  );
+  assert.equal(listSlots(evilRoot).slots.length, 1);
 });

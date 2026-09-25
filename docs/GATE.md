@@ -14,14 +14,14 @@ The gate is the enforcement mechanism. It inspects every file edit and decides w
 ┌─────────────────────────────────────────────────────────────┐
 │                 FILE CLASSIFICATION                         │
 │                                                             │
-│  src/components/Hero.tsx → "code"                          │
+│  src/components/Hero.tsx → "design"                         │
 │                                                             │
 │  Rules:                                                     │
-│  • *.ts, *.tsx, *.js, *.jsx, *.py, *.go, ... → "code"     │
-│  • *.css, *.scss, *.html, *.vue, *.svelte → "design"      │
+│  • *.ts, *.js, *.py, *.go, *.sql, *.sh, ... → "code"       │
+│  • *.css, *.scss, *.html, *.vue, *.svelte, *.tsx → "design" │
 │  • *.md, *.txt, *.rst → "text"                             │
-│  • *.json, *.yaml, *.toml → "config"                       │
-│  • *.csv, *.sql, *.db → "data"                             │
+│  • *.json, *.yaml, *.toml, *.csv → "data"                  │
+│  • *.env, *.ini, *.cfg, dotfiles → "config"                │
 └──────────────────────────┬──────────────────────────────────┘
                            │
                            ▼
@@ -64,14 +64,17 @@ The gate is the enforcement mechanism. It inspects every file edit and decides w
 │  Primary category: database-supabase                        │
 │  Roadmap: schema                                            │
 │                                                             │
-│  Non-optional skill steps:                                  │
+│  Non-optional skill steps (kind: "skill" only):            │
 │  • plan → novahiz-plan                                 │
 │  • clarify → novahiz-clarify                           │
 │  • inspect → novahiz-analyse                           │
 │  • load → novahiz-supabase                             │
-│  • migration → novahiz-implement                       │
 │  • security → novahiz-postgres                         │
-│  • converge → novahiz-converge                         │
+│                                                             │
+│  Skipped (kind is not "skill"):                            │
+│  • migration (edit), test (verify), converge (verify),     │
+│    document (advisory) — listed in the roadmap, never      │
+│    added to requiredSkills                                │
 └──────────────────────────┬──────────────────────────────────┘
                            │
                            ▼
@@ -105,8 +108,8 @@ The gate is the enforcement mechanism. It inspects every file edit and decides w
 │                 VERDICT                                     │
 │                                                             │
 │  allow: false                                               │
-│  missingSkills: ["supabase", "supabase-postgres-best-..."]  │
-│  reasons: ["missing skill: supabase"]                       │
+│  missingSkills: ["novahiz-supabase", "novahiz-postgres"]    │
+│  reasons: ["missing skill: novahiz-supabase"]               │
 │                                                             │
 │  Exit code: 2 → ADAPTER THROWS → MODEL SEES ERROR          │
 └─────────────────────────────────────────────────────────────┘
@@ -118,11 +121,14 @@ The gate classifies files by extension:
 
 | Class | Extensions |
 |-------|------------|
-| `code` | `.ts`, `.tsx`, `.js`, `.jsx`, `.py`, `.go`, `.rs`, `.java`, `.kt`, `.swift`, `.php`, `.dart`, `.rb`, `.c`, `.cpp`, `.h` |
-| `design` | `.css`, `.scss`, `.sass`, `.less`, `.styl`, `.html`, `.vue`, `.svelte`, `.astro` |
-| `text` | `.md`, `.txt`, `.rst`, `.adoc` |
-| `config` | `.json`, `.yaml`, `.yml`, `.toml`, `.ini`, `.env` |
-| `data` | `.csv`, `.sql`, `.db`, `.sqlite` |
+| `code` | `.ts`, `.js`, `.mjs`, `.cjs`, `.py`, `.go`, `.rs`, `.java`, `.kt`, `.swift`, `.php`, `.dart`, `.rb`, `.c`, `.cpp`, `.h`, `.sh`, `.ps1`, `.sql` |
+| `design` | `.css`, `.scss`, `.sass`, `.less`, `.styl`, `.html`, `.htm`, `.vue`, `.svelte`, `.astro`, `.jsx`, `.tsx` |
+| `text` | `.md`, `.mdx`, `.txt`, `.rst`, `.adoc` |
+| `data` | `.json`, `.jsonc`, `.yaml`, `.yml`, `.toml`, `.csv`, `.tsv`, `.xml` |
+| `config` | `.env`, `.ini`, `.cfg`, `.conf`, dotfiles (`.gitignore`, `.eslintrc.json`, …) |
+| `other` | anything else (including `.db` and `.sqlite`, which have no mapping) |
+
+Note the deliberate differences from intuition: `.tsx`/`.jsx` are `design` (component styling surfaces), `.json`/`.yaml` are `data`, and `.sql` is `code`.
 
 ## Rule selectors
 

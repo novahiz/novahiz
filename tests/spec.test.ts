@@ -37,3 +37,8 @@ test("mergeConfig validates classify and gate scalars", () => {
   const notObject = mergeConfig({ classify: "oops" } as never);
   assert.deepEqual(notObject.classify, DEFAULT_CONFIG.classify);
 });
+
+test("C2: mergeConfig restores default tools when the configured list is empty", () => {
+  const merged = mergeConfig({ gate: { tools: [] } } as never);
+  assert.deepEqual(merged.gate.tools, DEFAULT_CONFIG.gate.tools);
+});

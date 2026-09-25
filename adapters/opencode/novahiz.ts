@@ -229,10 +229,10 @@ const GATE = CONFIG.gate ?? {};
 // redirect the kill-switch to an unrelated variable (e.g. CI=false).
 // Single escape hatch name after brand rename.
 const ESCAPE = (process.env.NOVAHIZ_GATE ?? "").toLowerCase();
-// gate.enabled=false disables the plugin the same way the CLI gate does (see src/commands/gate.ts).
-// gate.mode (block/warn/audit) stays owned by the CLI: the plugin only forwards the gate exit code.
-const DISABLED =
-  ["off", "0", "false", "no", "disabled"].includes(ESCAPE) || GATE.enabled === false;
+// P0-B: gate.enabled=false is no longer honored — a writable config must not
+// silently disable enforcement (same rule as the CLI and the MCP tool).
+// Only the env escape turns the gate off; gate.mode stays owned by the CLI.
+const DISABLED = ["off", "0", "false", "no", "disabled"].includes(ESCAPE);
 const GATE_TOOLS = new Set(
   (Array.isArray(GATE.tools) && GATE.tools.length > 0 ? GATE.tools : ["edit", "write", "patch", "apply_patch", "bash", "shell"]).map((tool) => tool.toLowerCase())
 );
@@ -287,6 +287,9 @@ export const NovahizPlugin: Plugin = async ({ client }) => {
   const categoriesBySession = new Map<string, string[]>();
   const enforcementBySession = new Map<string, string>();
   const lastSeenBySession = new Map<string, number>();
+  // P0-B: reason of the last failed classify per session — gate tool calls are
+  // refused while set, instead of running with empty categories (fail-open).
+  const classifyFailedBySession = new Map<string, string>();
   const SESSION_TTL_MS = 4 * 60 * 60 * 1000;
 
   const log = async (level: "info" | "warn", message: string): Promise<void> => {
@@ -302,6 +305,7 @@ export const NovahizPlugin: Plugin = async ({ client }) => {
     categoriesBySession.delete(sessionID);
     enforcementBySession.delete(sessionID);
     lastSeenBySession.delete(sessionID);
+    classifyFailedBySession.delete(sessionID);
   };
 
   // Sessions only vanish from memory on session.deleted, which may never arrive.
@@ -314,8 +318,9 @@ export const NovahizPlugin: Plugin = async ({ client }) => {
     }
   };
 
-  if (DISABLED)
-    await log("info", GATE.enabled === false ? "Gate disabled via config (gate.enabled=false)" : "Gate disabled via environment escape");
+  if (GATE.enabled === false)
+    await log("warn", "gate.enabled=false in config is ignored; enforcement stays active. Use NOVAHIZ_GATE=off to disable the gate.");
+  if (DISABLED) await log("info", "Gate disabled via environment escape");
 
   return {
     config: async (input) => {
@@ -397,9 +402,13 @@ export const NovahizPlugin: Plugin = async ({ client }) => {
           await log("info", `Prompt rewritten: ${rewrite.sourceLanguage} → English ("${classifyText.slice(0, 80)}")`);
         }
 
-        const result = run(["classify", classifyText]);
+        // P0-B: the prompt travels on stdin. On argv it allowed option
+        // injection (--home), broke past the Windows 32k limit, and was
+        // readable in the process list.
+        const result = run(["classify", "--stdin"], classifyText);
         if (result.status !== 0) {
-          await log("warn", `Classify failed (exit ${result.status}), no enforcement injected: ${result.stderr.trim().slice(0, 200)}`);
+          classifyFailedBySession.set(input.sessionID, `classify exit ${result.status}`);
+          await log("warn", `Classify failed (exit ${result.status}), gate tool calls refused for this session: ${result.stderr.trim().slice(0, 200)}`);
           return;
         }
         let parsed: {
@@ -413,15 +422,18 @@ export const NovahizPlugin: Plugin = async ({ client }) => {
         try {
           parsed = JSON.parse(result.stdout) as typeof parsed;
         } catch {
-          await log("warn", "Classify returned invalid JSON, no enforcement injected");
+          classifyFailedBySession.set(input.sessionID, "classify returned invalid JSON");
+          await log("warn", "Classify returned invalid JSON, gate tool calls refused for this session");
           return;
         }
         // M5: the `as` cast is compile-time only — validate the shape at runtime
         // so a malformed classify response cannot silently disable enforcement.
         if (!parsed || typeof parsed !== "object" || !Array.isArray(parsed.categories)) {
-          await log("warn", "Classify returned unexpected structure, no enforcement injected");
+          classifyFailedBySession.set(input.sessionID, "classify returned an unexpected structure");
+          await log("warn", "Classify returned unexpected structure, gate tool calls refused for this session");
           return;
         }
+        classifyFailedBySession.delete(input.sessionID);
         const categories = (parsed.categories ?? []).map((entry) => entry.id);
         categoriesBySession.set(input.sessionID, categories);
         const primary = parsed.primary ?? categories[0] ?? null;
@@ -462,7 +474,8 @@ export const NovahizPlugin: Plugin = async ({ client }) => {
         lines.push("Memory lives in project-memory/ under the project root (cwd): index.json + fixed-size slots (8000 chars / 200 lines) with compact → archive → new-slot rotation. Use the MCP memory_* tools to read and append.");
         enforcementBySession.set(input.sessionID, lines.join("\n"));
       } catch (error) {
-        await log("warn", `chat.message hook failed, no enforcement injected: ${String(error).slice(0, 200)}`);
+        classifyFailedBySession.set(input.sessionID, "chat.message hook error");
+        await log("warn", `chat.message hook failed, gate tool calls refused for this session: ${String(error).slice(0, 200)}`);
         return;
       }
     },
@@ -481,29 +494,57 @@ export const NovahizPlugin: Plugin = async ({ client }) => {
 
     "tool.execute.before": async (input, output) => {
       try {
-        // H-Plugin: validate session ID before using it — prevents undefined/null
-        // from being passed to spawnSync env (throws on Windows).
-        if (!isValidSessionId(input.sessionID)) return;
+        const tool = input.tool.toLowerCase();
+        const gated = !DISABLED && GATE_TOOLS.has(tool);
+        // P0-B: an invalid session ID must not bypass the gate. Gate tools and
+        // skill loads are refused; tools that need no enforcement still pass.
+        if (!isValidSessionId(input.sessionID)) {
+          if (gated || (!DISABLED && tool === "skill")) {
+            throw new Error(
+              `Novahiz gate blocked ${input.tool}: invalid session ID — loaded skills cannot be tracked. Fix the session or set NOVAHIZ_GATE=off to disable.`
+            );
+          }
+          return;
+        }
         touch(input.sessionID);
         if (!loadedBySession.has(input.sessionID)) loadedBySession.set(input.sessionID, new Set());
         const loaded = loadedBySession.get(input.sessionID)!;
 
-        if (input.tool.toLowerCase() === "skill") {
-          const args = output.args as { name?: string; skill?: string } | undefined;
-          const name = args?.name ?? args?.skill;
-          if (name) {
-            loaded.add(String(name));
-            // H3: surface session-load failures — otherwise the gate blocks later
-            // with no trace of why the skill was never recorded.
-            const loadResult = run(["session-load", "--session", input.sessionID, "--skill", String(name)]);
+        if (tool === "skill") {
+          const args = output.args as { name?: unknown; skill?: unknown } | undefined;
+          const raw = args?.name ?? args?.skill;
+          if (raw !== undefined && raw !== null && typeof raw !== "string") {
+            throw new Error("Novahiz gate blocked the skill load: the skill name must be a string.");
+          }
+          const name = typeof raw === "string" ? raw.trim() : "";
+          // P0-B: no commas or spaces — the gate re-splits --loaded on commas,
+          // so a loose name could inject extra "loaded" skills.
+          if (name.length > 0 && !/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(name)) {
+            throw new Error(`Novahiz gate blocked the skill load: invalid skill name "${name.slice(0, 64)}".`);
+          }
+          if (name.length > 0) {
+            // P0-B: record only after session-load validated the name against
+            // the installed index — an unverified name never counts as loaded.
+            // H3 stays: failures are surfaced in the log instead of vanishing.
+            const loadResult = run(["session-load", "--session", input.sessionID, "--skill", name]);
             if (loadResult.status !== 0) {
-              await log("warn", `session-load failed for skill ${name}: ${(loadResult.stderr || "").trim().slice(0, 200)}`);
+              await log("warn", `session-load failed for skill ${name}, not recorded: ${(loadResult.stderr || loadResult.stdout || "").trim().slice(0, 200)}`);
+            } else {
+              loaded.add(name);
             }
           }
           return;
         }
 
-        if (DISABLED || !GATE_TOOLS.has(input.tool.toLowerCase())) return;
+        if (!gated) return;
+        // P0-B: a failed classify would empty the session categories and
+        // neutralize the prompt-scoped rules — refuse instead of failing open.
+        const classifyFailure = classifyFailedBySession.get(input.sessionID);
+        if (classifyFailure) {
+          throw new Error(
+            `Novahiz gate blocked ${input.tool}: prompt classification failed (${classifyFailure}). Fix the install (run "novahiz sync", check catalog/) and send a new message, or set NOVAHIZ_GATE=off to disable.`
+          );
+        }
 
         const categories = categoriesBySession.get(input.sessionID) ?? [];
         const result = run(

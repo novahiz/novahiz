@@ -207,7 +207,10 @@ export function readIndex(root: string): MemoryIndex {
     return {
       version: 1,
       updated: typeof parsed.updated === "string" ? parsed.updated : nowIso(),
-      slots: parsed.slots.filter((slot): slot is SlotMeta => Boolean(slot && typeof slot.id === "string"))
+      slots: parsed.slots.filter(
+        (slot): slot is SlotMeta =>
+          Boolean(slot && typeof slot.id === "string" && isSafeSlotFile(slot.file))
+      )
     };
   } catch (error) {
     if ((error as MemoryError).code === "E_INDEX") throw error;
@@ -221,7 +224,17 @@ export function writeIndex(root: string, index: MemoryIndex): MemoryIndex {
   return next;
 }
 
+/** A slot file must be a relative path with no traversal segment (memory index hardening). */
+export function isSafeSlotFile(file: unknown): boolean {
+  if (typeof file !== "string" || file.trim() === "") return false;
+  if (/^([\\/]|[A-Za-z]:)/.test(file)) return false;
+  return !file.split(/[\\/]/).includes("..");
+}
+
 export function slotPath(root: string, meta: Pick<SlotMeta, "file">): string {
+  if (!isSafeSlotFile(meta.file)) {
+    throw memError("E_INDEX", `slot.file invalide ou hors racine: ${String(meta.file)}`);
+  }
   return join(root, meta.file);
 }
 

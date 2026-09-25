@@ -26,8 +26,8 @@ Usage:
   novahiz graft log [N]          Show last N commits (default: 20)
   novahiz graft diff             Diff current ledger vs last commit
   novahiz graft status           Show graft status
-  novahiz graft restore <hash>   Restore ledger to a revision
-  novahiz graft export <hash> <path>  Export snapshot as .sqlite file
+  novahiz graft restore <hash> [--force]  Restore ledger to a revision (--force required; a backup is written first)
+  novahiz graft export <hash> <path> [--force]  Export snapshot as .sqlite (path must stay in the workspace; --force to overwrite)
   novahiz graft commit -m MSG   Manual commit with message
   novahiz graft help             Show this help
 `;
@@ -99,11 +99,13 @@ export function graftCommand(argv: string[]): void {
       if (!isGraftInitialized()) {
         fail("graft not initialized. Run: novahiz graft init");
       }
-      const rev = argv[1];
+      const force = argv.slice(1).includes("--force");
+      const rev = argv.slice(1).find((a) => a !== "--force");
       if (!rev) {
-        fail("usage: novahiz graft restore <revision>");
+        fail("usage: novahiz graft restore <revision> [--force]");
+        return;
       }
-      const result = restoreGraft(rev);
+      const result = restoreGraft(rev, { force });
       if (result.success) {
         console.log(`ok: ${result.message}`);
       } else {
@@ -116,12 +118,15 @@ export function graftCommand(argv: string[]): void {
       if (!isGraftInitialized()) {
         fail("graft not initialized. Run: novahiz graft init");
       }
-      const rev = argv[1];
-      const outPath = argv[2];
+      const rest = argv.slice(1).filter((a) => a !== "--force");
+      const force = argv.slice(1).includes("--force");
+      const rev = rest[0];
+      const outPath = rest[1];
       if (!rev || !outPath) {
-        fail("usage: novahiz graft export <revision> <output-path>");
+        fail("usage: novahiz graft export <revision> <output-path> [--force]");
+        return;
       }
-      const result = exportGraft(rev, outPath);
+      const result = exportGraft(rev, outPath, { force });
       if (result.success) {
         console.log(`ok: ${result.message}`);
       } else {

@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, readdirSync, chmodSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, readdirSync, chmodSync, readSync } from "node:fs";
 import { resolve as resolvePath, join } from "node:path";
 import { homedir } from "node:os";
 import { fileURLToPath } from "node:url";
@@ -78,10 +78,37 @@ export function emit(parsed: Parsed, value: unknown, textFn: () => string): void
   }
 }
 
+// P2-C (LOW): stdin.read() returns null on a TTY (stream not in flowing
+// mode), which made every confirmation silently answer "no". Read a line
+// from fd 0 directly instead; parse stays pure so tests cover it without a
+// terminal.
+export function parseAnswer(line: string): boolean {
+  const answer = line.trim().toLowerCase();
+  return answer === "y" || answer === "yes" || answer === "o" || answer === "oui";
+}
+
+const MAX_ANSWER_BYTES = 1024;
+
+function readAnswerLine(): string {
+  const buffer = Buffer.alloc(MAX_ANSWER_BYTES);
+  let total = 0;
+  try {
+    while (total < MAX_ANSWER_BYTES) {
+      const read = readSync(0, buffer, total, 1, null);
+      if (read <= 0) break;
+      const byte = buffer[total];
+      total += 1;
+      if (byte === 0x0a) break; // \n — consume the whole line, stop at newline
+    }
+  } catch {
+    // stdin unavailable (closed pipe, no console): treat as empty answer
+  }
+  return buffer.toString("utf8", 0, total);
+}
+
 export function confirm(question: string): boolean {
   process.stdout.write(question + " [y/N] ");
-  const answer = process.stdin.read()?.toString().trim().toLowerCase();
-  return answer === "y" || answer === "yes" || answer === "o";
+  return parseAnswer(readAnswerLine());
 }
 
 // The name promises safety: malformed input returns [] instead of throwing.
@@ -98,11 +125,23 @@ export function dbPathFor(root: string, spec: Spec): string {
   return resolvePath(root, spec.config.dbPath);
 }
 
+const MAX_STDIN_BYTES = 1024 * 1024; // 1 MiB: JSON payloads never need more
+
 export function readStdin(): string {
   // A single synchronous stdin read races with pipe delivery and can return null even when input was provided.
   if (process.stdin.isTTY) return "";
   try {
-    return readFileSync(0, 'utf8');
+    // P2-C (LOW): bounded read — readFileSync(0) had no size limit, so a huge
+    // pipe reached JSON.parse in full. Stop at the cap; oversized input gets
+    // truncated (and then fails to parse) instead of being loaded whole.
+    const buffer = Buffer.alloc(MAX_STDIN_BYTES);
+    let total = 0;
+    while (total < MAX_STDIN_BYTES) {
+      const read = readSync(0, buffer, total, MAX_STDIN_BYTES - total, null);
+      if (read <= 0) break;
+      total += read;
+    }
+    return buffer.toString("utf8", 0, total);
   } catch {
     return "";
   }

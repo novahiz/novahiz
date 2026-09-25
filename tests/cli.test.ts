@@ -1,13 +1,24 @@
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { rmSync } from "node:fs";
+import { rmSync, mkdirSync, cpSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 import { loadSpec } from "../src/spec.ts";
 import { openDb } from "../src/db.ts";
 import { scanSkills, writeCatalog, writeSkillIndex } from "../src/catalog.ts";
+import { normalizeTodoInput } from "../src/commands/task.ts";
+import { parseAnswer } from "../src/commands/context.ts";
+
+test("parseAnswer accepts yes variants and defaults to no", () => {
+  assert.equal(parseAnswer("y\n"), true);
+  assert.equal(parseAnswer(" yes "), true);
+  assert.equal(parseAnswer("oui"), true);
+  assert.equal(parseAnswer("n"), false);
+  assert.equal(parseAnswer(""), false);
+  assert.equal(parseAnswer("garbage"), false);
+});
 
 const root = fileURLToPath(new URL("..", import.meta.url));
 const cli = join(root, "src", "cli.ts");
@@ -246,4 +257,96 @@ test("session-load and session-state round-trip", () => {
 run(["session-load", "--session", session, "--skill", "novahiz-humanizer"]);
    const state = JSON.parse(run(["session-state", "--session", session]));
    assert.ok(state.loaded.includes("novahiz-humanizer"));
+});
+
+test("C1: --prompt drives the gate tier", () => {
+  const parsed = JSON.parse(
+    run([
+      "gate",
+      "--tool",
+      "edit",
+      "--file",
+      "src/app.ts",
+      "--categories",
+      "code",
+      "--content",
+      "const x = 1;",
+      "--prompt",
+      "Implement a complete authentication system with database schema, security tests and session handling across multiple files"
+    ], { NOVAHIZ_GATE: "on" })
+  );
+  assert.equal(parsed.targets[0].tier, "full");
+});
+
+test("C2: gate.enabled=false in config does not disable enforcement", () => {
+  const home = join(tmpdir(), `novahiz-cfg-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`);
+  mkdirSync(home, { recursive: true });
+  cpSync(join(root, "catalog"), join(home, "catalog"), { recursive: true });
+  writeFileSync(join(home, "novahiz.config.json"), JSON.stringify({ gate: { enabled: false, mode: "block" } }));
+  const result = spawnSync(process.execPath, [cli, "gate", "--tool", "edit", "--file", "src/hero.css"], {
+    encoding: "utf8",
+    input: "",
+    env: { ...process.env, NOVAHIZ_HOME: home, NOVAHIZ_DB: testDb, NOVAHIZ_GATE: "on" }
+  });
+  rmSync(home, { recursive: true, force: true });
+  const parsed = JSON.parse(result.stdout.trim());
+  assert.notEqual(parsed.disabled, true);
+  assert.equal(parsed.allow, false);
+  assert.match(result.stderr, /enabled=false.*ignored/);
+});
+
+test("P0-B: classify --stdin accepts a prompt larger than the argv limit", () => {
+  // >32767 chars would break Windows argv; stdin has no such limit.
+  const prompt = `implement a complete authentication system with database schema ${"and security tests ".repeat(2100)}`;
+  assert.ok(prompt.length > 32_767, "prompt must exceed the Windows argv limit");
+  const result = spawnSync(process.execPath, [cli, "classify", "--stdin"], {
+    encoding: "utf8",
+    input: prompt,
+    env: { ...process.env, NOVAHIZ_HOME: root, NOVAHIZ_DB: testDb }
+  });
+  assert.equal(result.status, 0);
+  const parsed = JSON.parse(result.stdout.trim());
+  // commandClassify trims the received text before echoing it.
+  assert.equal(parsed.prompt, prompt.trim());
+});
+
+test("P0-B: session-load validates the name format and the installed index", () => {
+  const session = `cli-idx-${Date.now().toString(36)}`;
+  const base = { ...process.env, NOVAHIZ_HOME: root, NOVAHIZ_DB: testDb };
+  const unknown = spawnSync(process.execPath, [cli, "session-load", "--session", session, "--skill", "no-such-skill-xyz"], {
+    encoding: "utf8",
+    input: "",
+    env: base
+  });
+  assert.equal(unknown.status, 1);
+  assert.match(unknown.stdout, /unknown skill/);
+  const malformed = spawnSync(process.execPath, [cli, "session-load", "--session", session, "--skill", "evil,name"], {
+    encoding: "utf8",
+    input: "",
+    env: base
+  });
+  assert.equal(malformed.status, 1);
+  assert.match(malformed.stdout, /invalid skill name/);
+  const known = spawnSync(process.execPath, [cli, "session-load", "--session", session, "--skill", "novahiz-humanizer"], {
+    encoding: "utf8",
+    input: "",
+    env: base
+  });
+  assert.equal(known.status, 0);
+});
+
+test("task resume and current dispatch without an active task", () => {
+  const current = JSON.parse(run(["task", "current", "--session", "cli-missing-session"]));
+  assert.equal(current.error, undefined);
+  assert.equal(current.task, null);
+  assert.equal(typeof current.todos, "number");
+  const resumed = JSON.parse(run(["task", "resume", "--session", "cli-missing-session"]));
+  assert.equal(resumed.error, undefined);
+  assert.ok(Array.isArray(resumed.summary));
+  assert.equal(resumed.next, null);
+});
+
+test("normalizeTodoInput rejects an unknown kind and defaults to edit", () => {
+  assert.throws(() => normalizeTodoInput({ label: "x", kind: "bogus" }), /invalid todo kind/);
+  assert.equal(normalizeTodoInput({ label: "x" }).kind, "edit");
 });

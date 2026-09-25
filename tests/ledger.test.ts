@@ -147,6 +147,14 @@ test("ownedBy matches glob owners and blank owners own everything", () => {
   assert.equal(ownedBy(globbed, "docs/readme.md"), false);
 });
 
+test("ownedBy ignores unsafe nested-quantifier owner globs (ReDoS guard)", () => {
+  const task = makeTask("Unsafe owner");
+  const [evil] = addTodos(db, task.id, [{ label: "evil", owner: "(a+)+b, src/**" }]);
+  // the unsafe pattern is skipped entirely; the safe sibling still applies
+  assert.equal(ownedBy(evil, "src/lib/app.ts"), true);
+  assert.equal(ownedBy(evil, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab"), false);
+});
+
 test("traceCheck requires an in-progress todo that owns the file", () => {
   const task = makeTask("Trace");
   const session = task.session_id as string;
@@ -327,4 +335,19 @@ test("surfaces revision signals", () => {
   const types = revisionSignals(db, task.id).map((signal) => signal.type);
   assert.ok(types.includes("missing_acceptance"));
   assert.ok(types.includes("unowned"));
+});
+
+test("reviewTask refuses amendments and removals targeting another task's todos", () => {
+  const taskA = makeTask("Isolation A");
+  const taskB = makeTask("Isolation B");
+  const [todoA] = addTodos(db, taskA.id, [{ label: "belongs to A" }]);
+  assert.throws(
+    () => reviewTask(db, { taskId: taskB.id, additions: [], amendments: [{ id: todoA.id, label: "hijacked" }] }),
+    /outside this task/
+  );
+  assert.throws(
+    () => reviewTask(db, { taskId: taskB.id, additions: [], amendments: [], removals: [todoA.id] }),
+    /outside this task/
+  );
+  assert.equal(getTask(db, taskA.id)?.revision, 0);
 });

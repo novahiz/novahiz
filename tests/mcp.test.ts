@@ -188,11 +188,38 @@ test("gate rejects a call with neither file nor filePath", () => {
   assert.equal(out[0].error.code, -32602);
 });
 
+test("C1: the prompt drives the gate tier over MCP", () => {
+  const out = call([
+    JSON.stringify({
+      jsonrpc: "2.0",
+      id: 1,
+      method: "tools/call",
+      params: {
+        name: "novahiz_gate",
+        arguments: {
+          tool: "edit",
+          file: "src/app.ts",
+          content: "const x = 1;",
+          prompt: "Implement a complete authentication system with database schema, security tests and session handling across multiple files"
+        }
+      }
+    })
+  ]);
+  assert.equal(out[0].error, undefined);
+  const payload = JSON.parse(out[0].result.content[0].text);
+  assert.equal(payload.tier, "full");
+});
+
 test("records a roadmap step over MCP", () => {
   const out = call([
-    JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "novahiz_step", arguments: { session: "mcp-step", step: "scan", status: "done" } } })
+    JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "novahiz_step", arguments: { session: "mcp-step", done: "scan" } } })
   ]);
-  assert.ok(out[0].result.content[0].text.length > 0);
+  assert.equal(out[0].error, undefined);
+  const payload = JSON.parse(out[0].result.content[0].text);
+  assert.equal(payload.session, "mcp-step");
+  const step = payload.steps.find((s: { step_id: string }) => s.step_id === "scan");
+  assert.ok(step, "recorded step 'scan' missing from roadmap state");
+  assert.equal(step.status, "done");
 });
 
 test("resolves a roadmap from a query over MCP", () => {

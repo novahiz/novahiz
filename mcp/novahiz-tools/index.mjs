@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 import { createInterface } from "node:readline";
 import { pathToFileURL } from "node:url";
-import { resolve } from "node:path";
+import { resolve, sep } from "node:path";
 import { readFileSync, realpathSync } from "node:fs";
 import { classify } from "../../src/classify.ts";
-import { evaluateGate } from "../../src/gate.ts";
+import { enforceLedgerChecks, evaluateGate } from "../../src/gate.ts";
 import { loadSpec } from "../../src/spec.ts";
 import { loadCatalog, loadInstalledSkills } from "../../src/catalog.ts";
 import { rankSkills } from "../../src/relevance.ts";
@@ -13,6 +13,18 @@ import { enabledProviders } from "../../src/providers.ts";
 import { checkDependencies } from "../../src/deps.ts";
 import { activeTask, addTodos, amendTodo, blockTodo, buildWorkPackets, completeTodo, createTask, dropTask, dropTodo, getTask, getTodo, insertTodo, ledgerSummary, listTodos, recordTodoDone, reorderTodos, resume, reviewDue, reviewTask, revisionSignals, startTodo } from "../../src/ledger.ts";
 import { DEFAULT_LIMIT_CHARS, DEFAULT_LIMIT_LINES, ensureMemoryRoot, getSlot, listSlots, memoryRoot, parseSlotInput, rebuildIndex, writeEntry } from "../../src/memory.ts";
+
+// A memory root must stay inside the workspace: memory_* used to create
+// project-memory/ directories anywhere the caller named (audit P1-D/M4).
+function safeMemoryRoot(raw) {
+  const base = typeof raw === "string" && raw.length > 0 ? raw : memoryRoot();
+  const abs = resolve(base);
+  const ws = resolve(process.cwd());
+  if (abs !== ws && !abs.startsWith(ws + sep)) {
+    throw new Error("Invalid params: memory root outside the workspace");
+  }
+  return abs;
+}
 
 const SUPPORTED_PROTOCOLS = ["2024-11-05", "2025-06-18"];
 const DEFAULT_PROTOCOL = "2024-11-05";
@@ -296,7 +308,13 @@ function callTool(name, args) {
     return toolResult({ query, total: catalog.length, results: rankSkills(catalog, query, limit) });
   }
   if (name === "novahiz_gate") {
-    if (spec.config.gate.enabled === false) return toolResult({ allow: true, disabled: true });
+    // C2: a project-writable config must not silently switch enforcement off
+    // from MCP either. The only kill-switch is NOVAHIZ_GATE=off.
+    if (spec.config.gate.enabled === false) {
+      process.stderr.write(
+        'novahiz: gate.enabled=false in novahiz.config.json is ignored; enforcement stays active. Use NOVAHIZ_GATE=off to disable the gate.\n'
+      );
+    }
     // C5: envEscape is now hardcoded to "NOVAHIZ_GATE" (the primary env
     // var). The old configurable envEscape field allowed bypassing enforcement
     // by setting an arbitrary env var. Hardcoded: the only way to override is
@@ -336,6 +354,9 @@ function callTool(name, args) {
     if (typeof args?.prompt === "string" && args.prompt.length > MAX_PROMPT_LEN) {
       throw new Error(`Invalid params: prompt exceeds ${MAX_PROMPT_LEN} characters`);
     }
+    if (args?.session !== undefined && typeof args.session !== "string") {
+      throw new Error("Invalid params: session must be a string");
+    }
     // Auto-classify when categories is omitted or empty: seed from prompt,
     // fall back to content, then file path. Explicit categories always win.
     let categories = args?.categories ? args.categories.map(String) : [];
@@ -357,12 +378,52 @@ function callTool(name, args) {
       tool: String(args?.tool ?? "edit"),
       filePath: file,
       content: typeof args?.content === "string" ? args.content : "",
+      prompt: typeof args?.prompt === "string" ? args.prompt : "",
       categories,
       loadedSkills: args?.loaded ? args.loaded.map(String) : [],
       installedSkills: index.skills,
       installedIndexAvailable: index.available,
       spec
     });
+    // Ledger enforcement parity with the CLI gate (audit P1-D/M1): trace
+    // checks, recordEdit/review and the enforcement_log row used to be CLI
+    // only. A ledger refusal is merged into the verdict; a DB failure fails
+    // closed like the CLI instead of passing the edit silently.
+    const session = typeof args?.session === "string" ? args.session : "";
+    // Same shape as the CLI's results array: path alongside the GateResult,
+    // on the same object so enforceLedgerChecks mutates this verdict in place.
+    result.path = file;
+    if (session.length > 0) {
+      let mdb = null;
+      try {
+        mdb = openDb(resolve(spec.root, spec.config.dbPath));
+      } catch {
+        mdb = null;
+      }
+      if (mdb) {
+        try {
+          const enforced = enforceLedgerChecks(mdb, {
+            session,
+            tool: String(args?.tool ?? "edit"),
+            paths: [file],
+            categories,
+            results: [result],
+            spec,
+            gateConfig: spec.config.gate
+          });
+          if (enforced.reasons.length > 0) {
+            result.reasons.push(...enforced.reasons);
+            result.allow = false;
+          }
+          if (enforced.reviewWarning) result.reasons.push(enforced.reviewWarning);
+        } finally {
+          mdb.close();
+        }
+      } else {
+        result.allow = false;
+        result.reasons.push("DB open failed: ledger enforcement unavailable");
+      }
+    }
     // A gate refusal is a normal verdict, not an execution error.
     return toolResult(result, false);
   }
@@ -408,6 +469,13 @@ function callTool(name, args) {
     const db = openDb(resolve(spec.root, spec.config.dbPath));
     try {
       if (done.length > 0) {
+        const ts = new Date().toISOString();
+        // roadmap_progress.session_id has a foreign key to sessions(id):
+        // ensure the session row exists before recording a step, otherwise
+        // a first-time session fails with "FOREIGN KEY constraint failed".
+        db.prepare(
+          "INSERT OR IGNORE INTO sessions (id, categories, required_skills, updated_at) VALUES (?, '[]', '[]', ?)"
+        ).run(session, ts);
         db.prepare(
           "INSERT INTO roadmap_progress (session_id, step_id, status, updated_at) VALUES (?, ?, 'done', ?) ON CONFLICT(session_id, step_id) DO UPDATE SET status = 'done', updated_at = excluded.updated_at"
         ).run(session, done, new Date().toISOString());
@@ -565,6 +633,9 @@ function callTool(name, args) {
       throw new Error(`Invalid params: content exceeds ${MAX_CONTENT_LEN} characters`);
     }
     const input = parseSlotInput(args ?? {});
+    if (typeof input.root === "string" && input.root.length > 0) {
+      input.root = safeMemoryRoot(input.root);
+    }
     const result = writeEntry(input);
     return toolResult({
       slot: result.slot,
@@ -576,7 +647,7 @@ function callTool(name, args) {
     });
   }
   if (name === "memory_list") {
-    const root = typeof args?.root === "string" && args.root.length > 0 ? args.root : memoryRoot();
+    const root = safeMemoryRoot(args?.root);
     const index = listSlots(root);
     return toolResult({
       root,
@@ -589,16 +660,16 @@ function callTool(name, args) {
   if (name === "memory_get") {
     const id = String(args?.id ?? "");
     if (id.length === 0) throw new Error("Invalid params: id must be a non-empty string");
-    const root = typeof args?.root === "string" && args.root.length > 0 ? args.root : memoryRoot();
+    const root = safeMemoryRoot(args?.root);
     return toolResult(getSlot(id, root));
   }
   if (name === "memory_init") {
-    const root = typeof args?.root === "string" && args.root.length > 0 ? args.root : memoryRoot();
+    const root = safeMemoryRoot(args?.root);
     const index = ensureMemoryRoot(root);
     return toolResult({ root, created: true, slots: index.slots.length, indexUpdated: index.updated });
   }
   if (name === "memory_rebuild") {
-    const root = typeof args?.root === "string" && args.root.length > 0 ? args.root : memoryRoot();
+    const root = safeMemoryRoot(args?.root);
     const index = rebuildIndex(root);
     return toolResult({ root, count: index.slots.length, indexUpdated: index.updated });
   }

@@ -4,10 +4,8 @@ import { loadSpec, NovahizHome } from "../spec.ts";
 import { openDb } from "../db.ts";
 import { loadInstalledSkills } from "../catalog.ts";
 import { changeText } from "../content.ts";
-import { evaluateGate } from "../gate.ts";
+import { enforceLedgerChecks, evaluateGate } from "../gate.ts";
 import { extractTargetPaths } from "../targets.ts";
-import { activeTask, recordEdit, reviewBlockReason, reviewDue, traceCheck } from "../ledger.ts";
-import { autoCommit } from "../graft.ts";
 
 export function commandGate(parsed: Parsed): void {
   const root = NovahizHome();
@@ -45,9 +43,13 @@ export function commandGate(parsed: Parsed): void {
     }
   }
 
+  // C2: a project-writable config must not silently switch enforcement off.
+  // enabled:false is ignored on purpose; the only kill-switch is the external
+  // env var NOVAHIZ_GATE (same philosophy as the hardcoded envEscape, H3/C5).
   if (gateConfig.enabled === false) {
-    print({ allow: true, disabled: true, tool });
-    return;
+    process.stderr.write(
+      'novahiz: gate.enabled=false in novahiz.config.json is ignored; enforcement stays active. Use NOVAHIZ_GATE=off to disable the gate.\n'
+    );
   }
   // H3: always use NOVAHIZ_GATE (legacy: NOVAHIZ_GATE) — ignore configurable
   // envEscape to prevent a writable config from redirecting the kill-switch.
@@ -65,6 +67,8 @@ export function commandGate(parsed: Parsed): void {
 
   const single = asString(parsed.flags.file);
   let content = asString(parsed.flags.content);
+  // C1: the prompt that triggered the edit drives the complexity tier.
+  const prompt = asString(parsed.flags.prompt);
   let paths: string[];
   if (single.length > 0) {
     paths = [single];
@@ -113,6 +117,7 @@ export function commandGate(parsed: Parsed): void {
       tool,
       filePath,
       content,
+      prompt,
       categories,
       loadedSkills: loaded,
       installedSkills: index.skills,
@@ -139,63 +144,11 @@ export function commandGate(parsed: Parsed): void {
     return;
   }
   try {
-    const traceConfig = gateConfig.trace;
-    const traceRequired =
-      traceConfig?.enabled === true &&
-      session.length > 0 &&
-      categories.some((category) => traceConfig.categories.includes(category));
-    if (traceRequired) {
-      for (const entry of results) {
-        const trace = traceCheck(db, { sessionId: session, filePath: entry.path, required: true });
-        if (!trace.ok) {
-          entry.allow = false;
-          reasons.push(trace.reason);
-        }
-      }
-    }
-
-    const ledgerConfig = spec.config.ledger;
-    if (ledgerConfig?.enabled !== false) {
-      const task = activeTask(db, session || undefined);
-      if (task) {
-        if (["edit", "write", "patch", "apply_patch"].includes(tool)) recordEdit(db, task.id);
-        // Targeted review: block only paths owned by an open todo with an owner
-        // pattern. A due review no longer freezes every target.
-        for (const entry of results) {
-          const reason = reviewBlockReason(db, task.id, entry.path, ledgerConfig.review);
-          if (reason && !entry.ignored) {
-            entry.allow = false;
-            entry.reasons.push(reason);
-          }
-        }
-        if (results.some((entry) => entry.reasons.some((reason) => reason.startsWith("plan review due")))) {
-          reasons.push(reviewDue(db, task.id, ledgerConfig.review).reason);
-        } else if (reviewDue(db, task.id, ledgerConfig.review).due) {
-          reviewWarning = reviewDue(db, task.id, ledgerConfig.review).reason;
-        }
-      }
-    }
-
-    const currentAllow = results.every((entry) => entry.allow);
-    if (session.length > 0) {
-      db.prepare(
-        "INSERT INTO enforcement_log (session_id, tool, file_path, file_class, decision, missing, matched_rules, logged_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
-      ).run(
-        session,
-        tool,
-        paths.join(","),
-        results[0]?.fileClass ?? "other",
-        currentAllow ? "allow" : gateConfig.mode === "block" ? "block" : gateConfig.mode,
-        JSON.stringify(missingSkills),
-        JSON.stringify(results.flatMap((entry) => entry.matchedRules)),
-        new Date().toISOString()
-      );
-      try {
-        autoCommit("enforcement", `${currentAllow ? "allow" : "block"} ${tool}`);
-      } catch {
-        // autoCommit failures are non-critical; the enforcement is logged regardless
-      }
-    }
+    // Shared with the MCP novahiz_gate tool (src/gate.ts enforceLedgerChecks)
+    // so the two entry points enforce trace + ledger + the log identically.
+    const enforced = enforceLedgerChecks(db, { session, tool, paths, categories, results, spec, gateConfig });
+    reasons.push(...enforced.reasons);
+    reviewWarning = enforced.reviewWarning;
   } finally {
     db?.close();
   }
@@ -225,6 +178,7 @@ export function commandGate(parsed: Parsed): void {
     targets: results.map((entry) => ({
       path: entry.path,
       fileClass: entry.fileClass,
+      tier: entry.tier,
       ignored: entry.ignored,
       roadmap: entry.roadmap,
       requiredSkills: entry.requiredSkills,

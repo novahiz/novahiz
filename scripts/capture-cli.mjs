@@ -15,7 +15,7 @@
 import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
+import { dirname, join, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
@@ -64,9 +64,26 @@ function outputRoot(flags) {
   return flags.out && flags.out.length > 0 ? flags.out : join(tmpdir(), "novahiz", "cli-reference");
 }
 
+// Capture names become directory entries, and --label is joined onto the
+// output root right before a recursive rmSync. No separator and no leading
+// dot means the name can never resolve outside that root: "..", "a/b" and
+// ".hidden" are all refused before anything is deleted.
+const SAFE_NAME = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
+
+function assertSafeName(value, what) {
+  if (!SAFE_NAME.test(value)) {
+    throw new Error(`unsafe ${what}: ${JSON.stringify(value)} — letters, digits, dot, dash and underscore only, starting with a letter or digit`);
+  }
+}
+
 function capture(flags) {
   if (flags.label.length === 0) throw new Error("--label <name> is required to capture");
-  const target = join(outputRoot(flags), flags.label);
+  assertSafeName(flags.label, "--label");
+  const base = resolve(outputRoot(flags));
+  const target = resolve(join(base, flags.label));
+  if (target !== base && !target.startsWith(base + sep)) {
+    throw new Error(`unsafe --label: ${flags.label} resolves outside ${base}`);
+  }
   rmSync(target, { recursive: true, force: true });
   mkdirSync(target, { recursive: true });
   const dbPath = join(target, "capture.sqlite");
@@ -104,6 +121,8 @@ function normalise(text) {
 function compare(flags) {
   const [left, right] = flags.compare;
   if (!left || !right) throw new Error("--compare <before> <after> is required");
+  assertSafeName(left, "--compare");
+  assertSafeName(right, "--compare");
   const dirLeft = join(outputRoot(flags), left);
   const dirRight = join(outputRoot(flags), right);
   for (const dir of [dirLeft, dirRight]) {

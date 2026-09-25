@@ -88,7 +88,8 @@ test("README counts match catalog (17 categories, 11 rules, 10 providers)", () =
   assert.equal(Array.isArray(provList) ? provList.length : 0, 10);
 
   const readme = readFileSync(join(root, "README.md"), "utf8");
-  assert.ok(readme.includes("84 skills"), "README skill count");
+  assert.ok(readme.includes("95 skills"), "README skill count");
+  assert.ok(!/84 skills/.test(readme), "stale 84 skills");
   assert.ok(!/42 skills/.test(readme), "stale 42 skills");
   assert.ok(readme.includes("11 gate rules"), "README rule count");
   assert.ok(readme.includes("7 MCP providers"), "README provider count");

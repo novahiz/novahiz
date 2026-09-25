@@ -2,7 +2,7 @@
 
 > **Zero-dependency enforcement layer for AI coding agents** — classifies prompts, assigns execution roadmaps, blocks unsafe edits, and injects session-level skills, all deterministically without model calls.
 
-17 categories, 84 skills, 11 gate rules, 7 MCP providers — all deterministic, all local, all JSON.
+17 categories, 95 skills, 11 gate rules, 7 MCP providers — all deterministic, all local, all JSON.
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
@@ -52,7 +52,7 @@
 └──────────────────────────────────────────────────────────────────────────┘
 ```
 
-**17 categories**, **84 skills**, **11 gate rules**, **7 MCP providers** — all deterministic, all local, all JSON.
+**17 categories**, **95 skills**, **11 gate rules**, **7 MCP providers** — all deterministic, all local, all JSON.
 
 ---
 
@@ -242,7 +242,7 @@ flowchart TD
 
 ## Installed skills
 
-Novahiz ships with 84 skills across all categories:
+Novahiz ships with 95 skills across all categories:
 
 | Category | Skills | Purpose |
 |----------|--------|---------|

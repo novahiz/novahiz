@@ -5,30 +5,41 @@
  * Auto-commit is handled by calling `commitGraft()` from ledger operations.
  */
 import { execFileSync } from "node:child_process";
-import { existsSync } from "node:fs";
-import { resolve } from "node:path";
+import { copyFileSync, existsSync } from "node:fs";
+import { isAbsolute, resolve, sep } from "node:path";
 import { NovahizHome } from "./spec.ts";
 
 // ── Graft binary resolution ──────────────────────────────────────────────────
 // Graft is expected on PATH. If not found, we degrade gracefully (no-op).
 
-let _graftBinary: string | null = null;
+let _graftBinary: string | null = null; // null = not resolved yet, "" = resolved but absent
 
-function graftBinary(): string {
-  if (_graftBinary !== null) return _graftBinary;
-  // Try common locations on Windows where npm global bin lives
-  const candidates = ["graft", "graft.exe"];
-  for (const c of candidates) {
-    try {
-      execFileSync(c, ["--version"], { stdio: "pipe", timeout: 5000 });
-      _graftBinary = c;
-      return _graftBinary;
-    } catch {
-      // not found, try next
+function graftBinary(): string | null {
+  if (_graftBinary !== null) return _graftBinary || null;
+  const override = process.env.NOVAHIZ_GRAFT_BIN;
+  if (override) {
+    const abs = resolve(override);
+    if (existsSync(abs)) {
+      _graftBinary = abs;
+      return abs;
     }
   }
-  _graftBinary = "graft"; // fallback — will fail with clear error
-  return _graftBinary;
+  const isWin = process.platform === "win32";
+  const names = isWin ? ["graft.cmd", "graft.exe", "graft"] : ["graft"];
+  const delimiter = isWin ? ";" : ":";
+  for (const raw of (process.env.PATH ?? "").split(delimiter)) {
+    const dir = raw.trim();
+    if (dir === "" || !isAbsolute(dir)) continue;
+    for (const name of names) {
+      const candidate = resolve(dir, name);
+      if (existsSync(candidate)) {
+        _graftBinary = candidate;
+        return candidate;
+      }
+    }
+  }
+  _graftBinary = "";
+  return null;
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -46,6 +57,7 @@ function ledgerPath(): string {
 
 function runGraft(args: string[], opts?: { timeout?: number }): string {
   const bin = graftBinary();
+  if (!bin) throw new Error("graft not found on PATH (install @eidos.space/graft or set NOVAHIZ_GRAFT_BIN)");
   const db = ledgerPath();
   const fullArgs = ["--db", db, ...args];
   try {
@@ -67,8 +79,10 @@ function runGraft(args: string[], opts?: { timeout?: number }): string {
 
 /** Check if graft CLI is available on PATH. */
 export function isGraftAvailable(): boolean {
+  const bin = graftBinary();
+  if (!bin) return false;
   try {
-    execFileSync(graftBinary(), ["--version"], { stdio: "pipe", timeout: 5000 });
+    execFileSync(bin, ["--version"], { stdio: "pipe", timeout: 5000 });
     return true;
   } catch {
     return false;
@@ -90,7 +104,9 @@ export function initGraft(): { success: boolean; message: string } {
   }
   try {
     // graft init creates .graft/ in cwd
-    execFileSync(graftBinary(), ["init"], {
+    const bin = graftBinary();
+    if (!bin) return { success: false, message: "graft CLI not found on PATH" };
+    execFileSync(bin, ["init"], {
       stdio: "pipe",
       timeout: 10_000,
       cwd: NovahizHome(),
@@ -177,13 +193,22 @@ export function getGraftStatus(): string {
 }
 
 /** Restore the ledger to a specific revision. */
-export function restoreGraft(revision: string): { success: boolean; message: string } {
+export function restoreGraft(revision: string, opts?: { force?: boolean }): { success: boolean; message: string } {
   if (!isGraftAvailable() || !isGraftInitialized()) {
     return { success: false, message: "graft not initialized" };
   }
+  if (!opts?.force) {
+    return {
+      success: false,
+      message:
+        "refuses to overwrite the ledger without --force; re-run as `novahiz graft restore <hash> --force` (a backup is written first)",
+    };
+  }
   try {
+    const db = ledgerPath();
+    if (existsSync(db)) copyFileSync(db, `${db}.backup-${Date.now()}`);
     runGraft(["checkout", revision]);
-    return { success: true, message: `restored to ${revision}` };
+    return { success: true, message: `restored to ${revision} (backup kept next to the ledger)` };
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
     return { success: false, message: `restore failed: ${message}` };
@@ -191,13 +216,21 @@ export function restoreGraft(revision: string): { success: boolean; message: str
 }
 
 /** Export a snapshot of the ledger as a physical .sqlite file. */
-export function exportGraft(revision: string, outputPath: string): { success: boolean; message: string } {
+export function exportGraft(revision: string, outputPath: string, opts?: { force?: boolean }): { success: boolean; message: string } {
   if (!isGraftAvailable() || !isGraftInitialized()) {
     return { success: false, message: "graft not initialized" };
   }
+  const target = resolve(outputPath);
+  const allowed = [resolve(NovahizHome()), resolve(process.cwd())];
+  if (!allowed.some((r) => target === r || target.startsWith(r + sep))) {
+    return { success: false, message: `export path outside the workspace refused: ${outputPath}` };
+  }
+  if (existsSync(target) && !opts?.force) {
+    return { success: false, message: `export path already exists: ${target} (pass --force to overwrite)` };
+  }
   try {
-    runGraft(["export", revision, "--output", outputPath]);
-    return { success: true, message: `exported to ${outputPath}` };
+    runGraft(["export", revision, "--output", target]);
+    return { success: true, message: `exported to ${target}` };
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
     return { success: false, message: `export failed: ${message}` };

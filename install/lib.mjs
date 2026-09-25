@@ -1,6 +1,6 @@
 import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
-import { dirname, join, resolve } from "node:path";
+import { dirname, join, resolve, sep } from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
@@ -36,10 +36,26 @@ export function repoRoot(metaUrl) {
   return resolve(dirname(fileURLToPath(metaUrl)), "..");
 }
 
+function underHome(target) {
+  const home = resolve(homedir());
+  const resolved = resolve(target);
+  return resolved === home || resolved.startsWith(home + sep);
+}
+
 export function opencodeConfigDir(env = process.env) {
-  if (env.OPENCODE_CONFIG_DIR) return env.OPENCODE_CONFIG_DIR;
-  if (env.XDG_CONFIG_HOME) return join(env.XDG_CONFIG_HOME, "opencode");
-  return join(homedir(), ".config", "opencode");
+  // P2-C (LOW): env-provided roots used to be trusted blindly, so a stray
+  // OPENCODE_CONFIG_DIR/XDG_CONFIG_HOME could point the installer at any
+  // directory on disk. Refuse anything outside home instead of writing there.
+  const source = env.OPENCODE_CONFIG_DIR ? "OPENCODE_CONFIG_DIR" : env.XDG_CONFIG_HOME ? "XDG_CONFIG_HOME" : null;
+  const candidate = env.OPENCODE_CONFIG_DIR
+    ? resolve(env.OPENCODE_CONFIG_DIR)
+    : env.XDG_CONFIG_HOME
+      ? resolve(join(env.XDG_CONFIG_HOME, "opencode"))
+      : join(homedir(), ".config", "opencode");
+  if (source && !underHome(candidate)) {
+    throw new Error(`refusing to use ${source}=${candidate}: path is outside ${homedir()}. Unset the variable to use the default ~/.config/opencode.`);
+  }
+  return candidate;
 }
 
 export function NovahizHome(flags = {}, env = process.env) {

@@ -23,7 +23,7 @@ Each category is a JSON object:
   "priority": 57,
   "keywords": ["supabase", "postgres", "sql", "rls", "migration", ...],
   "negativeKeywords": ["mockup", "landing"],
-  "defaultSkills": ["supabase", "supabase-postgres-best-practices"],
+  "defaultSkills": ["novahiz-supabase", "novahiz-postgres"],
   "roadmap": {
     "id": "schema",
     "steps": [

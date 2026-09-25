@@ -462,6 +462,622 @@
       "categories": [
         "flutter"
       ]
+    },
+    "browser-session": {
+      "power": 4,
+      "stars": null,
+      "tags": [
+        "browser",
+        "playwright"
+      ],
+      "categories": [
+        "browser"
+      ]
+    },
+    "dart-build-cli-app": {
+      "power": 4,
+      "stars": null,
+      "tags": [
+        "dart",
+        "cli"
+      ],
+      "categories": [
+        "flutter",
+        "code"
+      ]
+    },
+    "dart-collect-coverage": {
+      "power": 4,
+      "stars": null,
+      "tags": [
+        "dart",
+        "test",
+        "coverage"
+      ],
+      "categories": [
+        "flutter",
+        "test"
+      ]
+    },
+    "dart-fix-runtime-errors": {
+      "power": 4,
+      "stars": null,
+      "tags": [
+        "dart",
+        "debug"
+      ],
+      "categories": [
+        "flutter",
+        "debug"
+      ]
+    },
+    "dart-generate-test-mocks": {
+      "power": 4,
+      "stars": null,
+      "tags": [
+        "dart",
+        "test",
+        "mocks"
+      ],
+      "categories": [
+        "flutter",
+        "test"
+      ]
+    },
+    "dart-migrate-to-checks-package": {
+      "power": 4,
+      "stars": null,
+      "tags": [
+        "dart",
+        "test",
+        "migration"
+      ],
+      "categories": [
+        "flutter",
+        "code"
+      ]
+    },
+    "dart-resolve-package-conflicts": {
+      "power": 4,
+      "stars": null,
+      "tags": [
+        "dart",
+        "packages"
+      ],
+      "categories": [
+        "flutter",
+        "code"
+      ]
+    },
+    "dart-setup-ffi-assets": {
+      "power": 4,
+      "stars": null,
+      "tags": [
+        "dart",
+        "ffi",
+        "native"
+      ],
+      "categories": [
+        "flutter",
+        "code"
+      ]
+    },
+    "dart-use-doc-examples": {
+      "power": 4,
+      "stars": null,
+      "tags": [
+        "dart",
+        "docs"
+      ],
+      "categories": [
+        "flutter",
+        "docs-writing"
+      ]
+    },
+    "dart-use-ffigen": {
+      "power": 4,
+      "stars": null,
+      "tags": [
+        "dart",
+        "ffi"
+      ],
+      "categories": [
+        "flutter",
+        "code"
+      ]
+    },
+    "dart-use-path-package": {
+      "power": 4,
+      "stars": null,
+      "tags": [
+        "dart",
+        "path"
+      ],
+      "categories": [
+        "flutter",
+        "code"
+      ]
+    },
+    "dart-use-pattern-matching": {
+      "power": 4,
+      "stars": null,
+      "tags": [
+        "dart",
+        "patterns"
+      ],
+      "categories": [
+        "flutter",
+        "code"
+      ]
+    },
+    "dart-use-primary-constructors": {
+      "power": 4,
+      "stars": null,
+      "tags": [
+        "dart",
+        "syntax"
+      ],
+      "categories": [
+        "flutter",
+        "code"
+      ]
+    },
+    "dart-write-documentation": {
+      "power": 4,
+      "stars": null,
+      "tags": [
+        "dart",
+        "docs"
+      ],
+      "categories": [
+        "flutter",
+        "docs-writing"
+      ]
+    },
+    "eas-app-stores": {
+      "power": 4,
+      "stars": null,
+      "tags": [
+        "eas",
+        "expo"
+      ],
+      "categories": [
+        "expo"
+      ]
+    },
+    "eas-hosting": {
+      "power": 4,
+      "stars": null,
+      "tags": [
+        "eas",
+        "expo"
+      ],
+      "categories": [
+        "expo"
+      ]
+    },
+    "eas-observe": {
+      "power": 4,
+      "stars": null,
+      "tags": [
+        "eas",
+        "expo"
+      ],
+      "categories": [
+        "expo"
+      ]
+    },
+    "eas-simulator": {
+      "power": 4,
+      "stars": null,
+      "tags": [
+        "eas",
+        "expo"
+      ],
+      "categories": [
+        "expo"
+      ]
+    },
+    "eas-update": {
+      "power": 4,
+      "stars": null,
+      "tags": [
+        "eas",
+        "expo"
+      ],
+      "categories": [
+        "expo"
+      ]
+    },
+    "eas-update-insights": {
+      "power": 4,
+      "stars": null,
+      "tags": [
+        "eas",
+        "expo"
+      ],
+      "categories": [
+        "expo"
+      ]
+    },
+    "eas-workflows": {
+      "power": 4,
+      "stars": null,
+      "tags": [
+        "eas",
+        "expo"
+      ],
+      "categories": [
+        "expo"
+      ]
+    },
+    "expo-animation": {
+      "power": 4,
+      "stars": null,
+      "tags": [
+        "expo"
+      ],
+      "categories": [
+        "expo"
+      ]
+    },
+    "expo-app-clip": {
+      "power": 4,
+      "stars": null,
+      "tags": [
+        "expo"
+      ],
+      "categories": [
+        "expo"
+      ]
+    },
+    "expo-brownfield": {
+      "power": 4,
+      "stars": null,
+      "tags": [
+        "expo"
+      ],
+      "categories": [
+        "expo"
+      ]
+    },
+    "expo-data-fetching": {
+      "power": 4,
+      "stars": null,
+      "tags": [
+        "expo"
+      ],
+      "categories": [
+        "expo"
+      ]
+    },
+    "expo-design-system": {
+      "power": 5,
+      "stars": null,
+      "tags": [
+        "expo",
+        "design"
+      ],
+      "categories": [
+        "expo",
+        "design-ui"
+      ]
+    },
+    "expo-dev-client": {
+      "power": 4,
+      "stars": null,
+      "tags": [
+        "expo"
+      ],
+      "categories": [
+        "expo"
+      ]
+    },
+    "expo-dom": {
+      "power": 4,
+      "stars": null,
+      "tags": [
+        "expo"
+      ],
+      "categories": [
+        "expo"
+      ]
+    },
+    "expo-examples": {
+      "power": 4,
+      "stars": null,
+      "tags": [
+        "expo"
+      ],
+      "categories": [
+        "expo"
+      ]
+    },
+    "expo-migrate-module": {
+      "power": 4,
+      "stars": null,
+      "tags": [
+        "expo"
+      ],
+      "categories": [
+        "expo"
+      ]
+    },
+    "expo-module": {
+      "power": 4,
+      "stars": null,
+      "tags": [
+        "expo"
+      ],
+      "categories": [
+        "expo"
+      ]
+    },
+    "expo-native-ui": {
+      "power": 5,
+      "stars": null,
+      "tags": [
+        "expo",
+        "design"
+      ],
+      "categories": [
+        "expo",
+        "design-ui"
+      ]
+    },
+    "expo-overview": {
+      "power": 4,
+      "stars": null,
+      "tags": [
+        "expo"
+      ],
+      "categories": [
+        "expo"
+      ]
+    },
+    "expo-project-structure": {
+      "power": 4,
+      "stars": null,
+      "tags": [
+        "expo"
+      ],
+      "categories": [
+        "expo"
+      ]
+    },
+    "expo-router": {
+      "power": 4,
+      "stars": null,
+      "tags": [
+        "expo"
+      ],
+      "categories": [
+        "expo"
+      ]
+    },
+    "expo-skill-eval": {
+      "power": 4,
+      "stars": null,
+      "tags": [
+        "expo",
+        "test"
+      ],
+      "categories": [
+        "expo",
+        "test"
+      ]
+    },
+    "expo-skill-feedback": {
+      "power": 4,
+      "stars": null,
+      "tags": [
+        "expo"
+      ],
+      "categories": [
+        "expo"
+      ]
+    },
+    "expo-ui": {
+      "power": 5,
+      "stars": null,
+      "tags": [
+        "expo",
+        "design"
+      ],
+      "categories": [
+        "expo",
+        "design-ui"
+      ]
+    },
+    "expo-upgrade": {
+      "power": 4,
+      "stars": null,
+      "tags": [
+        "expo"
+      ],
+      "categories": [
+        "expo"
+      ]
+    },
+    "expo-web-to-native": {
+      "power": 4,
+      "stars": null,
+      "tags": [
+        "expo"
+      ],
+      "categories": [
+        "expo"
+      ]
+    },
+    "flutter-add-integration-test": {
+      "power": 4,
+      "stars": null,
+      "tags": [
+        "flutter",
+        "test"
+      ],
+      "categories": [
+        "flutter",
+        "test"
+      ]
+    },
+    "flutter-add-widget-preview": {
+      "power": 4,
+      "stars": null,
+      "tags": [
+        "flutter",
+        "preview"
+      ],
+      "categories": [
+        "flutter",
+        "test"
+      ]
+    },
+    "flutter-use-http-package": {
+      "power": 4,
+      "stars": null,
+      "tags": [
+        "flutter",
+        "http"
+      ],
+      "categories": [
+        "flutter",
+        "code"
+      ]
+    },
+    "impeccable": {
+      "power": 5,
+      "stars": null,
+      "tags": [
+        "design",
+        "critique",
+        "polish"
+      ],
+      "categories": [
+        "design-ui"
+      ]
+    },
+    "novahiz-assess-decide": {
+      "power": 4,
+      "stars": null,
+      "tags": [
+        "Novahiz",
+        "assessment"
+      ],
+      "categories": [
+        "assessment"
+      ]
+    },
+    "novahiz-assess-define": {
+      "power": 4,
+      "stars": null,
+      "tags": [
+        "Novahiz",
+        "assessment"
+      ],
+      "categories": [
+        "assessment"
+      ]
+    },
+    "novahiz-assess-intake": {
+      "power": 4,
+      "stars": null,
+      "tags": [
+        "Novahiz",
+        "assessment"
+      ],
+      "categories": [
+        "assessment"
+      ]
+    },
+    "novahiz-assess-research": {
+      "power": 4,
+      "stars": null,
+      "tags": [
+        "Novahiz",
+        "assessment"
+      ],
+      "categories": [
+        "assessment"
+      ]
+    },
+    "novahiz-assess-shape": {
+      "power": 4,
+      "stars": null,
+      "tags": [
+        "Novahiz",
+        "assessment"
+      ],
+      "categories": [
+        "assessment"
+      ]
+    },
+    "novahiz-browser": {
+      "power": 4,
+      "stars": null,
+      "tags": [
+        "Novahiz",
+        "browser"
+      ],
+      "categories": [
+        "browser"
+      ]
+    },
+    "novahiz-docs": {
+      "power": 4,
+      "stars": null,
+      "tags": [
+        "Novahiz",
+        "docs"
+      ],
+      "categories": [
+        "docs-writing"
+      ]
+    },
+    "novahiz-init": {
+      "power": 4,
+      "stars": null,
+      "tags": [
+        "Novahiz",
+        "planning",
+        "onboarding"
+      ],
+      "categories": [
+        "planning"
+      ]
+    },
+    "prompt-rewriter": {
+      "power": 4,
+      "stars": null,
+      "tags": [
+        "text",
+        "translate"
+      ],
+      "categories": [
+        "general"
+      ]
+    },
+    "supabase": {
+      "power": 4,
+      "stars": null,
+      "tags": [
+        "database",
+        "supabase"
+      ],
+      "categories": [
+        "database-supabase"
+      ]
+    },
+    "supabase-postgres-best-practices": {
+      "power": 4,
+      "stars": null,
+      "tags": [
+        "database",
+        "postgres"
+      ],
+      "categories": [
+        "database-supabase"
+      ]
     }
   }
 }

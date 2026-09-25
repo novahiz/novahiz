@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from "node:fs";
-import { homedir } from "node:os";
-import { join, resolve } from "node:path";
+import { homedir, tmpdir } from "node:os";
+import { join, resolve, sep } from "node:path";
 
 type Keyword = { term: string; weight?: number };
 export type CategoryKeyword = string | Keyword;
@@ -220,7 +220,9 @@ export function mergeConfig(raw: Partial<NovahizConfig> | null | undefined): Nov
   if (typeof gate.enabled !== "boolean") gate.enabled = DEFAULT_CONFIG.gate.enabled;
   if (gate.mode !== "block" && gate.mode !== "warn" && gate.mode !== "audit") gate.mode = DEFAULT_CONFIG.gate.mode;
   if (typeof gate.envEscape !== "string") gate.envEscape = DEFAULT_CONFIG.gate.envEscape;
-  if (!Array.isArray(gate.tools)) gate.tools = DEFAULT_CONFIG.gate.tools;
+  // C2: an empty tools array would silently un-gate every tool — fall back
+  // to the default set so a partial/corrupt config cannot disable the gate.
+  if (!Array.isArray(gate.tools) || gate.tools.length === 0) gate.tools = DEFAULT_CONFIG.gate.tools;
   if (!Array.isArray(gate.ignoreFiles)) gate.ignoreFiles = DEFAULT_CONFIG.gate.ignoreFiles;
   if (typeof gate.placeholders !== "boolean") gate.placeholders = DEFAULT_CONFIG.gate.placeholders;
 
@@ -273,7 +275,18 @@ export function mergeConfig(raw: Partial<NovahizConfig> | null | undefined): Nov
 function loadConfig(root: string = NovahizHome()): NovahizConfig {
   const config = readUserConfig(root);
   const dbOverride = process.env.NOVAHIZ_DB;
-  if (dbOverride && dbOverride.length > 0) config.dbPath = dbOverride;
+  if (dbOverride && dbOverride.length > 0) {
+    // P2-C (LOW): an absolute override used to create a database anywhere on
+    // disk (mkdirSync recursive in openDb). Allow home, the system temp dir
+    // (tests/CI), or the cwd; refuse everything else loudly.
+    const resolved = resolve(dbOverride);
+    const allowed = [homedir(), tmpdir(), process.cwd()].some((base) => {
+      const prefix = resolve(base);
+      return resolved === prefix || resolved.startsWith(prefix + sep);
+    });
+    if (!allowed) throw new Error(`NOVAHIZ_DB points outside home/temp/cwd: ${resolved}`);
+    config.dbPath = resolved;
+  }
   return config;
 }
 
