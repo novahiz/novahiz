@@ -80,11 +80,8 @@ function generateOpenCodeJson(configDir, NovahizHome) {
         timeout: 120000,
         enabled: true,
       },
-      cron: {
-        type: "local",
-        command: ["mcp-cron", "--transport", "stdio"],
-        enabled: true,
-      },
+      // `cron` is registered by the plugin from catalog/providers.json
+      // (scheduler-mcp local venv); no npm install, no template entry.
       playwright: {
         type: "local",
         command: ["npx", "@playwright/mcp@latest", "--browser=msedge"],
@@ -177,9 +174,10 @@ async function main() {
   const mcpServers = [
     { pkg: "@upstash/context7-mcp", bin: "context7-mcp" },
     { pkg: "narsil-mcp", bin: "narsil-mcp" },
-    { pkg: "mcp-cron", bin: "mcp-cron" },
     { pkg: "security-mcp", bin: "security-mcp" },
   ];
+  // `cron` has no npm package: the plugin registers it from catalog/providers.json
+  // (scheduler-mcp local venv, see docs/PROVIDERS.md).
 
   for (const server of mcpServers) {
     if (!which(server.bin)) {

@@ -312,9 +312,10 @@ async function main() {
   const mcpServers = [
     { pkg: "@upstash/context7-mcp", bin: "context7-mcp", name: "context7" },
     { pkg: "narsil-mcp", bin: "narsil-mcp", name: "narsil" },
-    { pkg: "mcp-cron", bin: "mcp-cron", name: "cron" },
     { pkg: "security-mcp", bin: "security-mcp", name: "security" },
   ];
+  // `cron` has no npm package: the plugin registers it from catalog/providers.json
+  // (scheduler-mcp local venv, see docs/PROVIDERS.md).
 
   if (!dryRun) {
     note("\nInstalling MCP servers...");
@@ -416,11 +417,8 @@ async function main() {
             "timeout": 120000,
             "enabled": true
           },
-          "cron": {
-            "type": "local",
-            "command": ["mcp-cron", "--transport", "stdio"],
-            "enabled": true
-          },
+          // `cron` is registered by the plugin from catalog/providers.json
+          // (scheduler-mcp local venv); no npm install, no template entry.
           "playwright": {
             "type": "local",
             "command": ["npx", "@playwright/mcp@latest", "--browser=msedge"],
