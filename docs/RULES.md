@@ -34,12 +34,12 @@ Content conditions are combined with AND against the selectors. A rule with `con
 | Id | Condition | Requires |
 | --- | --- | --- |
 | R3-supabase | a Supabase path or a Supabase prompt | `novahiz-supabase`, `novahiz-postgres` |
-| R4-playwright | a browser prompt category, or a browser test path (`**/*.spec.ts`, `**/e2e/**`, `**/playwright/**`, …) | `novahiz-browser` |
+| R4-playwright | a browser prompt category, or a browser test path (`**/*.e2e.ts`, `**/e2e/**`, `**/playwright/**`, `**/*.cy.ts`, …) | `novahiz-browser` |
 | R6-Novahiz | a prompt in a workflow category | pipeline skills (`novahiz-plan`, `novahiz-clarify`, `novahiz-analyse`, `novahiz-implement`, `novahiz-converge`) |
 | R7-assessment | an `assessment` prompt | assessment pipeline skills (`novahiz-assess-intake`, `novahiz-assess-research`, `novahiz-assess-define`, `novahiz-assess-shape`, `novahiz-assess-decide`) |
 | R8-docs | a documentation file under `novahiz-docs/` (`**/novahiz-docs/**/*.md`, relative or absolute) | `novahiz-docs` |
-| R9-code-review | a review prompt, any code file, or a `.tsx`/`.jsx` file | `novahiz-code-review` |
-| R10-security | an audit or security prompt | `novahiz-security` |
+| R9-code-review | a review prompt, any code file, or a `.tsx`/`.jsx`/`.vue`/`.svelte`/`.astro` file | `novahiz-code-review` |
+| R10-security | an audit prompt | `novahiz-security` |
 | R11-accessibility | a design-ui or audit prompt | `novahiz-wcag-audit` |
 | R12-web-extract | a research prompt | `novahiz-web-extract` |
 | R13-design-craft | a design-ui prompt or a style file (css/scss/less/html) | `novahiz-humanizer`, `ui-slop-remover`, `ui-craft-rules` |

@@ -16,8 +16,6 @@
       "match": "any",
       "promptCategories": ["browser"],
       "pathGlobs": [
-        "**/*.spec.ts",
-        "**/*.spec.js",
         "**/*.e2e.ts",
         "**/*.e2e.js",
         "**/*.pw.ts",
@@ -70,12 +68,13 @@
   },
   {
     "id": "R9-code-review",
-    "description": "Load novahiz-code-review on any code review task.",
+    "description": "Load novahiz-code-review on code review tasks or code edits of 200+ characters (small touch-ups skip the review).",
     "when": {
       "match": "any",
       "promptCategories": ["review"],
       "fileClasses": ["code"],
-      "pathGlobs": ["**/*.tsx", "**/*.jsx"]
+      "pathGlobs": ["**/*.tsx", "**/*.jsx", "**/*.vue", "**/*.svelte", "**/*.astro"],
+      "minChange": 200
     },
     "require": ["novahiz-code-review"]
   },
@@ -90,7 +89,7 @@
   },
   {
     "id": "R11-accessibility",
-    "description": "Load novahiz-wcag-audit on any a11y audit or WCAG task.",
+    "description": "Load novahiz-wcag-audit on design-ui work and on audit prompts, where accessibility is in scope.",
     "when": {
       "match": "any",
       "promptCategories": ["design-ui", "audit"]
