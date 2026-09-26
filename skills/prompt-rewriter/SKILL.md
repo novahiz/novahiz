@@ -1,9 +1,10 @@
 ---
 name: prompt-rewriter
 description: |
-  prompt-rewriter translates non-English prompts into optimized English before classification.
-  The agent always responds in the user's original language. No external dependencies.
-  Built into the plugin adapter.
+  prompt-rewriter detects the source language of every prompt (AR, FR, ES, DE, PT, EN),
+  translates it into optimized English before classification where term maps exist
+  (Arabic, French), and forces the reply back into the user's language. No external
+  dependencies. Built into the plugin adapter.
 license: Apache-2.0
 compatibility: |
   Implemented in src/prompt-rewriter.ts and inlined in adapters/opencode/novahiz.ts;
@@ -11,7 +12,7 @@ compatibility: |
 metadata:
   author: Novahiz
   organization: Novahiz
-  version: "2.0.0"
+  version: "2.1.0"
 ---
 
 # prompt-rewriter
@@ -20,8 +21,8 @@ metadata:
 
 Every user message is intercepted before classification and rewritten into optimized English:
 
-1. Detect the source language (FR, AR, ES, DE, PT, or EN).
-2. Translate task terms into English equivalents.
+1. Detect the source language (FR, AR, ES, DE, PT, or EN) with weighted pattern scoring.
+2. Translate task terms into English equivalents where a term map exists (AR, FR).
 3. Tighten the English prompt into imperative mood and drop filler.
 4. Classify the English version for tier and skill assignment.
 5. Respond in the user's original language.
@@ -36,11 +37,11 @@ The rewriter sits in `src/prompt-rewriter.ts` and is wired into the plugin adapt
 
 ### Language detection
 
-Heuristic scoring: each language has weighted patterns of common words, technical terms, and multi-word phrases. The highest score wins. No external dependency is involved.
+Heuristic scoring over a folded (lowercase, accent-stripped) copy of the prompt: each language in `LANG_PATTERNS` (FR, ES, DE, PT) has weighted patterns of common words, technical terms, and multi-word phrases. A language needs a minimum score to qualify; a weight-3 marker (task verbs, question words) beats a pile of weight-1 function words. Arabic is detected by its script range. Ties fall back to a fixed order (FR, ES, DE, PT). English cognates (test, design, page, interface, code...) are deliberately excluded from the marker lists so clean English stays `en`. No external dependency is involved.
 
 ### Term translation
 
-French and Arabic have dedicated term maps of forty and thirty patterns. Examples:
+Arabic and French have dedicated term maps of 55 and 86 patterns respectively. Examples:
 
 | FR term | EN equivalent |
 |---------|---------------|
@@ -50,6 +51,8 @@ French and Arabic have dedicated term maps of forty and thirty patterns. Example
 | refactoriser | refactor |
 | migrer | migrate |
 | optimiser | optimize |
+
+**Known limitation:** Spanish, German, and Portuguese prompts are detected but not translated — classification on the raw text relies on the shared technical vocabulary (refactor, login, servidor, Datenbank...). Add an `XX_EN` map below to extend coverage.
 
 ### English optimization
 
@@ -61,18 +64,20 @@ Politeness markers are stripped and the prompt becomes imperative:
 
 ## Integration
 
-The plugin adapter calls `rewritePrompt(text)` before `classify`. When a rewrite happens:
+The plugin adapter calls `rewritePrompt(text)` before `classify`:
 
-1. The enforcement block carries `User language: XX, respond in this language`.
-2. A log entry records the rewrite.
-3. Classification runs on the English version.
+1. Classification runs on the rewritten English version.
+2. When the detected source language is not English, the enforcement block carries the response-language instruction (see below).
+3. When the text actually changed (`wasRewritten`), a log entry records the rewrite.
+
+Covered by `tests/prompt.rewriter.test.ts`.
 
 ## Response language
 
 The agent MUST respond in the user's original language. The enforcement block includes:
 
 ```
-User language: fr, respond in this language, not English.
+User language: fr — respond in this language, not English.
 ```
 
 That line overrides any default to English.
