@@ -373,13 +373,14 @@ async function main() {
     note("\nSkipping Flutter/Dart skill packs (pass --flutter-skills to install from official repos).");
   }
 
-  // Install opencode plugins globally
-  const plugins = [
-    "@mohak34/opencode-notifier@0.3.0",
-    "@tarquinen/opencode-dcp@3.2.0",
-  ];
+  // Install opencode plugins globally.
+  // 2026-09-26: intentionally empty — @mohak34/opencode-notifier and
+  // @tarquinen/opencode-dcp were uninstalled on purpose; reinstating them
+  // would resurrect a removed compression/notify stack against the user's
+  // decision. Keep this list empty unless a new plugin is explicitly wanted.
+  const plugins = [];
 
-  if (!dryRun) {
+  if (!dryRun && plugins.length > 0) {
     note("\nInstalling opencode plugins...");
     for (const plugin of plugins) {
       note(`  Installing ${plugin}...`);
@@ -434,8 +435,6 @@ async function main() {
           "paths": [skillsDir]
         },
         "plugin": [
-          "@mohak34/opencode-notifier@0.3.0",
-          "@tarquinen/opencode-dcp@3.2.0",
           join(home, "adapters", "opencode", "novahiz.ts")
         ],
         "compaction": {

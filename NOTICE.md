@@ -46,12 +46,12 @@ Installed on demand with `npx skills add` (or an upstream tarball when git trans
 
 ## opencode plugins (third-party)
 
-The installer may register these OpenCode plugins from `opencode.jsonc` `plugin[]`. They are installed from npm, never vendored in this repository.
+`opencode.jsonc` `plugin[]` holds only the Novahiz adapter. The former npm plugins were removed on 2026-09-26 (see `docs/HARNESSES.md`):
 
-| Package | Repository | License |
-| --- | --- | --- |
-| `@mohak34/opencode-notifier` | https://github.com/mohak34/opencode-notifier | MIT |
-| `@tarquinen/opencode-dcp` | https://github.com/Opencode-DCP/opencode-dynamic-context-pruning | AGPL-3.0-or-later |
+| Package | Repository | License | Status |
+| --- | --- | --- | --- |
+| `@mohak34/opencode-notifier` | https://github.com/mohak34/opencode-notifier | MIT | removed 2026-09-26 |
+| `@tarquinen/opencode-dcp` | https://github.com/Opencode-DCP/opencode-dynamic-context-pruning | AGPL-3.0-or-later | removed 2026-09-26 |
 
 The Novahiz adapter (`adapters/opencode/novahiz.ts`) is first-party under Apache-2.0.
 

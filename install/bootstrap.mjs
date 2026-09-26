@@ -96,9 +96,8 @@ function generateOpenCodeJson(configDir, NovahizHome) {
     skills: {
       paths: [skillsDir],
     },
+    // 2026-09-26: notifier/dcp uninstalled on purpose — never re-add them.
     plugin: [
-      "@mohak34/opencode-notifier@0.3.0",
-      "@tarquinen/opencode-dcp@3.2.0",
       join(NovahizHome, "adapters", "opencode", "novahiz.ts"),
     ],
     compaction: {
@@ -193,20 +192,20 @@ async function main() {
   }
 
   // 6. Install opencode plugins (global npm packages)
-  log("");
-  log("Installing opencode plugins...");
-  const plugins = [
-    "@mohak34/opencode-notifier@0.3.0",
-    "@tarquinen/opencode-dcp@3.2.0",
-  ];
+  // 2026-09-26: intentionally empty — @mohak34/opencode-notifier and
+  // @tarquinen/opencode-dcp stay uninstalled (user decision).
+  const plugins = [];
 
-  for (const plugin of plugins) {
-    const pkgName = plugin.split("@")[0] === "" ? `@${plugin.split("@")[1]}` : plugin.split("@")[0];
-    log(`  Installing ${plugin}...`);
-    if (!run("npm", ["install", "-g", plugin])) {
-      log(`  WARNING: Failed to install ${plugin} (non-fatal)`);
-    } else {
-      log(`  ${plugin} installed`);
+  if (plugins.length > 0) {
+    log("");
+    log("Installing opencode plugins...");
+    for (const plugin of plugins) {
+      log(`  Installing ${plugin}...`);
+      if (!run("npm", ["install", "-g", plugin])) {
+        log(`  WARNING: Failed to install ${plugin} (non-fatal)`);
+      } else {
+        log(`  ${plugin} installed`);
+      }
     }
   }
 

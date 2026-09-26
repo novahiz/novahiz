@@ -19,14 +19,14 @@ Source: opencode plugin docs (`~/.config/opencode/plugins/`).
 
 ### Third-party opencode plugins
 
-Besides the Novahiz adapter, the bootstrap and installer may pin these packages in `opencode.jsonc` under `plugin[]`. They ship from npm and are not vendored here.
+Besides the Novahiz adapter, no third-party plugin is installed. The bootstrap and installer no longer pin any package under `plugin[]` — these were removed on 2026-09-26 and must not come back:
 
-| Package | Repository | License |
-| --- | --- | --- |
-| `@mohak34/opencode-notifier` | https://github.com/mohak34/opencode-notifier | MIT |
-| `@tarquinen/opencode-dcp` | https://github.com/Opencode-DCP/opencode-dynamic-context-pruning | AGPL-3.0-or-later |
+| Package | Repository | License | Status |
+| --- | --- | --- | --- |
+| `@mohak34/opencode-notifier` | https://github.com/mohak34/opencode-notifier | MIT | removed 2026-09-26 |
+| `@tarquinen/opencode-dcp` | https://github.com/Opencode-DCP/opencode-dynamic-context-pruning | AGPL-3.0-or-later | removed 2026-09-26 |
 
-`opencode-dcp` is AGPL-3.0-or-later. Installing it accepts that license for the plugin package. Full provider MCP provenance lives in [PROVIDERS.md](PROVIDERS.md) and `catalog/providers.json`.
+Full provider MCP provenance lives in [PROVIDERS.md](PROVIDERS.md) and `catalog/providers.json`.
 
 ### Official Flutter / Dart providers
 
