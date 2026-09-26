@@ -155,7 +155,7 @@ export const DEFAULT_CONFIG: NovahizConfig = {
     enabled: true,
     mode: "block",
     envEscape: "NOVAHIZ_GATE", // canonical kill-switch name; gate command ignores this field
-    tools: ["edit", "write", "patch", "apply_patch", "bash", "shell"],
+    tools: ["edit", "write", "patch", "apply_patch", "bash", "shell", "cron_add_command_task", "cron_update_command_task", "cron_update_task", "cron_run_task_now"],
     ignoreFiles: DEFAULT_IGNORE_FILES,
     placeholders: true,
     trace: {

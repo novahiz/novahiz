@@ -25,7 +25,7 @@ These files live in `catalog/` and are part of the git repository:
     "enabled": true,
     "mode": "block",
     "envEscape": "NOVAHIZ_GATE",
-    "tools": ["edit", "write", "patch", "apply_patch", "bash", "shell"],
+    "tools": ["edit", "write", "patch", "apply_patch", "bash", "shell", "cron_add_command_task", "cron_update_command_task", "cron_update_task", "cron_run_task_now"],
     "ignoreFiles": ["**/node_modules/**", "**/dist/**", ...],
     "placeholders": true,
     "trace": {
@@ -62,7 +62,7 @@ These files live in `catalog/` and are part of the git repository:
 | `gate.enabled` | `true` | Enable/disable the gate |
 | `gate.mode` | `block` | `block`, `warn`, or `audit` |
 | `gate.envEscape` | `NOVAHIZ_GATE` | Schema field only. The kill-switch name is hardcoded to `NOVAHIZ_GATE` in the CLI, MCP gate, and plugin; a config value cannot redirect it. |
-| `gate.tools` | `[edit, write, patch, ...]` | Tools to intercept |
+| `gate.tools` | `[edit, write, patch, apply_patch, bash, shell, cron_add_command_task, cron_update_command_task, cron_update_task, cron_run_task_now]` | Tools to intercept |
 | `gate.placeholders` | `true` | Block edits with placeholder markers |
 | `classify.minScore` | `1` | Minimum score to match a category |
 | `classify.maxCategories` | `3` | Maximum categories per prompt |

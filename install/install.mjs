@@ -48,7 +48,7 @@ function defaultConfig(skillsDir) {
       // Kept for schema compatibility only — the kill-switch name is hardcoded
       // to NOVAHIZ_GATE in the CLI, MCP gate, and plugin (see src/spec.ts).
       envEscape: "NOVAHIZ_GATE",
-      tools: ["edit", "write", "patch", "apply_patch", "bash", "shell"]
+      tools: ["edit", "write", "patch", "apply_patch", "bash", "shell", "cron_add_command_task", "cron_update_command_task", "cron_update_task", "cron_run_task_now"]
     },
     classify: {
       minScore: 1,

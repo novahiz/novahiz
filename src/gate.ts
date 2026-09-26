@@ -211,19 +211,27 @@ export function contentSatisfies(content: string, patterns: string[]): boolean {
   });
 }
 
-function selectorMatches(rule: Rule, classification: FileClass, path: string, categories: string[]): boolean {
+function selectorMatches(rule: Rule, classification: FileClass, path: string, categories: string[], pathless = false): boolean {
   const when = rule.when;
   const checks: boolean[] = [];
-  if (when.fileClasses && when.fileClasses.length > 0) checks.push(when.fileClasses.includes(classification));
-  if (when.pathGlobs && when.pathGlobs.length > 0) checks.push(when.pathGlobs.some((glob) => globToRegExp(glob).test(path)));
-  if (when.promptCategories && when.promptCategories.length > 0) {
+  if (pathless) {
+    // MAJEUR l.135: with no target path, only prompt-scoped selectors can
+    // apply. Path/file rules are skipped silently — there is no path to test
+    // and the absence is not the misconfiguration M1 warns about.
+    if (!when.promptCategories || when.promptCategories.length === 0) return false;
     checks.push(when.promptCategories.some((category) => categories.includes(category)));
-  }
-  // M1: a rule with no selectors must match nothing, not everything.
-  // An empty `when` is a misconfiguration — fail closed, not open.
-  if (checks.length === 0) {
-    console.error(`[Novahiz] rule "${rule.id}" has empty selectors — it will never match`);
-    return false;
+  } else {
+    if (when.fileClasses && when.fileClasses.length > 0) checks.push(when.fileClasses.includes(classification));
+    if (when.pathGlobs && when.pathGlobs.length > 0) checks.push(when.pathGlobs.some((glob) => globToRegExp(glob).test(path)));
+    if (when.promptCategories && when.promptCategories.length > 0) {
+      checks.push(when.promptCategories.some((category) => categories.includes(category)));
+    }
+    // M1: a rule with no selectors must match nothing, not everything.
+    // An empty `when` is a misconfiguration — fail closed, not open.
+    if (checks.length === 0) {
+      console.error(`[Novahiz] rule "${rule.id}" has empty selectors — it will never match`);
+      return false;
+    }
   }
   // Default to "all" — all selectors must match. This is the safe default:
   // a rule with fileClasses + promptCategories requires BOTH to match.
@@ -250,6 +258,10 @@ type GateInput = {
   installedSkills?: ReadonlySet<string> | null;
   installedIndexAvailable?: boolean;
   tier?: ComplexityTier;
+  /** MAJEUR l.135: true when the caller has no target path (bash/shell/cron
+   * with no detectable file). Only prompt-scoped selectors are evaluated;
+   * path/file rules cannot match and are skipped without the M1 warning. */
+  pathless?: boolean;
   spec: Spec;
 };
 
@@ -273,12 +285,16 @@ export function evaluateGate(input: GateInput): GateResult {
   const categories = input.categories ?? [];
   const path = input.filePath.replace(/\\/g, "/");
   const content = input.content ?? "";
+  // MAJEUR l.135: a pathless call (bash/shell/cron without a target) evaluates
+  // prompt-scoped rules only and never consults path-based ignore globs.
+  const pathless = input.pathless === true;
 
   try {
     // C3: the skill index lives under build/ (matched by the default
     // **/build/** ignore glob). Editing it must never bypass the gate —
     // dropping a skill from the index would silently un-require it.
     const ignored =
+      !pathless &&
       !isProtectedIndexPath(path) &&
       input.spec.config.gate.ignoreFiles.some((glob) => globToRegExp(glob).test(path));
     if (ignored) {
@@ -309,7 +325,7 @@ export function evaluateGate(input: GateInput): GateResult {
     const matchedRules: string[] = [];
 
     for (const rule of input.spec.rules) {
-      if (!selectorMatches(rule, classification, path, categories)) continue;
+      if (!selectorMatches(rule, classification, path, categories, pathless)) continue;
       // Tier gating for R6-Novahiz: trivial = skip entirely, lite = only implement+converge
       if (rule.id === "R6-Novahiz") {
         if (tier === "trivial") continue;
@@ -329,7 +345,14 @@ export function evaluateGate(input: GateInput): GateResult {
       // For contentExcludes: regex error → treat as "exclude matched" → skip rule.
       // For contentMatches: regex error → treat as "match succeeded" → apply rule.
       if (rule.when.contentExcludes) {
-        try { if (contentSatisfies(content, rule.when.contentExcludes)) continue; } catch { continue; }
+        try {
+          if (contentSatisfies(content, rule.when.contentExcludes)) continue;
+        } catch {
+          // MINEUR#1: an invalid exclude pattern must never disable the rule
+          // (the old `continue` was a silent fail-open). Fail closed instead:
+          // apply the rule and surface the catalogue bug on stderr.
+          console.error(`[Novahiz] rule "${rule.id}": invalid contentExcludes pattern — applying the rule anyway`);
+        }
       }
       if (rule.when.contentMatches) {
         try { if (!contentSatisfies(content, rule.when.contentMatches)) continue; } catch { /* fail-closed: apply rule */ }
@@ -458,6 +481,9 @@ export function enforceLedgerChecks(
     categories.some((category) => traceConfig.categories.includes(category));
   if (traceRequired) {
     for (const entry of results) {
+      // MAJEUR l.135: a pathless entry (bash/shell/cron with no target) has
+      // no file to trace — skip the per-path check, keep the log row below.
+      if (entry.path.length === 0) continue;
       const trace = traceCheck(db, { sessionId: session, filePath: entry.path, required: true });
       if (!trace.ok) {
         entry.allow = false;
@@ -474,6 +500,9 @@ export function enforceLedgerChecks(
       // Targeted review: block only paths owned by an open todo with an owner
       // pattern. A due review no longer freezes every target.
       for (const entry of results) {
+        // MAJEUR l.135: no path means no todo owner can claim it — a
+        // pathless command must not be blocked by a file-ownership check.
+        if (entry.path.length === 0) continue;
         const reason = reviewBlockReason(db, task.id, entry.path, ledgerConfig.review);
         if (reason && !entry.ignored) {
           entry.allow = false;

@@ -1,6 +1,6 @@
 {
   "name": "novahiz",
-  "version": "0.2.5",
+  "version": "0.3.0",
   "description": "Enforce AI agent skills before every file edit: prompt classifier, skill catalog, and pre-edit gate.",
   "type": "module",
   "license": "Apache-2.0",
@@ -49,7 +49,7 @@
     "test": "node --experimental-strip-types --test",
     "typecheck": "tsc --noEmit",
     "prepare": "tsc --noEmit",
-    "postinstall": "node install/install.mjs --yes"
+    "postinstall": "node install/install.mjs --dry-run"
   },
   "files": [
     "src",

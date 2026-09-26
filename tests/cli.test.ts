@@ -1,7 +1,7 @@
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { rmSync, mkdirSync, cpSync, writeFileSync } from "node:fs";
+import { rmSync, mkdirSync, cpSync, writeFileSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
@@ -31,6 +31,11 @@ after(() => {
     } catch {
       // best effort cleanup
     }
+  }
+  try {
+    rmSync(gateTestHome, { recursive: true, force: true });
+  } catch {
+    // best effort cleanup
   }
 });
 
@@ -84,6 +89,96 @@ test("does not gate a tool that is not in gate.tools", () => {
   const parsed = JSON.parse(run(["gate", "--tool", "read", "--file", "README.md"], { NOVAHIZ_GATE: "on" }));
   assert.equal(parsed.allow, true);
   assert.equal(parsed.reason, "tool is not gated");
+});
+
+// MINEUR#5: the plugin lowercases tool names before reaching the CLI, so an
+// uppercase name used to slip past the case-sensitive gate.tools check.
+test("MINEUR#5: tool names are case-insensitive in the CLI", () => {
+  const parsed = JSON.parse(run(["gate", "--tool", "EDIT", "--file", "README.md"], { NOVAHIZ_GATE: "on" }));
+  assert.notEqual(parsed.reason, "tool is not gated");
+  assert.ok(Array.isArray(parsed.targets));
+  assert.ok(parsed.targets.length > 0);
+});
+
+// MINEUR#6/#7: advisory modes report allow:true + wouldBlock (exit 0) instead
+// of allow:false with exit 0, and a broken enforcement DB only blocks block
+// mode — warn/audit degrade to a warning.
+const gateTestHome = join(tmpdir(), `novahiz-gate-minor-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`);
+
+function writeGateHome(mode: "warn" | "block"): void {
+  mkdirSync(gateTestHome, { recursive: true });
+  const config = JSON.parse(readFileSync(join(root, "novahiz.config.json"), "utf8")) as Record<string, any>;
+  config.gate.mode = mode;
+  writeFileSync(join(gateTestHome, "novahiz.config.json"), `${JSON.stringify(config, null, 2)}\n`);
+  // loadSpec hard-fails without the catalog, so mirror it into the mini home.
+  cpSync(join(root, "catalog"), join(gateTestHome, "catalog"), { recursive: true });
+}
+
+function runFull(
+  args: string[],
+  env: Record<string, string> = {}
+): { status: number | null; out: Record<string, any> } {
+  const result = spawnSync(process.execPath, [cli, ...args], {
+    encoding: "utf8",
+    input: "",
+    env: { ...process.env, NOVAHIZ_HOME: gateTestHome, NOVAHIZ_GATE: "on", ...env }
+  });
+  return { status: result.status, out: JSON.parse(result.stdout.trim() || "{}") };
+}
+
+// design-ui matches R13/R14, whose required skills are never loadable in the
+// mini home — so the run is always "blocked" (wouldBlock in advisory modes).
+const blockedRunArgs = ["gate", "--tool", "write", "--file", "README.md", "--categories", "design-ui"];
+
+test("MINEUR#6: warn mode reports allow:true + wouldBlock with exit 0", () => {
+  writeGateHome("warn");
+  const { status, out } = runFull(blockedRunArgs);
+  assert.equal(status, 0);
+  assert.equal(out.allow, true);
+  assert.equal(out.wouldBlock, true);
+  assert.equal(out.mode, "warn");
+});
+
+test("MINEUR#7: broken DB blocks block mode but degrades warn mode", () => {
+  const corruptDb = join(tmpdir(), `novahiz-corrupt-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}.sqlite`);
+  writeFileSync(corruptDb, "definitely not a sqlite database");
+  try {
+    writeGateHome("warn");
+    const warnRun = runFull(blockedRunArgs, { NOVAHIZ_DB: corruptDb });
+    assert.equal(warnRun.status, 0);
+    assert.equal(warnRun.out.allow, true);
+    const warnings = warnRun.out.warnings as string[];
+    assert.ok(Array.isArray(warnings));
+    assert.ok(warnings.some((w) => w.includes("enforcement trace unavailable")));
+
+    writeGateHome("block");
+    const blockRun = runFull(blockedRunArgs, { NOVAHIZ_DB: corruptDb });
+    assert.equal(blockRun.status, 2);
+    assert.equal(blockRun.out.allow, false);
+  } finally {
+    rmSync(corruptDb, { force: true });
+  }
+});
+
+// MINEUR#8: cron command tools must be gated in the CLI defaults, the project
+// config, and the plugin adapter fallback.
+test("MINEUR#8: cron command tools are gated by default", () => {
+  const cronTools = [
+    "cron_add_command_task",
+    "cron_update_command_task",
+    "cron_update_task",
+    "cron_run_task_now"
+  ];
+  const config = JSON.parse(readFileSync(join(root, "novahiz.config.json"), "utf8")) as Record<string, any>;
+  for (const tool of cronTools) {
+    assert.ok(config.gate.tools.includes(tool), `config gate.tools missing ${tool}`);
+  }
+  const spec = loadSpec(root);
+  for (const tool of cronTools) {
+    assert.ok(spec.config.gate.tools.includes(tool), `spec gate.tools missing ${tool}`);
+  }
+  const adapter = readFileSync(join(root, "adapters", "opencode", "novahiz.ts"), "utf8");
+  assert.ok(adapter.includes('"cron_add_command_task"'), "adapter fallback missing cron tools");
 });
 
 test("gate surfaces required skills that are absent from the installed index", () => {
@@ -349,4 +444,34 @@ test("task resume and current dispatch without an active task", () => {
 test("normalizeTodoInput rejects an unknown kind and defaults to edit", () => {
   assert.throws(() => normalizeTodoInput({ label: "x", kind: "bogus" }), /invalid todo kind/);
   assert.equal(normalizeTodoInput({ label: "x" }).kind, "edit");
+});
+
+// MAJEUR l.135: bash/shell/cron with no target path must still enforce
+// prompt-scoped rules instead of passing unconditionally.
+test("MAJEUR l.135: pathless bash enforces prompt-scoped rules", () => {
+  writeGateHome("block");
+  const result = spawnSync(process.execPath, [cli, "gate", "--tool", "bash", "--args-stdin", "--categories", "database-supabase"], {
+    encoding: "utf8",
+    input: JSON.stringify({}),
+    env: { ...process.env, NOVAHIZ_HOME: gateTestHome, NOVAHIZ_GATE: "on" }
+  });
+  assert.equal(result.status, 2);
+  const out = JSON.parse(result.stdout.trim());
+  assert.equal(out.allow, false);
+  assert.ok((out.requiredSkills as string[]).includes("novahiz-supabase"));
+  assert.equal(out.targets[0].path, "");
+});
+
+test("MAJEUR l.135: pathless bash without matching categories stays allowed", () => {
+  writeGateHome("block");
+  const result = spawnSync(process.execPath, [cli, "gate", "--tool", "bash", "--args-stdin"], {
+    encoding: "utf8",
+    input: JSON.stringify({}),
+    env: { ...process.env, NOVAHIZ_HOME: gateTestHome, NOVAHIZ_GATE: "on" }
+  });
+  assert.equal(result.status, 0);
+  const out = JSON.parse(result.stdout.trim());
+  assert.equal(out.allow, true);
+  assert.deepEqual(out.missingSkills, []);
+  assert.equal(out.wouldBlock, undefined);
 });

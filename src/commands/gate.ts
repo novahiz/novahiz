@@ -23,7 +23,10 @@ export function commandGate(parsed: Parsed): void {
     return;
   }
   const gateConfig = spec.config.gate;
-  const tool = asString(parsed.flags.tool) || "edit";
+  // MINEUR#5: normalize case — the plugin lowercases tool names (adapters
+  // novahiz.ts), so a case-sensitive check here would treat "EDIT" as
+  // un-gated and silently allow the call.
+  const tool = (asString(parsed.flags.tool) || "edit").toLowerCase();
   const categories = splitList(parsed.flags.categories);
   let loaded = splitList(parsed.flags.loaded);
   const session = asString(parsed.flags.session);
@@ -92,39 +95,45 @@ export function commandGate(parsed: Parsed): void {
     return;
   }
 
-  if (paths.length === 0) {
+  const pathless = paths.length === 0;
+  if (pathless) {
     const writeTools = ["edit", "write", "patch", "apply_patch"];
     if (writeTools.includes(tool)) {
+      // MINEUR#6: warn/audit never exit non-zero — report the pass with a
+      // wouldBlock marker instead of a contradictory allow:false + exit 0.
+      const enforced = gateConfig.mode === "block";
       print({
-        allow: false,
+        allow: !enforced,
+        ...(enforced ? {} : { wouldBlock: true }),
         tool,
         targets: [],
         requiredSkills: [],
         missingSkills: [],
         reasons: ["no target path for a write tool"]
       });
-      if (gateConfig.mode === "block") process.exitCode = 2;
+      if (enforced) process.exitCode = 2;
       return;
     }
-    print({ allow: true, tool, targets: [], requiredSkills: [], missingSkills: [], reason: "no target path" });
-    return;
+    // MAJEUR l.135: bash/shell/cron with no target path no longer pass
+    // unconditionally — they fall through to a pathless evaluation so
+    // prompt-scoped rules (supabase, browser, security, ...) still apply
+    // to commands like `python -e`, `curl -o` or `git apply`.
   }
 
   const index = loadInstalledSkills(spec);
-  const results = paths.map((filePath) => ({
-    path: filePath,
-    ...evaluateGate({
-      tool,
-      filePath,
-      content,
-      prompt,
-      categories,
-      loadedSkills: loaded,
-      installedSkills: index.skills,
-      installedIndexAvailable: index.available,
-      spec
-    })
-  }));
+  const evalInput = {
+    tool,
+    content,
+    prompt,
+    categories,
+    loadedSkills: loaded,
+    installedSkills: index.skills,
+    installedIndexAvailable: index.available,
+    spec
+  };
+  const results = pathless
+    ? [{ path: "", ...evaluateGate({ ...evalInput, filePath: "", pathless: true }) }]
+    : paths.map((filePath) => ({ path: filePath, ...evaluateGate({ ...evalInput, filePath }) }));
 
   const reasons: string[] = [];
   let reviewWarning = "";
@@ -135,25 +144,37 @@ export function commandGate(parsed: Parsed): void {
 
   // H4: single DB connection for trace, ledger checks, AND enforcement logging
   let db: ReturnType<typeof openDb> | null = null;
+  let dbFailure = "";
   try {
     db = openDb(dbPathFor(root, spec));
   } catch (error) {
-    process.stderr.write(`novahiz: DB open failed: ${String(error).slice(0, 200)}\n`);
-    print({ allow: false, error: `DB open failed`, tool, missingSkills: [], reasons: [`DB open failed`] });
-    process.exitCode = 2;
-    return;
+    dbFailure = String(error).slice(0, 200);
+    process.stderr.write(`novahiz: DB open failed: ${dbFailure}\n`);
+    if (gateConfig.mode === "block") {
+      // block mode keeps fail-closed behaviour: no enforcement trace, no edits.
+      print({ allow: false, error: `DB open failed`, tool, missingSkills: [], reasons: [`DB open failed`] });
+      process.exitCode = 2;
+      return;
+    }
+    // MINEUR#7: warn/audit are advisory — degrade gracefully instead of
+    // locking every gated tool out; ledger checks are skipped and reported.
   }
   try {
-    // Shared with the MCP novahiz_gate tool (src/gate.ts enforceLedgerChecks)
-    // so the two entry points enforce trace + ledger + the log identically.
-    const enforced = enforceLedgerChecks(db, { session, tool, paths, categories, results, spec, gateConfig });
-    reasons.push(...enforced.reasons);
-    reviewWarning = enforced.reviewWarning;
+    if (db) {
+      // Shared with the MCP novahiz_gate tool (src/gate.ts enforceLedgerChecks)
+      // so the two entry points enforce trace + ledger + the log identically.
+      const enforced = enforceLedgerChecks(db, { session, tool, paths, categories, results, spec, gateConfig });
+      reasons.push(...enforced.reasons);
+      reviewWarning = enforced.reviewWarning;
+    }
   } finally {
     db?.close();
   }
 
   const warnings: string[] = [];
+  if (dbFailure.length > 0 && gateConfig.mode !== "block") {
+    warnings.push(`enforcement trace unavailable (DB open failed): continuing without ledger checks in ${gateConfig.mode} mode.`);
+  }
   if (reviewWarning.length > 0) warnings.push(reviewWarning);
   if (unmatchedRequired.length > 0) {
     warnings.push(
@@ -164,9 +185,15 @@ export function commandGate(parsed: Parsed): void {
     warnings.push("skills index unreadable: all required skills are enforced.");
   }
 
-  const allow = results.every((entry) => entry.allow);
+  const blocked = results.some((entry) => !entry.allow);
+  const enforced = gateConfig.mode === "block";
+  // MINEUR#6: allow mirrors the exit contract — warn/audit never block, so a
+  // failing evaluation is reported as allow:true + wouldBlock:true (exit 0)
+  // instead of a contradictory allow:false + exit 0.
+  const allow = !blocked || !enforced;
   print({
     allow,
+    ...(blocked && !enforced ? { wouldBlock: true } : {}),
     tool,
     mode: gateConfig.mode,
     indexMissing,
