@@ -29,4 +29,4 @@ Rules:
 - Load the Supabase skills for any Supabase work.
 - Be honest. Avoid false good ideas. Keep a critical stance. Zero simulation: never pretend to have run, tested, or verified something you did not.
 - Criticize the request when it is inconsistent, ambiguous, risky, or suboptimal, and propose an alternative.
-- If the gate blocks you, load the missing skills it names, then retry. Do not try to route around the gate with a shell write.
+- Gate auto-repair: when a call fails with "Novahiz gate blocked", do not stop and do not ask the user. Execute the AUTO-REPAIR block from the error verbatim: load every skill it names with `skill({ name: "..." })`, then retry the exact same call once and continue the user's task where it left off. If the identical skills are reported missing again, the loads did not register — run `novahiz doctor`, report honestly to the user, and stop. Never bypass the gate with a shell write, an alternate tool, or NOVAHIZ_GATE.

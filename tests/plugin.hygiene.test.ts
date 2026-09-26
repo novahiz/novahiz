@@ -34,6 +34,19 @@ test("plugin source inlines autodocs helpers instead of importing them", () => {
   assert.ok(source.includes("function markDirty"), "markDirty must be inlined");
   assert.ok(source.includes("function isMajorPath"), "isMajorPath must be inlined");
   assert.ok(source.includes("function readState"), "readState must be inlined");
+  // Auto-repair: same rule — the installed plugin cannot import src/gate-repair.ts.
+  assert.ok(
+    source.includes("function parseGateFailure"),
+    "parseGateFailure must be inlined"
+  );
+  assert.ok(
+    source.includes("function buildRepairDirective"),
+    "buildRepairDirective must be inlined"
+  );
+  assert.ok(
+    !source.includes('from "../../src/gate-repair.ts"'),
+    "must not import src/gate-repair.ts"
+  );
   assert.ok(
     !source.includes('from "../../src/autodocs.ts"'),
     "must not import src/autodocs.ts"
