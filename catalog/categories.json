@@ -35,7 +35,21 @@
       "split",
       "cli"
     ],
-    "defaultSkills": [],
+    "defaultSkills": [
+      "flutter-apply-architecture-best-practices",
+      "dart-run-static-analysis",
+      "expo-overview",
+      "expo-router",
+      "expo-app-clip",
+      "expo-brownfield",
+      "expo-data-fetching",
+      "expo-dom",
+      "expo-examples",
+      "expo-migrate-module",
+      "expo-module",
+      "expo-project-structure",
+      "expo-web-to-native"
+    ],
     "roadmap": {
       "id": "feature",
       "steps": [
@@ -326,7 +340,12 @@
       "fix",
       "reproduce"
     ],
-    "defaultSkills": [],
+    "defaultSkills": [
+      "dart-fix-runtime-errors",
+      "flutter-fix-layout-issues",
+      "expo-dev-client",
+      "expo-upgrade"
+    ],
     "roadmap": {
       "id": "bugfix",
       "steps": [
@@ -510,7 +529,12 @@
       "pytest",
       "playwright test"
     ],
-    "defaultSkills": [],
+    "defaultSkills": [
+      "flutter-add-widget-test",
+      "dart-add-unit-test",
+      "expo-skill-eval",
+      "eas-simulator"
+    ],
     "roadmap": {
       "id": "testing",
       "steps": [
@@ -733,7 +757,12 @@
     "defaultSkills": [
       "novahiz-humanizer",
       "ui-slop-remover",
-      "ui-craft-rules"
+      "ui-craft-rules",
+      "flutter-build-responsive-layout",
+      "expo-native-ui",
+      "expo-design-system",
+      "expo-animation",
+      "expo-ui"
     ],
     "roadmap": {
       "id": "design",
@@ -1076,9 +1105,17 @@
       "ansible",
       "nginx",
       "infra",
-      "monitoring"
+      "monitoring",
+      "eas"
     ],
-    "defaultSkills": [],
+    "defaultSkills": [
+      "eas-workflows",
+      "eas-app-stores",
+      "eas-hosting",
+      "eas-observe",
+      "eas-update",
+      "eas-update-insights"
+    ],
     "roadmap": {
       "id": "devops",
       "steps": [
@@ -1272,7 +1309,8 @@
       "novahiz-clarify",
       "novahiz-analyse",
       "novahiz-implement",
-      "novahiz-converge"
+      "novahiz-converge",
+      "expo-skill-feedback"
     ],
     "roadmap": {
       "id": "general",

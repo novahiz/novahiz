@@ -1,7 +1,7 @@
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { rmSync, mkdirSync, cpSync, writeFileSync, readFileSync } from "node:fs";
+import { existsSync, rmSync, mkdirSync, cpSync, writeFileSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
@@ -105,9 +105,16 @@ test("MINEUR#5: tool names are case-insensitive in the CLI", () => {
 // mode — warn/audit degrade to a warning.
 const gateTestHome = join(tmpdir(), `novahiz-gate-minor-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`);
 
+// novahiz.config.json is gitignored user state: a fresh clone — including CI —
+// only carries the example, which is structurally identical for these assertions.
+function rootConfigPath(): string {
+  const configPath = join(root, "novahiz.config.json");
+  return existsSync(configPath) ? configPath : join(root, "novahiz.config.example.json");
+}
+
 function writeGateHome(mode: "warn" | "block"): void {
   mkdirSync(gateTestHome, { recursive: true });
-  const config = JSON.parse(readFileSync(join(root, "novahiz.config.json"), "utf8")) as Record<string, any>;
+  const config = JSON.parse(readFileSync(rootConfigPath(), "utf8")) as Record<string, any>;
   config.gate.mode = mode;
   writeFileSync(join(gateTestHome, "novahiz.config.json"), `${JSON.stringify(config, null, 2)}\n`);
   // loadSpec hard-fails without the catalog, so mirror it into the mini home.
@@ -169,7 +176,7 @@ test("MINEUR#8: cron command tools are gated by default", () => {
     "cron_update_task",
     "cron_run_task_now"
   ];
-  const config = JSON.parse(readFileSync(join(root, "novahiz.config.json"), "utf8")) as Record<string, any>;
+  const config = JSON.parse(readFileSync(rootConfigPath(), "utf8")) as Record<string, any>;
   for (const tool of cronTools) {
     assert.ok(config.gate.tools.includes(tool), `config gate.tools missing ${tool}`);
   }

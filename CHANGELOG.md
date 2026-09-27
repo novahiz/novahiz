@@ -6,6 +6,25 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-09-28
+
+### Added
+
+- Catalog `defaultSkills` guidance for the installed Flutter/Dart/Expo skill packs (33 entries across 6 categories; classification and `enforcedSkills` stay unchanged — defaults surface as guidance in `requiredSkills`):
+  - `code`: 13 skills (`flutter-apply-architecture-best-practices`, `dart-run-static-analysis`, plus the 11 optional `expo-*` skills).
+  - `debug`: `dart-fix-runtime-errors`, `flutter-fix-layout-issues`, `expo-dev-client`, `expo-upgrade`.
+  - `test`: `flutter-add-widget-test`, `dart-add-unit-test`, `expo-skill-eval`, `eas-simulator`.
+  - `design-ui`: `flutter-build-responsive-layout`, `expo-native-ui`, `expo-design-system`, `expo-animation`, `expo-ui` (appended to the three R13 skills).
+  - `devops`: the six `eas-*` skills, plus the `eas` keyword so EAS build/submit/credentials prompts classify as `devops` instead of falling through to `general`.
+  - `general`: `expo-skill-feedback`.
+- `novahiz.config.example.json` `skillRoots` gains `~/.agents/skills`, so fresh installs index the agent skill packs alongside `./skills` and `~/.config/opencode/skills`.
+
+### Fixed
+
+- Gate tests read the gitignored `novahiz.config.json` directly, and no CI step creates it: the five `MINEUR`/`MAJEUR` gate tests in `tests/cli.test.ts` failed with ENOENT on `main` since the audit-test commits. A shared `rootConfigPath()` now falls back to `novahiz.config.example.json`, which is structurally identical for these assertions.
+
+## [0.3.0] - 2026-09-26
+
 ### Added
 
 - Expo / React Native category with precise skill routing (progressive gate):
