@@ -237,16 +237,38 @@ test("an unknown command exits non-zero with a single clean line", () => {
   assert.match(result.stderr, /unknown command .bogus./);
 });
 
-test("a missing install reports one clean line instead of a stack trace", () => {
-  const missing = join(tmpdir(), `novahiz-absent-${Date.now().toString(36)}`);
+test("a virgin home still checks from the package catalog", () => {
+  const virgin = join(tmpdir(), `novahiz-virgin-${Date.now().toString(36)}`);
   const result = spawnSync(process.execPath, ["--no-warnings", cli, "check"], {
     encoding: "utf8",
     input: "",
-    env: { ...process.env, NOVAHIZ_HOME: missing }
+    env: { ...process.env, NOVAHIZ_HOME: virgin }
   });
-  assert.equal(result.status, 1);
-  assert.equal(result.stderr.trim().split("\n").length, 1);
-  assert.match(result.stderr, /^novahiz: /);
+  assert.equal(result.status, 0, `unexpected failure: ${result.stderr}`);
+  assert.equal(result.stderr.trim(), "", "no stack trace, no warnings");
+  const parsed = JSON.parse(result.stdout);
+  assert.ok(parsed.categories > 0, "package catalog served the categories");
+  assert.equal(parsed.installedSkills, 0, "still reports the untouched install");
+  assert.equal(parsed.indexAvailable, false);
+  assert.equal(parsed.lastSync, null);
+});
+
+test("a corrupted home catalog reports one clean line instead of a stack trace", () => {
+  const broken = join(tmpdir(), `novahiz-broken-${Date.now().toString(36)}`);
+  mkdirSync(join(broken, "catalog"), { recursive: true });
+  writeFileSync(join(broken, "catalog", "categories.json"), "{ not json", "utf8");
+  try {
+    const result = spawnSync(process.execPath, ["--no-warnings", cli, "check"], {
+      encoding: "utf8",
+      input: "",
+      env: { ...process.env, NOVAHIZ_HOME: broken }
+    });
+    assert.equal(result.status, 1);
+    assert.equal(result.stderr.trim().split("\n").length, 1);
+    assert.match(result.stderr, /^novahiz: /);
+  } finally {
+    rmSync(broken, { recursive: true, force: true });
+  }
 });
 
 test("check reports the stored last sync", () => {

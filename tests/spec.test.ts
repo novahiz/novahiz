@@ -1,6 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { DEFAULT_CONFIG, mergeConfig } from "../src/spec.ts";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { DEFAULT_CONFIG, loadSpec, mergeConfig } from "../src/spec.ts";
 
 test("mergeConfig fills missing blocks from defaults", () => {
   const merged = mergeConfig({ dbPath: "custom.sqlite" });
@@ -41,4 +44,20 @@ test("mergeConfig validates classify and gate scalars", () => {
 test("C2: mergeConfig restores default tools when the configured list is empty", () => {
   const merged = mergeConfig({ gate: { tools: [] } } as never);
   assert.deepEqual(merged.gate.tools, DEFAULT_CONFIG.gate.tools);
+});
+
+// Community regression: a virgin home (fresh `npm install -g novahiz`, home
+// never touched) must still load a spec — from the catalog shipped inside the
+// package — instead of dying with ENOENT on the very first documented command.
+test("loadSpec on a virgin home falls back to the package catalog", () => {
+  const virgin = mkdtempSync(join(tmpdir(), "novahiz-virgin-"));
+  try {
+    const spec = loadSpec(virgin);
+    assert.equal(spec.root, virgin);
+    assert.ok(spec.categories.length > 0, "categories served by the package catalog");
+    assert.ok(spec.rules.length > 0, "rules served by the package catalog");
+    assert.equal(typeof spec.config.gate.mode, "string");
+  } finally {
+    rmSync(virgin, { recursive: true, force: true });
+  }
 });

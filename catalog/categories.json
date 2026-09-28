@@ -819,6 +819,15 @@
           "optional": true
         },
         {
+          "id": "impeccable-shape",
+          "label": "Impeccable shape (UX/UI design brief before code)",
+          "kind": "skill",
+          "requireSkills": [
+            "impeccable"
+          ],
+          "optional": true
+        },
+        {
           "id": "implement",
           "label": "Implement",
           "kind": "edit",
@@ -845,9 +854,27 @@
           "optional": true
         },
         {
+          "id": "impeccable-harden",
+          "label": "Impeccable harden (errors, i18n, edge cases before polish)",
+          "kind": "skill",
+          "requireSkills": [
+            "impeccable"
+          ],
+          "optional": true
+        },
+        {
           "id": "impeccable-polish",
           "label": "Impeccable polish (final pass before ship)",
           "kind": "skill",
+          "requireSkills": [
+            "impeccable"
+          ],
+          "optional": true
+        },
+        {
+          "id": "impeccable-detect",
+          "label": "Impeccable detector scan (deterministic UI check, exit 0 = clean)",
+          "kind": "verify",
           "requireSkills": [
             "impeccable"
           ],

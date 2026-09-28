@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, mkdirSync, writeFileSync, existsSync, rmSync } from "node:fs";
+import { mkdtempSync, mkdirSync, writeFileSync, existsSync, rmSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -66,4 +66,17 @@ test("fresh-install config mirrors the shipped example (all skill roots, cron di
   assert.deepEqual(config.skillRoots, example.skillRoots);
   assert.deepEqual(config.providers.disabled, ["cron"]);
   assert.equal(config.gate.mode, "block");
+});
+
+// npm builds the bin shims from the target's shebang: without
+// `#!/usr/bin/env node`, novahiz-install/novahiz-uninstall shipped shims that
+// executed the .mjs bare — no Node interpreter, no file association on
+// Windows, so the published community command hung or exited silently.
+test("every bin target starts with the node shebang", () => {
+  const root = fileURLToPath(new URL("..", import.meta.url));
+  const pkg = readJson(join(root, "package.json"));
+  for (const [name, relative] of Object.entries(pkg.bin as Record<string, string>)) {
+    const firstLine = readFileSync(join(root, relative), "utf8").split("\n", 1)[0];
+    assert.equal(firstLine, "#!/usr/bin/env node", `bin "${name}" -> ${relative} is missing the shebang`);
+  }
 });

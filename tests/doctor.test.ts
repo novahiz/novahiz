@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { claudeHarnessChecks, grantsQuestionIn, parseJsonc, mcpEntryProblems } from "../src/commands/doctor.ts";
+import { claudeHarnessChecks, grantsQuestionIn, impeccableChecks, parseJsonc, mcpEntryProblems, referencedSkillsCheck } from "../src/commands/doctor.ts";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -130,6 +130,110 @@ test("claudeHarnessChecks reports hooks, agent, skills and commands when configu
     const rerun = claudeHarnessChecks(root, claudeDir);
     assert.equal(rerun.find((check) => check.id === "claude-hooks")?.ok, false);
     assert.equal(rerun.find((check) => check.id === "claude-skills")?.ok, true);
+  } finally {
+    rmSync(base, { recursive: true, force: true });
+  }
+});
+
+// Regression: a custom NOVAHIZ_HOME (n4\home, /opt/gov) contains no "novahiz"
+// segment. The doctor used to test the path for that substring and reported a
+// correctly wired install as missing — while install/hooks.mjs
+// isNovahizHandler accepted it via "cli.ts".
+test("claudeHarnessChecks accepts a handler whose path has no novahiz segment", () => {
+  const base = mkdtempSync(join(tmpdir(), "novahiz-claude-path-"));
+  const root = join(base, "root");
+  const claudeDir = join(base, "claude");
+  try {
+    mkdirSync(claudeDir, { recursive: true });
+    writeFileSync(
+      join(claudeDir, "settings.json"),
+      JSON.stringify({
+        hooks: {
+          PreToolUse: [
+            {
+              matcher: "Edit|Write",
+              hooks: [{ type: "command", command: 'node "C:/tmp/n4/home/src/cli.ts" --home "C:/tmp/n4/home" hook --harness claude --event PreToolUse' }]
+            }
+          ]
+        }
+      }),
+      "utf8"
+    );
+    const hooks = claudeHarnessChecks(root, claudeDir).find((check) => check.id === "claude-hooks");
+    assert.equal(hooks?.ok, true, hooks?.detail);
+  } finally {
+    rmSync(base, { recursive: true, force: true });
+  }
+});
+
+test("referencedSkillsCheck blocks on shipped skills only, packs stay informational", () => {
+  const base = mkdtempSync(join(tmpdir(), "novahiz-referenced-"));
+  try {
+    mkdirSync(join(base, "skills", "shipped-skill"), { recursive: true });
+    writeFileSync(join(base, "skills", "shipped-skill", "SKILL.md"), "---\nname: shipped-skill\n---\n", "utf8");
+    const spec = {
+      root: base,
+      categories: [{ id: "demo", defaultSkills: ["shipped-skill", "pack-skill"] }],
+      rules: []
+    } as never as Parameters<typeof referencedSkillsCheck>[0];
+
+    // Healthy fresh install: shipped skill indexed, pack skill absent -> quiet.
+    const fresh = referencedSkillsCheck(spec, new Set(["shipped-skill"]), base);
+    assert.equal(fresh.ok, true, fresh.detail);
+    assert.equal(fresh.blocking, false);
+    assert.match(fresh.detail, /pack skills not installed/);
+
+    // Broken install: the shipped skill is not indexed -> blocking.
+    const broken = referencedSkillsCheck(spec, new Set(["pack-skill"]), base);
+    assert.equal(broken.ok, false);
+    assert.equal(broken.blocking, true);
+    assert.match(broken.detail, /missing from index: shipped-skill/);
+
+    // Unreadable index: the index row already fails; this one stays quiet.
+    const noIndex = referencedSkillsCheck(spec, null, base);
+    assert.equal(noIndex.ok, true, noIndex.detail);
+    assert.equal(noIndex.blocking, false);
+  } finally {
+    rmSync(base, { recursive: true, force: true });
+  }
+});
+
+// Opt-in visibility: no impeccable skill installed -> no rows at all, the same
+// way claude-* rows disappear without a Claude config directory.
+test("impeccableChecks returns nothing when the skill is not installed", () => {
+  const base = mkdtempSync(join(tmpdir(), "novahiz-impeccable-off-"));
+  try {
+    assert.deepEqual(impeccableChecks(base, false), []);
+  } finally {
+    rmSync(base, { recursive: true, force: true });
+  }
+});
+
+test("impeccableChecks reports context files and never blocks", () => {
+  const base = mkdtempSync(join(tmpdir(), "novahiz-impeccable-"));
+  try {
+    // Nothing present: both rows actionable but non-blocking.
+    const missing = impeccableChecks(base, true);
+    assert.equal(missing.length, 2);
+    for (const check of missing) {
+      assert.equal(check.ok, false, check.id);
+      assert.equal(check.blocking, false, check.id);
+    }
+    assert.match(missing.find((check) => check.id === "impeccable-context")?.detail ?? "", /impeccable init/);
+    assert.match(missing.find((check) => check.id === "impeccable-design")?.detail ?? "", /impeccable document/);
+
+    // PRODUCT.md at root, DESIGN.md in docs/ (impeccable resolution order).
+    writeFileSync(join(base, "PRODUCT.md"), "# Product\n", "utf8");
+    mkdirSync(join(base, "docs"), { recursive: true });
+    writeFileSync(join(base, "docs", "DESIGN.md"), "# Design\n", "utf8");
+    const found = impeccableChecks(base, true);
+    const context = found.find((check) => check.id === "impeccable-context");
+    const design = found.find((check) => check.id === "impeccable-design");
+    assert.equal(context?.ok, true, context?.detail);
+    assert.match(context?.detail ?? "", /PRODUCT\.md present/);
+    assert.equal(design?.ok, true, design?.detail);
+    assert.match(design?.detail ?? "", /docs\/DESIGN\.md present/);
+    assert.equal(found.every((check) => !check.blocking), true);
   } finally {
     rmSync(base, { recursive: true, force: true });
   }

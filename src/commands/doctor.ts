@@ -1,11 +1,12 @@
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { spawn, spawnSync } from "node:child_process";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { join, relative } from "node:path";
 import { dbPathFor, emit, flagOn, type Parsed } from "./context.ts";
-import { expandHome, loadSpec, NovahizHome } from "../spec.ts";
+import { expandHome, loadSpec, NovahizHome, packageRoot } from "../spec.ts";
 import { openDb, SCHEMA_VERSION } from "../db.ts";
 import { loadInstalledSkills } from "../catalog.ts";
+import { findContextFile } from "../impeccable.ts";
 import { evaluateGate } from "../gate.ts";
 import { DEFAULT_LIMIT_CHARS, DEFAULT_LIMIT_LINES, MEMORY_DIR } from "../memory.ts";
 import * as ui from "../render.ts";
@@ -277,6 +278,73 @@ function referencedSkills(spec: ReturnType<typeof loadSpec>): string[] {
   return [...ids].sort();
 }
 
+/** Referenced-skills row. Exported for tests.
+ *  `indexSkills` is null when the index is unreadable — the index check already
+ *  reports that, so the row stays quiet instead of double-failing.
+ *  Only skills the package ships (packageRoot/skills) can make a fresh install
+ *  broken. The remaining references — the dart/eas/expo/flutter packs and
+ *  impeccable — are optional delivery downloaded on request and are simply not
+ *  present on a machine that never asked for them; the gate already degrades
+ *  them to "not enforced". Blocking on them turned every healthy fresh install
+ *  red (`missing from index: dart-...` right after novahiz-install --yes). */
+export function referencedSkillsCheck(
+  spec: ReturnType<typeof loadSpec>,
+  indexSkills: Set<string> | null,
+  packageRootDir: string
+): DoctorCheck {
+  const referenced = referencedSkills(spec);
+  const absent = indexSkills ? referenced.filter((id) => !indexSkills.has(id)) : [];
+  const shipped = new Set<string>();
+  const shippedDir = join(packageRootDir, "skills");
+  if (existsSync(shippedDir)) {
+    for (const entry of readdirSync(shippedDir, { withFileTypes: true })) {
+      if (entry.isDirectory()) shipped.add(entry.name);
+    }
+  }
+  const absentShipped = absent.filter((id) => shipped.has(id));
+  const absentPack = absent.length - absentShipped.length;
+  return {
+    id: "referenced",
+    label: "Referenced skills",
+    ok: absentShipped.length === 0,
+    detail:
+      absent.length === 0
+        ? `${referenced.length} present`
+        : absentShipped.length > 0
+          ? `missing from index: ${absent.join(", ")}`
+          : `${referenced.length - absent.length} present, ${absentPack} pack skills not installed (novahiz-install --dart-skills --flutter-skills)`,
+    blocking: absentShipped.length > 0
+  };
+}
+
+/** Impeccable design-context checks: PRODUCT.md and DESIGN.md resolution
+ *  (root -> .agents/context -> docs/). Rows appear only when the impeccable
+ *  skill is installed — the same opt-in visibility as the claude-* rows — and
+ *  are never blocking: a missing record is a command to run
+ *  (`/impeccable init`, `/impeccable document`), not an anomaly. Exported for tests. */
+export function impeccableChecks(cwd: string, installed: boolean): DoctorCheck[] {
+  if (!installed) return [];
+  const rel = (path: string): string => relative(cwd, path).split("\\").join("/");
+  const product = findContextFile(cwd, "PRODUCT.md");
+  const design = findContextFile(cwd, "DESIGN.md");
+  return [
+    {
+      id: "impeccable-context",
+      label: "Impeccable product context",
+      ok: product !== null,
+      detail: product ? `${rel(product)} present` : "no PRODUCT.md - run /impeccable init to capture audience, goals and constraints",
+      blocking: false
+    },
+    {
+      id: "impeccable-design",
+      label: "Impeccable design record",
+      ok: design !== null,
+      detail: design ? `${rel(design)} present` : "no DESIGN.md - run /impeccable document to record an existing visual system",
+      blocking: false
+    }
+  ];
+}
+
 /** Claude Code harness checks: hooks wiring, agent copy, skills and commands.
  *  Returns [] when no Claude config dir exists, so a machine without Claude
  *  Code never carries these rows. Exported for tests. */
@@ -297,8 +365,11 @@ export function claudeHarnessChecks(root: string, claudeDir: string): DoctorChec
         (group.hooks ?? []).some((handler) => {
           const command = handler.command ?? "";
           // Mirrors install/hooks.mjs isNovahizHandler: our handler points at
-          // the novahiz CLI and runs its hook subcommand.
-          return command.includes("novahiz") && command.includes("hook");
+          // the novahiz CLI and runs its hook subcommand. Do not test the path
+          // for "novahiz" alone — a custom NOVAHIZ_HOME (n4\home, /opt/gov)
+          // contains no such segment, and the doctor then reported a healthy
+          // install as unwired.
+          return command.includes("hook --harness") && (command.includes("novahiz") || command.includes("cli.ts"));
         })
       );
       hooksDetail = hooksOk ? "novahiz PreToolUse handler wired" : "no novahiz PreToolUse handler - rerun installer";
@@ -364,19 +435,12 @@ export async function commandDoctor(parsed: Parsed): Promise<void> {
     blocking: true
   });
 
-  const referenced = referencedSkills(spec);
-  const absent = index.available ? referenced.filter((id) => !index.skills.has(id)) : [];
-  checks.push({
-    id: "referenced",
-    label: "Referenced skills",
-    ok: absent.length === 0,
-    detail: absent.length === 0 ? `${referenced.length} present` : `missing from index: ${absent.join(", ")}`,
-    blocking: absent.length > 0
-  });
+  checks.push(referencedSkillsCheck(spec, index.available ? index.skills : null, packageRoot() ?? root));
 
   // SKILL_CLI is intentionally empty: novahiz-web-extract replaced the external
   // defuddle CLI on the research roadmap (see MEMORY.md). Keep the check so a
   // future external dependency is wired here again.
+  const referenced = referencedSkills(spec);
   const cliEntries = Object.entries(SKILL_CLI);
   const missingCli = cliEntries
     .filter(([skill]) => referenced.includes(skill) && !hasCommand(skill))
@@ -520,6 +584,10 @@ export async function commandDoctor(parsed: Parsed): Promise<void> {
       ? process.env.CLAUDE_CONFIG_DIR
       : join(homedir(), ".claude");
   checks.push(...claudeHarnessChecks(root, claudeDir));
+
+  // Impeccable rows appear only when the skill is installed (opt-in, like the
+  // claude-* rows) and only reflect this project's context files.
+  checks.push(...impeccableChecks(process.cwd(), index.available && index.skills.has("impeccable")));
 
   const opencodeConfigPath = join(opencodeDir, "opencode.jsonc");
   const catalogPackages = new Map<string, string>();

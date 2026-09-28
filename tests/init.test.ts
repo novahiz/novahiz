@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
@@ -9,12 +9,12 @@ import { join } from "node:path";
 const root = fileURLToPath(new URL("..", import.meta.url));
 const cli = join(root, "src", "cli.ts");
 
-function run(args: string[], cwd: string): { status: number | null; stdout: string; stderr: string } {
+function run(args: string[], cwd: string, home: string = root): { status: number | null; stdout: string; stderr: string } {
   const result = spawnSync(process.execPath, [cli, ...args], {
     encoding: "utf8",
     input: "",
     cwd,
-    env: { ...process.env, NOVAHIZ_HOME: root, NOVAHIZ_GATE: "off" }
+    env: { ...process.env, NOVAHIZ_HOME: home, NOVAHIZ_GATE: "off" }
   });
   return {
     status: result.status,
@@ -27,6 +27,21 @@ function tempProject(): string {
   const dir = mkdtempSync(join(tmpdir(), "novahiz-init-"));
   writeFileSync(join(dir, "package.json"), `${JSON.stringify({ name: "demo-app", version: "1.2.3" }, null, 2)}\n`);
   return dir;
+}
+
+/** Isolated Novahiz home whose installed-skills index either contains the
+ *  impeccable skill or not — the index is the authority `init` reads. The
+ *  docs templates are copied so the docs step behaves as in production. */
+function tempHome(withImpeccable: boolean): string {
+  const home = mkdtempSync(join(tmpdir(), "novahiz-init-home-"));
+  mkdirSync(join(home, "build"), { recursive: true });
+  writeFileSync(
+    join(home, "build", "installed-skills.json"),
+    JSON.stringify(withImpeccable ? ["impeccable", "novahiz-plan"] : ["novahiz-plan"]),
+    "utf8"
+  );
+  cpSync(join(root, "skills", "novahiz-docs"), join(home, "skills", "novahiz-docs"), { recursive: true });
+  return home;
 }
 
 test("init --dry-run reports steps without writing", () => {
@@ -158,4 +173,64 @@ test("help lists init as project bootstrap and setup as install", () => {
   const result = run(["help"], tempProject());
   assert.match(result.stdout, /init\s+Initialize Novahiz in the current project/);
   assert.match(result.stdout, /setup\s+Install Novahiz/);
+});
+
+test("init reports the impeccable context step when PRODUCT.md exists", () => {
+  const dir = tempProject();
+  writeFileSync(join(dir, "PRODUCT.md"), "# Product\n", "utf8");
+  const home = tempHome(true);
+  const result = run(["init", "--json"], dir, home);
+  assert.equal(result.status, 0, result.stderr);
+  const parsed = JSON.parse(result.stdout);
+  const step = parsed.steps.find((item: { id: string }) => item.id === "impeccable");
+  assert.ok(step, "impeccable step present");
+  assert.equal(step.status, "created", step.detail);
+  assert.match(step.detail, /PRODUCT\.md at PRODUCT\.md/);
+  // Context present: no /impeccable init advice in next.
+  assert.doesNotMatch(parsed.next, /impeccable init/);
+  assert.match(parsed.next, /novahiz-init/);
+});
+
+test("init advises /impeccable init when the skill is installed but PRODUCT.md is missing", () => {
+  const dir = tempProject();
+  const home = tempHome(true);
+  const result = run(["init", "--json"], dir, home);
+  assert.equal(result.status, 0, result.stderr);
+  const parsed = JSON.parse(result.stdout);
+  const step = parsed.steps.find((item: { id: string }) => item.id === "impeccable");
+  assert.ok(step);
+  assert.equal(step.status, "skipped", step.detail);
+  assert.match(step.detail, /PRODUCT\.md missing/);
+  // Advisory never fails init.
+  assert.ok(!parsed.failed.includes("impeccable"));
+  assert.match(parsed.next, /\/impeccable init/);
+});
+
+test("init finds PRODUCT.md in docs/ per impeccable context resolution", () => {
+  const dir = tempProject();
+  mkdirSync(join(dir, "docs"), { recursive: true });
+  writeFileSync(join(dir, "docs", "PRODUCT.md"), "# Product\n", "utf8");
+  const home = tempHome(true);
+  const result = run(["init", "--json"], dir, home);
+  assert.equal(result.status, 0, result.stderr);
+  const parsed = JSON.parse(result.stdout);
+  const step = parsed.steps.find((item: { id: string }) => item.id === "impeccable");
+  assert.ok(step);
+  assert.equal(step.status, "created", step.detail);
+  assert.match(step.detail, /PRODUCT\.md at docs\/PRODUCT\.md/);
+  assert.doesNotMatch(parsed.next, /impeccable init/);
+});
+
+test("init keeps the impeccable row quiet when the skill is not installed", () => {
+  const dir = tempProject();
+  const home = tempHome(false);
+  const result = run(["init", "--json"], dir, home);
+  assert.equal(result.status, 0, result.stderr);
+  const parsed = JSON.parse(result.stdout);
+  const step = parsed.steps.find((item: { id: string }) => item.id === "impeccable");
+  assert.ok(step);
+  assert.equal(step.status, "skipped");
+  assert.match(step.detail, /not installed/);
+  // No install advice and no init advice pushed on a machine without the skill.
+  assert.doesNotMatch(parsed.next, /impeccable/);
 });

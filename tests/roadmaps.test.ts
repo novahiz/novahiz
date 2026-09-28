@@ -56,3 +56,33 @@ test("design gating is not forced by the roadmap", () => {
     .flatMap((step) => step.requireSkills ?? []);
   assert.equal(gatedSkills.includes("impeccable"), false);
 });
+
+test("design-ui roadmap carries the impeccable pipeline steps, all optional", () => {
+  const design = spec.categories.find((category) => category.id === "design-ui");
+  assert.ok(design?.roadmap);
+  const steps = design.roadmap.steps;
+  const ids = steps.map((step) => step.id);
+  const expected = [
+    "impeccable-shape",
+    "impeccable-critique",
+    "impeccable-audit",
+    "impeccable-harden",
+    "impeccable-polish",
+    "impeccable-detect"
+  ];
+  for (const id of expected) {
+    const step = steps.find((item) => item.id === id);
+    assert.ok(step, `${id} present`);
+    assert.equal(step.optional, true, `${id} stays optional`);
+    assert.ok((step.requireSkills ?? []).includes("impeccable"), `${id} requires impeccable`);
+  }
+  // Shape briefs the work before code; the deterministic detector scan sits
+  // after polish and before the rest of the verify block.
+  assert.ok(ids.indexOf("impeccable-shape") < ids.indexOf("implement"));
+  assert.ok(ids.indexOf("impeccable-audit") < ids.indexOf("impeccable-harden"));
+  assert.ok(ids.indexOf("impeccable-harden") < ids.indexOf("impeccable-polish"));
+  const detect = steps.find((item) => item.id === "impeccable-detect");
+  assert.equal(detect?.kind, "verify");
+  assert.ok(ids.indexOf("impeccable-polish") < ids.indexOf("impeccable-detect"));
+  assert.ok(ids.indexOf("impeccable-detect") < ids.indexOf("responsive"));
+});

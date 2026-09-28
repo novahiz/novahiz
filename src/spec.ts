@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
-import { join, resolve, sep } from "node:path";
+import { dirname, join, resolve, sep } from "node:path";
 
 type Keyword = { term: string; weight?: number };
 export type CategoryKeyword = string | Keyword;
@@ -153,7 +153,11 @@ export const DEFAULT_CONFIG: NovahizConfig = {
   // Documented default (docs/CONFIGURATION.md). An empty array would index
   // nothing when a config omits the key; relative paths resolve against the
   // Novahiz home.
-  skillRoots: ["./skills"],
+  // Mirrors novahiz.config.example.json (and install/lib.mjs defaultConfig):
+  // bundled skills, the harness skills dir and the external packs (~/.agents/
+  // skills) must all be indexed, or gate-required pack skills are invisible
+  // whenever a config is missing a skillRoots key.
+  skillRoots: ["./skills", "~/.config/opencode/skills", "~/.agents/skills"],
   gate: {
     enabled: true,
     mode: "block",
@@ -315,13 +319,40 @@ function readCatalog<T>(path: string): T {
   }
 }
 
+// Community path: `npm install -g novahiz` leaves the home untouched (npm 11+
+// gates lifecycle scripts, and the postinstall only previews anyway), so a
+// brand-new machine has no catalog in its home yet — every command used to die
+// with ENOENT right after the documented install. The package ships its own
+// catalog/: fall back to it before failing. The entry script (bin/novahiz.mjs,
+// dist/cli.js or src/cli.ts) always sits exactly one directory below the
+// package root, so dirname(argv[1])/.. resolves in every supported shape.
+// Exported: doctor resolves the shipped skills/ the same way.
+export function packageRoot(): string | null {
+  const entry = process.argv[1];
+  if (!entry || entry.length === 0) return null;
+  return join(dirname(resolve(entry)), "..");
+}
+
+// The home copy always wins when present, because that is what the installer
+// refreshes.
+function catalogPath(root: string, name: string): string {
+  const homePath = join(root, "catalog", name);
+  if (existsSync(homePath)) return homePath;
+  const pkgRoot = packageRoot();
+  if (pkgRoot) {
+    const packagePath = join(pkgRoot, "catalog", name);
+    if (existsSync(packagePath)) return packagePath;
+  }
+  return homePath;
+}
+
 export function loadSpec(root: string = NovahizHome()): Spec {
-  const categories = readCatalog<Category[]>(join(root, "catalog", "categories.json"));
-  const rules = readCatalog<Rule[]>(join(root, "catalog", "rules.json"));
-  const overrides = readCatalog<Overrides>(join(root, "catalog", "overrides.json"));
+  const categories = readCatalog<Category[]>(catalogPath(root, "categories.json"));
+  const rules = readCatalog<Rule[]>(catalogPath(root, "rules.json"));
+  const overrides = readCatalog<Overrides>(catalogPath(root, "overrides.json"));
   let providers: Provider[] = [];
   try {
-    const loaded = readCatalog<Provider[]>(join(root, "catalog", "providers.json"));
+    const loaded = readCatalog<Provider[]>(catalogPath(root, "providers.json"));
     if (Array.isArray(loaded)) providers = loaded;
   } catch {
     providers = [];

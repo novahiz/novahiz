@@ -14,6 +14,16 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - Skill `novahiz-release`: the versioned release process (changelog entry, `npm version` bump, tag, GitHub Actions publish with provenance, post-release resync), wired as a final advisory step on the `devops` roadmap; devops now classifies release/publish/bump/tag/changelog prompts.
 - `doctor`: `mcp-config` check (every `opencode.jsonc` server entry resolved against the catalog) and a `--deep` live probe — a JSON-RPC `initialize` handshake per configured server, probed in parallel with a 10 s budget each (14 checks with `--deep`, 13 without).
 - Advisory roadmap steps: `novahiz-audit` closes the `audit` roadmap; `design-token-pipeline` sits on `design-ui` between tasks and design-craft.
+- Impeccable integration (lots A + B), all advisory and opt-in:
+  - `novahiz init` prints a non-blocking `impeccable` context step: it reads the installed-skills index (the gate's authority) and resolves `PRODUCT.md` / `DESIGN.md` per the impeccable rule (root → `.agents/context/` → `docs/`); a missing file yields a `/impeccable init` hint in `next`, never a failed step.
+  - `doctor` gains `impeccable-context` and `impeccable-design` rows, visible only when the skill is indexed, never blocking (same opt-in visibility as the Claude harness rows).
+  - `design-ui` roadmap gains three optional steps: `impeccable-shape` (UX/UI brief before code), `impeccable-harden` (errors/i18n/edge cases between audit and polish) and `impeccable-detect` (deterministic `verify` scan after polish); roadmap tests assert all six impeccable steps stay optional and `impeccable` never gates a non-optional step.
+  - Skills: `novahiz-init` gains step 6 (run `/impeccable init` when `PRODUCT.md` is missing on design projects), `novahiz-converge` gains a UI-verification section (`npx impeccable detect <files>` as convergence proof).
+  - Shared resolver `src/impeccable.ts` (`findContextFile`) used by init and doctor.
+
+### Changed
+
+- README showcase: a new "How a session runs" section walks the real loop (classify → roadmap → gate with auto-repair → verify/converge → memory), the Roadmaps section gains the six-stage pipeline table with the `trivial`/`lite`/`full` tiers, the Gate section documents auto-repair and the index-gap behaviour, a Memory section covers the `project-memory/` slots and the `MEMORY.md`/Obsidian dual-write, and the doctor counts now read 13 base / 17 with Claude Code / 19 with impeccable.
 
 ### Security
 
@@ -24,6 +34,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - Gate auto-repair always includes `novahiz-gate` in its load steps, so the agent understands why an edit was blocked before retrying.
 - Ghost skill references removed (`memory-save`, `wiki-ingest`, `wiki-lint`, `wiki-status`, `graph-colorize` were never in the installed index): `adapters/opencode/instructions.md`, `skills/novahiz-memory/SKILL.md`, `skills/memory/SKILL.md`.
 - `expo-skills` provider now installs all 19 `expo-*` skills — `expo-migrate-module` and `expo-skill-eval` were referenced by the index but missing from the install command.
+- Fresh `npm install -g novahiz` works before any home exists: `loadSpec` falls back to the catalog shipped inside the package (`packageRoot()`/`catalogPath`) instead of dying with ENOENT on the first documented command — npm 11+ gates lifecycle scripts, so nothing copies the home first. The home copy still wins once the installer wrote it.
+- `novahiz-install` and `novahiz-uninstall` shipped shebang-less targets, so npm built shims that executed the `.mjs` bare: on Windows, with no `.mjs` file association, the community command hung or exited silently (the other three bins had `#!/usr/bin/env node` and worked). Both files now carry the shebang, and a test asserts every `package.json` bin target does.
+- `doctor` Claude hooks row mirrors `install/hooks.mjs` `isNovahizHandler` (`hook --harness` plus `novahiz` or `cli.ts`) instead of testing the command for a `novahiz` path segment: a custom `NOVAHIZ_HOME` such as `/opt/gov` made a correctly wired install report as unwired.
+- `doctor` referenced-skills blocks only on skills the package ships: the 34 dart/eas/expo/flutter/impeccable pack skills are optional delivery, so a healthy fresh install no longer exits 1 with `missing from index: dart-...` right after `novahiz-install --yes`. The row stays informational with the pack-install hint; the gate already reports absent skills as "not enforced".
+- `DEFAULT_CONFIG.skillRoots` mirrors the example config (adds `~/.config/opencode/skills` and `~/.agents/skills`): a config missing its `skillRoots` key no longer hides gate-required pack skills from the index, the same gap `install/lib.mjs` had already fixed for fresh installs.
+- README quick start matches reality: lowercase package and bin names, the explicit `novahiz-install --yes` step (npm 11+ allow-scripts means `postinstall` never auto-configures), no more `npm run build` (that script never existed; `prepare` builds), and the stale "12 health checks" comment replaced (13 base, 17 with Claude Code).
 
 ## [0.3.5] - 2026-09-28
 

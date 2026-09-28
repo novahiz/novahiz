@@ -1,7 +1,9 @@
 import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
 import { emit, flagOn, type Parsed } from "./context.ts";
-import { NovahizHome } from "../spec.ts";
+import { loadSpec, NovahizHome } from "../spec.ts";
+import { loadInstalledSkills } from "../catalog.ts";
+import { findContextFile } from "../impeccable.ts";
 import { ensureMemoryRoot, memoryRoot, writeEntry } from "../memory.ts";
 import { ensureProjectAutoDocsConfig } from "./autodocs.ts";
 import * as ui from "../render.ts";
@@ -13,6 +15,8 @@ type InitStep = {
   label: string;
   status: StepStatus;
   detail: string;
+  /** One-shot hint appended to the `next` line when present. */
+  advice?: string;
 };
 
 type CleanupCandidate = {
@@ -226,6 +230,51 @@ function projectDoctor(project: ProjectInfo): InitStep {
   };
 }
 
+// Advisory: report where the Impeccable design context stands. Never writes,
+// never fails — `impeccable init` itself is an agent workflow (it asks the
+// user questions), so the CLI only detects and points at the next command.
+function impeccableContext(home: string, cwd: string, dryRun: boolean): InitStep {
+  const label = "Impeccable context";
+  let indexAvailable = false;
+  let installed = false;
+  try {
+    const spec = loadSpec(home);
+    const index = loadInstalledSkills(spec);
+    indexAvailable = index.available;
+    installed = index.available && index.skills.has("impeccable");
+  } catch {
+    // A broken catalog must not fail init; the step degrades to "unavailable".
+  }
+  const product = findContextFile(cwd, "PRODUCT.md");
+  const design = findContextFile(cwd, "DESIGN.md");
+  const rel = (path: string): string => relative(cwd, path).split("\\").join("/");
+  const state = [product ? `PRODUCT.md at ${rel(product)}` : null, design ? `DESIGN.md at ${rel(design)}` : null]
+    .filter((part): part is string => part !== null)
+    .join(", ");
+
+  if (!indexAvailable) {
+    return { id: "impeccable", label, status: "skipped", detail: "skills index unavailable, run novahiz sync to detect skills" };
+  }
+  if (!installed) {
+    return { id: "impeccable", label, status: "skipped", detail: "skill not installed (optional: npx skills add pbakaus/impeccable)" };
+  }
+  if (!product) {
+    return {
+      id: "impeccable",
+      label,
+      status: "skipped",
+      detail: `${state || "no context files"} — PRODUCT.md missing`,
+      advice: "Run /impeccable init in an agent to capture product context (audience, goals, constraints)."
+    };
+  }
+  return {
+    id: "impeccable",
+    label,
+    status: dryRun ? "dry-run" : "created",
+    detail: state + (design ? "" : " — no DESIGN.md yet (run /impeccable document to record a visual system)")
+  };
+}
+
 export function commandInit(parsed: Parsed): void {
   const cwd = process.cwd();
   const home = NovahizHome();
@@ -267,6 +316,7 @@ export function commandInit(parsed: Parsed): void {
         detail: status === "failed" ? "could not write .novahiz/config.json" : `.novahiz/config.json ${status}`
       });
     }
+    steps.push(impeccableContext(home, cwd, dryRun));
   }
 
   let cleanup: CleanupCandidate[] = [];
@@ -301,6 +351,10 @@ export function commandInit(parsed: Parsed): void {
   }
 
   const failed = steps.filter((step) => step.status === "failed");
+  const advice = steps.find((step) => step.advice !== undefined)?.advice ?? null;
+  const nextLine = ["Run the novahiz-init skill in an agent to fill docs and deepen memory.", advice]
+    .filter((part): part is string => part !== null)
+    .join(" ");
   const value = {
     cwd,
     home,
@@ -309,7 +363,7 @@ export function commandInit(parsed: Parsed): void {
     steps,
     cleanup,
     cleanupApplied,
-    next: failed.length === 0 ? "Run the novahiz-init skill in an agent to fill docs and deepen memory." : null,
+    next: failed.length === 0 ? nextLine : null,
     failed: failed.map((step) => step.id)
   };
 

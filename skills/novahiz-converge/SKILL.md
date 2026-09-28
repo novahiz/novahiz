@@ -69,6 +69,16 @@ A violation of a MUST principle in `AGENTS.md` sits at the top level and produce
 
 Report three lists: what is satisfied and proven, what remains open, what could not be evaluated and why. The work ends when the open list is empty or when the user explicitly accepts the remainders.
 
+## UI verification
+
+When the work touched UI files (pages, components, screens, css), run the deterministic detector over them before grading:
+
+```
+npx impeccable detect <files>
+```
+
+Exit `0` is a clean scan; non-zero findings become `partial` or `unsatisfied` elements in the inventory. If the `impeccable` skill is not installed, say so and grade from the code itself — the scan is a stronger proof, not a precondition.
+
 ## Categories involved
 
 The convergence step appears in `code`, `flutter`, `expo`, `debug`, `test`, `audit`, `browser`, `design-ui`, `database-supabase`, `docs-writing`, `planning`, `devops`, and `data`.
