@@ -8,6 +8,8 @@ Novahiz.sqlite
 Novahiz.sqlite-*
 .graft/
 build/
+dist/
+*.tgz
 *.novahiz-bak
 coverage/
 *.log

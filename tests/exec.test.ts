@@ -54,6 +54,15 @@ test("runScript runs a safe bootstrap argv", () => {
   assert.match(result.stdout.trim(), /^v\d+/);
 });
 
+test("runCommand and runScript spawn npm (Windows: npm is a .cmd shim)", () => {
+  const viaCommand = runCommand("npm", ["--version"]);
+  assert.equal(viaCommand.ok, true, viaCommand.error ?? viaCommand.stderr);
+  assert.match(viaCommand.stdout.trim(), /^\d+\./);
+  const viaScript = runScript(["npm", "--version"]);
+  assert.equal(viaScript.ok, true, viaScript.error ?? viaScript.stderr);
+  assert.match(viaScript.stdout.trim(), /^\d+\./);
+});
+
 test("runScript refuses shell bootstrap binaries", () => {
   for (const bin of ["sh", "bash", "pwsh", "powershell", "cmd", "cmd.exe"]) {
     const result = runScript([bin, "--version"]);

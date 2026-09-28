@@ -108,6 +108,11 @@ export function runScript(argv: string[]): CommandResult {
     if (isCodeRunnerFlag(bin, arg)) return refusedCodeRunner(arg);
     if (!SAFE_TOKEN.test(arg)) return refused(arg);
   }
-  const result = spawnSync(bin, args, { encoding: "utf8", windowsHide: true, shell: false });
+  // Tokens are already bounded (SAFE_TOKEN: no whitespace, no metacharacter),
+  // so handing the joined string to cmd.exe on Windows is safe and is the only
+  // way npm/npx (.cmd shims) can run at all — direct CreateProcess throws
+  // ENOENT since the Node CVE-2024-* .cmd hardening.
+  const [command, spawnArgs] = resolveSpawn(bin, args);
+  const result = spawnSync(command, spawnArgs, { encoding: "utf8", windowsHide: true, shell: false });
   return resultFrom(result.status, result.stdout ?? "", result.stderr ?? "", result.error?.message);
 }

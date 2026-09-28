@@ -5,6 +5,7 @@ import { spawnSync } from "node:child_process";
 import {
   copyFileWithBackup,
   copyInto,
+  defaultConfig,
   loadManifest,
   mergeBackups,
   mergeCreated,
@@ -16,6 +17,7 @@ import {
   repoRoot,
   saveManifest,
   skillNamesIn,
+  spawnHost,
   which,
   writeJson
 } from "./lib.mjs";
@@ -38,31 +40,6 @@ const CORE_ITEMS = [
   "novahiz.config.example.json"
 ];
 
-function defaultConfig(skillsDir) {
-  return {
-    dbPath: "novahiz.sqlite",
-    skillRoots: ["./skills"],
-    gate: {
-      enabled: true,
-      mode: "block",
-      // Kept for schema compatibility only — the kill-switch name is hardcoded
-      // to NOVAHIZ_GATE in the CLI, MCP gate, and plugin (see src/spec.ts).
-      envEscape: "NOVAHIZ_GATE",
-      tools: ["edit", "write", "patch", "apply_patch", "bash", "shell", "cron_add_command_task", "cron_update_command_task", "cron_update_task", "cron_run_task_now"]
-    },
-    classify: {
-      minScore: 1,
-      maxCategories: 3,
-      fallbackCategory: "general"
-    },
-    providers: {
-      autoRegister: true,
-      autoInstall: false,
-      disabled: ["cron"]
-    }
-  };
-}
-
 async function main() {
   const flags = parseArgs(process.argv.slice(2));
   const dryRun = Boolean(flags["dry-run"]);
@@ -80,8 +57,15 @@ async function main() {
   note(`opencode config: ${configDir}`);
 
   if (!nodeVersionOk()) {
-    process.stderr.write(`Node ${process.versions.node} is too old. Node 22.18 or later is required.\n`);
-    process.exit(1);
+    const message = `Node ${process.versions.node} is too old. Node 22.18 or later is required.`;
+    if (dryRun) {
+      // postinstall (`npm install novahiz`) runs this in dry-run mode and must
+      // never fail the parent install on an older Node — warn and keep going.
+      note(`WARNING: ${message} The novahiz CLI will not run until Node is upgraded.`);
+    } else {
+      process.stderr.write(`${message}\n`);
+      process.exit(1);
+    }
   }
 
   // Check for opencode and auto-install if missing
@@ -90,15 +74,16 @@ async function main() {
       note("opencode not detected. Would install globally (npm install -g opencode-ai).");
     } else {
       note("opencode not detected. Global installation...");
-      const installResult = spawnSync("npm", ["install", "-g", "opencode-ai"], {
-        encoding: "utf8",
+      const installResult = spawnHost("npm", ["install", "-g", "opencode-ai"], {
         stdio: "inherit"
       });
       if (installResult.status !== 0) {
-        process.stderr.write("Failed to install opencode. Try: npm install -g opencode-ai\n");
-        process.exit(1);
+        // Non-blocking: the core install still lands; the user can install
+        // opencode afterwards.
+        note("WARNING: Failed to install opencode automatically (non-blocking). Run: npm install -g opencode-ai");
+      } else {
+        note("opencode installed successfully.");
       }
-      note("opencode installed successfully.");
     }
   } else {
     note("opencode detected.");
@@ -249,7 +234,7 @@ async function main() {
         if (!existsSync(backup)) cpSync(configPath, backup);
         backups.push({ path: configPath, backup });
       }
-      writeJson(configPath, defaultConfig(skillsDir));
+      writeJson(configPath, defaultConfig());
       configCreated = !existedBefore;
     }
   } else {
@@ -258,8 +243,9 @@ async function main() {
 
   if (!dryRun) {
     const previous = loadManifest(home);
+    const pkgVersion = readJson(join(root, "package.json"), {}).version ?? "0.0.0";
     saveManifest(home, {
-      version: "0.1.0",
+      version: pkgVersion,
       installedAt: new Date().toISOString(),
       harness: "opencode",
       configDir,
@@ -326,8 +312,7 @@ async function main() {
       });
       if (check.status !== 0) {
         note(`  Installing ${server.pkg}...`);
-        const result = spawnSync("npm", ["install", "-g", server.pkg], {
-          encoding: "utf8",
+        const result = spawnHost("npm", ["install", "-g", server.pkg], {
           stdio: "inherit"
         });
         if (result.status !== 0) {
@@ -360,10 +345,10 @@ async function main() {
     note("\nInstalling official Flutter/Dart skill packs...");
     for (const pack of skillPacks) {
       note(`  ${pack.repo}...`);
-      const result = spawnSync(
+      const result = spawnHost(
         "npx",
         ["-y", "skills", "add", pack.repo, "--skill", "*", "-g", "-a", "opencode", "-y"],
-        { encoding: "utf8", stdio: "inherit" }
+        { stdio: "inherit" }
       );
       if (result.status !== 0) {
         note(`  WARNING: Failed to install ${pack.repo} (non-blocking)`);
@@ -384,8 +369,7 @@ async function main() {
     note("\nInstalling opencode plugins...");
     for (const plugin of plugins) {
       note(`  Installing ${plugin}...`);
-      const result = spawnSync("npm", ["install", "-g", plugin], {
-        encoding: "utf8",
+      const result = spawnHost("npm", ["install", "-g", plugin], {
         stdio: "inherit"
       });
       if (result.status !== 0) {
@@ -468,15 +452,13 @@ async function main() {
     note("Checking for dependency updates...");
     const pkgPath = join(home, "package.json");
     if (existsSync(pkgPath)) {
-      const npmCheck = spawnSync("npm", ["outdated", "--json"], {
-        encoding: "utf8",
+      const npmCheck = spawnHost("npm", ["outdated", "--json"], {
         cwd: home,
         env: { ...process.env, NOVAHIZ_HOME: home }
       });
       if (npmCheck.stdout && npmCheck.stdout.trim().length > 2) {
         note("Updates available, installing...");
-        const npmUpdate = spawnSync("npm", ["update"], {
-          encoding: "utf8",
+        const npmUpdate = spawnHost("npm", ["update"], {
           cwd: home,
           env: { ...process.env, NOVAHIZ_HOME: home }
         });
@@ -494,5 +476,11 @@ async function main() {
 
 main().catch((error) => {
   process.stderr.write(`${String(error)}\n`);
+  // postinstall (`npm install novahiz`) runs --dry-run: an unexpected crash
+  // must not fail the parent install.
+  if (parseArgs(process.argv.slice(2))["dry-run"]) {
+    process.stderr.write("Dry-run failed (non-blocking; the npm install continues).\n");
+    process.exit(0);
+  }
   process.exit(1);
 });

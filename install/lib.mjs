@@ -156,8 +156,49 @@ export function writeJson(path, value) {
   writeFileSync(path, `${JSON.stringify(value, null, 2)}\n`, "utf8");
 }
 
+// Config written on a fresh install. Lives here (not in install.mjs) so tests
+// can assert it without executing the installer.
+export function defaultConfig() {
+  return {
+    dbPath: "novahiz.sqlite",
+    // Mirrors novahiz.config.example.json: bundled skills, the harness skills
+    // dir, and the external packs (~/.agents/skills) must all be indexed, or
+    // gate-required pack skills are invisible on fresh installs.
+    skillRoots: ["./skills", "~/.config/opencode/skills", "~/.agents/skills"],
+    gate: {
+      enabled: true,
+      mode: "block",
+      // Kept for schema compatibility only — the kill-switch name is hardcoded
+      // to NOVAHIZ_GATE in the CLI, MCP gate, and plugin (see src/spec.ts).
+      envEscape: "NOVAHIZ_GATE",
+      tools: ["edit", "write", "patch", "apply_patch", "bash", "shell", "cron_add_command_task", "cron_update_command_task", "cron_update_task", "cron_run_task_now"]
+    },
+    classify: {
+      minScore: 1,
+      maxCategories: 3,
+      fallbackCategory: "general"
+    },
+    providers: {
+      autoRegister: true,
+      autoInstall: false,
+      disabled: ["cron"]
+    }
+  };
+}
+
 export function loadManifest(home) {
   return readJson(join(home, ".novahiz-install.json"), { created: [], backups: [] });
+}
+
+// npm/npx are .cmd shims on Windows: direct spawnSync throws ENOENT, so they
+// need cmd.exe. Node deprecates args arrays with shell:true (DEP0190), which
+// only wants a single string — every token here is static (catalog package
+// names, fixed flags), so joining with spaces is safe.
+export function spawnHost(cmd, args, opts = {}) {
+  if (process.platform === "win32") {
+    return spawnSync([cmd, ...args].join(" "), { ...opts, encoding: "utf8", shell: true });
+  }
+  return spawnSync(cmd, args, { ...opts, encoding: "utf8" });
 }
 
 export function saveManifest(home, manifest) {

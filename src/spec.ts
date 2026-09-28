@@ -150,7 +150,10 @@ const DEFAULT_IGNORE_FILES = [
 
 export const DEFAULT_CONFIG: NovahizConfig = {
   dbPath: "novahiz.sqlite",
-  skillRoots: [],
+  // Documented default (docs/CONFIGURATION.md). An empty array would index
+  // nothing when a config omits the key; relative paths resolve against the
+  // Novahiz home.
+  skillRoots: ["./skills"],
   gate: {
     enabled: true,
     mode: "block",

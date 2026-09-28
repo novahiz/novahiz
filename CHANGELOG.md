@@ -6,6 +6,26 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [0.3.3] - 2026-09-28
+
+### Added
+
+- Compiled CLI for npm installs: `prepare` now emits `dist/` (`tsc -p tsconfig.build.json`, `rewriteRelativeImportExtensions` for the 41 `.ts`-extension relative imports). Node refuses type stripping under `node_modules` (`ERR_UNSUPPORTED_NODE_MODULES_TYPE_STRIPPING`), so on 0.3.2 `npx novahiz version` crashed with exit 1 from any npm install. `bin/novahiz.mjs` now runs `src/cli.ts` from a checkout and the shipped `dist/cli.js` under `node_modules`, with an actionable message when `dist/` is missing and a Node >= 22.18 guard that prints one clear line instead of a module-resolution stack.
+
+### Changed
+
+- The installer is non-blocking on Windows and on degraded machines:
+  - every `npm`/`npx` spawn in `install/install.mjs` and `install/bootstrap.mjs` passes `shell: true` on win32 — they are `.cmd` shims, and direct `spawnSync` throws ENOENT since the Node CVE-2024 hardening, which made global MCP/skill-pack installs silently never run and `npm outdated` always report "up to date". `runScript` in `src/exec.ts` now goes through the same validated `cmd.exe` path as `runCommand`.
+  - a failed `npm install -g opencode-ai` prints a warning and continues instead of exiting 1 mid-install.
+  - the postinstall dry-run can no longer fail a parent `npm install`: an old Node prints a warning instead of exiting 1, an unexpected crash exits 0 with a message, and the npm script itself carries `|| exit 0` as a last resort.
+- Fresh-install config (`defaultConfig`, moved to `install/lib.mjs` so tests can assert it) mirrors `novahiz.config.example.json`: `skillRoots` covers `./skills`, `~/.config/opencode/skills`, and `~/.agents/skills`. Before, skill packs installed outside the repo were invisible to `novahiz sync` on a fresh install.
+- `DEFAULT_CONFIG.skillRoots` is `./skills` instead of `[]`, matching `docs/CONFIGURATION.md`: a config that omits the key now indexes the bundled skills instead of nothing.
+- `.novahiz-install.json` records the real package version (was hardcoded `0.1.0`).
+
+### Fixed
+
+- Regression tests: `runCommand`/`runScript` must spawn `npm` on every platform, and the installer-written config must keep all skill roots with `cron` disabled.
+
 ## [0.3.2] - 2026-09-28
 
 ### Added

@@ -3,8 +3,9 @@ import assert from "node:assert/strict";
 import { mkdtempSync, mkdirSync, writeFileSync, existsSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 // @ts-expect-error -- install/lib.mjs is untyped JavaScript by design
-import { copyInto, mergeCreated, nodeVersionOk, parseArgs, skillNamesIn } from "../install/lib.mjs";
+import { copyInto, defaultConfig, mergeCreated, nodeVersionOk, parseArgs, readJson, skillNamesIn } from "../install/lib.mjs";
 
 test("parses flags with equals and space forms", () => {
   const flags = parseArgs(["--harness=opencode", "--home", "/tmp/x", "--dry-run"]);
@@ -57,4 +58,12 @@ test("skillNamesIn lists only directories that hold a SKILL.md", () => {
 
   assert.deepEqual([...names].sort(), ["alpha", "beta"]);
   rmSync(base, { recursive: true, force: true });
+});
+
+test("fresh-install config mirrors the shipped example (all skill roots, cron disabled)", () => {
+  const config = defaultConfig();
+  const example = readJson(join(fileURLToPath(new URL("..", import.meta.url)), "novahiz.config.example.json"));
+  assert.deepEqual(config.skillRoots, example.skillRoots);
+  assert.deepEqual(config.providers.disabled, ["cron"]);
+  assert.equal(config.gate.mode, "block");
 });

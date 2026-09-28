@@ -20,19 +20,35 @@ function error(msg) {
   process.stderr.write(`[Novahiz] ERROR: ${msg}\n`);
 }
 
+// npm/npx are .cmd shims on Windows: spawning them without a shell throws
+// ENOENT (post-CVE-2024-* Node refuses to run .cmd via CreateProcess). Node
+// deprecates args arrays with shell:true (DEP0190), which wants a single
+// string — tokens are static (catalog package names), so joining is safe.
+const HOST_CMDS = new Set(["npm", "npx"]);
+function hostInvocation(cmd, args) {
+  if (process.platform === "win32" && HOST_CMDS.has(cmd)) {
+    return { command: [cmd, ...args].join(" "), spawnArgs: undefined, opts: { shell: true } };
+  }
+  return { command: cmd, spawnArgs: args, opts: {} };
+}
+
 function run(cmd, args, opts = {}) {
-  const result = spawnSync(cmd, args, {
+  const inv = hostInvocation(cmd, args);
+  const result = spawnSync(inv.command, inv.spawnArgs, {
     encoding: "utf8",
     stdio: "inherit",
+    ...inv.opts,
     ...opts,
   });
   return result.status === 0;
 }
 
 function runCapture(cmd, args, opts = {}) {
-  const result = spawnSync(cmd, args, {
+  const inv = hostInvocation(cmd, args);
+  const result = spawnSync(inv.command, inv.spawnArgs, {
     encoding: "utf8",
     stdio: ["pipe", "pipe", "pipe"],
+    ...inv.opts,
     ...opts,
   });
   return { ok: result.status === 0, stdout: result.stdout?.trim() ?? "", stderr: result.stderr?.trim() ?? "" };
@@ -145,10 +161,12 @@ async function main() {
   if (!which("opencode")) {
     log("Installing opencode globally...");
     if (!run("npm", ["install", "-g", "opencode-ai"])) {
-      error("Failed to install opencode. Try: npm install -g opencode-ai");
-      process.exit(1);
+      // Non-blocking: the repo clone and main installer still land; opencode
+      // can be installed afterwards.
+      log("WARNING: Failed to install opencode (non-blocking). Run: npm install -g opencode-ai");
+    } else {
+      log("opencode installed");
     }
-    log("opencode installed");
   } else {
     log("opencode already installed");
   }
@@ -176,7 +194,8 @@ async function main() {
     { pkg: "security-mcp", bin: "security-mcp" },
   ];
   // `cron` has no npm package: the plugin registers it from catalog/providers.json
-  // (scheduler-mcp local venv, see docs/PROVIDERS.md).
+  // (scheduler-mcp local venv, see docs/PROVIDERS.md). Disabled by default in
+  // fresh configs — users opt in explicitly.
 
   for (const server of mcpServers) {
     if (!which(server.bin)) {
