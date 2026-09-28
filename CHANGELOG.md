@@ -6,6 +6,16 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [0.3.7] - 2026-09-28
+
+### Added
+
+- `doctor --deep` probes remote MCP entries (`type: remote`) with a single HTTP `initialize` round-trip under the same 10 s budget as the spawned local probes, instead of failing them with `no command`.
+
+### Fixed
+
+- `mcpEntryProblems` accepts URL-based MCP servers: an entry carrying `url` and no `command` (Google Stitch and other remote servers in `opencode.jsonc`) reports a `remote (host)` note instead of `no command`, enforces `https` on the URL, and still runs the `${VAR}` environment check — the `mcp-config` row no longer turns red for a valid remote server.
+
 ## [0.3.6] - 2026-09-28
 
 ### Added
