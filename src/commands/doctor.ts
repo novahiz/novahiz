@@ -107,16 +107,24 @@ export function mcpEntryProblems(
   const problems: string[] = [];
   const notes: string[] = [];
   if (entry.enabled === false) return { problems, notes };
-  const command = Array.isArray(entry.command) ? (entry.command as unknown[]).map(String) : [];
-  if (command.length === 0) {
-    problems.push(`${name}: no command`);
-    return { problems, notes };
-  }
-  if (!resolveExecutable(command[0])) problems.push(`${name}: executable not found (${command[0]})`);
   // ${VAR} references must resolve in the environment the CLI runs with.
   for (const match of JSON.stringify(entry).matchAll(/\$\{([A-Za-z_][A-Za-z0-9_]*)\}/g)) {
     if (!env[match[1]]) problems.push(`${name}: env ${match[1]} not set`);
   }
+  const command = Array.isArray(entry.command) ? (entry.command as unknown[]).map(String) : [];
+  if (command.length === 0) {
+    // Remote MCP servers (type: remote) are URL-based and legitimately carry
+    // no command — validate the URL instead of failing them as broken locals.
+    const url = typeof entry.url === "string" ? entry.url : "";
+    if (!url) {
+      problems.push(`${name}: no command`);
+      return { problems, notes };
+    }
+    if (!/^https:\/\//.test(url)) problems.push(`${name}: remote url is not https`);
+    else notes.push(`${name}: remote (${new URL(url).host})`);
+    return { problems, notes };
+  }
+  if (!resolveExecutable(command[0])) problems.push(`${name}: executable not found (${command[0]})`);
   const configPkg = command.find((arg) => /@\d/.test(arg) && !arg.startsWith("-"));
   const catalogPkg = catalogPackages.get(name);
   if (catalogPkg && configPkg && configPkg !== catalogPkg) {
@@ -152,16 +160,42 @@ function killTree(child: ReturnType<typeof spawn>): void {
 }
 
 /** One live JSON-RPC `initialize` probe per server. Opt-in via --deep, up to
- *  10 s per server, all servers probed in parallel. stdin is written but kept
- *  OPEN: mcp-cron reads stdin asynchronously and exits cleanly (status 0,
- *  no output) if the pipe closes before it starts reading. */
+ *  10 s per server, all servers probed in parallel. Local entries are spawned
+ *  with stdin kept OPEN: mcp-cron reads stdin asynchronously and exits cleanly
+ *  (status 0, no output) if the pipe closes before it starts reading. Remote
+ *  entries (type: remote) get one HTTP initialize round-trip instead. */
 export function probeMcpServer(entry: Record<string, unknown>): Promise<{ ok: boolean; detail: string }> {
-  return new Promise((resolve) => {
-    const command = Array.isArray(entry.command) ? (entry.command as unknown[]).map(String) : [];
-    if (command.length === 0) {
-      resolve({ ok: false, detail: "no command" });
-      return;
+  const command = Array.isArray(entry.command) ? (entry.command as unknown[]).map(String) : [];
+  if (command.length === 0) {
+    const url = typeof entry.url === "string" ? entry.url : "";
+    if (!url) return Promise.resolve({ ok: false, detail: "no command" });
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+      Accept: "application/json, text/event-stream"
+    };
+    for (const [key, value] of Object.entries((entry.headers as Record<string, unknown> | undefined) ?? {})) {
+      headers[key] = String(value);
     }
+    const started = Date.now();
+    return fetch(url, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: 1,
+        method: "initialize",
+        params: { protocolVersion: "2024-11-05", capabilities: {}, clientInfo: { name: "novahiz-doctor", version: "0" } }
+      }),
+      signal: AbortSignal.timeout(10_000)
+    })
+      .then((response) =>
+        response.ok
+          ? { ok: true, detail: `remote initialize ${response.status} (${Date.now() - started} ms)` }
+          : { ok: false, detail: `remote initialize HTTP ${response.status}` }
+      )
+      .catch((error: unknown) => ({ ok: false, detail: `remote: ${(error as Error).message}` }));
+  }
+  return new Promise((resolve) => {
     const resolved = resolveExecutable(command[0]);
     if (!resolved) {
       resolve({ ok: false, detail: `executable not found (${command[0]})` });

@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { claudeHarnessChecks, grantsQuestionIn, impeccableChecks, parseJsonc, mcpEntryProblems, referencedSkillsCheck } from "../src/commands/doctor.ts";
+import { claudeHarnessChecks, grantsQuestionIn, impeccableChecks, parseJsonc, mcpEntryProblems, probeMcpServer, referencedSkillsCheck } from "../src/commands/doctor.ts";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { delimiter, join } from "node:path";
@@ -91,8 +91,29 @@ test("mcpEntryProblems flags hard failures and reports soft drift as notes", () 
   );
   assert.deepEqual(healthy, { problems: [], notes: [] });
 
+  // Remote MCP entries (type: remote) are URL-based: no command is fine, a
+  // non-https url is not. This is the shape used for Google Stitch in
+  // opencode.jsonc — the check must not flag it as a broken local server.
+  const remote = mcpEntryProblems(
+    "stitch",
+    { type: "remote", url: "https://stitch.googleapis.com/mcp", headers: { "X-Goog-Api-Key": "k" } },
+    catalog,
+    {}
+  );
+  assert.deepEqual(remote.problems, []);
+  assert.ok(remote.notes.some((n) => n.includes("stitch: remote (stitch.googleapis.com)")));
+  assert.ok(
+    mcpEntryProblems("insecure", { type: "remote", url: "http://example.com/mcp" }, catalog, {}).problems.some((p) =>
+      p.includes("not https")
+    )
+  );
+
   // Disabled servers are skipped entirely.
   assert.deepEqual(mcpEntryProblems("off", { command: [], enabled: false }, catalog, {}), { problems: [], notes: [] });
+});
+
+test("probeMcpServer rejects an entry with neither command nor url", async () => {
+  assert.deepEqual(await probeMcpServer({}), { ok: false, detail: "no command" });
 });
 
 test("claudeHarnessChecks reports nothing without a Claude config dir", () => {
