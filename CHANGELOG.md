@@ -6,6 +6,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [0.3.6] - 2026-09-28
+
 ### Added
 
 - Claude Code harness support: `novahiz hook --harness claude` (PreToolUse gate with the auto-repair prompt, skill-load detection, `NOVAHIZ_GATE=off` kill-switch), `install/hooks.mjs` merging a novahiz group into `~/.claude/settings.json` (foreign groups preserved, `.novahiz-bak` backup, idempotent) plus the codex `hooks.json` variant, `claude mcp add` / `codex mcp` registration, the `adapters/claude/agent/novahiz.md` agent and its install-time copy to `~/.claude/{skills,commands,agents}`.
@@ -40,6 +42,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - `doctor` referenced-skills blocks only on skills the package ships: the 34 dart/eas/expo/flutter/impeccable pack skills are optional delivery, so a healthy fresh install no longer exits 1 with `missing from index: dart-...` right after `novahiz-install --yes`. The row stays informational with the pack-install hint; the gate already reports absent skills as "not enforced".
 - `DEFAULT_CONFIG.skillRoots` mirrors the example config (adds `~/.config/opencode/skills` and `~/.agents/skills`): a config missing its `skillRoots` key no longer hides gate-required pack skills from the index, the same gap `install/lib.mjs` had already fixed for fresh installs.
 - README quick start matches reality: lowercase package and bin names, the explicit `novahiz-install --yes` step (npm 11+ allow-scripts means `postinstall` never auto-configures), no more `npm run build` (that script never existed; `prepare` builds), and the stale "12 health checks" comment replaced (13 base, 17 with Claude Code).
+- The `mcpEntryProblems` doctor test no longer depends on the machine: it plants its own `narsil-mcp` shim on a temp PATH (and restores it in a `finally`), because CI runners have no `narsil-mcp` — the assertion had only ever run on dev boxes and failed on its first GitHub Actions pass (372/373).
 
 ## [0.3.5] - 2026-09-28
 
