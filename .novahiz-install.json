@@ -1,0 +1,506 @@
+{
+  "version": "0.3.4",
+  "installedAt": "2026-09-28T02:11:36.554Z",
+  "harness": "opencode",
+  "configDir": "C:\\Users\\hiz\\.config\\opencode",
+  "home": "C:\\Users\\hiz\\.config\\novahiz",
+  "coreCopied": true,
+  "configCreated": true,
+  "created": [
+    "C:\\Users\\hiz\\.config\\novahiz\\LICENSE",
+    "C:\\Users\\hiz\\.config\\novahiz\\NOTICE.md",
+    "C:\\Users\\hiz\\.config\\novahiz\\README.md",
+    "C:\\Users\\hiz\\.config\\novahiz\\adapters\\README.md",
+    "C:\\Users\\hiz\\.config\\novahiz\\adapters\\opencode\\agent\\novahiz.md",
+    "C:\\Users\\hiz\\.config\\novahiz\\adapters\\opencode\\commands\\novahiz-clean.md",
+    "C:\\Users\\hiz\\.config\\novahiz\\adapters\\opencode\\commands\\novahiz-doctor.md",
+    "C:\\Users\\hiz\\.config\\novahiz\\adapters\\opencode\\commands\\novahiz-init.md",
+    "C:\\Users\\hiz\\.config\\novahiz\\adapters\\opencode\\commands\\novahiz-plan.md",
+    "C:\\Users\\hiz\\.config\\novahiz\\adapters\\opencode\\commands\\novahiz-status.md",
+    "C:\\Users\\hiz\\.config\\novahiz\\adapters\\opencode\\instructions.md",
+    "C:\\Users\\hiz\\.config\\novahiz\\adapters\\opencode\\novahiz.ts",
+    "C:\\Users\\hiz\\.config\\novahiz\\bin\\novahiz.cmd",
+    "C:\\Users\\hiz\\.config\\novahiz\\bin\\novahiz.mjs",
+    "C:\\Users\\hiz\\.config\\novahiz\\catalog\\categories.json",
+    "C:\\Users\\hiz\\.config\\novahiz\\catalog\\overrides.json",
+    "C:\\Users\\hiz\\.config\\novahiz\\catalog\\providers.json",
+    "C:\\Users\\hiz\\.config\\novahiz\\catalog\\rules.json",
+    "C:\\Users\\hiz\\.config\\novahiz\\docs\\ARCHITECTURE.md",
+    "C:\\Users\\hiz\\.config\\novahiz\\docs\\CATALOG.md",
+    "C:\\Users\\hiz\\.config\\novahiz\\docs\\CLASSIFICATION.md",
+    "C:\\Users\\hiz\\.config\\novahiz\\docs\\CLI.md",
+    "C:\\Users\\hiz\\.config\\novahiz\\docs\\CONFIGURATION.md",
+    "C:\\Users\\hiz\\.config\\novahiz\\docs\\CONSTITUTION.md",
+    "C:\\Users\\hiz\\.config\\novahiz\\docs\\CONVERGENCE-2026-09-25.md",
+    "C:\\Users\\hiz\\.config\\novahiz\\docs\\EXECUTION.md",
+    "C:\\Users\\hiz\\.config\\novahiz\\docs\\GATE.md",
+    "C:\\Users\\hiz\\.config\\novahiz\\docs\\HARNESSES.md",
+    "C:\\Users\\hiz\\.config\\novahiz\\docs\\INSTALL.md",
+    "C:\\Users\\hiz\\.config\\novahiz\\docs\\PLUGIN.md",
+    "C:\\Users\\hiz\\.config\\novahiz\\docs\\PROVIDERS.md",
+    "C:\\Users\\hiz\\.config\\novahiz\\docs\\ROADMAPS.md",
+    "C:\\Users\\hiz\\.config\\novahiz\\docs\\RULES.md",
+    "C:\\Users\\hiz\\.config\\novahiz\\docs\\TOKENS.md",
+    "C:\\Users\\hiz\\.config\\novahiz\\docs\\audit-2026-09-25.md",
+    "C:\\Users\\hiz\\.config\\novahiz\\install\\bootstrap.mjs",
+    "C:\\Users\\hiz\\.config\\novahiz\\install\\install.mjs",
+    "C:\\Users\\hiz\\.config\\novahiz\\install\\install.ps1",
+    "C:\\Users\\hiz\\.config\\novahiz\\install\\install.sh",
+    "C:\\Users\\hiz\\.config\\novahiz\\install\\lib.mjs",
+    "C:\\Users\\hiz\\.config\\novahiz\\install\\prompt.mjs",
+    "C:\\Users\\hiz\\.config\\novahiz\\install\\uninstall.mjs",
+    "C:\\Users\\hiz\\.config\\novahiz\\mcp\\novahiz-tools\\README.md",
+    "C:\\Users\\hiz\\.config\\novahiz\\mcp\\novahiz-tools\\index.mjs",
+    "C:\\Users\\hiz\\.config\\novahiz\\novahiz.config.example.json",
+    "C:\\Users\\hiz\\.config\\novahiz\\package.json",
+    "C:\\Users\\hiz\\.config\\novahiz\\skills\\apple-ui-audit\\SKILL.md",
+    "C:\\Users\\hiz\\.config\\novahiz\\skills\\apple-ui-audit\\references\\screen-walkthrough.md",
+    "C:\\Users\\hiz\\.config\\novahiz\\skills\\browser-session\\SKILL.md",
+    "C:\\Users\\hiz\\.config\\novahiz\\skills\\browser-session\\references\\session-run-sheet.md",
+    "C:\\Users\\hiz\\.config\\novahiz\\skills\\browser-session\\scripts\\browser_session_preflight.mjs",
+    "C:\\Users\\hiz\\.config\\novahiz\\skills\\browser-session\\scripts\\sample-run.json",
+    "C:\\Users\\hiz\\.config\\novahiz\\skills\\code-standards\\SKILL.md",
+    "C:\\Users\\hiz\\.config\\novahiz\\skills\\code-standards\\references\\pr-review-worksheet.md",
+    "C:\\Users\\hiz\\.config\\novahiz\\skills\\design-token-pipeline\\SKILL.md",
+    "C:\\Users\\hiz\\.config\\novahiz\\skills\\design-token-pipeline\\references\\dtcg-sample.json",
+    "C:\\Users\\hiz\\.config\\novahiz\\skills\\gate\\SKILL.md",
+    "C:\\Users\\hiz\\.config\\novahiz\\skills\\llm-threat-review\\SKILL.md",
+    "C:\\Users\\hiz\\.config\\novahiz\\skills\\llm-threat-review\\references\\review-worksheet.md",
+    "C:\\Users\\hiz\\.config\\novahiz\\skills\\llm-threat-review\\scripts\\llm_risk_lint.mjs",
+    "C:\\Users\\hiz\\.config\\novahiz\\skills\\memory\\SKILL.md",
+    "C:\\Users\\hiz\\.config\\novahiz\\skills\\novahiz-analyse\\SKILL.md",
+    "C:\\Users\\hiz\\.config\\novahiz\\skills\\novahiz-assess-decide\\SKILL.md",
+    "C:\\Users\\hiz\\.config\\novahiz\\skills\\novahiz-assess-define\\SKILL.md",
+    "C:\\Users\\hiz\\.config\\novahiz\\skills\\novahiz-assess-intake\\SKILL.md",
+    "C:\\Users\\hiz\\.config\\novahiz\\skills\\novahiz-assess-research\\SKILL.md",
+    "C:\\Users\\hiz\\.config\\novahiz\\skills\\novahiz-assess-shape\\SKILL.md",
+    "C:\\Users\\hiz\\.config\\novahiz\\skills\\novahiz-audit\\SKILL.md",
+    "C:\\Users\\hiz\\.config\\novahiz\\skills\\novahiz-browser\\SKILL.md",
+    "C:\\Users\\hiz\\.config\\novahiz\\skills\\novahiz-clarify\\SKILL.md",
+    "C:\\Users\\hiz\\.config\\novahiz\\skills\\novahiz-code-review\\SKILL.md",
+    "C:\\Users\\hiz\\.config\\novahiz\\skills\\novahiz-converge\\SKILL.md",
+    "C:\\Users\\hiz\\.config\\novahiz\\skills\\novahiz-delta-review\\SKILL.md",
+    "C:\\Users\\hiz\\.config\\novahiz\\skills\\novahiz-docs\\SKILL.md",
+    "C:\\Users\\hiz\\.config\\novahiz\\skills\\novahiz-docs\\templates\\ARCHITECTURE.md",
+    "C:\\Users\\hiz\\.config\\novahiz\\skills\\novahiz-docs\\templates\\CONVENTIONS.md",
+    "C:\\Users\\hiz\\.config\\novahiz\\skills\\novahiz-docs\\templates\\DECISIONS.md",
+    "C:\\Users\\hiz\\.config\\novahiz\\skills\\novahiz-docs\\templates\\STANDARDS.md",
+    "C:\\Users\\hiz\\.config\\novahiz\\skills\\novahiz-gate\\SKILL.md",
+    "C:\\Users\\hiz\\.config\\novahiz\\skills\\novahiz-humanizer\\SKILL.md",
+    "C:\\Users\\hiz\\.config\\novahiz\\skills\\novahiz-implement\\SKILL.md",
+    "C:\\Users\\hiz\\.config\\novahiz\\skills\\novahiz-init\\SKILL.md",
+    "C:\\Users\\hiz\\.config\\novahiz\\skills\\novahiz-memory\\SKILL.md",
+    "C:\\Users\\hiz\\.config\\novahiz\\skills\\novahiz-plan\\SKILL.md",
+    "C:\\Users\\hiz\\.config\\novahiz\\skills\\novahiz-planner\\SKILL.md",
+    "C:\\Users\\hiz\\.config\\novahiz\\skills\\novahiz-postgres\\SKILL.md",
+    "C:\\Users\\hiz\\.config\\novahiz\\skills\\novahiz-security\\SKILL.md",
+    "C:\\Users\\hiz\\.config\\novahiz\\skills\\novahiz-supabase\\SKILL.md",
+    "C:\\Users\\hiz\\.config\\novahiz\\skills\\novahiz-task\\SKILL.md",
+    "C:\\Users\\hiz\\.config\\novahiz\\skills\\novahiz-wcag-audit\\SKILL.md",
+    "C:\\Users\\hiz\\.config\\novahiz\\skills\\novahiz-wcag-audit\\references\\findings.example.json",
+    "C:\\Users\\hiz\\.config\\novahiz\\skills\\novahiz-wcag-audit\\references\\report-template.md",
+    "C:\\Users\\hiz\\.config\\novahiz\\skills\\novahiz-wcag-audit\\references\\wcag22-aa.md",
+    "C:\\Users\\hiz\\.config\\novahiz\\skills\\novahiz-wcag-audit\\scripts\\contrast.mjs",
+    "C:\\Users\\hiz\\.config\\novahiz\\skills\\novahiz-wcag-audit\\scripts\\report.mjs",
+    "C:\\Users\\hiz\\.config\\novahiz\\skills\\novahiz-web-extract\\SKILL.md",
+    "C:\\Users\\hiz\\.config\\novahiz\\skills\\openapi-mcp-server\\SKILL.md",
+    "C:\\Users\\hiz\\.config\\novahiz\\skills\\openapi-mcp-server\\references\\mcp-ship-checklist.md",
+    "C:\\Users\\hiz\\.config\\novahiz\\skills\\openapi-mcp-server\\references\\tool-worksheet.md",
+    "C:\\Users\\hiz\\.config\\novahiz\\skills\\openapi-mcp-server\\scripts\\openapi_mcp_lint.mjs",
+    "C:\\Users\\hiz\\.config\\novahiz\\skills\\package-risk-audit\\SKILL.md",
+    "C:\\Users\\hiz\\.config\\novahiz\\skills\\package-risk-audit\\references\\intake-worksheet.md",
+    "C:\\Users\\hiz\\.config\\novahiz\\skills\\package-risk-audit\\scripts\\dep_risk_lint.mjs",
+    "C:\\Users\\hiz\\.config\\novahiz\\skills\\prompt-rewriter\\SKILL.md",
+    "C:\\Users\\hiz\\.config\\novahiz\\skills\\secrets-hygiene\\SKILL.md",
+    "C:\\Users\\hiz\\.config\\novahiz\\skills\\secrets-hygiene\\references\\rotation-playbook.md",
+    "C:\\Users\\hiz\\.config\\novahiz\\skills\\secrets-hygiene\\scripts\\secret_scan.mjs",
+    "C:\\Users\\hiz\\.config\\novahiz\\skills\\skill-authoring\\SKILL.md",
+    "C:\\Users\\hiz\\.config\\novahiz\\skills\\skill-authoring\\references\\skill-template.md",
+    "C:\\Users\\hiz\\.config\\novahiz\\skills\\skill-authoring\\scripts\\skill_frontmatter_lint.mjs",
+    "C:\\Users\\hiz\\.config\\novahiz\\skills\\skill-eval-loop\\SKILL.md",
+    "C:\\Users\\hiz\\.config\\novahiz\\skills\\skill-eval-loop\\references\\negative-patterns.md",
+    "C:\\Users\\hiz\\.config\\novahiz\\skills\\skill-eval-loop\\references\\run-sheet.md",
+    "C:\\Users\\hiz\\.config\\novahiz\\skills\\skill-eval-loop\\scripts\\skill_structure_check.mjs",
+    "C:\\Users\\hiz\\.config\\novahiz\\skills\\ui-craft-rules\\SKILL.md",
+    "C:\\Users\\hiz\\.config\\novahiz\\skills\\ui-slop-remover\\SKILL.md",
+    "C:\\Users\\hiz\\.config\\novahiz\\skills\\ui-slop-remover\\references\\tell-catalogue.md",
+    "C:\\Users\\hiz\\.config\\novahiz\\skills\\ui-slop-remover\\scripts\\slop_lint.mjs",
+    "C:\\Users\\hiz\\.config\\novahiz\\src\\autodocs.ts",
+    "C:\\Users\\hiz\\.config\\novahiz\\src\\catalog.ts",
+    "C:\\Users\\hiz\\.config\\novahiz\\src\\classify.ts",
+    "C:\\Users\\hiz\\.config\\novahiz\\src\\cli.ts",
+    "C:\\Users\\hiz\\.config\\novahiz\\src\\commands\\autodocs.ts",
+    "C:\\Users\\hiz\\.config\\novahiz\\src\\commands\\clean.ts",
+    "C:\\Users\\hiz\\.config\\novahiz\\src\\commands\\context.ts",
+    "C:\\Users\\hiz\\.config\\novahiz\\src\\commands\\doctor.ts",
+    "C:\\Users\\hiz\\.config\\novahiz\\src\\commands\\gate.ts",
+    "C:\\Users\\hiz\\.config\\novahiz\\src\\commands\\graft.ts",
+    "C:\\Users\\hiz\\.config\\novahiz\\src\\commands\\init.ts",
+    "C:\\Users\\hiz\\.config\\novahiz\\src\\commands\\inspect.ts",
+    "C:\\Users\\hiz\\.config\\novahiz\\src\\commands\\report.ts",
+    "C:\\Users\\hiz\\.config\\novahiz\\src\\commands\\task.ts",
+    "C:\\Users\\hiz\\.config\\novahiz\\src\\commands\\tokens.ts",
+    "C:\\Users\\hiz\\.config\\novahiz\\src\\complexity.ts",
+    "C:\\Users\\hiz\\.config\\novahiz\\src\\content.ts",
+    "C:\\Users\\hiz\\.config\\novahiz\\src\\db.ts",
+    "C:\\Users\\hiz\\.config\\novahiz\\src\\deps.ts",
+    "C:\\Users\\hiz\\.config\\novahiz\\src\\exec.ts",
+    "C:\\Users\\hiz\\.config\\novahiz\\src\\gate-repair.ts",
+    "C:\\Users\\hiz\\.config\\novahiz\\src\\gate.ts",
+    "C:\\Users\\hiz\\.config\\novahiz\\src\\graft.ts",
+    "C:\\Users\\hiz\\.config\\novahiz\\src\\ledger.ts",
+    "C:\\Users\\hiz\\.config\\novahiz\\src\\memory.ts",
+    "C:\\Users\\hiz\\.config\\novahiz\\src\\prompt-rewriter.ts",
+    "C:\\Users\\hiz\\.config\\novahiz\\src\\providers.ts",
+    "C:\\Users\\hiz\\.config\\novahiz\\src\\relevance.ts",
+    "C:\\Users\\hiz\\.config\\novahiz\\src\\render.ts",
+    "C:\\Users\\hiz\\.config\\novahiz\\src\\spec.ts",
+    "C:\\Users\\hiz\\.config\\novahiz\\src\\targets.ts",
+    "C:\\Users\\hiz\\.config\\novahiz\\tsconfig.json",
+    "C:\\Users\\hiz\\.config\\opencode\\agent\\novahiz.md",
+    "C:\\Users\\hiz\\.config\\opencode\\commands\\novahiz-clean.md",
+    "C:\\Users\\hiz\\.config\\opencode\\commands\\novahiz-doctor.md",
+    "C:\\Users\\hiz\\.config\\opencode\\commands\\novahiz-init.md",
+    "C:\\Users\\hiz\\.config\\opencode\\commands\\novahiz-plan.md",
+    "C:\\Users\\hiz\\.config\\opencode\\commands\\novahiz-status.md",
+    "C:\\Users\\hiz\\.config\\opencode\\plugins\\novahiz.ts",
+    "C:\\Users\\hiz\\.config\\opencode\\skills\\apple-ui-audit\\SKILL.md",
+    "C:\\Users\\hiz\\.config\\opencode\\skills\\apple-ui-audit\\references\\screen-walkthrough.md",
+    "C:\\Users\\hiz\\.config\\opencode\\skills\\browser-session\\SKILL.md",
+    "C:\\Users\\hiz\\.config\\opencode\\skills\\browser-session\\references\\session-run-sheet.md",
+    "C:\\Users\\hiz\\.config\\opencode\\skills\\browser-session\\scripts\\browser_session_preflight.mjs",
+    "C:\\Users\\hiz\\.config\\opencode\\skills\\browser-session\\scripts\\sample-run.json",
+    "C:\\Users\\hiz\\.config\\opencode\\skills\\code-standards\\SKILL.md",
+    "C:\\Users\\hiz\\.config\\opencode\\skills\\code-standards\\references\\pr-review-worksheet.md",
+    "C:\\Users\\hiz\\.config\\opencode\\skills\\design-token-pipeline\\SKILL.md",
+    "C:\\Users\\hiz\\.config\\opencode\\skills\\design-token-pipeline\\references\\dtcg-sample.json",
+    "C:\\Users\\hiz\\.config\\opencode\\skills\\gate\\SKILL.md",
+    "C:\\Users\\hiz\\.config\\opencode\\skills\\llm-threat-review\\SKILL.md",
+    "C:\\Users\\hiz\\.config\\opencode\\skills\\llm-threat-review\\references\\review-worksheet.md",
+    "C:\\Users\\hiz\\.config\\opencode\\skills\\llm-threat-review\\scripts\\llm_risk_lint.mjs",
+    "C:\\Users\\hiz\\.config\\opencode\\skills\\memory\\SKILL.md",
+    "C:\\Users\\hiz\\.config\\opencode\\skills\\novahiz-analyse\\SKILL.md",
+    "C:\\Users\\hiz\\.config\\opencode\\skills\\novahiz-assess-decide\\SKILL.md",
+    "C:\\Users\\hiz\\.config\\opencode\\skills\\novahiz-assess-define\\SKILL.md",
+    "C:\\Users\\hiz\\.config\\opencode\\skills\\novahiz-assess-intake\\SKILL.md",
+    "C:\\Users\\hiz\\.config\\opencode\\skills\\novahiz-assess-research\\SKILL.md",
+    "C:\\Users\\hiz\\.config\\opencode\\skills\\novahiz-assess-shape\\SKILL.md",
+    "C:\\Users\\hiz\\.config\\opencode\\skills\\novahiz-audit\\SKILL.md",
+    "C:\\Users\\hiz\\.config\\opencode\\skills\\novahiz-browser\\SKILL.md",
+    "C:\\Users\\hiz\\.config\\opencode\\skills\\novahiz-clarify\\SKILL.md",
+    "C:\\Users\\hiz\\.config\\opencode\\skills\\novahiz-code-review\\SKILL.md",
+    "C:\\Users\\hiz\\.config\\opencode\\skills\\novahiz-converge\\SKILL.md",
+    "C:\\Users\\hiz\\.config\\opencode\\skills\\novahiz-delta-review\\SKILL.md",
+    "C:\\Users\\hiz\\.config\\opencode\\skills\\novahiz-docs\\SKILL.md",
+    "C:\\Users\\hiz\\.config\\opencode\\skills\\novahiz-docs\\templates\\ARCHITECTURE.md",
+    "C:\\Users\\hiz\\.config\\opencode\\skills\\novahiz-docs\\templates\\CONVENTIONS.md",
+    "C:\\Users\\hiz\\.config\\opencode\\skills\\novahiz-docs\\templates\\DECISIONS.md",
+    "C:\\Users\\hiz\\.config\\opencode\\skills\\novahiz-docs\\templates\\STANDARDS.md",
+    "C:\\Users\\hiz\\.config\\opencode\\skills\\novahiz-gate\\SKILL.md",
+    "C:\\Users\\hiz\\.config\\opencode\\skills\\novahiz-humanizer\\SKILL.md",
+    "C:\\Users\\hiz\\.config\\opencode\\skills\\novahiz-implement\\SKILL.md",
+    "C:\\Users\\hiz\\.config\\opencode\\skills\\novahiz-init\\SKILL.md",
+    "C:\\Users\\hiz\\.config\\opencode\\skills\\novahiz-memory\\SKILL.md",
+    "C:\\Users\\hiz\\.config\\opencode\\skills\\novahiz-plan\\SKILL.md",
+    "C:\\Users\\hiz\\.config\\opencode\\skills\\novahiz-planner\\SKILL.md",
+    "C:\\Users\\hiz\\.config\\opencode\\skills\\novahiz-postgres\\SKILL.md",
+    "C:\\Users\\hiz\\.config\\opencode\\skills\\novahiz-security\\SKILL.md",
+    "C:\\Users\\hiz\\.config\\opencode\\skills\\novahiz-supabase\\SKILL.md",
+    "C:\\Users\\hiz\\.config\\opencode\\skills\\novahiz-task\\SKILL.md",
+    "C:\\Users\\hiz\\.config\\opencode\\skills\\novahiz-wcag-audit\\SKILL.md",
+    "C:\\Users\\hiz\\.config\\opencode\\skills\\novahiz-wcag-audit\\references\\findings.example.json",
+    "C:\\Users\\hiz\\.config\\opencode\\skills\\novahiz-wcag-audit\\references\\report-template.md",
+    "C:\\Users\\hiz\\.config\\opencode\\skills\\novahiz-wcag-audit\\references\\wcag22-aa.md",
+    "C:\\Users\\hiz\\.config\\opencode\\skills\\novahiz-wcag-audit\\scripts\\contrast.mjs",
+    "C:\\Users\\hiz\\.config\\opencode\\skills\\novahiz-wcag-audit\\scripts\\report.mjs",
+    "C:\\Users\\hiz\\.config\\opencode\\skills\\novahiz-web-extract\\SKILL.md",
+    "C:\\Users\\hiz\\.config\\opencode\\skills\\openapi-mcp-server\\SKILL.md",
+    "C:\\Users\\hiz\\.config\\opencode\\skills\\openapi-mcp-server\\references\\mcp-ship-checklist.md",
+    "C:\\Users\\hiz\\.config\\opencode\\skills\\openapi-mcp-server\\references\\tool-worksheet.md",
+    "C:\\Users\\hiz\\.config\\opencode\\skills\\openapi-mcp-server\\scripts\\openapi_mcp_lint.mjs",
+    "C:\\Users\\hiz\\.config\\opencode\\skills\\package-risk-audit\\SKILL.md",
+    "C:\\Users\\hiz\\.config\\opencode\\skills\\package-risk-audit\\references\\intake-worksheet.md",
+    "C:\\Users\\hiz\\.config\\opencode\\skills\\package-risk-audit\\scripts\\dep_risk_lint.mjs",
+    "C:\\Users\\hiz\\.config\\opencode\\skills\\prompt-rewriter\\SKILL.md",
+    "C:\\Users\\hiz\\.config\\opencode\\skills\\secrets-hygiene\\SKILL.md",
+    "C:\\Users\\hiz\\.config\\opencode\\skills\\secrets-hygiene\\references\\rotation-playbook.md",
+    "C:\\Users\\hiz\\.config\\opencode\\skills\\secrets-hygiene\\scripts\\secret_scan.mjs",
+    "C:\\Users\\hiz\\.config\\opencode\\skills\\skill-authoring\\SKILL.md",
+    "C:\\Users\\hiz\\.config\\opencode\\skills\\skill-authoring\\references\\skill-template.md",
+    "C:\\Users\\hiz\\.config\\opencode\\skills\\skill-authoring\\scripts\\skill_frontmatter_lint.mjs",
+    "C:\\Users\\hiz\\.config\\opencode\\skills\\skill-eval-loop\\SKILL.md",
+    "C:\\Users\\hiz\\.config\\opencode\\skills\\skill-eval-loop\\references\\negative-patterns.md",
+    "C:\\Users\\hiz\\.config\\opencode\\skills\\skill-eval-loop\\references\\run-sheet.md",
+    "C:\\Users\\hiz\\.config\\opencode\\skills\\skill-eval-loop\\scripts\\skill_structure_check.mjs",
+    "C:\\Users\\hiz\\.config\\opencode\\skills\\ui-craft-rules\\SKILL.md",
+    "C:\\Users\\hiz\\.config\\opencode\\skills\\ui-slop-remover\\SKILL.md",
+    "C:\\Users\\hiz\\.config\\opencode\\skills\\ui-slop-remover\\references\\tell-catalogue.md",
+    "C:\\Users\\hiz\\.config\\opencode\\skills\\ui-slop-remover\\scripts\\slop_lint.mjs"
+  ],
+  "backups": [
+    {
+      "path": "C:\\Users\\hiz\\.config\\novahiz\\NOTICE.md",
+      "backup": "C:\\Users\\hiz\\.config\\novahiz\\NOTICE.md.novahiz-bak"
+    },
+    {
+      "path": "C:\\Users\\hiz\\.config\\novahiz\\README.md",
+      "backup": "C:\\Users\\hiz\\.config\\novahiz\\README.md.novahiz-bak"
+    },
+    {
+      "path": "C:\\Users\\hiz\\.config\\novahiz\\adapters\\README.md",
+      "backup": "C:\\Users\\hiz\\.config\\novahiz\\adapters\\README.md.novahiz-bak"
+    },
+    {
+      "path": "C:\\Users\\hiz\\.config\\novahiz\\adapters\\opencode\\agent\\novahiz.md",
+      "backup": "C:\\Users\\hiz\\.config\\novahiz\\adapters\\opencode\\agent\\novahiz.md.novahiz-bak"
+    },
+    {
+      "path": "C:\\Users\\hiz\\.config\\novahiz\\adapters\\opencode\\instructions.md",
+      "backup": "C:\\Users\\hiz\\.config\\novahiz\\adapters\\opencode\\instructions.md.novahiz-bak"
+    },
+    {
+      "path": "C:\\Users\\hiz\\.config\\novahiz\\adapters\\opencode\\novahiz.ts",
+      "backup": "C:\\Users\\hiz\\.config\\novahiz\\adapters\\opencode\\novahiz.ts.novahiz-bak"
+    },
+    {
+      "path": "C:\\Users\\hiz\\.config\\novahiz\\bin\\novahiz.mjs",
+      "backup": "C:\\Users\\hiz\\.config\\novahiz\\bin\\novahiz.mjs.novahiz-bak"
+    },
+    {
+      "path": "C:\\Users\\hiz\\.config\\novahiz\\catalog\\categories.json",
+      "backup": "C:\\Users\\hiz\\.config\\novahiz\\catalog\\categories.json.novahiz-bak"
+    },
+    {
+      "path": "C:\\Users\\hiz\\.config\\novahiz\\catalog\\overrides.json",
+      "backup": "C:\\Users\\hiz\\.config\\novahiz\\catalog\\overrides.json.novahiz-bak"
+    },
+    {
+      "path": "C:\\Users\\hiz\\.config\\novahiz\\catalog\\providers.json",
+      "backup": "C:\\Users\\hiz\\.config\\novahiz\\catalog\\providers.json.novahiz-bak"
+    },
+    {
+      "path": "C:\\Users\\hiz\\.config\\novahiz\\catalog\\rules.json",
+      "backup": "C:\\Users\\hiz\\.config\\novahiz\\catalog\\rules.json.novahiz-bak"
+    },
+    {
+      "path": "C:\\Users\\hiz\\.config\\novahiz\\docs\\ARCHITECTURE.md",
+      "backup": "C:\\Users\\hiz\\.config\\novahiz\\docs\\ARCHITECTURE.md.novahiz-bak"
+    },
+    {
+      "path": "C:\\Users\\hiz\\.config\\novahiz\\docs\\CATALOG.md",
+      "backup": "C:\\Users\\hiz\\.config\\novahiz\\docs\\CATALOG.md.novahiz-bak"
+    },
+    {
+      "path": "C:\\Users\\hiz\\.config\\novahiz\\docs\\CLASSIFICATION.md",
+      "backup": "C:\\Users\\hiz\\.config\\novahiz\\docs\\CLASSIFICATION.md.novahiz-bak"
+    },
+    {
+      "path": "C:\\Users\\hiz\\.config\\novahiz\\docs\\CONFIGURATION.md",
+      "backup": "C:\\Users\\hiz\\.config\\novahiz\\docs\\CONFIGURATION.md.novahiz-bak"
+    },
+    {
+      "path": "C:\\Users\\hiz\\.config\\novahiz\\docs\\GATE.md",
+      "backup": "C:\\Users\\hiz\\.config\\novahiz\\docs\\GATE.md.novahiz-bak"
+    },
+    {
+      "path": "C:\\Users\\hiz\\.config\\novahiz\\docs\\HARNESSES.md",
+      "backup": "C:\\Users\\hiz\\.config\\novahiz\\docs\\HARNESSES.md.novahiz-bak"
+    },
+    {
+      "path": "C:\\Users\\hiz\\.config\\novahiz\\docs\\INSTALL.md",
+      "backup": "C:\\Users\\hiz\\.config\\novahiz\\docs\\INSTALL.md.novahiz-bak"
+    },
+    {
+      "path": "C:\\Users\\hiz\\.config\\novahiz\\docs\\PROVIDERS.md",
+      "backup": "C:\\Users\\hiz\\.config\\novahiz\\docs\\PROVIDERS.md.novahiz-bak"
+    },
+    {
+      "path": "C:\\Users\\hiz\\.config\\novahiz\\docs\\ROADMAPS.md",
+      "backup": "C:\\Users\\hiz\\.config\\novahiz\\docs\\ROADMAPS.md.novahiz-bak"
+    },
+    {
+      "path": "C:\\Users\\hiz\\.config\\novahiz\\docs\\RULES.md",
+      "backup": "C:\\Users\\hiz\\.config\\novahiz\\docs\\RULES.md.novahiz-bak"
+    },
+    {
+      "path": "C:\\Users\\hiz\\.config\\novahiz\\install\\bootstrap.mjs",
+      "backup": "C:\\Users\\hiz\\.config\\novahiz\\install\\bootstrap.mjs.novahiz-bak"
+    },
+    {
+      "path": "C:\\Users\\hiz\\.config\\novahiz\\install\\install.mjs",
+      "backup": "C:\\Users\\hiz\\.config\\novahiz\\install\\install.mjs.novahiz-bak"
+    },
+    {
+      "path": "C:\\Users\\hiz\\.config\\novahiz\\install\\lib.mjs",
+      "backup": "C:\\Users\\hiz\\.config\\novahiz\\install\\lib.mjs.novahiz-bak"
+    },
+    {
+      "path": "C:\\Users\\hiz\\.config\\novahiz\\mcp\\novahiz-tools\\README.md",
+      "backup": "C:\\Users\\hiz\\.config\\novahiz\\mcp\\novahiz-tools\\README.md.novahiz-bak"
+    },
+    {
+      "path": "C:\\Users\\hiz\\.config\\novahiz\\mcp\\novahiz-tools\\index.mjs",
+      "backup": "C:\\Users\\hiz\\.config\\novahiz\\mcp\\novahiz-tools\\index.mjs.novahiz-bak"
+    },
+    {
+      "path": "C:\\Users\\hiz\\.config\\novahiz\\novahiz.config.example.json",
+      "backup": "C:\\Users\\hiz\\.config\\novahiz\\novahiz.config.example.json.novahiz-bak"
+    },
+    {
+      "path": "C:\\Users\\hiz\\.config\\novahiz\\package.json",
+      "backup": "C:\\Users\\hiz\\.config\\novahiz\\package.json.novahiz-bak"
+    },
+    {
+      "path": "C:\\Users\\hiz\\.config\\novahiz\\skills\\gate\\SKILL.md",
+      "backup": "C:\\Users\\hiz\\.config\\novahiz\\skills\\gate\\SKILL.md.novahiz-bak"
+    },
+    {
+      "path": "C:\\Users\\hiz\\.config\\novahiz\\skills\\novahiz-analyse\\SKILL.md",
+      "backup": "C:\\Users\\hiz\\.config\\novahiz\\skills\\novahiz-analyse\\SKILL.md.novahiz-bak"
+    },
+    {
+      "path": "C:\\Users\\hiz\\.config\\novahiz\\skills\\novahiz-audit\\SKILL.md",
+      "backup": "C:\\Users\\hiz\\.config\\novahiz\\skills\\novahiz-audit\\SKILL.md.novahiz-bak"
+    },
+    {
+      "path": "C:\\Users\\hiz\\.config\\novahiz\\skills\\novahiz-code-review\\SKILL.md",
+      "backup": "C:\\Users\\hiz\\.config\\novahiz\\skills\\novahiz-code-review\\SKILL.md.novahiz-bak"
+    },
+    {
+      "path": "C:\\Users\\hiz\\.config\\novahiz\\skills\\novahiz-converge\\SKILL.md",
+      "backup": "C:\\Users\\hiz\\.config\\novahiz\\skills\\novahiz-converge\\SKILL.md.novahiz-bak"
+    },
+    {
+      "path": "C:\\Users\\hiz\\.config\\novahiz\\skills\\novahiz-gate\\SKILL.md",
+      "backup": "C:\\Users\\hiz\\.config\\novahiz\\skills\\novahiz-gate\\SKILL.md.novahiz-bak"
+    },
+    {
+      "path": "C:\\Users\\hiz\\.config\\novahiz\\skills\\novahiz-implement\\SKILL.md",
+      "backup": "C:\\Users\\hiz\\.config\\novahiz\\skills\\novahiz-implement\\SKILL.md.novahiz-bak"
+    },
+    {
+      "path": "C:\\Users\\hiz\\.config\\novahiz\\skills\\novahiz-plan\\SKILL.md",
+      "backup": "C:\\Users\\hiz\\.config\\novahiz\\skills\\novahiz-plan\\SKILL.md.novahiz-bak"
+    },
+    {
+      "path": "C:\\Users\\hiz\\.config\\novahiz\\skills\\novahiz-planner\\SKILL.md",
+      "backup": "C:\\Users\\hiz\\.config\\novahiz\\skills\\novahiz-planner\\SKILL.md.novahiz-bak"
+    },
+    {
+      "path": "C:\\Users\\hiz\\.config\\novahiz\\skills\\novahiz-task\\SKILL.md",
+      "backup": "C:\\Users\\hiz\\.config\\novahiz\\skills\\novahiz-task\\SKILL.md.novahiz-bak"
+    },
+    {
+      "path": "C:\\Users\\hiz\\.config\\novahiz\\skills\\prompt-rewriter\\SKILL.md",
+      "backup": "C:\\Users\\hiz\\.config\\novahiz\\skills\\prompt-rewriter\\SKILL.md.novahiz-bak"
+    },
+    {
+      "path": "C:\\Users\\hiz\\.config\\novahiz\\src\\cli.ts",
+      "backup": "C:\\Users\\hiz\\.config\\novahiz\\src\\cli.ts.novahiz-bak"
+    },
+    {
+      "path": "C:\\Users\\hiz\\.config\\novahiz\\src\\commands\\context.ts",
+      "backup": "C:\\Users\\hiz\\.config\\novahiz\\src\\commands\\context.ts.novahiz-bak"
+    },
+    {
+      "path": "C:\\Users\\hiz\\.config\\novahiz\\src\\commands\\doctor.ts",
+      "backup": "C:\\Users\\hiz\\.config\\novahiz\\src\\commands\\doctor.ts.novahiz-bak"
+    },
+    {
+      "path": "C:\\Users\\hiz\\.config\\novahiz\\src\\commands\\gate.ts",
+      "backup": "C:\\Users\\hiz\\.config\\novahiz\\src\\commands\\gate.ts.novahiz-bak"
+    },
+    {
+      "path": "C:\\Users\\hiz\\.config\\novahiz\\src\\commands\\graft.ts",
+      "backup": "C:\\Users\\hiz\\.config\\novahiz\\src\\commands\\graft.ts.novahiz-bak"
+    },
+    {
+      "path": "C:\\Users\\hiz\\.config\\novahiz\\src\\commands\\inspect.ts",
+      "backup": "C:\\Users\\hiz\\.config\\novahiz\\src\\commands\\inspect.ts.novahiz-bak"
+    },
+    {
+      "path": "C:\\Users\\hiz\\.config\\novahiz\\src\\commands\\task.ts",
+      "backup": "C:\\Users\\hiz\\.config\\novahiz\\src\\commands\\task.ts.novahiz-bak"
+    },
+    {
+      "path": "C:\\Users\\hiz\\.config\\novahiz\\src\\exec.ts",
+      "backup": "C:\\Users\\hiz\\.config\\novahiz\\src\\exec.ts.novahiz-bak"
+    },
+    {
+      "path": "C:\\Users\\hiz\\.config\\novahiz\\src\\gate.ts",
+      "backup": "C:\\Users\\hiz\\.config\\novahiz\\src\\gate.ts.novahiz-bak"
+    },
+    {
+      "path": "C:\\Users\\hiz\\.config\\novahiz\\src\\graft.ts",
+      "backup": "C:\\Users\\hiz\\.config\\novahiz\\src\\graft.ts.novahiz-bak"
+    },
+    {
+      "path": "C:\\Users\\hiz\\.config\\novahiz\\src\\ledger.ts",
+      "backup": "C:\\Users\\hiz\\.config\\novahiz\\src\\ledger.ts.novahiz-bak"
+    },
+    {
+      "path": "C:\\Users\\hiz\\.config\\novahiz\\src\\memory.ts",
+      "backup": "C:\\Users\\hiz\\.config\\novahiz\\src\\memory.ts.novahiz-bak"
+    },
+    {
+      "path": "C:\\Users\\hiz\\.config\\novahiz\\src\\prompt-rewriter.ts",
+      "backup": "C:\\Users\\hiz\\.config\\novahiz\\src\\prompt-rewriter.ts.novahiz-bak"
+    },
+    {
+      "path": "C:\\Users\\hiz\\.config\\novahiz\\src\\spec.ts",
+      "backup": "C:\\Users\\hiz\\.config\\novahiz\\src\\spec.ts.novahiz-bak"
+    },
+    {
+      "path": "C:\\Users\\hiz\\.config\\opencode\\agent\\novahiz.md",
+      "backup": "C:\\Users\\hiz\\.config\\opencode\\agent\\novahiz.md.novahiz-bak"
+    },
+    {
+      "path": "C:\\Users\\hiz\\.config\\opencode\\plugins\\novahiz.ts",
+      "backup": "C:\\Users\\hiz\\.config\\opencode\\plugins\\novahiz.ts.novahiz-bak"
+    },
+    {
+      "path": "C:\\Users\\hiz\\.config\\opencode\\skills\\gate\\SKILL.md",
+      "backup": "C:\\Users\\hiz\\.config\\opencode\\skills\\gate\\SKILL.md.novahiz-bak"
+    },
+    {
+      "path": "C:\\Users\\hiz\\.config\\opencode\\skills\\novahiz-analyse\\SKILL.md",
+      "backup": "C:\\Users\\hiz\\.config\\opencode\\skills\\novahiz-analyse\\SKILL.md.novahiz-bak"
+    },
+    {
+      "path": "C:\\Users\\hiz\\.config\\opencode\\skills\\novahiz-audit\\SKILL.md",
+      "backup": "C:\\Users\\hiz\\.config\\opencode\\skills\\novahiz-audit\\SKILL.md.novahiz-bak"
+    },
+    {
+      "path": "C:\\Users\\hiz\\.config\\opencode\\skills\\novahiz-code-review\\SKILL.md",
+      "backup": "C:\\Users\\hiz\\.config\\opencode\\skills\\novahiz-code-review\\SKILL.md.novahiz-bak"
+    },
+    {
+      "path": "C:\\Users\\hiz\\.config\\opencode\\skills\\novahiz-converge\\SKILL.md",
+      "backup": "C:\\Users\\hiz\\.config\\opencode\\skills\\novahiz-converge\\SKILL.md.novahiz-bak"
+    },
+    {
+      "path": "C:\\Users\\hiz\\.config\\opencode\\skills\\novahiz-gate\\SKILL.md",
+      "backup": "C:\\Users\\hiz\\.config\\opencode\\skills\\novahiz-gate\\SKILL.md.novahiz-bak"
+    },
+    {
+      "path": "C:\\Users\\hiz\\.config\\opencode\\skills\\novahiz-implement\\SKILL.md",
+      "backup": "C:\\Users\\hiz\\.config\\opencode\\skills\\novahiz-implement\\SKILL.md.novahiz-bak"
+    },
+    {
+      "path": "C:\\Users\\hiz\\.config\\opencode\\skills\\novahiz-plan\\SKILL.md",
+      "backup": "C:\\Users\\hiz\\.config\\opencode\\skills\\novahiz-plan\\SKILL.md.novahiz-bak"
+    },
+    {
+      "path": "C:\\Users\\hiz\\.config\\opencode\\skills\\novahiz-planner\\SKILL.md",
+      "backup": "C:\\Users\\hiz\\.config\\opencode\\skills\\novahiz-planner\\SKILL.md.novahiz-bak"
+    },
+    {
+      "path": "C:\\Users\\hiz\\.config\\opencode\\skills\\novahiz-task\\SKILL.md",
+      "backup": "C:\\Users\\hiz\\.config\\opencode\\skills\\novahiz-task\\SKILL.md.novahiz-bak"
+    },
+    {
+      "path": "C:\\Users\\hiz\\.config\\opencode\\skills\\prompt-rewriter\\SKILL.md",
+      "backup": "C:\\Users\\hiz\\.config\\opencode\\skills\\prompt-rewriter\\SKILL.md.novahiz-bak"
+    }
+  ]
+}

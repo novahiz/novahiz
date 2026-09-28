@@ -1,0 +1,12 @@
+# Local state — not part of any published package
+novahiz.sqlite
+novahiz.sqlite-*
+novahiz.sqlite.stale-*
+Novahiz.sqlite
+Novahiz.sqlite-*
+*.novahiz-bak
+build/
+node_modules/
+*.log
+.env
+*.tgz

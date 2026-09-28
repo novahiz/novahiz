@@ -1,0 +1,30 @@
+{
+  "dbPath": "novahiz.sqlite",
+  "skillRoots": [
+    "./skills",
+    "~/.agents/skills"
+  ],
+  "gate": {
+    "enabled": true,
+    "mode": "block",
+    "envEscape": "NOVAHIZ_GATE",
+    "tools": [
+      "edit",
+      "write",
+      "patch",
+      "apply_patch",
+      "bash",
+      "shell"
+    ]
+  },
+  "classify": {
+    "minScore": 1,
+    "maxCategories": 3,
+    "fallbackCategory": "general"
+  },
+  "providers": {
+    "autoRegister": true,
+    "autoInstall": false,
+    "disabled": []
+  }
+}
