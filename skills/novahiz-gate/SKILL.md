@@ -32,9 +32,9 @@ Le gate pose une seule question : les skills exigées par le contexte sont-elles
 
 Hors design frontend, `novahiz-humanizer` et `ui-slop-remover` ne sont plus exigés par le gate. `impeccable` suit la même logique via R14.
 
-**Les étapes de roadmap** (`catalog/categories.json`) : seules celles marquées `kind: "skill"` sans `optional` bloquent. Les étapes `edit`, `verify` et `advisory` apparaissent dans `requiredSkills` mais ne refusent rien.
+**Les étapes de roadmap** (`catalog/categories.json`) : seules celles marquées `kind: "skill"` sans `optional` ajoutent leurs `requireSkills` au gate (filtre `step.kind !== "skill" || step.optional` — `src/gate.ts:375` — puis filtrage par tier). Les étapes `edit`, `verify` et `advisory` sont sautées par ce filtre : leurs `requireSkills` n'entrent dans `requiredSkills` que si une règle ou une étape `skill` les mentionne aussi.
 
-## Sémantique de l'index (gate.ts, lignes 229 à 236)
+## Sémantique de l'index (gate.ts, lignes 404 à 422)
 
 ```
 index disponible ET skill absente de l'index  ->  unmatchedRequired
@@ -43,7 +43,7 @@ sinon                                          ->  effective
 
 Trois conséquences à connaître :
 
-1. Skill absente de l'index (`build/installed-skills.json`, écrit au dernier `sync`) : elle cesse d'être exigée en silence, sans message.
+1. Skill absente de l'index (`build/installed-skills.json`, écrit au dernier `sync`) : elle n'est pas exigée, mais jamais en silence — le gate ajoute `required skill not in index, not enforced: <skill> — run "novahiz" sync to realign` aux `reasons` de la réponse, et le CLI l'imprime en warning sur stderr.
 2. Skill présente dans l'index mais absente du disque : elle reste exigée et rien ne peut la charger. Blocage jusqu'au prochain `sync`.
 3. Index illisible : tout est exigé. Le gate devient plus strict, jamais plus laxiste.
 

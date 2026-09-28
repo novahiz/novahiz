@@ -6,6 +6,21 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Added
+
+- `scripts/ci-local.mjs` + `npm run ci:local`: reproduces the four steps of `.github/workflows/ci.yml`
+  (catalog build, test suite, installer dry-run into `.ci-home`, check) with the same environment as the
+  runner — `NOVAHIZ_HOME` set for sync/check and absent for the tests — so a local run and CI agree
+  step for step. Stops at the first failing step; `.ci-home` is cleaned up and gitignored.
+
+### Fixed
+
+- `skills/novahiz-gate/SKILL.md` carried three statements the code no longer (or never) made: roadmap
+  steps `edit`/`verify`/`advisory` do not join `requiredSkills` (the filter at `src/gate.ts:375` skips
+  them), the index-semantics section pointed at lines 229-236 instead of 404-422, and an index gap is
+  not silent — the gate appends `required skill not in index, not enforced: <skill> — run "novahiz"
+  sync` to `reasons` and the CLI prints the same on stderr.
+
 ## [0.3.3] - 2026-09-28
 
 ### Added

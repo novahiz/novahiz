@@ -9,6 +9,7 @@ Novahiz.sqlite-*
 .graft/
 build/
 dist/
+.ci-home/
 *.tgz
 *.novahiz-bak
 coverage/
