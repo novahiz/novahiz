@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { claudeHarnessChecks, grantsQuestionIn, impeccableChecks, parseJsonc, mcpEntryProblems, referencedSkillsCheck } from "../src/commands/doctor.ts";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { delimiter, join } from "node:path";
 
 test("grantsQuestionIn reads the agent permission block", () => {
   assert.equal(grantsQuestionIn("permission:\n  question: allow\n"), true);
@@ -62,10 +62,25 @@ test("mcpEntryProblems flags hard failures and reports soft drift as notes", () 
     ).problems.some((p) => p.includes("catalog pins @playwright/mcp@0.0.82"))
   );
 
-  // Soft drift: a bare shim that matches the catalog base is a note, not a failure.
-  const shim = mcpEntryProblems("narsil", { command: ["narsil-mcp", "--git"] }, catalog, {});
-  assert.deepEqual(shim.problems, []);
-  assert.ok(shim.notes.some((n) => n.includes("unpinned (catalog: narsil-mcp@1.7.0)")));
+  // Soft drift: a bare shim that matches the catalog base is a note, not a
+  // failure. Plant the shim on a temp PATH so the assertion does not depend on
+  // the machine: narsil-mcp exists on dev boxes with the MCP server installed
+  // and is absent on CI runners — the original test failed on its first CI run
+  // for exactly that reason (c7d78a3 never ran there).
+  const binDir = mkdtempSync(join(tmpdir(), "novahiz-doctor-bin-"));
+  const previousPath = process.env.PATH;
+  try {
+    writeFileSync(join(binDir, "narsil-mcp"), "#!/bin/sh\nexit 0\n", { mode: 0o755 });
+    writeFileSync(join(binDir, "narsil-mcp.cmd"), "@exit 0\r\n", "utf8");
+    process.env.PATH = [binDir, previousPath].filter(Boolean).join(delimiter);
+    const shim = mcpEntryProblems("narsil", { command: ["narsil-mcp", "--git"] }, catalog, {});
+    assert.deepEqual(shim.problems, []);
+    assert.ok(shim.notes.some((n) => n.includes("unpinned (catalog: narsil-mcp@1.7.0)")));
+  } finally {
+    if (previousPath === undefined) delete process.env.PATH;
+    else process.env.PATH = previousPath;
+    rmSync(binDir, { recursive: true, force: true });
+  }
 
   // A healthy pinned entry with the secret set produces nothing.
   const healthy = mcpEntryProblems(
