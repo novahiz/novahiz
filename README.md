@@ -274,7 +274,7 @@ Novahiz auto-registers external MCP servers based on the prompt category:
 | cron | `scheduler-mcp` (local venv clone) | MIT | devops |
 | dart | `dart mcp-server` (Dart SDK) | BSD-3-Clause | code, debug, design-ui, flutter |
 
-Skill packs (installed from official repos, never vendored): `flutter/agent-plugins` (25 skills), `dart-lang/skills` (15 skills), `expo/skills` (17 skills, the `expo-*` group only; `eas-*` paid services excluded). See [docs/PROVIDERS.md](docs/PROVIDERS.md).
+Skill packs (installed from official repos, never vendored): `flutter/agent-plugins` (25 skills), `dart-lang/skills` (15 skills), `expo/skills` (17 skills, the `expo-*` group only; `eas-*` paid services excluded), `pbakaus/impeccable` (1 skill, the upstream `impeccable` design skill). See [docs/PROVIDERS.md](docs/PROVIDERS.md).
 
 Upstream repositories and full provenance for MCP providers and opencode plugins: [docs/PROVIDERS.md](docs/PROVIDERS.md), [docs/HARNESSES.md](docs/HARNESSES.md), [NOTICE.md](NOTICE.md).
 

@@ -58,7 +58,7 @@ function defaultConfig(skillsDir) {
     providers: {
       autoRegister: true,
       autoInstall: false,
-      disabled: []
+      disabled: ["cron"]
     }
   };
 }
@@ -314,8 +314,8 @@ async function main() {
     { pkg: "narsil-mcp", bin: "narsil-mcp", name: "narsil" },
     { pkg: "security-mcp", bin: "security-mcp", name: "security" },
   ];
-  // `cron` has no npm package: the plugin registers it from catalog/providers.json
-  // (scheduler-mcp local venv, see docs/PROVIDERS.md).
+  // `cron` has no npm package and ships disabled (local scheduler clone only);
+  // enable it after the local setup documented in docs/PROVIDERS.md.
 
   if (!dryRun) {
     note("\nInstalling MCP servers...");
@@ -418,8 +418,8 @@ async function main() {
             "timeout": 120000,
             "enabled": true
           },
-          // `cron` is registered by the plugin from catalog/providers.json
-          // (scheduler-mcp local venv); no npm install, no template entry.
+          // `cron` ships disabled by default: no template entry here, enable it
+          // after the local scheduler clone setup (docs/PROVIDERS.md).
           "playwright": {
             "type": "local",
             "command": ["npx", "@playwright/mcp@latest", "--browser=msedge"],

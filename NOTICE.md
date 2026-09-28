@@ -43,6 +43,7 @@ Installed on demand with `npx skills add` (or an upstream tarball when git trans
 | `flutter-skills` | https://github.com/flutter/agent-plugins | BSD-3-Clause |
 | `dart-skills` | https://github.com/dart-lang/skills | BSD-3-Clause |
 | `expo-skills` | https://github.com/expo/skills | MIT |
+| `impeccable` | https://github.com/pbakaus/impeccable | Apache-2.0 |
 
 ## opencode plugins (third-party)
 

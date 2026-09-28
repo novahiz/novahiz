@@ -16,6 +16,7 @@ test("loads the bundled providers", () => {
     "dart-skills",
     "expo-skills",
     "flutter-skills",
+    "impeccable",
     "narsil",
     "novahiz",
     "playwright",
@@ -31,7 +32,10 @@ test("maps providers to categories across kinds", () => {
 });
 
 test("builds mcp entries only for mcp providers", () => {
-  const entries = buildMcpEntries(spec);
+  // Hermetic: the example config ships cron disabled, so enable everything here
+  // to assert the full MCP surface independently of config defaults.
+  const active = { ...spec, config: { ...spec.config, providers: { autoRegister: true, autoInstall: false, disabled: [] } } };
+  const entries = buildMcpEntries(active);
   assert.equal(Object.keys(entries).length, 7);
   assert.ok(entries.playwright?.command?.some((c) => c.includes("playwright")));
   assert.equal("playwright" in entries, true);
@@ -41,8 +45,8 @@ test("builds mcp entries only for mcp providers", () => {
 
 test("exposes official install commands for providers with install field", () => {
   const commands = installCommands(spec);
-  // providers.json no longer has install fields by default
-  // install commands are only present when explicitly defined
+  // Only skill-pack providers ship install fields (flutter/dart/expo/impeccable);
+  // MCP providers register through their command instead.
   assert.ok(commands.length >= 0);
 });
 

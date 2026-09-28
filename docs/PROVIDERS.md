@@ -46,7 +46,7 @@ MCP servers, with provenance from `catalog/providers.json`:
 | `novahiz` | local (`mcp/novahiz-tools`) | [novahiz/novahiz](https://github.com/novahiz/novahiz) | Apache-2.0 | code, planning |
 | `dart` | `dart mcp-server` (Dart SDK) | [dart-lang/ai · dart_mcp_server](https://github.com/dart-lang/ai/tree/main/pkgs/dart_mcp_server) | BSD-3-Clause | code, debug, design-ui, flutter |
 
-`cron` runs `scheduler-mcp` (MIT) from a local clone at `C:/Users/hiz/.local/share/mcp-scheduler` with its own virtualenv. It replaced the former AGPL `mcp-cron` npm package; there is no npm install step for it.
+`cron` runs `scheduler-mcp` (MIT) from a local clone with its own virtualenv. It replaced the former AGPL `mcp-cron` npm package; there is no npm install step for it. It ships disabled because the `command` has to point at your own clone: install the upstream requirements into a venv, set `command` to that venv's python plus your clone's `main.py`, then remove `cron` from `providers.disabled`.
 
 `dart` requires the Dart SDK on `PATH` (`requires: ["dart"]`). Without it the MCP entry still registers, but the server fails to start; disable it or install the SDK.
 
@@ -57,12 +57,13 @@ Skill and command packs:
 | `flutter-skills` | `npx skills add flutter/agent-plugins --skill '*' -g -a opencode -y` | [flutter/agent-plugins](https://github.com/flutter/agent-plugins) | BSD-3-Clause | code, design-ui, flutter |
 | `dart-skills` | `npx skills add dart-lang/skills --skill '*' -g -a opencode -y` | [dart-lang/skills](https://github.com/dart-lang/skills) | BSD-3-Clause | code, debug, flutter |
 | `expo-skills` | `npx skills add expo/skills --skill expo-overview ... -g -a opencode -y` | [expo/skills](https://github.com/expo/skills) | MIT | code, expo |
+| `impeccable` | `npx skills add pbakaus/impeccable --skill impeccable -g -a opencode -y` | [pbakaus/impeccable](https://github.com/pbakaus/impeccable) | Apache-2.0 | design-ui |
 
 Installed skills land under `~/.agents/skills` for OpenCode. They are referenced by install command, never vendored in this repository. `dart-lang/skills` is a subset of `flutter/agent-plugins` (same 15 Dart skills); both are listed for provenance.
 
 `expo-skills` names the 17 `expo-*` skills explicitly; the 7 `eas-*` skills (paid EAS services) are excluded. When `npx skills add` cannot reach the repo (git clone failures), fetch the tarball from `codeload.github.com` and copy the skill folders into `~/.agents/skills`, then run `Novahiz sync` — that fallback was used on this machine.
 
-Design and text skills ship as ordinary Novahiz skills under `skills/`, not as providers.
+`impeccable` is the one design skill referenced as a provider: gate rule R14 requires it, and it installs from upstream under its own Apache-2.0 terms instead of being vendored. The other design and text skills ship as ordinary Novahiz skills under `skills/`, not as providers.
 
 ## Mapping
 
@@ -92,7 +93,7 @@ Control it in `novahiz.config.json`:
 
 - `autoRegister`: register missing MCP servers on startup.
 - `autoInstall`: run the official install commands during `node install/install.mjs`.
-- `disabled`: provider ids to skip.
+- `disabled`: provider ids to skip. `cron` ships disabled by default; enable it after the local scheduler setup described above.
 
 Run the install commands on demand:
 

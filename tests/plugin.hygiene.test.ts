@@ -81,7 +81,7 @@ test("installed plugin does not import a non-existent ../../src path", () => {
   );
 });
 
-test("README counts match catalog (17 categories, 11 rules, 10 providers)", () => {
+test("README counts match catalog (17 categories, 11 rules, 11 providers)", () => {
   const rules = JSON.parse(readFileSync(join(root, "catalog", "rules.json"), "utf8"));
   const categories = JSON.parse(
     readFileSync(join(root, "catalog", "categories.json"), "utf8")
@@ -98,7 +98,7 @@ test("README counts match catalog (17 categories, 11 rules, 10 providers)", () =
     : (providers.providers ?? Object.values(providers));
   assert.equal(Array.isArray(catList) ? catList.length : 0, 17);
   assert.equal(ruleCount, 11);
-  assert.equal(Array.isArray(provList) ? provList.length : 0, 10);
+  assert.equal(Array.isArray(provList) ? provList.length : 0, 11);
 
   const readme = readFileSync(join(root, "README.md"), "utf8");
   assert.ok(readme.includes("95 skills"), "README skill count");

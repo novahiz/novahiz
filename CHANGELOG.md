@@ -6,6 +6,22 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [0.3.2] - 2026-09-28
+
+### Added
+
+- `impeccable` skill provider (`pbakaus/impeccable`, Apache-2.0, category `design-ui`): the upstream Impeccable skill required by gate rule R14 is now installable through the catalog instead of a manual copy — `npx skills add pbakaus/impeccable --skill impeccable -g -a opencode -y` (verified on Windows; installs to `~/.agents/skills`). 11 catalog entries = 7 MCP + 4 skill packs.
+
+### Changed
+
+- `catalog/providers.json` de-personalized: the `cron` and `novahiz` entries no longer carry machine-specific absolute paths. `novahiz` points at `~/.config/novahiz/mcp/novahiz-tools/index.mjs` (the opencode plugin resolves the real path from the home directory itself) and says so in its `purpose`; `cron` ships a template command plus the local-clone setup instead of one machine's venv paths.
+- `cron` ships disabled by default (`providers.disabled` in `novahiz.config.example.json`, `DEFAULT_CONFIG`, and the installer), so fresh installs no longer register an MCP entry that only resolves on one machine. Enable it after the local scheduler setup documented in `docs/PROVIDERS.md`.
+- Counts and docs follow the new provider: hygiene and CLI tests assert 11 providers and 11 dependencies, `docs/CATALOG.md` / `docs/CONFIGURATION.md` / `docs/PROVIDERS.md` updated, `NOTICE.md` records the Apache-2.0 attribution for pbakaus/impeccable.
+
+### Fixed
+
+- `docs/audit-2026-09-25.md` is excluded from the npm tarball: the machine-specific audit report stays in the repository but no longer ships to npm users.
+
 ## [0.3.1] - 2026-09-28
 
 ### Added
@@ -32,7 +48,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   - Roadmap `expo-feature` (11 steps): the six-stage pipeline plus four **optional** `expo-*` steps between analyse and implement (`expo-router`, `expo-module`, `expo-dev-client`, `expo-upgrade`) and a final `novahiz-code-review`. Only pipeline skills are enforced; optional steps guide without blocking.
   - `R6-Novahiz` `promptCategories` includes `expo`.
   - `catalog/providers.json` gains `expo-skills` (10 entries = 7 MCP + 3 skill packs): MIT, categories `code`/`expo`, install command naming the 17 `expo-*` skills explicitly; the 7 `eas-*` paid-service skills are excluded.
-  - 17 `expo-*` skills installed to `~/.agents/skills` via upstream tarball fallback (git transport to GitHub fails on this machine); `novahiz.config.json` `skillRoots` adds `C:/Users/hiz/.agents/skills`, so `novahiz sync` now indexes **84 skills** (dart/flutter packs finally indexed too).
+  - 17 `expo-*` skills installed to `~/.agents/skills` via upstream tarball fallback (git transport to GitHub fails on this machine); `novahiz.config.json` `skillRoots` adds `~/.agents/skills`, so `novahiz sync` now indexes **84 skills** (dart/flutter packs finally indexed too).
   - Tests: hygiene counts (17 categories, 10 providers, 84 skills), classify tests for English and French Expo prompts (primary `expo`, `expo-overview` required, `enforcedSkills` stays pipeline-only, `expo-skills` provider proposed).
   - Docs: README, CLASSIFICATION, CATALOG, ARCHITECTURE, ROADMAPS (task→skill matrix for all 17 skills), PROVIDERS, NOTICE (MIT pack), planner skill.
 
@@ -41,7 +57,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   - `catalog/categories.json`: design-ui roadmap gains optional `impeccable-critique`, `impeccable-audit`, `impeccable-polish` steps after implement; `flutter-feature` gains an optional `impeccable-critique` step after tests. Optional steps guide without blocking (roadmap tests assert `impeccable` never gates a non-optional step).
   - `novahiz.config.json` `skillRoots` adds the installed skill folder (`~/.config/.agents/skills/impeccable`); `novahiz sync` indexes 42 skills.
   - Adapters, agent prompt, instructions, README, docs (RULES, GATE, ROADMAPS, CATALOG, ARCHITECTURE) and `plugin.hygiene.test.ts` counts aligned (11 rules, 42 skills).
-  - Workspace `opencode.jsonc` loads `C:/Users/hiz/.config/.agents/skills`; `opencode/NOTICE.md` records the Apache-2.0 attribution for pbakaus/impeccable.
+  - Workspace `opencode.jsonc` loads `~/.config/.agents/skills`; `opencode/NOTICE.md` records the Apache-2.0 attribution for pbakaus/impeccable.
 
 - Deterministic Flutter category in the catalog:
   - `catalog/categories.json` gains `flutter` (priority 61, above `code`) with weighted keywords (`flutter`×3, `dart`×2, widget/pubspec/riverpod/…), negative keywords for Supabase, and default skills architecture + static analysis + unit tests.

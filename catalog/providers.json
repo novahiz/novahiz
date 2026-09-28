@@ -39,20 +39,21 @@
     "id": "cron",
     "label": "Cron Scheduler",
     "kind": "mcp",
-    "command": ["C:/Users/hiz/.local/share/mcp-scheduler/.venv/Scripts/python.exe", "C:/Users/hiz/.local/share/mcp-scheduler/main.py"],
+    "command": ["python", "C:/path/to/scheduler-mcp/main.py"],
     "source": "https://github.com/PhialsBasement/scheduler-mcp",
     "license": "MIT",
     "categories": ["devops"],
-    "purpose": "Local MIT scheduler clone at C:/Users/hiz/.local/share/mcp-scheduler (requirements pin mcp<2)."
+    "purpose": "MIT scheduler clone (requirements pin mcp<2); no npm package exists. Clone PhialsBasement/scheduler-mcp, install its requirements into a venv, then point `command` at that venv's python and your clone's main.py (setup in docs/PROVIDERS.md). Shipped disabled: enable it after the local setup."
   },
   {
     "id": "novahiz",
     "label": "novahiz",
     "kind": "mcp",
-    "command": ["node", "C:/Users/hiz/.config/novahiz/mcp/novahiz-tools/index.mjs"],
+    "command": ["node", "~/.config/novahiz/mcp/novahiz-tools/index.mjs"],
     "source": "https://github.com/novahiz/novahiz",
     "license": "Apache-2.0",
-    "categories": ["code", "planning"]
+    "categories": ["code", "planning"],
+    "purpose": "Novahiz stdio MCP (novahiz_providers, novahiz_deps, memory tools). The opencode plugin resolves this path from the home directory itself; edit the command for other harnesses."
   },
   {
     "id": "dart",
@@ -94,5 +95,15 @@
     "license": "MIT",
     "categories": ["code", "expo"],
     "purpose": "17 official Expo framework skills (expo-* group); the 7 eas-* paid-service skills are excluded. Installed to ~/.agents/skills; when git clone fails, fetch the tarball from codeload.github.com and copy the skill folders."
+  },
+  {
+    "id": "impeccable",
+    "label": "Impeccable design skill",
+    "kind": "skill",
+    "install": ["npx", "-y", "skills@1.7.0", "add", "pbakaus/impeccable", "--skill", "impeccable", "-g", "-a", "opencode", "-y"],
+    "source": "https://github.com/pbakaus/impeccable",
+    "license": "Apache-2.0",
+    "categories": ["design-ui"],
+    "purpose": "Upstream Impeccable skill (critique, audit and polish playbooks) required by gate rule R14. Installed to ~/.agents/skills; rerun the command to update."
   }
 ]

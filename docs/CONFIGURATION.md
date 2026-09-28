@@ -41,7 +41,7 @@ These files live in `catalog/` and are part of the git repository:
   "providers": {
     "autoRegister": true,
     "autoInstall": false,
-    "disabled": []
+    "disabled": ["cron"]
   },
   "ledger": {
     "enabled": true,
@@ -69,7 +69,7 @@ These files live in `catalog/` and are part of the git repository:
 | `classify.fallbackCategory` | `general` | Fallback when no category matches |
 | `providers.autoRegister` | `true` | Auto-register MCP providers |
 | `providers.autoInstall` | `false` | Auto-install provider dependencies |
-| `providers.disabled` | `[]` | Providers to skip |
+| `providers.disabled` | `["cron"]` | Providers to skip (`cron` needs a local scheduler clone first) |
 | `ledger.enabled` | `true` | Enable the task ledger |
 | `ledger.review.edits` | `3` | Force review after N edits |
 | `ledger.review.todos` | `2` | Force review after N completed todos |
