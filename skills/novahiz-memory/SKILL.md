@@ -28,7 +28,7 @@ A finished session leaves a trace in two places. One write is never enough.
 
 `_meta\routing.md` is the only source of truth for the target folder. When routing is ambiguous, ask instead of guessing.
 
-The full procedure lives in the `memory-save` skill. Load it and follow it rather than writing freehand.
+The procedure is this skill: read the routing table, show the chosen path, then write the page with the mandatory frontmatter. There is no separate save skill to load.
 
 ## Forbidden
 

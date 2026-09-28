@@ -4,6 +4,27 @@ All notable changes to this project are documented in this file.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- Claude Code harness support: `novahiz hook --harness claude` (PreToolUse gate with the auto-repair prompt, skill-load detection, `NOVAHIZ_GATE=off` kill-switch), `install/hooks.mjs` merging a novahiz group into `~/.claude/settings.json` (foreign groups preserved, `.novahiz-bak` backup, idempotent) plus the codex `hooks.json` variant, `claude mcp add` / `codex mcp` registration, the `adapters/claude/agent/novahiz.md` agent and its install-time copy to `~/.claude/{skills,commands,agents}`.
+- Installer harness selection: interactive select (`opencode`, `claude`, `codex`, detected ones pre-checked), `--harness <list>` for scripted runs, `--yes` takes every detected harness, and only the selected harnesses are configured and auto-installed when absent (`opencode-ai`, `@anthropic-ai/claude-code`, `@openai/codex`, non-blocking).
+- `doctor`: four non-blocking Claude Code checks (`claude-hooks`, `claude-agent`, `claude-skills`, `claude-commands`) shown only when a Claude config directory exists.
+- Skill `novahiz-release`: the versioned release process (changelog entry, `npm version` bump, tag, GitHub Actions publish with provenance, post-release resync), wired as a final advisory step on the `devops` roadmap; devops now classifies release/publish/bump/tag/changelog prompts.
+- `doctor`: `mcp-config` check (every `opencode.jsonc` server entry resolved against the catalog) and a `--deep` live probe — a JSON-RPC `initialize` handshake per configured server, probed in parallel with a 10 s budget each (14 checks with `--deep`, 13 without).
+- Advisory roadmap steps: `novahiz-audit` closes the `audit` roadmap; `design-token-pipeline` sits on `design-ui` between tasks and design-craft.
+
+### Security
+
+- Gate: `cron_add_task`, `cron_add_ai_task` and `cron_add_http_task` join `GATE_TOOLS` everywhere it is listed (plugin fallback, spec, installer, example config, configuration docs, test) — creating cron shell/AI/HTTP tasks now requires the same roadmap skills as the rest of the catalog, closing the gap found by the 2026-09-25 audit (L164).
+
+### Fixed
+
+- Gate auto-repair always includes `novahiz-gate` in its load steps, so the agent understands why an edit was blocked before retrying.
+- Ghost skill references removed (`memory-save`, `wiki-ingest`, `wiki-lint`, `wiki-status`, `graph-colorize` were never in the installed index): `adapters/opencode/instructions.md`, `skills/novahiz-memory/SKILL.md`, `skills/memory/SKILL.md`.
+- `expo-skills` provider now installs all 19 `expo-*` skills — `expo-migrate-module` and `expo-skill-eval` were referenced by the index but missing from the install command.
+
 ## [0.3.5] - 2026-09-28
 
 ### Fixed

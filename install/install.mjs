@@ -6,6 +6,7 @@ import {
   copyFileWithBackup,
   copyInto,
   defaultConfig,
+  detectedHarnesses,
   loadManifest,
   mergeBackups,
   mergeCreated,
@@ -68,30 +69,20 @@ async function main() {
     }
   }
 
-  // Check for opencode and auto-install if missing
-  if (!which("opencode")) {
-    if (dryRun) {
-      note("opencode not detected. Would install globally (npm install -g opencode-ai).");
-    } else {
-      note("opencode not detected. Global installation...");
-      const installResult = spawnHost("npm", ["install", "-g", "opencode-ai"], {
-        stdio: "inherit"
-      });
-      if (installResult.status !== 0) {
-        // Non-blocking: the core install still lands; the user can install
-        // opencode afterwards.
-        note("WARNING: Failed to install opencode automatically (non-blocking). Run: npm install -g opencode-ai");
-      } else {
-        note("opencode installed successfully.");
-      }
-    }
-  } else {
-    note("opencode detected.");
-  }
+  const claudeDir = process.env.CLAUDE_CONFIG_DIR || join(homedir(), ".claude");
+  const codexDir = process.env.CODEX_HOME || join(homedir(), ".codex");
+  const harnessDirs = { opencode: configDir, claude: claudeDir, codex: codexDir };
+  const harnessPackages = {
+    opencode: "opencode-ai",
+    claude: "@anthropic-ai/claude-code",
+    codex: "@openai/codex"
+  };
+  const detected = detectedHarnesses(harnessDirs);
 
   const yes = Boolean(flags.yes) || Boolean(flags["yes"]);
   const interactive = !yes && !dryRun && (Boolean(flags.interactive) || process.stdin.isTTY === true);
   let providersChoice = null;
+  let harnessChoice = null;
 
   if (interactive) {
     const prompt = createPrompt();
@@ -115,7 +106,75 @@ async function main() {
       return;
     }
     providersChoice = await prompt.confirm("Install provider packages and their prerequisites now?", false);
+    harnessChoice = await prompt.select(
+      "Which harnesses should Novahiz configure?",
+      ["opencode", "claude", "codex"],
+      detected.length > 0 ? detected : ["opencode"]
+    );
     prompt.close();
+  }
+
+  // Harness resolution: --harness flag > interactive select > detection
+  // (--yes and non-interactive runs take every detected harness, falling
+  // back to opencode so a fresh machine still gets a working baseline).
+  const flagHarnesses =
+    typeof flags.harness === "string"
+      ? flags.harness
+          .split(",")
+          .map((value) => value.trim().toLowerCase())
+          .filter((value) => ["opencode", "claude", "codex"].includes(value))
+      : [];
+  const configured = [
+    ...new Set(
+      flagHarnesses.length > 0
+        ? flagHarnesses
+        : harnessChoice && harnessChoice.length > 0
+          ? harnessChoice
+          : detected.length > 0
+            ? detected
+            : ["opencode"]
+    )
+  ];
+  if (flags["no-claude"]) {
+    const index = configured.indexOf("claude");
+    if (index !== -1) configured.splice(index, 1);
+  }
+  note(`Harnesses to configure: ${configured.length > 0 ? configured.join(", ") : "(none)"}`);
+
+  // Auto-install the CLI of every selected harness that is entirely absent
+  // (no config dir and no binary). A harness already on the machine - CLI or
+  // desktop config dir - is left alone, and a harness that was not selected
+  // is never installed nor configured. Failures stay non-blocking, like the
+  // historical opencode behaviour.
+  for (const name of configured) {
+    const hasCli = which(name);
+    const hasDir = existsSync(harnessDirs[name]);
+    if (hasCli) {
+      note(`${name} detected.`);
+      continue;
+    }
+    if (hasDir) {
+      note(`${name} config present in ${harnessDirs[name]}; ${name} CLI not on PATH (optional).`);
+      continue;
+    }
+    const pkg = harnessPackages[name];
+    if (dryRun) {
+      note(`Would install ${name} globally (npm install -g ${pkg}).`);
+      continue;
+    }
+    note(`${name} not detected. Global installation...`);
+    const installResult = spawnHost("npm", ["install", "-g", pkg], { stdio: "inherit" });
+    if (installResult.status !== 0) {
+      note(`WARNING: Failed to install ${name} automatically (non-blocking). Run: npm install -g ${pkg}`);
+    } else {
+      note(`${name} installed successfully.`);
+    }
+  }
+
+  if (!dryRun) {
+    for (const name of configured) {
+      if (!existsSync(harnessDirs[name])) mkdirSync(harnessDirs[name], { recursive: true });
+    }
   }
 
   const created = [];
@@ -148,9 +207,15 @@ async function main() {
     coreCopied = true;
   }
 
-  if (withSkills) {
+  if (withSkills && !configured.includes("opencode")) {
+    note("Skipping opencode skills copy (opencode not selected).");
+  }
+  if (withSkills && configured.includes("opencode")) {
     const skillsSource = existsSync(join(home, "skills")) ? join(home, "skills") : join(root, "skills");
     if (existsSync(skillsSource)) {
+      // Dedup only against roots the catalog actually scans (see
+      // skillRoots): ~/.claude/skills is deliberately absent, or an
+      // opencode install would skip skills that only Claude has.
       const externalRoots = [join(homedir(), ".agents", "skills")];
       const alreadyInstalled = skillNamesIn(externalRoots);
       // renamed: the outer `force` (--force, config overwrite) lives in the
@@ -189,7 +254,7 @@ async function main() {
 
   const pluginSource = join(home, "adapters", "opencode", "novahiz.ts");
   const pluginTarget = join(pluginsDir, "novahiz.ts");
-  if (existsSync(pluginSource)) {
+  if (configured.includes("opencode") && existsSync(pluginSource)) {
     note(`Installing opencode plugin in ${pluginTarget}`);
     if (!dryRun) {
       const result = copyFileWithBackup(pluginSource, pluginTarget, true);
@@ -202,7 +267,7 @@ async function main() {
     ? join(home, "adapters", "opencode", "agent", "novahiz.md")
     : join(root, "adapters", "opencode", "agent", "novahiz.md");
   const agentTarget = join(configDir, "agent", "novahiz.md");
-  if (existsSync(agentSource)) {
+  if (configured.includes("opencode") && existsSync(agentSource)) {
     note(`Installing Novahiz agent in ${agentTarget}`);
     if (!dryRun) {
       const result = copyFileWithBackup(agentSource, agentTarget, true);
@@ -215,12 +280,61 @@ async function main() {
     ? join(home, "adapters", "opencode", "commands")
     : join(root, "adapters", "opencode", "commands");
   const commandsTarget = join(configDir, "commands");
-  if (existsSync(commandsSource)) {
+  if (configured.includes("opencode") && existsSync(commandsSource)) {
     note(`Installing Novahiz commands in ${commandsTarget}`);
     if (!dryRun) {
       const result = copyInto(commandsSource, commandsTarget, true);
       created.push(...result.created);
       backups.push(...result.backups);
+    }
+  }
+
+  if (configured.includes("claude") && !flags["no-claude"] && existsSync(claudeDir)) {
+    const claudeSkillsDir = join(claudeDir, "skills");
+    if (withSkills) {
+      const claudeSkillsSource = existsSync(join(home, "skills")) ? join(home, "skills") : join(root, "skills");
+      if (existsSync(claudeSkillsSource)) {
+        const otherRoots = [join(homedir(), ".agents", "skills")];
+        const alreadyInstalled = flags["force-skills"] ? new Set() : skillNamesIn(otherRoots);
+        const entries = readdirSync(claudeSkillsSource, { withFileTypes: true })
+          .filter((entry) => entry.isDirectory())
+          .sort((a, b) => (a.name < b.name ? -1 : 1));
+        const toCopy = entries.filter((entry) => !alreadyInstalled.has(entry.name));
+        note(`Installing Claude skills in ${claudeSkillsDir} (${toCopy.length} to copy, ${entries.length - toCopy.length} already present elsewhere)`);
+        if (!dryRun) {
+          for (const entry of toCopy) {
+            const result = copyInto(join(claudeSkillsSource, entry.name), join(claudeSkillsDir, entry.name), true);
+            created.push(...result.created);
+            backups.push(...result.backups);
+          }
+        }
+      }
+    }
+
+    const claudeCommandsSource = existsSync(join(home, "adapters", "opencode", "commands"))
+      ? join(home, "adapters", "opencode", "commands")
+      : join(root, "adapters", "opencode", "commands");
+    if (existsSync(claudeCommandsSource)) {
+      const claudeCommandsTarget = join(claudeDir, "commands");
+      note(`Installing Claude commands in ${claudeCommandsTarget}`);
+      if (!dryRun) {
+        const result = copyInto(claudeCommandsSource, claudeCommandsTarget, true);
+        created.push(...result.created);
+        backups.push(...result.backups);
+      }
+    }
+
+    const claudeAgentSource = existsSync(join(home, "adapters", "claude", "agent", "novahiz.md"))
+      ? join(home, "adapters", "claude", "agent", "novahiz.md")
+      : join(root, "adapters", "claude", "agent", "novahiz.md");
+    if (existsSync(claudeAgentSource)) {
+      const claudeAgentTarget = join(claudeDir, "agents", "novahiz.md");
+      note(`Installing Claude agent in ${claudeAgentTarget}`);
+      if (!dryRun) {
+        const result = copyFileWithBackup(claudeAgentSource, claudeAgentTarget, true);
+        if (result.created) created.push(result.created);
+        if (result.backup) backups.push(result.backup);
+      }
     }
   }
 
@@ -248,6 +362,7 @@ async function main() {
       version: pkgVersion,
       installedAt: new Date().toISOString(),
       harness: "opencode",
+      harnesses: [...configured],
       configDir,
       home,
       coreCopied: previous.coreCopied || coreCopied,
@@ -255,6 +370,28 @@ async function main() {
       created: mergeCreated(previous.created, created),
       backups: mergeBackups(previous.backups, backups)
     });
+  }
+
+  // Ground Claude Code and Codex on the novahiz hooks (PreToolUse gate +
+  // MCP registration). Only the selected harnesses are ever wired.
+  const hookHarnesses = configured.filter((name) => name === "claude" || name === "codex");
+  if (hookHarnesses.length > 0) {
+    if (dryRun) {
+      note(`Would configure hooks for ${hookHarnesses.join(", ")} (settings.json / hooks.json + MCP).`);
+    } else {
+      const hooksScript = join(home, "install", "hooks.mjs");
+      if (existsSync(hooksScript)) {
+        note(`Configuring hooks for ${hookHarnesses.join(", ")}`);
+        const result = spawnSync(process.execPath, [hooksScript, "--harness", hookHarnesses.join(","), "--home", home], {
+          encoding: "utf8",
+          env: { ...process.env, NOVAHIZ_HOME: home }
+        });
+        if (result.stdout) process.stdout.write(result.stdout);
+        if (result.status !== 0 && result.stderr) process.stderr.write(result.stderr);
+      } else {
+        note(`WARNING: ${hooksScript} not found, hooks were not configured.`);
+      }
+    }
   }
 
   if (!dryRun) {
@@ -382,7 +519,10 @@ async function main() {
   }
 
   // Generate opencode.jsonc
-  if (!dryRun) {
+  if (!configured.includes("opencode")) {
+    note("Skipping opencode.jsonc (opencode not selected).");
+  }
+  if (!dryRun && configured.includes("opencode")) {
     const configPath = join(configDir, "opencode.jsonc");
     if (!existsSync(configPath)) {
       note(`\nCreating ${configPath}`);
@@ -446,7 +586,10 @@ async function main() {
 
   if (!dryRun) {
     process.stdout.write(`\nNovahiz installed in ${home}.\n`);
-    process.stdout.write("Restart opencode to activate the plugin and the MCP server.\n");
+    if (configured.length > 0) {
+      const names = configured.map((name) => (name === "claude" ? "Claude Code" : name === "codex" ? "Codex" : "opencode"));
+      process.stdout.write(`Restart ${names.join(" and ")} to activate the plugin, hooks and MCP server.\n`);
+    }
     process.stdout.write("Gate can be disabled with the NOVAHIZ_GATE=off environment variable.\n");
     
     // Auto-update dependencies

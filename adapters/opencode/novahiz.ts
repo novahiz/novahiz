@@ -399,10 +399,14 @@ const DISABLED = ["off", "0", "false", "no", "disabled"].includes(ESCAPE);
 const GATE_TOOLS = new Set(
   (Array.isArray(GATE.tools) && GATE.tools.length > 0
     ? GATE.tools
-    // MINEUR#8: cron tools that carry/execute shell commands are gated too —
-    // cron_add_command_task was a bash-gate bypass. Keep in sync with
-    // DEFAULT_CONFIG.gate.tools (src/spec.ts) and novahiz.config.json.
-    : ["edit", "write", "patch", "apply_patch", "bash", "shell", "cron_add_command_task", "cron_update_command_task", "cron_update_task", "cron_run_task_now"]
+    // MINEUR#8 + 0.3.6 hardening: every cron tool that carries, creates, or
+    // executes shell commands is gated — cron_add_command_task was a bash-gate
+    // bypass, and cron_add_task / cron_add_ai_task / cron_add_http_task each
+    // accept a `command` field (HTTP/AI tasks run shell_command type too).
+    // Keep in sync with DEFAULT_CONFIG.gate.tools (src/spec.ts), install/lib.mjs,
+    // novahiz.config.example.json, the live novahiz.config.json, and
+    // docs/CONFIGURATION.md.
+    : ["edit", "write", "patch", "apply_patch", "bash", "shell", "cron_add_command_task", "cron_add_task", "cron_add_ai_task", "cron_add_http_task", "cron_update_command_task", "cron_update_task", "cron_run_task_now"]
   ).map((tool) => tool.toLowerCase())
 );
 
@@ -496,12 +500,15 @@ function buildRepairDirective(failure: GateFailure, attempt: number): string {
   }
 
   if (attempt <= 1) {
-    const steps = missing.map((skill, index) => `  ${index + 1}. skill({name:"${skill}"})`).join("\n");
+    // Always add novahiz-gate: it explains why the block happened and how to
+    // satisfy the rule, which is what the agent needs before retrying.
+    const loads = missing.includes("novahiz-gate") ? missing : [...missing, "novahiz-gate"];
+    const steps = loads.map((skill, index) => `  ${index + 1}. skill({name:"${skill}"})`).join("\n");
     return [
       `${head} Missing skills: ${missing.join(", ")}.`,
       "AUTO-REPAIR — execute now, do not ask the user, do not stop:",
       steps,
-      `  ${missing.length + 1}. Retry this exact ${failure.tool} call once, then continue the user's task where it left off.`,
+      `  ${loads.length + 1}. Retry this exact ${failure.tool} call once, then continue the user's task where it left off.`,
       "Never bypass the gate: no NOVAHIZ_GATE, no alternate tool, no shell write, no editing around the block."
     ].join("\n");
   }
@@ -727,7 +734,17 @@ export const NovahizPlugin: Plugin = async ({ client }) => {
         const sessionID = input.sessionID;
         if (!sessionID) return;
         const block = enforcementBySession.get(sessionID);
-        if (block) output.system.push(block);
+        if (!block) return;
+        // The output array can still hold the block from a previous turn:
+        // pushing again duplicated "[Novahiz enforcement]" once per turn.
+        // Drop every stale copy, then inject exactly one fresh block.
+        for (let i = output.system.length - 1; i >= 0; i--) {
+          const entry = output.system[i];
+          if (typeof entry === "string" && entry.startsWith("[Novahiz enforcement]")) {
+            output.system.splice(i, 1);
+          }
+        }
+        output.system.push(block);
       } catch (error) {
         await log("warn", `system.transform hook failed: ${String(error).slice(0, 200)}`);
       }

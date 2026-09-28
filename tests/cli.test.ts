@@ -85,6 +85,11 @@ test("roadmap command returns the category roadmap", () => {
   assert.equal(parsed.roadmap.id, "feature");
 });
 
+test("hook Stop prints a roadmap summary", () => {
+  const out = runWithInput(["hook", "--harness", "codex", "--event", "Stop"], { session_id: "stop-session" });
+  assert.ok(out.includes("roadmap steps"));
+});
+
 test("does not gate a tool that is not in gate.tools", () => {
   const parsed = JSON.parse(run(["gate", "--tool", "read", "--file", "README.md"], { NOVAHIZ_GATE: "on" }));
   assert.equal(parsed.allow, true);
@@ -167,11 +172,17 @@ test("MINEUR#7: broken DB blocks block mode but degrades warn mode", () => {
   }
 });
 
-// MINEUR#8: cron command tools must be gated in the CLI defaults, the project
-// config, and the plugin adapter fallback.
+// MINEUR#8 + 0.3.6: cron command tools must be gated in the CLI defaults, the
+// project config, and the plugin adapter fallback. cron_add_task,
+// cron_add_ai_task and cron_add_http_task all accept a `command` field, so a
+// shell command can reach an executor through them exactly like
+// cron_add_command_task did.
 test("MINEUR#8: cron command tools are gated by default", () => {
   const cronTools = [
     "cron_add_command_task",
+    "cron_add_task",
+    "cron_add_ai_task",
+    "cron_add_http_task",
     "cron_update_command_task",
     "cron_update_task",
     "cron_run_task_now"
@@ -185,7 +196,9 @@ test("MINEUR#8: cron command tools are gated by default", () => {
     assert.ok(spec.config.gate.tools.includes(tool), `spec gate.tools missing ${tool}`);
   }
   const adapter = readFileSync(join(root, "adapters", "opencode", "novahiz.ts"), "utf8");
-  assert.ok(adapter.includes('"cron_add_command_task"'), "adapter fallback missing cron tools");
+  for (const tool of cronTools) {
+    assert.ok(adapter.includes(`"${tool}"`), `adapter fallback missing ${tool}`);
+  }
 });
 
 test("gate surfaces required skills that are absent from the installed index", () => {

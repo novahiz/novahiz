@@ -171,7 +171,7 @@ export function defaultConfig() {
       // Kept for schema compatibility only — the kill-switch name is hardcoded
       // to NOVAHIZ_GATE in the CLI, MCP gate, and plugin (see src/spec.ts).
       envEscape: "NOVAHIZ_GATE",
-      tools: ["edit", "write", "patch", "apply_patch", "bash", "shell", "cron_add_command_task", "cron_update_command_task", "cron_update_task", "cron_run_task_now"]
+      tools: ["edit", "write", "patch", "apply_patch", "bash", "shell", "cron_add_command_task", "cron_add_task", "cron_add_ai_task", "cron_add_http_task", "cron_update_command_task", "cron_update_task", "cron_run_task_now"]
     },
     classify: {
       minScore: 1,
@@ -245,6 +245,12 @@ export function pruneEmptyDirs(paths, stops = []) {
       }
     }
   }
+}
+
+// Harnesses present on this machine: the CLI is on PATH or a config dir
+// exists (desktop app, or a CLI that has already been launched once).
+export function detectedHarnesses(dirs, whichFn = which) {
+  return ["opencode", "claude", "codex"].filter((name) => whichFn(name) || existsSync(dirs[name]));
 }
 
 export function which(cmd) {

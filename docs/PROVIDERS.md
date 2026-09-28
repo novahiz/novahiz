@@ -61,7 +61,7 @@ Skill and command packs:
 
 Installed skills land under `~/.agents/skills` for OpenCode. They are referenced by install command, never vendored in this repository. `dart-lang/skills` is a subset of `flutter/agent-plugins` (same 15 Dart skills); both are listed for provenance.
 
-`expo-skills` names the 17 `expo-*` skills explicitly; the 7 `eas-*` skills (paid EAS services) are excluded. When `npx skills add` cannot reach the repo (git clone failures), fetch the tarball from `codeload.github.com` and copy the skill folders into `~/.agents/skills`, then run `Novahiz sync` — that fallback was used on this machine.
+`expo-skills` names the 19 `expo-*` skills explicitly; the 7 `eas-*` skills (paid EAS services) are excluded. When `npx skills add` cannot reach the repo (git clone failures), fetch the tarball from `codeload.github.com` and copy the skill folders into `~/.agents/skills`, then run `Novahiz sync` — that fallback was used on this machine.
 
 `impeccable` is the one design skill referenced as a provider: gate rule R14 requires it, and it installs from upstream under its own Apache-2.0 terms instead of being vendored. The other design and text skills ship as ordinary Novahiz skills under `skills/`, not as providers.
 

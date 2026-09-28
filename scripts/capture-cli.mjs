@@ -46,6 +46,11 @@ const INVOCATIONS = [
   ["gate-text", ["gate", "--tool", "edit", "--file", "README.md", "--categories", "docs-writing"]],
   ["gate-style", ["gate", "--tool", "edit", "--file", "src/app.css", "--categories", "code"]],
   ["gate-read", ["gate", "--tool", "read", "--file", "README.md"]],
+  // Hook captures: names must match the observed outcome. A short "texte"
+  // edit is tier-trivial and allowed; PROSE content trips the docs rules.
+  ["hook-codex-allow", ["hook", "--harness", "codex", "--event", "PreToolUse", "--categories", "docs-writing"], { tool_name: "Write", tool_input: { file_path: "README.md", content: "texte" }, session_id: "capture" }],
+  ["hook-codex-deny", ["hook", "--harness", "codex", "--event", "PreToolUse", "--categories", "audit"], { tool_name: "Bash", tool_input: { command: "rm -rf /" }, session_id: "capture" }],
+  ["hook-claude-deny", ["hook", "--harness", "claude", "--event", "PreToolUse", "--categories", "docs-writing"], { tool_name: "Write", tool_input: { file_path: "README.md", content: "// Ce commentaire explique le calcul du total de la commande pour le client" }, session_id: "capture" }]
 ];
 
 function parse(argv) {

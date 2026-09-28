@@ -4,7 +4,7 @@ A roadmap is an ordered list of steps attached to a category. The classifier pic
 
 ## The six-stage pipeline
 
-Eight categories run the same pipeline: `code`, `debug`, `browser`, `design-ui`, `database-supabase`, `planning`, `devops`, and `data`. Every stage is a skill, and `novahiz-planner` is the orchestrator that fixes the order.
+Eight categories run the same pipeline: `code`, `debug`, `browser`, `design-ui`, `database-supabase`, `planning`, `devops`, and `data`. Every stage is a skill, and the order comes from `catalog/categories.json` — `novahiz-planner` only tells the agent to follow it.
 
 `flutter` (`flutter-feature`) follows the same six stages and inserts three non-optional quality skills: `flutter-apply-architecture-best-practices`, `dart-run-static-analysis` before implement, then `dart-add-unit-test` after implement, plus a final self-review. On `lite` and `trivial` tiers those architecture/analyze/test steps are filtered like every other roadmap (lite keeps only implement and converge).
 
@@ -19,13 +19,13 @@ Eight categories run the same pipeline: `code`, `debug`, `browser`, `design-ui`,
 
 Stages 1 to 4 write no application file; they produce a plan and decisions. Clarify sends you back to plan when an answer changes the architecture, and converge sends you back to tasks when it finds a gap.
 
-`review` runs analyse and then the diff review. `audit` and `test` keep their own steps and end on a converge. `research` drives a single gather step.
+`review` runs analyse and then the diff review. `audit` and `test` keep their own steps and end on a converge; `audit` then reports and finishes with an advisory `novahiz-audit` session-compliance pass. `research` drives a single gather step. `devops` adds a final advisory `release` step (`novahiz-release`) — it prepares changelog, bump and tag, but pushing and publishing stay a user decision. `design-ui` offers an advisory `tokens` step (`design-token-pipeline`) between tasks and design-craft, for prompts that involve a token system.
 
 ## Expo (progressive gate)
 
 `expo` (`expo-feature`, 11 steps) runs the six stages and inserts four **optional** `expo-*` skills between analyse and implement: `expo-router` (routes, links, modals), `expo-module` (native code), `expo-dev-client` (dev client / EAS build), `expo-upgrade` (SDK upgrades). Optional steps guide without blocking — only the pipeline skills are enforced — and `expo-overview` loads through `defaultSkills` as the entry point. `flutter` is excluded through negative keywords, so a prompt naming both picks the right category.
 
-Task-to-skill routing, the full `expo-*` pack (17 skills, `eas-*` paid services excluded):
+Task-to-skill routing, the full `expo-*` pack (19 skills, `eas-*` paid services excluded):
 
 | Task | Skill |
 |------|-------|
@@ -33,6 +33,7 @@ Task-to-skill routing, the full `expo-*` pack (17 skills, `eas-*` paid services 
 | Routes, links, modals, tabs | `expo-router` |
 | Folder structure, file-based layout | `expo-project-structure` |
 | Native modules (Swift / Kotlin) | `expo-module` |
+| Migrate an existing module to the v2 macro API | `expo-migrate-module` |
 | Dev client, EAS build setup | `expo-dev-client` |
 | SDK upgrade | `expo-upgrade` |
 | Animations, gestures | `expo-animation` |
@@ -46,6 +47,7 @@ Task-to-skill routing, the full `expo-*` pack (17 skills, `eas-*` paid services 
 | Example patterns | `expo-examples` |
 | App Clip (iOS) | `expo-app-clip` |
 | Feedback / telemetry control | `expo-skill-feedback` |
+| Evaluate a skill with runtime screenshots | `expo-skill-eval` |
 
 ## Model
 

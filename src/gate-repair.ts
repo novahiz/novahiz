@@ -67,12 +67,15 @@ export function buildRepairDirective(failure: GateFailure, attempt: number): str
   }
 
   if (attempt <= 1) {
-    const steps = missing.map((skill, index) => `  ${index + 1}. skill({name:"${skill}"})`).join("\n");
+    // Always add novahiz-gate: it explains why the block happened and how to
+    // satisfy the rule, which is what the agent needs before retrying.
+    const loads = missing.includes("novahiz-gate") ? missing : [...missing, "novahiz-gate"];
+    const steps = loads.map((skill, index) => `  ${index + 1}. skill({name:"${skill}"})`).join("\n");
     return [
       `${head} Missing skills: ${missing.join(", ")}.`,
       "AUTO-REPAIR — execute now, do not ask the user, do not stop:",
       steps,
-      `  ${missing.length + 1}. Retry this exact ${failure.tool} call once, then continue the user's task where it left off.`,
+      `  ${loads.length + 1}. Retry this exact ${failure.tool} call once, then continue the user's task where it left off.`,
       "Never bypass the gate: no NOVAHIZ_GATE, no alternate tool, no shell write, no editing around the block."
     ].join("\n");
   }

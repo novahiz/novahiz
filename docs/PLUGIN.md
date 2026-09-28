@@ -87,7 +87,15 @@ Injects the enforcement block into the system prompt on every model turn:
 ```typescript
 "experimental.chat.system.transform": async (input, output) => {
   const block = enforcementBySession.get(input.sessionID);
-  if (block) output.system.push(block);
+  if (!block) return;
+  // Replace, never stack: one fresh block per prompt, stale copies dropped.
+  for (let i = output.system.length - 1; i >= 0; i--) {
+    const entry = output.system[i];
+    if (typeof entry === "string" && entry.startsWith("[Novahiz enforcement]")) {
+      output.system.splice(i, 1);
+    }
+  }
+  output.system.push(block);
 }
 ```
 

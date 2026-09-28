@@ -5,10 +5,10 @@
 Obsidian (`C:\Users\hiz\Documents\Novahiz`) is the user's second memory.
 
 ### Rules
-1. When the user asks to **save / memorize / update obsidian memory**, load the `memory-save` skill and follow its procedure without exception.
+1. When the user asks to **save / memorize / update obsidian memory**, load the `memory` skill (alias for `novahiz-memory`) and follow its procedure without exception.
 2. Determine the target folder **only** from the `Novahiz\_meta\routing.md` table (source of truth). Never guess. When ambiguous, ask the user.
 3. Display the chosen path before writing.
-4. Never write to `index.md`, `log.md`, `hot.md`, `.manifest.json`, `_meta/`, or `.obsidian/` **except through a dedicated maintenance skill** (wiki-ingest/wiki-lint/wiki-status for index/log/hot/manifest; graph-colorize for `.obsidian/graph.json`, with mandatory backup). The `memory-save` skill writes only to the targeted content page.
+4. Never write to `index.md`, `log.md`, `hot.md`, `.manifest.json`, `_meta/`, or `.obsidian/`. No installed skill covers maintenance of those files: if the user asks for it, do it step by step in front of them, with a backup first for anything under `.obsidian/`. The `memory` skill writes only to the targeted content page.
 5. Never create a root folder on your own. Every new category requires user agreement and an update to `routing.md`.
 6. Include mandatory frontmatter: `title, category, tags, sources, created, updated, summary`. Use tags from `_meta/taxonomy.md`.
 7. Link pages with `[[wikilinks]]`. Merge rather than duplicate.

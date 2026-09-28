@@ -7,6 +7,7 @@ import { expandHome } from "./spec.ts";
 
 import { commandCheck, commandSync, commandClassify, commandSkills, commandCategories, commandRules, commandSessionLoad, commandSessionState, commandCatalog, commandRoadmap, commandStep, commandProviders, commandDeps, commandDispatch } from "./commands/inspect.ts";
 import { commandGate } from "./commands/gate.ts";
+import { commandHook } from "./commands/hook.ts";
 import { commandReport } from "./commands/report.ts";
 import { commandTask } from "./commands/task.ts";
 import { commandClean } from "./commands/clean.ts";
@@ -46,7 +47,7 @@ function usage(): void {
       "init                    Initialize Novahiz in the current project",
       "setup                   Install Novahiz (config, skills, catalog)",
       "autodocs [--flush]      Sync docs and memory after major project changes",
-      "doctor                  Check that everything works",
+      "doctor [--deep]        Check that everything works (--deep also probes each MCP server live)",
       "status                  Show current classification and gate state",
       "task new <title>        Start a new tracked task",
       "task status             Show task progress",
@@ -66,6 +67,7 @@ function usage(): void {
       "Advanced (for power users and adapters):",
       "  classify <text>       Classify a prompt",
       "  gate --tool <t> --file <f>  Check if an edit is allowed",
+      "  hook [--harness h] [--event e]  Claude/Codex tool-use gate hook",
       "  skills [--category c] List loaded skills",
       "  catalog <query>       Search the skill catalog",
       "  roadmap --category c  Show execution roadmap",
@@ -139,7 +141,9 @@ function runUpgrade(parsed: Parsed): void {
   process.stdout.write("\nUpgraded! Restart opencode to apply changes.\n");
 }
 
-function main(argv: string[]): void {
+// Async so `doctor --deep` can await its MCP probes; every other command
+// still returns void, which await handles transparently.
+async function main(argv: string[]): Promise<void> {
   const parsed = parse(argv);
   if (typeof parsed.flags.home === "string" && parsed.flags.home.length > 0) {
     process.env.NOVAHIZ_HOME = resolve(expandHome(parsed.flags.home));
@@ -184,6 +188,8 @@ function main(argv: string[]): void {
       return commandClassify(parsed);
     case "gate":
       return commandGate(parsed);
+    case "hook":
+      return commandHook(parsed);
     case "skills":
       return commandSkills(parsed);
     case "categories":
@@ -219,7 +225,7 @@ function main(argv: string[]): void {
 }
 
 try {
-  main(process.argv.slice(2));
+  await main(process.argv.slice(2));
 } catch (error) {
   const message = error instanceof Error ? error.message : String(error);
   process.stderr.write(`novahiz: ${message}\n`);

@@ -265,7 +265,7 @@ type GateInput = {
   spec: Spec;
 };
 
-type GateResult = {
+export type GateResult = {
   allow: boolean;
   ignored: boolean;
   fileClass: FileClass;

@@ -507,6 +507,14 @@
           "id": "report",
           "label": "Report findings",
           "kind": "advisory"
+        },
+        {
+          "id": "audit",
+          "label": "Session compliance audit",
+          "kind": "advisory",
+          "requireSkills": [
+            "novahiz-audit"
+          ]
         }
       ]
     }
@@ -789,6 +797,14 @@
           "kind": "skill",
           "requireSkills": [
             "novahiz-task"
+          ]
+        },
+        {
+          "id": "tokens",
+          "label": "Design tokens (when a token system is involved)",
+          "kind": "advisory",
+          "requireSkills": [
+            "design-token-pipeline"
           ]
         },
         {
@@ -1106,7 +1122,15 @@
       "nginx",
       "infra",
       "monitoring",
-      "eas"
+      "eas",
+      "release",
+      "cut a release",
+      "publish",
+      "npm publish",
+      "version bump",
+      "bump version",
+      "tag a version",
+      "changelog"
     ],
     "defaultSkills": [
       "eas-workflows",
@@ -1167,6 +1191,14 @@
           "kind": "verify",
           "requireSkills": [
             "novahiz-converge"
+          ]
+        },
+        {
+          "id": "release",
+          "label": "Ship a release",
+          "kind": "advisory",
+          "requireSkills": [
+            "novahiz-release"
           ]
         }
       ]

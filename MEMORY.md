@@ -4,7 +4,7 @@ Durable facts about this repository. The change history lives in [CHANGELOG.md](
 
 ## What it is
 
-An enforcement and execution layer for coding agents. It classifies a request into categories, attaches a roadmap, and gates edits until the roadmap's skills are loaded. It runs on opencode as a plugin plus an MCP server. Other clients can use the MCP server, without the gate.
+An enforcement and execution layer for coding agents. It classifies a request into categories, attaches a roadmap, and gates edits until the roadmap's skills are loaded. It runs on opencode as a plugin plus an MCP server, on Claude Code as a `PreToolUse` hook (`novahiz hook --harness claude`), and on Codex as blocking hooks; other clients can use the MCP server, without the gate.
 
 ## Invariants
 
@@ -15,6 +15,7 @@ An enforcement and execution layer for coding agents. It classifies a request in
 - **Providers are referenced, never vendored** (`catalog/providers.json`).
 - **Every Novahiz skill exists twice**: the source under `skills/` and the installed copy in the harness config directory. When several scanned roots carry the same skill id, the catalog keeps the copy whose `sourcePath` sorts first alphabetically. `~/.config/humanizer` beats `skills/humanizer`, and `skills/` beats `~/.config/opencode/skills`. That is why `sync` has to run after a skill changes.
 - **The opencode adapter exists twice**: `adapters/opencode/novahiz.ts` in the repository, and its copy in `~/.config/opencode/plugins/`. opencode runs the installed copy, so editing the repository file changes nothing until that copy is refreshed (the installer does it) and opencode restarts.
+- **Only selected harnesses are configured or installed** (2026-09-28): `install.mjs` settles the list (interactive `select`, `--harness`, or `--yes` = every detected harness, else fallback `opencode`), writes assets and hooks only for those, and runs `npm install -g` only for a selected harness that is entirely absent (no config directory and no binary). `doctor` adds `claude-*` checks only when a Claude config directory exists, and they are never blocking.
 
 ## Configuration
 

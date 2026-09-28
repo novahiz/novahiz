@@ -59,6 +59,18 @@ test("plugin source registers autodocs hooks", () => {
   assert.ok(source.includes("tool.execute.after"), "tool.execute.after markDirty hook");
 });
 
+test("system transform replaces stale enforcement blocks instead of stacking them", () => {
+  const source = pluginSource();
+  assert.ok(
+    source.includes('entry.startsWith("[Novahiz enforcement]")'),
+    "enforcement dedup guard must exist"
+  );
+  assert.ok(
+    source.includes("output.system.splice"),
+    "stale enforcement copies must be removed before push"
+  );
+});
+
 test("installed plugin does not import a non-existent ../../src path", () => {
   const installed = installedPluginPath();
   if (!existsSync(installed)) return; // no install yet — skip
@@ -101,12 +113,13 @@ test("README counts match catalog (17 categories, 11 rules, 11 providers)", () =
   assert.equal(Array.isArray(provList) ? provList.length : 0, 11);
 
   const readme = readFileSync(join(root, "README.md"), "utf8");
-  assert.ok(readme.includes("95 skills"), "README skill count");
+  assert.ok(readme.includes("96 skills"), "README skill count");
+  assert.ok(!/95 skills/.test(readme), "stale 95 skills");
   assert.ok(!/84 skills/.test(readme), "stale 84 skills");
   assert.ok(!/42 skills/.test(readme), "stale 42 skills");
   assert.ok(readme.includes("11 gate rules"), "README rule count");
   assert.ok(readme.includes("7 MCP providers"), "README provider count");
-  assert.ok(readme.includes("12 health checks") || readme.includes("12-check"), "README doctor count");
+  assert.ok(readme.includes("13-check"), "README doctor count");
   assert.ok(!/185 skills/.test(readme), "stale 185 skills");
   assert.ok(!/173 skills/.test(readme), "stale 173 skills");
   assert.ok(!/10 gate rules/.test(readme), "stale 10 gate rules");
