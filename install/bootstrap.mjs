@@ -87,7 +87,7 @@ function generateOpenCodeJson(configDir, NovahizHome) {
     mcp: {
       context7: {
         type: "local",
-        command: ["context7-mcp", "--transport", "stdio"],
+        command: ["npx", "-y", "@upstash/context7-mcp@4.1.1", "--transport", "stdio"],
         enabled: true,
       },
       narsil: {
@@ -100,7 +100,7 @@ function generateOpenCodeJson(configDir, NovahizHome) {
       // (scheduler-mcp local venv); no npm install, no template entry.
       playwright: {
         type: "local",
-        command: ["npx", "@playwright/mcp@latest", "--browser=msedge"],
+        command: ["npx", "-y", "@playwright/mcp@0.0.82", "--browser=msedge"],
         enabled: true,
       },
       dart: {
@@ -189,10 +189,11 @@ async function main() {
   log("");
   log("Installing MCP servers...");
   const mcpServers = [
-    { pkg: "@upstash/context7-mcp", bin: "context7-mcp" },
     { pkg: "narsil-mcp", bin: "narsil-mcp" },
     { pkg: "security-mcp", bin: "security-mcp" },
   ];
+  // context7 is invoked via `npx -y @upstash/context7-mcp@4.1.1` (pinned in
+  // the generated config), so no global shim is installed for it.
   // `cron` has no npm package: the plugin registers it from catalog/providers.json
   // (scheduler-mcp local venv, see docs/PROVIDERS.md). Disabled by default in
   // fresh configs — users opt in explicitly.

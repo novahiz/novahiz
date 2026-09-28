@@ -409,9 +409,13 @@ const GATE_TOOLS = new Set(
 type RunResult = { status: number; stdout: string; stderr: string; spawnError?: string };
 
 // C1: timeout prevents a hung CLI from freezing the whole OpenCode process.
+// Raised 10 s -> 30 s (audit 2026-09-25, MEDIUM): gate/CLI runs legitimately
+// exceeded 10 s on 23-24/09 and the cap turned them into 14 spurious
+// fail-closed refusals. Still bounded, so a truly hung CLI cannot freeze
+// OpenCode for more than 30 s.
 // C2: maxBuffer caps output; oversized output is treated as a gate failure,
 // never as truncated-then-allowed.
-const RUN_TIMEOUT_MS = 10_000;
+const RUN_TIMEOUT_MS = 30_000;
 const RUN_MAX_BUFFER = 1_048_576;
 
 function run(args: string[], input?: string): RunResult {

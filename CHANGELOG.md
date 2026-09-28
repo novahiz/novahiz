@@ -4,6 +4,22 @@ All notable changes to this project are documented in this file.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.5] - 2026-09-28
+
+### Fixed
+
+- Gate availability (audit 2026-09-25, MEDIUM): `RUN_TIMEOUT_MS` raised from 10 s to 30 s in the
+  OpenCode plugin. Gate/CLI runs legitimately exceeded 10 s on 23-24/09 and the cap turned them into
+  14 spurious fail-closed refusals; a truly hung CLI stays bounded.
+- Slot ids are validated at both MCP entry points (`assertSlotId` in `parseSlotInput` and `getSlot`):
+  empty ids, ids longer than 128 chars and ids carrying `.`, `/` or `\` fail with `E_SLOT_ID` instead
+  of surfacing as "slot inconnu" (audit, LOW).
+- Fresh installs pin their MCP commands instead of floating: context7 runs as
+  `npx -y @upstash/context7-mcp@4.1.1` - no more global `context7-mcp` shim - and playwright as
+  `npx -y @playwright/mcp@0.0.82`, matching `catalog/providers.json` (audit, LOW).
+- `.gitignore` excludes `.mcp/` so a security-mcp report generated from the repo can never be
+  tracked again (audit, MEDIUM on `.mcp/audit/tool-calls.jsonl`).
+
 ## [0.3.4] - 2026-09-28
 
 ### Added

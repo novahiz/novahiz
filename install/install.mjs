@@ -296,10 +296,11 @@ async function main() {
 
   // Install MCP servers globally
   const mcpServers = [
-    { pkg: "@upstash/context7-mcp", bin: "context7-mcp", name: "context7" },
     { pkg: "narsil-mcp", bin: "narsil-mcp", name: "narsil" },
     { pkg: "security-mcp", bin: "security-mcp", name: "security" },
   ];
+  // context7 is invoked via `npx -y @upstash/context7-mcp@4.1.1` (pinned in
+  // the generated config), so no global shim is installed for it.
   // `cron` has no npm package and ships disabled (local scheduler clone only);
   // enable it after the local setup documented in docs/PROVIDERS.md.
 
@@ -393,7 +394,7 @@ async function main() {
         "mcp": {
           "context7": {
             "type": "local",
-            "command": ["context7-mcp", "--transport", "stdio"],
+            "command": ["npx", "-y", "@upstash/context7-mcp@4.1.1", "--transport", "stdio"],
             "enabled": true
           },
           "narsil": {
@@ -406,7 +407,7 @@ async function main() {
           // after the local scheduler clone setup (docs/PROVIDERS.md).
           "playwright": {
             "type": "local",
-            "command": ["npx", "@playwright/mcp@latest", "--browser=msedge"],
+            "command": ["npx", "-y", "@playwright/mcp@0.0.82", "--browser=msedge"],
             "enabled": true
           },
           "dart": {

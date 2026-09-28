@@ -122,6 +122,16 @@ test("parseSlotInput validates title and content", () => {
   assert.deepEqual(parsed.tags, ["a", "1"]);
 });
 
+test("slot ids reject path characters (audit 2026-09-25 LOW)", () => {
+  assert.throws(() => parseSlotInput({ title: "t", content: "c", slotId: "../evil" }), /E_SLOT_ID|slot id/);
+  assert.throws(() => parseSlotInput({ title: "t", content: "c", slotId: "a/b" }), /E_SLOT_ID|slot id/);
+  assert.throws(() => parseSlotInput({ title: "t", content: "c", slotId: "a\\b" }), /E_SLOT_ID|slot id/);
+  assert.throws(() => parseSlotInput({ title: "t", content: "c", slotId: "" }), /E_SLOT_ID|slot id/);
+  assert.throws(() => parseSlotInput({ title: "t", content: "c", slotId: "x".repeat(129) }), /E_SLOT_ID|slot id/);
+  assert.throws(() => getSlot("../x", root), /E_SLOT_ID|slot id/);
+  assert.equal(parseSlotInput({ title: "t", content: "c", slotId: "slot-001" }).slotId, "slot-001");
+});
+
 test("writeEntry rejects empty or oversized content", () => {
   assert.throws(() => writeEntry({ root, title: "t", content: "   " }), /E_CONTENT|contenu/);
   assert.throws(

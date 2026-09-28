@@ -21,3 +21,4 @@ after-full.txt
 prov.txt
 test-results.txt
 project-memory/
+.mcp/

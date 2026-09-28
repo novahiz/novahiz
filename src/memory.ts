@@ -465,6 +465,7 @@ export function listSlots(root?: string): MemoryIndex {
 }
 
 export function getSlot(id: string, root?: string): SlotFile {
+  assertSlotId(id);
   const dir = root && root.length > 0 ? root : memoryRoot();
   const index = ensureMemoryRoot(dir);
   const meta = index.slots.find((slot) => slot.id === id);
@@ -499,6 +500,23 @@ export function rebuildIndex(root: string): MemoryIndex {
   return writeIndex(root, { version: 1, updated: nowIso(), slots });
 }
 
+const SLOT_ID_MAX_LEN = 128;
+
+// Audit 2026-09-25, LOW: slot ids are index keys, not paths — they must never
+// carry path segments. getSlot/parseSlotInput already refuse unknown ids via
+// E_SLOT; this adds an explicit format check so a crafted id fails on its own
+// terms (defense in depth, and a clearer error than "slot inconnu").
+export function assertSlotId(id: string): string {
+  const hasPathChar = [...id].some((ch) => {
+    const c = ch.charCodeAt(0);
+    return c === 47 || c === 92 || c === 0;
+  });
+  if (id.length === 0 || id.length > SLOT_ID_MAX_LEN || id.includes("..") || hasPathChar) {
+    throw memError("E_SLOT_ID", `Invalid params: slot id illégal: ${JSON.stringify(id)}`);
+  }
+  return id;
+}
+
 export function parseSlotInput(args: Record<string, unknown>): WriteEntryInput {
   const title = typeof args?.title === "string" ? args.title : "";
   const content = typeof args?.content === "string" ? args.content : "";
@@ -509,7 +527,7 @@ export function parseSlotInput(args: Record<string, unknown>): WriteEntryInput {
     content,
     description: typeof args?.description === "string" ? args.description : undefined,
     tags: Array.isArray(args?.tags) ? args.tags.map(String) : undefined,
-    slotId: typeof args?.slotId === "string" ? args.slotId : undefined,
+    slotId: typeof args?.slotId === "string" ? assertSlotId(args.slotId) : undefined,
     root: typeof args?.root === "string" ? args.root : undefined
   };
 }
