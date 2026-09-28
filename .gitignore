@@ -7,6 +7,7 @@ novahiz.sqlite.stale-*
 Novahiz.sqlite
 Novahiz.sqlite-*
 .graft/
+graft/
 build/
 dist/
 .ci-home/
