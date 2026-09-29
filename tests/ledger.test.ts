@@ -61,6 +61,19 @@ test("creates a task and finds it as active", () => {
   assert.equal(activeTask(db, task.session_id as string)?.id, task.id);
 });
 
+test("G2: the sessionless fallback only resolves to unbound tasks", () => {
+  const bound = makeTask("Session bound plan");
+  const unbound = createTask(db, { title: "Sessionless plan", id: "t_g2_unbound" });
+  assert.equal(unbound.session_id, null);
+  // A session caller still resolves to its own task...
+  assert.equal(activeTask(db, bound.session_id as string)?.id, bound.id);
+  // ...and the sessionless world never grabs a session-bound task: it only
+  // sees session_id IS NULL tasks (the newest one here).
+  const found = activeTask(db);
+  assert.equal(found?.session_id, null);
+  assert.equal(found?.id, unbound.id);
+});
+
 test("adds todos with sequence numbers and defaults", () => {
   const task = makeTask("Plan work");
   const created = addTodos(db, task.id, [

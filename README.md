@@ -238,7 +238,7 @@ flowchart TD
 
 - **Propriété exclusive des fichiers** — deux work packets ne peuvent pas éditer le même fichier
 - **Budget d'itération** — chaque todo a un max (par défaut : 12) avant escalade
-- **Cadence de review** — review forcée après 3 éditions de fichiers détenus par un todo ou 2 todos complétés (les éditions hors périmètre ne comptent pas)
+- **Cadence de review** — review forcée après 3 éditions de fichiers détenus par un todo ou 2 todos complétés (les éditions hors du projet de la tâche ou hors du périmètre d'un todo ne comptent pas)
 - **Preuve obligatoire** — les étapes verify exigent une évidence avant complétion
 
 ---

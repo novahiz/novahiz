@@ -464,6 +464,53 @@ test("enforceLedgerChecks advances the cadence only for paths an open todo owns"
   }
 });
 
+test("F: a project-bound task ignores edits outside its project root", () => {
+  const tmp = mkdtempSync(join(tmpdir(), "novahiz-gate-project-"));
+  const db = openDb(join(tmp, "project.sqlite"));
+  try {
+    const projA = join(tmp, "proj-a");
+    const task = createTask(db, { title: "Project A plan", sessionId: "s_project_test", projectRoot: projA });
+    addTodos(db, task.id, [{ label: "ts work", owner: "**/*.ts" }]);
+    const run = (filePath: string) => {
+      const result = evaluateGate({ tool: "edit", filePath, spec, installedSkills: null });
+      return enforceLedgerChecks(db, {
+        session: "s_project_test",
+        tool: "edit",
+        paths: [filePath],
+        categories: [],
+        results: [{ path: filePath, ...result }],
+        spec,
+        gateConfig: spec.config.gate
+      });
+    };
+    const inside = join(projA, "src", "app.ts");
+    const outside = join(tmp, "proj-b", "src", "app.ts");
+    // Another project's edits never advance this plan's cadence...
+    run(outside);
+    run(outside);
+    run(outside);
+    assert.equal(getTask(db, task.id)?.edits_since_review, 0);
+    // ...while owned files inside the project still count toward review.
+    run(inside);
+    run(inside);
+    run(inside);
+    assert.equal(getTask(db, task.id)?.edits_since_review, 3);
+    assert.equal(reviewDue(db, task.id).due, true);
+    // Due: an inside path is blocked, a foreign-project path never is.
+    const blocked = run(inside);
+    assert.ok(blocked.reasons.some((reason) => reason.includes("plan review due")), blocked.reasons.join("; "));
+    const foreign = run(outside);
+    assert.ok(!foreign.reasons.some((reason) => reason.includes("plan review due")), foreign.reasons.join("; "));
+  } finally {
+    db.close();
+    try {
+      rmSync(tmp, { recursive: true, force: true });
+    } catch {
+      // best effort cleanup
+    }
+  }
+});
+
 test("P2-A: rules stay coherent with the real categories and globs", () => {
   const rules = JSON.parse(readFileSync(join(root, "catalog", "rules.json"), "utf8")) as Array<{
     id: string;

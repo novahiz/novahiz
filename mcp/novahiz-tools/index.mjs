@@ -134,6 +134,7 @@ const TOOLS = [
         id: { type: "string", description: "Task id (new) or todo/task id (start, done, block, drop)." },
         task: { type: "string", description: "Task id. Defaults to the active task." },
         session: { type: "string", description: "Session id used to scope the active task." },
+        projectRoot: { type: "string", description: "Project directory a new task belongs to (action new). Omitted = unscoped legacy task." },
         label: { type: "string", description: "Todo label for action todo." },
         kind: { type: "string", enum: ["read", "edit", "verify", "delegate"], description: "Todo kind." },
         acceptance: { type: "string", description: "Acceptance criterion for the todo." },
@@ -393,36 +394,37 @@ function callTool(name, args) {
     // Same shape as the CLI's results array: path alongside the GateResult,
     // on the same object so enforceLedgerChecks mutates this verdict in place.
     result.path = file;
-    if (session.length > 0) {
-      let mdb = null;
+    // Parity with the CLI: an empty session no longer skips this block. The
+    // sessionless call still enforces unbound tasks (activeTask) and fails
+    // closed on DB errors; it simply writes no enforcement_log row.
+    let mdb = null;
+    try {
+      mdb = openDb(resolve(spec.root, spec.config.dbPath));
+    } catch {
+      mdb = null;
+    }
+    if (mdb) {
       try {
-        mdb = openDb(resolve(spec.root, spec.config.dbPath));
-      } catch {
-        mdb = null;
-      }
-      if (mdb) {
-        try {
-          const enforced = enforceLedgerChecks(mdb, {
-            session,
-            tool: String(args?.tool ?? "edit"),
-            paths: [file],
-            categories,
-            results: [result],
-            spec,
-            gateConfig: spec.config.gate
-          });
-          if (enforced.reasons.length > 0) {
-            result.reasons.push(...enforced.reasons);
-            result.allow = false;
-          }
-          if (enforced.reviewWarning) result.reasons.push(enforced.reviewWarning);
-        } finally {
-          mdb.close();
+        const enforced = enforceLedgerChecks(mdb, {
+          session,
+          tool: String(args?.tool ?? "edit"),
+          paths: [file],
+          categories,
+          results: [result],
+          spec,
+          gateConfig: spec.config.gate
+        });
+        if (enforced.reasons.length > 0) {
+          result.reasons.push(...enforced.reasons);
+          result.allow = false;
         }
-      } else {
-        result.allow = false;
-        result.reasons.push("DB open failed: ledger enforcement unavailable");
+        if (enforced.reviewWarning) result.reasons.push(enforced.reviewWarning);
+      } finally {
+        mdb.close();
       }
+    } else {
+      result.allow = false;
+      result.reasons.push("DB open failed: ledger enforcement unavailable");
     }
     // A gate refusal is a normal verdict, not an execution error.
     return toolResult(result, false);
@@ -497,7 +499,9 @@ function callTool(name, args) {
     const db = openDb(resolve(spec.root, spec.config.dbPath));
     try {
       if (action === "new") {
-        return toolResult(createTask(db, { title: String(args?.title ?? ""), id: args?.id ? String(args.id) : undefined, sessionId: session }));
+        // F: projectRoot scopes the new task to a project when the caller knows
+        // it; omitted = unscoped legacy task (no path filtering).
+        return toolResult(createTask(db, { title: String(args?.title ?? ""), id: args?.id ? String(args.id) : undefined, sessionId: session, projectRoot: args?.projectRoot ? String(args.projectRoot) : undefined }));
       }
       if (action === "plan") {
         const taskId = args?.task ? String(args.task) : activeTask(db, session)?.id;

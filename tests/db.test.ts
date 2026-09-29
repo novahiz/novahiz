@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { DatabaseSync, openDb } from "../src/db.ts";
+import { DatabaseSync, openDb, SCHEMA_VERSION } from "../src/db.ts";
 
 const dbPath = join(tmpdir(), `novahiz-migrate-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}.sqlite`);
 
@@ -11,7 +11,7 @@ test("openDb records the schema version and the log indexes", () => {
   const ownPath = join(tmpdir(), `novahiz-schema-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}.sqlite`);
   const db = openDb(ownPath);
   const version = db.prepare("PRAGMA user_version").get() as { user_version: number };
-  assert.equal(version.user_version, 1);
+  assert.equal(version.user_version, SCHEMA_VERSION);
   const names = (
     db.prepare("SELECT name FROM sqlite_master WHERE type = 'index'").all() as Array<{ name: string }>
   ).map((row) => row.name);
@@ -50,7 +50,7 @@ test("openDb backfills the task review columns on an older database", () => {
   );
   db.close();
 
-  for (const column of ["revision", "reviewed_at", "edits_since_review", "todos_since_review"]) {
+  for (const column of ["revision", "reviewed_at", "edits_since_review", "todos_since_review", "project_root"]) {
     assert.ok(columns.has(column), `expected tasks.${column} to be backfilled`);
   }
 });

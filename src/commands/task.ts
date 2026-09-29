@@ -352,7 +352,9 @@ function taskNew(parsed: Parsed, db: ReturnType<typeof openDb>, session: string,
     return;
   }
   const id = asString(parsed.flags.id) || undefined;
-  const task = createTask(db, { title, id, sessionId: session || undefined });
+  // F: the shell's cwd is the project this plan belongs to — record it so the
+  // ledger only counts and blocks edits inside that project.
+  const task = createTask(db, { title, id, sessionId: session || undefined, projectRoot: process.cwd() });
   print({ task, todos: [] });
   return;
     }

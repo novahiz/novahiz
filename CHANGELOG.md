@@ -9,6 +9,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 ### Changed
 
 - Review cadence is owner-scoped: `enforceLedgerChecks` advances a plan's review counter only when an open todo with an explicit owner pattern owns the target file (`ownedByOpenTodo` in `src/ledger.ts`, condition in `src/gate.ts`) — edits on unrelated paths from another session or project no longer push that plan into a review block, and `reviewBlockReason` reuses the same helper.
+- The sessionless ledger world is sealed: `activeTask` without a session now resolves only tasks with `session_id IS NULL`, so a foreign sessionless run can no longer grab, count or block a session-bound plan — session callers and sessionless callers never see each other's tasks.
+- Tasks are project-scoped: `tasks.project_root` (schema version 2, backfilled as `NULL` = legacy unfiltered) is set by `novahiz task new` (process cwd) and by MCP `novahiz_task` new (`projectRoot` argument), and `enforceLedgerChecks` skips any target outside that project for both the review cadence and the review block — one project's plan never counts or freezes another project's files.
+- MCP `novahiz_gate` enforces the ledger on every call like the CLI: the empty-session guard is gone. An empty session now means the sessionless world (no `enforcement_log` row, unbound tasks still enforced), and a DB failure still fails closed.
 - README translated to French (the repository landing page now reads in French); counts and commands unchanged, `docs/` stays English.
 
 ## [0.3.7] - 2026-09-28
