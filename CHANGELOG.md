@@ -8,6 +8,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ### Changed
 
+- Review cadence is owner-scoped: `enforceLedgerChecks` advances a plan's review counter only when an open todo with an explicit owner pattern owns the target file (`ownedByOpenTodo` in `src/ledger.ts`, condition in `src/gate.ts`) — edits on unrelated paths from another session or project no longer push that plan into a review block, and `reviewBlockReason` reuses the same helper.
 - README translated to French (the repository landing page now reads in French); counts and commands unchanged, `docs/` stays English.
 
 ## [0.3.7] - 2026-09-28

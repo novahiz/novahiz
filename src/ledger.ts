@@ -472,6 +472,22 @@ export function reviewDue(db: DatabaseSync, taskId: string, policy: ReviewPolicy
 }
 
 /**
+ * Does an open todo of this task own filePath through a non-empty owner
+ * pattern? Blank owners own everything (ownedBy semantics) and are excluded
+ * on purpose: review mechanics — cadence and block — stay tied to explicit
+ * ownership, so edits from another session or project never advance this plan.
+ */
+export function ownedByOpenTodo(db: DatabaseSync, taskId: string, filePath: string): boolean {
+  if (filePath.length === 0) return false;
+  return listTodos(db, taskId).some(
+    (todo) =>
+      (todo.status === "pending" || todo.status === "in_progress") &&
+      (todo.owner ?? "").trim().length > 0 &&
+      ownedBy(todo, filePath)
+  );
+}
+
+/**
  * Which gate targets a due plan review should block.
  * Only paths owned by an open todo with a non-empty owner pattern are blocked.
  * Empty owners and tasks with no owned open todos never expand the block set,
@@ -480,11 +496,7 @@ export function reviewDue(db: DatabaseSync, taskId: string, policy: ReviewPolicy
 export function reviewBlockReason(db: DatabaseSync, taskId: string, filePath: string, policy?: ReviewPolicy): string | null {
   const due = reviewDue(db, taskId, policy);
   if (!due.due) return null;
-  const openOwned = listTodos(db, taskId).filter(
-    (todo) => (todo.status === "pending" || todo.status === "in_progress") && (todo.owner ?? "").trim().length > 0
-  );
-  if (openOwned.length === 0) return null;
-  return openOwned.some((todo) => ownedBy(todo, filePath)) ? due.reason : null;
+  return ownedByOpenTodo(db, taskId, filePath) ? due.reason : null;
 }
 
 export function revisionSignals(db: DatabaseSync, taskId: string): RevisionSignal[] {

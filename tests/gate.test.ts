@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { enforceLedgerChecks, evaluateGate, fileClass, globToRegExp } from "../src/gate.ts";
+import { addTodos, createTask, getTask, reviewDue } from "../src/ledger.ts";
 import { openDb } from "../src/db.ts";
 import { loadSpec } from "../src/spec.ts";
 
@@ -410,6 +411,49 @@ test("enforceLedgerChecks logs one row per session and skips empty sessions", ()
     runChecks("");
     const total = db.prepare("SELECT COUNT(*) AS n FROM enforcement_log").get() as { n: number };
     assert.equal(total.n, 1);
+  } finally {
+    db.close();
+    try {
+      rmSync(tmp, { recursive: true, force: true });
+    } catch {
+      // best effort cleanup
+    }
+  }
+});
+
+test("enforceLedgerChecks advances the cadence only for paths an open todo owns", () => {
+  const tmp = mkdtempSync(join(tmpdir(), "novahiz-gate-cadence-"));
+  const db = openDb(join(tmp, "cadence.sqlite"));
+  try {
+    const task = createTask(db, { title: "Scoped cadence", sessionId: "s_cadence_test" });
+    addTodos(db, task.id, [{ label: "owned work", owner: "src/app/**" }]);
+    const run = (filePath: string) => {
+      const result = evaluateGate({ tool: "edit", filePath, spec, installedSkills: null });
+      return enforceLedgerChecks(db, {
+        session: "s_cadence_test",
+        tool: "edit",
+        paths: [filePath],
+        categories: [],
+        results: [{ path: filePath, ...result }],
+        spec,
+        gateConfig: spec.config.gate
+      });
+    };
+    // Unowned paths never advance another plan's review counter.
+    run("README.md");
+    run("docs/guide.md");
+    assert.equal(getTask(db, task.id)?.edits_since_review, 0);
+    // Owned paths still count toward the cadence.
+    run("src/app/screen.ts");
+    run("src/app/screen.ts");
+    run("src/app/screen.ts");
+    assert.equal(getTask(db, task.id)?.edits_since_review, 3);
+    assert.equal(reviewDue(db, task.id).due, true);
+    // Due: an owned path is blocked, an unowned path is not.
+    const owned = run("src/app/screen.ts");
+    assert.ok(owned.reasons.some((reason) => reason.includes("plan review due")), owned.reasons.join("; "));
+    const foreign = run("README.md");
+    assert.ok(!foreign.reasons.some((reason) => reason.includes("plan review due")), foreign.reasons.join("; "));
   } finally {
     db.close();
     try {

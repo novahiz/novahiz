@@ -3,7 +3,7 @@ import { hasPlaceholder, hasProse, hasStyle, isTrivial } from "./content.ts";
 import { determineTier, type ComplexityTier } from "./complexity.ts";
 // Shared ledger enforcement (audit P1-D/M1): the CLI command and the MCP
 // novahiz_gate tool both run these checks so their verdicts cannot diverge.
-import { activeTask, recordEdit, reviewBlockReason, reviewDue, traceCheck } from "./ledger.ts";
+import { activeTask, ownedByOpenTodo, recordEdit, reviewBlockReason, reviewDue, traceCheck } from "./ledger.ts";
 import { autoCommit } from "./graft.ts";
 import type { openDb } from "./db.ts";
 
@@ -496,7 +496,11 @@ export function enforceLedgerChecks(
   if (ledgerConfig?.enabled !== false) {
     const task = activeTask(db, session || undefined);
     if (task) {
-      if (["edit", "write", "patch", "apply_patch"].includes(tool)) recordEdit(db, task.id);
+      // Cadence counts only edits an open todo actually owns (owner-scoped
+      // review): a session or project touching unrelated paths must never
+      // advance this plan toward its review block.
+      const ownedTarget = results.some((entry) => entry.path.length > 0 && ownedByOpenTodo(db, task.id, entry.path));
+      if (["edit", "write", "patch", "apply_patch"].includes(tool) && ownedTarget) recordEdit(db, task.id);
       // Targeted review: block only paths owned by an open todo with an owner
       // pattern. A due review no longer freezes every target.
       for (const entry of results) {
