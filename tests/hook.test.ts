@@ -125,8 +125,8 @@ test("cli hook denies a markdown edit without loaded skills", () => {
   const out = runHook({ tool_name: "Edit", tool_input: { file_path: "README.md", new_string: PROSE }, session_id: "hook-deny" });
   const parsed = JSON.parse(out.stdout);
   assert.equal(parsed.hookSpecificOutput.permissionDecision, "deny");
-  // The denial must be actionable: AUTO-REPAIR names the skills to load.
-  assert.ok(parsed.hookSpecificOutput.permissionDecisionReason.includes("AUTO-REPAIR"));
+  // The denial must be actionable: GATE RELOAD names the skills to load.
+  assert.ok(parsed.hookSpecificOutput.permissionDecisionReason.includes("GATE RELOAD"));
 });
 
 test("cli hook allows the edit once the skills are loaded (C1 regression)", () => {
@@ -145,7 +145,7 @@ test("cli hook allows a read-only command silently", () => {
   assert.equal(out.status, 0);
 });
 
-test("cli hook escalates the repair directive when the loads never registered", () => {
+test("cli hook escalates the reload directive when the loads never registered", () => {
   const payload = {
     tool_name: "Edit",
     tool_input: { file_path: "docs/ROADMAPS.md", new_string: PROSE },

@@ -33,7 +33,7 @@ test("attempt 1 builds the load-then-retry protocol", () => {
     { tool: "edit", missingSkills: ["novahiz-plan", "novahiz-implement"], reasons: [], error: null },
     1
   );
-  assert.match(directive, /AUTO-REPAIR/);
+  assert.match(directive, /GATE RELOAD/);
   assert.match(directive, /skill\(\{name:"novahiz-plan"\}\)/);
   assert.match(directive, /skill\(\{name:"novahiz-implement"\}\)/);
   assert.match(directive, /retry this exact edit call/i);
@@ -48,7 +48,7 @@ test("attempt 2 escalates to diagnosis instead of looping", () => {
     { tool: "write", missingSkills: ["novahiz-plan"], reasons: [], error: null },
     2
   );
-  assert.match(directive, /AUTO-REPAIR FAILED on attempt 2/);
+  assert.match(directive, /GATE RELOAD FAILED on attempt 2/);
   assert.match(directive, /novahiz doctor/);
   assert.match(directive, /novahiz sync/);
   assert.match(directive, /report that honestly to the user and stop/);

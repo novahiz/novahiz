@@ -506,7 +506,7 @@ function buildRepairDirective(failure: GateFailure, attempt: number): string {
     const steps = loads.map((skill, index) => `  ${index + 1}. skill({name:"${skill}"})`).join("\n");
     return [
       `${head} Missing skills: ${missing.join(", ")}.`,
-      "AUTO-REPAIR — execute now, do not ask the user, do not stop:",
+      "GATE RELOAD — execute now, do not ask the user, do not stop:",
       steps,
       `  ${loads.length + 1}. Retry this exact ${failure.tool} call once, then continue the user's task where it left off.`,
       "Never bypass the gate: no NOVAHIZ_GATE, no alternate tool, no shell write, no editing around the block."
@@ -514,7 +514,7 @@ function buildRepairDirective(failure: GateFailure, attempt: number): string {
   }
 
   return [
-    `${head} AUTO-REPAIR FAILED on attempt ${attempt}: still missing ${missing.join(", ")} after skill() loads.`,
+    `${head} GATE RELOAD FAILED on attempt ${attempt}: still missing ${missing.join(", ")} after skill() loads.`,
     "The loads did not register — diagnose instead of retrying:",
     "  1. Confirm the skill is installed and the index matches (`novahiz doctor`).",
     "  2. Realign the index (`novahiz sync`), then load the named skills again.",
@@ -530,8 +530,8 @@ export const NovahizPlugin: Plugin = async ({ client }) => {
   // P0-B: reason of the last failed classify per session — gate tool calls are
   // refused while set, instead of running with empty categories (fail-open).
   const classifyFailedBySession = new Map<string, string>();
-  // Auto-repair: denial count per `session|tool|missing set`. A first denial
-  // carries the repair protocol; an identical repeat escalates to diagnosis
+  // Gate reload: denial count per `session|tool|missing set`. A first denial
+  // carries the reload protocol; an identical repeat escalates to diagnosis
   // instead of looping. Cleared on a successful call of the same tool.
   const repairAttemptsBySession = new Map<string, number>();
   const SESSION_TTL_MS = 4 * 60 * 60 * 1000;
@@ -550,7 +550,7 @@ export const NovahizPlugin: Plugin = async ({ client }) => {
     enforcementBySession.delete(sessionID);
     lastSeenBySession.delete(sessionID);
     classifyFailedBySession.delete(sessionID);
-    // Auto-repair keys are prefixed with the session ID — drop them too.
+    // Gate reload keys are prefixed with the session ID — drop them too.
     for (const key of repairAttemptsBySession.keys()) {
       if (key.startsWith(`${sessionID}|`)) repairAttemptsBySession.delete(key);
     }
@@ -836,9 +836,9 @@ export const NovahizPlugin: Plugin = async ({ client }) => {
           );
         }
         if (result.status === 2) {
-          // Auto-repair: a structured denial becomes an executable directive
+          // Gate reload: a structured denial becomes an executable directive
           // (load the named skills, retry the same call, resume the task).
-          // Counting identical denials turns a failed repair into a diagnosis
+          // Counting identical denials turns a failed reload into a diagnosis
           // instead of an infinite retry loop. The denial itself still stands
           // until the gate CLI sees the skills — nothing is granted here.
           const failure = parseGateFailure(result.stdout);

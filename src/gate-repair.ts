@@ -1,4 +1,4 @@
-// Auto-repair for gate FAIL results.
+// Gate reload for gate FAIL results.
 //
 // When the gate denies a tool call because required skills are not loaded,
 // the denial must be actionable: parse the structured FAIL payload and build
@@ -51,7 +51,7 @@ export function parseGateFailure(stdout: string): GateFailure | null {
 /**
  * Build the actionable denial for a gate failure.
  *
- * attempt 1  — missing skills: the repair protocol (load, retry, resume).
+ * attempt 1  — missing skills: the gate reload protocol (load, retry, resume).
  * attempt 2+ — the same skills are still missing: the loads did not take
  *              effect, so the directive escalates to diagnosis and stops
  *              the loop instead of repeating itself.
@@ -73,7 +73,7 @@ export function buildRepairDirective(failure: GateFailure, attempt: number): str
     const steps = loads.map((skill, index) => `  ${index + 1}. skill({name:"${skill}"})`).join("\n");
     return [
       `${head} Missing skills: ${missing.join(", ")}.`,
-      "AUTO-REPAIR — execute now, do not ask the user, do not stop:",
+      "GATE RELOAD — execute now, do not ask the user, do not stop:",
       steps,
       `  ${loads.length + 1}. Retry this exact ${failure.tool} call once, then continue the user's task where it left off.`,
       "Never bypass the gate: no NOVAHIZ_GATE, no alternate tool, no shell write, no editing around the block."
@@ -81,7 +81,7 @@ export function buildRepairDirective(failure: GateFailure, attempt: number): str
   }
 
   return [
-    `${head} AUTO-REPAIR FAILED on attempt ${attempt}: still missing ${missing.join(", ")} after skill() loads.`,
+    `${head} GATE RELOAD FAILED on attempt ${attempt}: still missing ${missing.join(", ")} after skill() loads.`,
     "The loads did not register — diagnose instead of retrying:",
     "  1. Confirm the skill is installed and the index matches (`novahiz doctor`).",
     "  2. Realign the index (`novahiz sync`), then load the named skills again.",

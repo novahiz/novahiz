@@ -29,8 +29,8 @@ function emitDeny(harness: Harness, event: string, reason: string): void {
   process.stdout.write(`Novahiz advisory: ${reason}\n`);
 }
 
-// AUTO-REPAIR attempt tracking: how many consecutive denials for this
-// session+tool since the last allow. attempt 1 = first block (repair
+// GATE RELOAD attempt tracking: how many consecutive denials for this
+// session+tool since the last allow. attempt 1 = first block (reload
 // directive), attempt 2+ = loads did not register (escalation). Computed
 // BEFORE enforceLedgerChecks logs the current row.
 function repairAttempt(db: Db, session: string, tool: string): number {

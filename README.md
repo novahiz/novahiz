@@ -23,7 +23,7 @@
 1. **Classifier** — chaque prompt est noté contre 17 catégories (mots-clés déterministes, aucun appel de modèle). Le résultat porte jusqu'à trois catégories, une principale, un niveau de confiance, un **tier** (`trivial` / `lite` / `full`), et les skills que le gate attendra.
 2. **Roadmap** — la catégorie principale sélectionne une roadmap ordonnée, et le plugin injecte sa checklist dans la session : l'agent suit plan → clarify → tasks → analyse → implement → converge au lieu d'improviser un ordre.
 3. **Gate sur chaque écriture** — les appels `edit` / `write` / `patch` / `bash` / `shell` sont vérifiés selon la classe de fichier, les règles actives, les skills de roadmap et le contenu (tokens de placeholder) : **allow** ou **block**, en local, sans appel de modèle dans le chemin de décision.
-4. **Auto-réparation, pas une impasse** — un blocage nomme exactement les skills manquantes et la règle de retry : charger chacune, rejouer l'appel une seule fois. Une skill absente de l'index installé est signalée, jamais appliquée. `NOVAHIZ_GATE=off` est la seule soupape, et elle est bruyante.
+4. **Gate reload, pas une impasse** — un blocage nomme exactement les skills manquantes et la règle de retry : charger chacune, rejouer l'appel une seule fois. Une skill absente de l'index installé est signalée, jamais appliquée. `NOVAHIZ_GATE=off` est la seule soupape, et elle est bruyante.
 5. **Vérifier et converger** — les roadmaps se terminent par des étapes `verify` qui exigent une preuve ; `novahiz-converge` note le code face à la demande d'origine et transforme chaque reste en étape traçable du ledger.
 6. **Persister** — décisions, causes racines et prochaines étapes survivent à la session via la couche mémoire (ci-dessous), et `novahiz report` boucle la boucle avec un résumé de session.
 
@@ -153,9 +153,9 @@ flowchart TD
 
 `novahiz-humanizer` et `ui-slop-remover` ne sont exigées que sur les tâches de design frontend (R13) ; `impeccable` se charge de la même façon (R14) pour garder les playbooks shape, critique, audit, harden et polish accessibles, et la roadmap design-ui porte une étape de vérification `impeccable detect` déterministe avant ship. `novahiz init` et `novahiz doctor` affichent les fichiers de contexte `PRODUCT.md` / `DESIGN.md` d'impeccable en lignes advisory.
 
-### Auto-réparation
+### Gate reload
 
-Un blocage n'est jamais une impasse. Le refus embarque une recette AUTO-REPAIR : charger chaque skill nommée via le loader, puis rejouer l'appel exact une fois — aucun outil alternatif, aucune écriture shell, aucun contournement d'édition. Si les mêmes skills sont de nouveau signalées manquantes, le chargement n'a pas été enregistré : exécuter `novahiz doctor`, signaler honnêtement, et s'arrêter. La seule dérogation sanctionnée est `NOVAHIZ_GATE=off` (voir Configuration), déclarée à voix haute.
+Un blocage n'est jamais une impasse. Le refus embarque une recette GATE RELOAD : charger chaque skill nommée via le loader, puis rejouer l'appel exact une fois — aucun outil alternatif, aucune écriture shell, aucun contournement d'édition. Si les mêmes skills sont de nouveau signalées manquantes, le chargement n'a pas été enregistré : exécuter `novahiz doctor`, signaler honnêtement, et s'arrêter. La seule dérogation sanctionnée est `NOVAHIZ_GATE=off` (voir Configuration), déclarée à voix haute.
 
 Une skill requise absente de l'index installé n'est jamais appliquée silencieusement : le gate ajoute `required skill not in index, not enforced — run novahiz sync to realign` à ses raisons au lieu de bloquer pour toujours. Un index illisible rend le gate plus strict, jamais plus laxiste.
 
