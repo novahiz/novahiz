@@ -6,6 +6,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Changed
+
+- README translated to French (the repository landing page now reads in French); counts and commands unchanged, `docs/` stays English.
+
 ## [0.3.7] - 2026-09-28
 
 ### Added
