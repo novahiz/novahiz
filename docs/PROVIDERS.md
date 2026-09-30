@@ -98,11 +98,13 @@ Control it in `novahiz.config.json`:
 Run the install commands on demand:
 
 ```
-node src/cli.ts providers --install
+node src/cli.ts providers --install --yes
 node install/install.mjs --install-providers
 ```
 
 Installation is opt-in on purpose. The commands download third-party packages, including a large Rust binary for `narsil`, so `autoInstall` defaults to `false`. Enabling it means you trust each upstream listed in `source`.
+
+`providers --install` and `deps --install` print the plan and execute nothing until `--yes` is passed. Whatever runs then goes through a binary allowlist (`node`, `npm`, `npx`, `uv`, `uvx`, `python`, `py`) — the same one bootstrap uses — so a tampered `providers.json` cannot execute an arbitrary program.
 
 ## Dependencies
 
@@ -111,7 +113,7 @@ Each provider declares its prerequisites in `requires` (the executable it needs)
 - `npx` based providers need `npx`, which ships with Node.
 - `dart` needs the Dart SDK on `PATH` (`dart --version`). Flutter installs ship it.
 
-`Novahiz deps` checks every prerequisite and reports what is missing. `Novahiz deps --install` first bootstraps a missing prerequisite through its official installer, then runs each provider's install command. The installer runs the check on every install and, when `providers.autoInstall` is true or `--install-providers` is passed, runs the installs too.
+`Novahiz deps` checks every prerequisite and reports what is missing. `Novahiz deps --install` prints the plan (bootstrap and install steps) and runs nothing; with `--yes` it first bootstraps a missing prerequisite through its official installer, then runs each provider's install command. The installer runs the check on every install and, when `providers.autoInstall` is true or `--install-providers` is passed, runs the installs with `--yes` too.
 
 ## Troubleshooting
 
@@ -137,7 +139,7 @@ Confirm the tool count with `narsil-mcp tools list` afterwards, then rerun `Nova
 
 - `Novahiz providers` lists providers, optionally by `--category` or a query.
 - `Novahiz providers --mcp-json` prints the MCP entry map.
-- `Novahiz providers --install` runs the official install commands.
-- `Novahiz deps [--install]` checks prerequisites and bootstraps or installs missing ones.
+- `Novahiz providers --install [--yes]` plans the official install commands; `--yes` executes them.
+- `Novahiz deps [--install] [--yes]` checks prerequisites and plans or runs the bootstrap/install commands.
 - MCP `novahiz_providers` and `novahiz_deps` expose the list and the dependency status over stdio.
 - `Novahiz report` lists the provider ids.

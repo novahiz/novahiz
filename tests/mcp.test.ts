@@ -222,6 +222,16 @@ test("records a roadmap step over MCP", () => {
   assert.equal(step.status, "done");
 });
 
+// WS3: the MCP step tool duplicated the CLI write path without validation, so
+// an off-pattern step id reached roadmap_progress directly.
+test("WS3: novahiz_step rejects an invalid step id over MCP", () => {
+  const out = call([
+    JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "novahiz_step", arguments: { session: "mcp-step", done: "../../evil step" } } })
+  ]);
+  assert.equal(out[0].error?.code, -32602);
+  assert.match(out[0].error.message, /step id/);
+});
+
 test("resolves a roadmap from a query over MCP", () => {
   const out = call([
     JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "novahiz_roadmap", arguments: { query: "corrige un bug de login" } } })

@@ -129,6 +129,25 @@ test("cli hook denies a markdown edit without loaded skills", () => {
   assert.ok(parsed.hookSpecificOutput.permissionDecisionReason.includes("GATE RELOAD"));
 });
 
+// WS3: the harness flag used to be cast blindly, so a typo ("claudee")
+// silently downgraded the PreToolUse deny to an advisory line (fail-open).
+// Unknown values must fail toward the claude deny format, with a warning.
+test("WS3: an unknown harness falls back to the claude deny with a warning", () => {
+  const result = spawnSync(process.execPath, [cli, "hook", "--harness", "claudee", "--event", "PreToolUse"], {
+    encoding: "utf8",
+    input: JSON.stringify({
+      tool_name: "Edit",
+      tool_input: { file_path: "README.md", new_string: PROSE },
+      session_id: "hook-harness-ws3"
+    }),
+    env: { ...process.env, NOVAHIZ_HOME: root, NOVAHIZ_DB: testDb }
+  });
+  assert.equal(result.status, 0);
+  const parsed = JSON.parse(result.stdout.trim());
+  assert.equal(parsed.hookSpecificOutput.permissionDecision, "deny");
+  assert.match(String(result.stderr), /unknown harness "claudee"/);
+});
+
 test("cli hook allows the edit once the skills are loaded (C1 regression)", () => {
   runHook({ tool_name: "Skill", tool_input: { skill: "novahiz-implement" }, session_id: "hook-c1" });
   runHook({ tool_name: "Skill", tool_input: { skill: "novahiz-converge" }, session_id: "hook-c1" });

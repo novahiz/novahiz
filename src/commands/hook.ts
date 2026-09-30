@@ -84,7 +84,14 @@ function recordSkillLoad(spec: Spec, db: Db, session: string, skill: string): vo
 }
 
 export function commandHook(parsed: Parsed): void {
-  const harness = (asString(parsed.flags.harness) || "claude") as Harness;
+  const harnessFlag = asString(parsed.flags.harness) || "claude";
+  const harness: Harness = harnessFlag === "claude" || harnessFlag === "codex" ? harnessFlag : "claude";
+  if (harness !== harnessFlag) {
+    // WS3: an unvalidated cast let a typo ("claudee") silently downgrade the
+    // PreToolUse deny to an advisory line = fail-open. Unknown values now
+    // fail toward the strictest format (claude deny) with a warning.
+    process.stderr.write(`novahiz: unknown harness "${harnessFlag.slice(0, 32)}" — treating as "claude".\n`);
+  }
   const event = asString(parsed.flags.event) || "PreToolUse";
   const root = NovahizHome();
 

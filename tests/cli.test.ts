@@ -483,9 +483,157 @@ test("task resume and current dispatch without an active task", () => {
   assert.equal(resumed.next, null);
 });
 
+// WS3: graft fail() used to only set exitCode, letting the switch keep going
+// ("graft not found" then a spawn anyway, or a usage fail then commitGraft("").
+// It must exit at once, with exactly one error line and no stdout.
+test("WS3: graft fail() exits at once with a single error line", () => {
+  const result = spawnSync(process.execPath, [cli, "graft", "commit", "-m", "x"], {
+    encoding: "utf8",
+    input: "",
+    env: {
+      ...process.env,
+      NOVAHIZ_HOME: root,
+      NOVAHIZ_DB: testDb,
+      NOVAHIZ_GRAFT_BIN: join(tmpdir(), "no-such-graft-binary-ws3")
+    }
+  });
+  assert.equal(result.status, 1);
+  assert.equal(result.stdout.trim(), "");
+  const lines = String(result.stderr)
+    .trim()
+    .split(/\r?\n/)
+    .filter(Boolean);
+  assert.equal(lines.length, 1);
+  // Environment-dependent message (graft installed → "not initialized",
+  // absent → "CLI not found"); the property is: one line, then exit.
+  assert.match(lines[0], /^error: graft (CLI not found|not initialized)/);
+});
+
 test("normalizeTodoInput rejects an unknown kind and defaults to edit", () => {
   assert.throws(() => normalizeTodoInput({ label: "x", kind: "bogus" }), /invalid todo kind/);
   assert.equal(normalizeTodoInput({ label: "x" }).kind, "edit");
+});
+
+// WS3: --position was cast without validation, so any string reached
+// insertTodo. An unknown value must be rejected before anything is written,
+// while the documented forms (number, start, end) keep working.
+test("WS3: task insert rejects an invalid --position and writes nothing", () => {
+  const env = { ...process.env, NOVAHIZ_HOME: root, NOVAHIZ_DB: testDb };
+  const created = spawnSync(process.execPath, [cli, "task", "new", "--title", "PosFix", "--session", "pos-fix"], {
+    encoding: "utf8",
+    input: "",
+    env
+  });
+  assert.equal(created.status, 0);
+  const bad = spawnSync(
+    process.execPath,
+    [cli, "task", "insert", "--session", "pos-fix", "--label", "x", "--position", "middle"],
+    { encoding: "utf8", input: "", env }
+  );
+  assert.equal(bad.status, 1);
+  assert.match(JSON.parse(bad.stdout.trim()).error, /invalid position/);
+  assert.equal(JSON.parse(run(["task", "current", "--session", "pos-fix"])).todos, 0);
+  const ok = run(["task", "insert", "--session", "pos-fix", "--label", "y", "--position", "start"]);
+  assert.equal(JSON.parse(ok).todo.status, "pending");
+  assert.equal(JSON.parse(run(["task", "current", "--session", "pos-fix"])).todos, 1);
+});
+
+// WS3 MEDIUM: the catalog is not signed, so `providers/deps --install` must
+// plan by default, execute only under --yes, and may only start a binary from
+// the bootstrap allowlist (node/npm/npx/uv/uvx/python/py).
+const installHome = join(tmpdir(), `novahiz-ws3-install-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`);
+const markerScript = join(installHome, "marker.mjs").replace(/\\/g, "/");
+const markerFile = join(installHome, "marker.txt");
+
+function writeInstallHome(install: string[]): void {
+  rmSync(installHome, { recursive: true, force: true });
+  mkdirSync(join(installHome, "catalog"), { recursive: true });
+  writeFileSync(
+    join(installHome, "marker.mjs"),
+    `import { writeFileSync } from "node:fs"; writeFileSync(${JSON.stringify(markerFile)}, "ran");\n`,
+    "utf8"
+  );
+  writeFileSync(
+    join(installHome, "catalog", "providers.json"),
+    JSON.stringify([{ id: "ws3-test", kind: "cli", label: "ws3", source: "test", categories: [], install }]),
+    "utf8"
+  );
+}
+
+after(() => {
+  try {
+    rmSync(installHome, { recursive: true, force: true });
+  } catch {
+    // best effort cleanup
+  }
+});
+
+test("WS3: providers --install plans without executing and --yes runs an allowlisted command", () => {
+  writeInstallHome(["node", markerScript]);
+  const plan = JSON.parse(run(["providers", "--install"], { NOVAHIZ_HOME: installHome }));
+  assert.ok(Array.isArray(plan.plan));
+  assert.equal(plan.plan[0].id, "ws3-test");
+  assert.match(plan.note, /--yes/);
+  assert.equal(existsSync(markerFile), false, "the plan must not execute anything");
+  const exec = spawnSync(process.execPath, [cli, "providers", "--install", "--yes"], {
+    encoding: "utf8",
+    input: "",
+    env: { ...process.env, NOVAHIZ_HOME: installHome, NOVAHIZ_DB: testDb }
+  });
+  assert.equal(exec.status, 0, exec.stderr);
+  const lines = exec.stdout.trim().split("\n");
+  const results = JSON.parse(lines[lines.length - 1]);
+  assert.equal(results[0].ok, true, `install failed: ${exec.stdout} ${exec.stderr}`);
+  assert.equal(existsSync(markerFile), true, "--yes must execute the allowlisted command");
+});
+
+test("WS3: providers --install --yes refuses a binary outside the allowlist", () => {
+  writeInstallHome(["evil-bin", "--version"]);
+  const exec = spawnSync(process.execPath, [cli, "providers", "--install", "--yes"], {
+    encoding: "utf8",
+    input: "",
+    env: { ...process.env, NOVAHIZ_HOME: installHome, NOVAHIZ_DB: testDb }
+  });
+  const lines = exec.stdout.trim().split("\n");
+  const results = JSON.parse(lines[lines.length - 1]);
+  assert.equal(results[0].ok, false);
+  assert.match(results[0].error, /refused disallowed bootstrap binary/);
+});
+
+test("WS3: deps --install plans without executing until --yes", () => {
+  writeInstallHome(["node", markerScript]);
+  const plan = JSON.parse(run(["deps", "--install"], { NOVAHIZ_HOME: installHome }));
+  assert.ok(Array.isArray(plan.plan));
+  assert.match(plan.note, /--yes/);
+  assert.equal(existsSync(markerFile), false, "the plan must not execute anything");
+  const exec = spawnSync(process.execPath, [cli, "deps", "--install", "--yes"], {
+    encoding: "utf8",
+    input: "",
+    env: { ...process.env, NOVAHIZ_HOME: installHome, NOVAHIZ_DB: testDb }
+  });
+  assert.equal(exec.status, 0, exec.stderr);
+  const lines = exec.stdout.trim().split("\n");
+  const results = JSON.parse(lines[lines.length - 1]);
+  assert.equal(results[0].step, "install");
+  assert.equal(results[0].ok, true, `install failed: ${exec.stdout} ${exec.stderr}`);
+  assert.equal(existsSync(markerFile), true, "--yes must execute the allowlisted command");
+});
+
+// WS3: --done used to reach the database without validation; an off-pattern
+// step id must be rejected before anything is written, while the documented
+// roadmap ids (kebab-case) keep working.
+test("WS3: step rejects an invalid step id and writes nothing", () => {
+  const env = { ...process.env, NOVAHIZ_HOME: root, NOVAHIZ_DB: testDb };
+  const bad = spawnSync(process.execPath, [cli, "step", "--session", "ws3-step", "--done", "../../evil step"], {
+    encoding: "utf8",
+    input: "",
+    env
+  });
+  assert.equal(bad.status, 1);
+  assert.match(bad.stdout, /invalid step id/);
+  assert.equal(JSON.parse(run(["step", "--session", "ws3-step"])).steps.length, 0, "nothing may be written");
+  run(["step", "--session", "ws3-step", "--done", "impeccable-critique"]);
+  assert.equal(JSON.parse(run(["step", "--session", "ws3-step"])).steps.length, 1, "a valid kebab id still works");
 });
 
 // MAJEUR l.135: bash/shell/cron with no target path must still enforce

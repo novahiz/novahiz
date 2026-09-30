@@ -423,7 +423,7 @@ async function main() {
     if (check.stdout) process.stdout.write(check.stdout);
     if (autoInstall) {
       note("Installing dependencies and providers (MCP, skills, commands)");
-      const result = spawnSync(process.execPath, [cli, "deps", "--install"], {
+      const result = spawnSync(process.execPath, [cli, "deps", "--install", "--yes"], {
         encoding: "utf8",
         env: { ...process.env, NOVAHIZ_HOME: home }
       });

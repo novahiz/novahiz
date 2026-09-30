@@ -468,6 +468,11 @@ function callTool(name, args) {
   if (name === "novahiz_step") {
     const session = String(args?.session ?? "default");
     const done = args?.done ? String(args.done) : "";
+    // WS3: the step id follows the roadmap naming pattern (plan, write,
+    // impeccable-critique) — reject anything else before it reaches the database.
+    if (done.length > 0 && !/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(done)) {
+      throw new Error(`Invalid params: step id must match [A-Za-z0-9][A-Za-z0-9._-]{0,127} (got "${done}")`);
+    }
     const db = openDb(resolve(spec.root, spec.config.dbPath));
     try {
       if (done.length > 0) {

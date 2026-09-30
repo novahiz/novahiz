@@ -7,7 +7,7 @@ import { rankSkills } from "../relevance.ts";
 import { buildMcpEntries, enabledProviders, installCommands } from "../providers.ts";
 import { bootstrapFor, checkDependencies, missingPrerequisites } from "../deps.ts";
 import { classify } from "../classify.ts";
-import { runCommand, runScript } from "../exec.ts";
+import { runScript } from "../exec.ts";
 import { activeTask, buildWorkPackets, getTask } from "../ledger.ts";
 
 export function commandCheck(): void {
@@ -217,6 +217,13 @@ export function commandStep(parsed: Parsed): void {
     process.exitCode = 1;
     return;
   }
+  // WS3: the step id follows the roadmap naming pattern (plan, write,
+  // impeccable-critique) — reject anything else before it reaches the database.
+  if (done.length > 0 && !/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(done)) {
+    print({ error: `invalid step id format: "${done}" (expected alphanumeric, hyphens, underscores, dots)` });
+    process.exitCode = 1;
+    return;
+  }
   const db = openDb(dbPathFor(root, spec));
   if (done.length > 0) {
     const ts = new Date().toISOString();
@@ -239,12 +246,24 @@ export function commandProviders(parsed: Parsed): void {
     return;
   }
   if (parsed.flags.install) {
+    const entries = installCommands(spec);
+    if (!flagOn(parsed, "yes")) {
+      // Dry run by default: the catalog is not signed, so the plan is shown
+      // and nothing executes until --yes is passed explicitly.
+      print({
+        plan: entries.map((entry) => ({ id: entry.id, kind: entry.kind, command: entry.command.join(" "), source: entry.source })),
+        note: "dry run: pass --yes to execute"
+      });
+      return;
+    }
     const results: Record<string, unknown>[] = [];
-    for (const entry of installCommands(spec)) {
-      const [command, ...args] = entry.command;
-      const result = runCommand(command, args);
+    for (const entry of entries) {
+      // runScript applies the binary allowlist and the code-runner guard:
+      // catalog argv may only start a known packager/interpreter.
+      const result = runScript(entry.command);
       process.stdout.write(`${result.ok ? "ok  " : "fail"} ${entry.id} (${entry.kind}) ${entry.command.join(" ")}\n`);
       if (!result.ok && result.stderr) process.stderr.write(result.stderr);
+      if (result.error) process.stderr.write(`${result.error}\n`);
       results.push({ id: entry.id, kind: entry.kind, source: entry.source, command: entry.command.join(" "), ok: result.ok, error: result.error ?? null });
     }
     print(results);
@@ -282,9 +301,29 @@ export function commandDeps(parsed: Parsed): void {
     return;
   }
 
-  const run = (command: string[], label: string): boolean => {
-    const [bin, ...args] = command;
-    const result = runCommand(bin, args);
+  if (!flagOn(parsed, "yes")) {
+    // Dry run by default: show what would run (bootstrap + install) without
+    // touching the machine; --yes opts into execution explicitly.
+    const plan: Record<string, unknown>[] = [];
+    for (const entry of missingPrerequisites(spec)) {
+      const bootstrap = bootstrapFor(entry.provider);
+      plan.push(
+        bootstrap && bootstrap.length > 0
+          ? { provider: entry.provider.id, step: "bootstrap", command: bootstrap.join(" ") }
+          : { provider: entry.provider.id, step: "bootstrap", note: `missing ${entry.missing.join(", ")}` }
+      );
+    }
+    for (const entry of installCommands(spec)) {
+      plan.push({ provider: entry.id, step: "install", command: entry.command.join(" ") });
+    }
+    print({ plan, note: "dry run: pass --yes to execute" });
+    return;
+  }
+
+  const run = (argv: string[], label: string): boolean => {
+    // runScript applies the binary allowlist and the code-runner guard:
+    // catalog argv may only start a known packager/interpreter.
+    const result = runScript(argv);
     process.stdout.write(`${result.ok ? "ok  " : "fail"} ${label}\n`);
     if (!result.ok && result.stderr) process.stderr.write(result.stderr);
     if (result.error) process.stderr.write(`${result.error}\n`);

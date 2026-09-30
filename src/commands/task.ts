@@ -174,7 +174,16 @@ function taskInsert(parsed: Parsed, db: ReturnType<typeof openDb>, session: stri
     maxIterations: numberFlag(parsed, "max-iterations", { min: 1, integer: true }) || undefined
   });
   const positionRaw = asString(parsed.flags.position);
-  const position = positionRaw === "" ? "end" : /^\d+$/.test(positionRaw) ? Number(positionRaw) : (positionRaw as "start" | "end");
+  let position: number | "start" | "end" = "end";
+  if (positionRaw !== "") {
+    if (/^\d+$/.test(positionRaw)) position = Number(positionRaw);
+    else if (positionRaw === "start" || positionRaw === "end") position = positionRaw;
+    else {
+      print({ error: `invalid position: ${positionRaw} (expected a number, "start" or "end")` });
+      process.exitCode = 1;
+      return;
+    }
+  }
   print({ todo: insertTodo(db, taskId, item, position), task: getTask(db, taskId) });
   return;
     }
