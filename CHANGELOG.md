@@ -4,7 +4,7 @@ All notable changes to this project are documented in this file.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.3.8] - 2026-09-30
 
 ### Changed
 
@@ -14,6 +14,15 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - MCP `novahiz_gate` enforces the ledger on every call like the CLI: the empty-session guard is gone. An empty session now means the sessionless world (no `enforcement_log` row, unbound tasks still enforced), and a DB failure still fails closed.
 - The gate's repair protocol is renamed **gate reload**: the refusal now carries a `GATE RELOAD` block (previously `AUTO-REPAIR`) in `buildRepairDirective` (`src/gate-repair.ts`, inlined in the opencode plugin), the agent instruction (`agent/novahiz.md`), skill `gate` and the README — internal identifiers (`gate-repair.ts`, `buildRepairDirective`, `repairAttempt`, `repairAttemptsBySession`) keep their names, and the CHANGELOG history keeps the old term.
 - README translated to French (the repository landing page now reads in French); counts and commands unchanged, `docs/` stays English.
+- `providers --install` and `deps --install` are dry-run by default: they print the plan and execute nothing until `--yes` is passed. When executed, install argv runs through `runScript` (bootstrap binary allowlist `node`/`npm`/`npx`/`uv`/`uvx`/`python`/`py` plus the code-runner guard) instead of `runCommand` (character filter only), so a tampered `providers.json` can no longer start an arbitrary program; `install/install.mjs` passes `--yes` on the user's behalf and `docs/PROVIDERS.md` documents the plan flow.
+
+### Security
+
+- WS3 audit of the 12 user-facing entry points (14/14 reviewed, 3 LOW + 1 MEDIUM fixed, 8 regression tests):
+  - `novahiz hook --harness`: an unknown harness value was cast blindly, so a typo (`claudee`) silently downgraded the PreToolUse deny to an advisory line (fail-open). Unknown values now fall back to the strictest format (`claude` deny) with a stderr warning (`src/commands/hook.ts`).
+  - `novahiz graft`: `fail()` now writes to stderr and exits immediately instead of only setting `exitCode` and letting the switch keep running (a usage failure fell through to `commitGraft("")`, a missing graft binary fell through to a spawn anyway) (`src/commands/graft.ts`).
+  - `novahiz task insert --position`: an unknown value reached `insertTodo` through an unchecked cast; only a number, `start` or `end` is accepted, rejected before anything is written (`src/commands/task.ts`).
+  - `novahiz step --done` and MCP `novahiz_step`: the step id is validated against the roadmap id pattern before it reaches the database - the MCP tool duplicated the CLI write path without any validation (`src/commands/inspect.ts`, `mcp/novahiz-tools/index.mjs`).
 
 ## [0.3.7] - 2026-09-28
 
