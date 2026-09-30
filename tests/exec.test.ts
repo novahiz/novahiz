@@ -107,7 +107,9 @@ function walk(dir: string): string[] {
   return files;
 }
 
-test("no source file spawns a process with shell: true", () => {
-  const offenders = walk(join(root, "src")).filter((file) => /shell\s*:\s*true/.test(readFileSync(file, "utf8")));
+test("no source or installer file spawns a process with shell: true", () => {
+  const offenders = ["src", "install"]
+    .flatMap((dir) => walk(join(root, dir)))
+    .filter((file) => /shell\s*:\s*true/.test(readFileSync(file, "utf8")));
   assert.deepEqual(offenders, []);
 });
