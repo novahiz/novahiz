@@ -240,6 +240,7 @@ flowchart TD
 - **Budget d'itération** — chaque todo a un max (par défaut : 12) avant escalade
 - **Cadence de review** — review forcée après 3 éditions de fichiers détenus par un todo ou 2 todos complétés (les éditions hors du projet de la tâche ou hors du périmètre d'un todo ne comptent pas)
 - **Preuve obligatoire** — les étapes verify exigent une évidence avant complétion
+- **Snapshots** — chaque écriture du ledger laisse un point de restauration ; `novahiz snap list / diff / restore` et les tools MCP `snap_log`, `snap_status`, `snap_diff`, `snap_restore` les lisent ou les rétablissent en place, sans jamais remplacer le fichier
 
 ---
 
@@ -345,6 +346,7 @@ Voir [docs/CONFIGURATION.md](docs/CONFIGURATION.md) pour toutes les options.
 | `novahiz task new <title>` | Démarrer une tâche suivie |
 | `novahiz task status` | Avancement de la tâche |
 | `novahiz task done <id>` | Marquer un todo complété |
+| `novahiz snap <sub>` | Snapshots versionnés du ledger (`save` / `list` / `diff` / `restore`) |
 | `novahiz report` | Rapport de session |
 | `novahiz skills` | Lister les skills chargées ou disponibles |
 | `novahiz catalog <query>` | Chercher dans le catalogue de skills |

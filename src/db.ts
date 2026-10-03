@@ -2,14 +2,30 @@ import { DatabaseSync } from "node:sqlite";
 import { chmodSync, mkdirSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { pruneSessions } from "./ledger.ts";
-import { autoCommit } from "./graft.ts";
+import { capture } from "./snap.ts";
 
 export { DatabaseSync };
 
-export function openDb(dbPath: string): DatabaseSync {
+function tableExists(db: DatabaseSync, name: string): boolean {
+  return db.prepare("SELECT 1 AS ok FROM sqlite_master WHERE type = 'table' AND name = ?").get(name) !== undefined;
+}
+
+/**
+ * Open (and migrate) the ledger.
+ *
+ * `capture: false` hands the snapshot over to the caller: `novahiz snap save`
+ * wants the manifest to carry *its* operation and message, not whatever this
+ * function would have labelled it. By default a snapshot is taken when opening
+ * changed something real — a schema that did not exist yet, or rows pruning
+ * removed — and never otherwise, so a label always describes what happened.
+ */
+export function openDb(dbPath: string, opts: { capture?: boolean } = {}): DatabaseSync {
   const absolute = resolve(dbPath);
   mkdirSync(dirname(absolute), { recursive: true });
   const db = new DatabaseSync(absolute);
+  // Checked before the CREATE TABLE block below: a ledger this process has
+  // never seen is about to have a schema built into it.
+  const fresh = !tableExists(db, "skills");
   if (process.platform !== "win32") {
     try {
       chmodSync(absolute, 0o600);
@@ -116,9 +132,14 @@ export function openDb(dbPath: string): DatabaseSync {
   // H4: enforce the session TTL on every open — best effort, prune failures
   // must never break startup.
   try {
-    pruneSessions(db);
-    // Auto-commit after session pruning
-    autoCommit("prune-sessions");
+    const pruned = pruneSessions(db);
+    if (opts.capture !== false) {
+      // Capture only what opening actually changed. An unconditional capture
+      // here labelled whatever write it found on disk as session pruning —
+      // and stole the snapshot `novahiz snap save` was about to take.
+      if (pruned > 0) capture(db, "prune-sessions");
+      else if (fresh) capture(db, "init");
+    }
   } catch {
     // sessions table may predate updated_at on very old installs; migrate covers it
   }

@@ -13,6 +13,7 @@ import { commandClean } from "./commands/clean.ts";
 import { commandDoctor } from "./commands/doctor.ts";
 import { commandTokens } from "./commands/tokens.ts";
 import { graftCommand } from "./commands/graft.ts";
+import { snapCommand } from "./commands/snap.ts";
 import { commandInit } from "./commands/init.ts";
 import { commandAutodocs } from "./commands/autodocs.ts";
 
@@ -54,6 +55,7 @@ function usage(): void {
       "report                  Session report",
       "clean                   Remove old logs and sessions",
       "graft                   Version-control the ledger (graft init/log/diff/status/restore)",
+      "snap [save|list|show|diff|restore|export|verify|prune|status]  Ledger snapshots (ours, no external tool)",
       "upgrade                 Pull latest and rebuild catalog",
       "version                 Show version",
       "",
@@ -212,6 +214,8 @@ async function main(argv: string[]): Promise<void> {
       return commandTokens(parsed);
     case "graft":
       return graftCommand(parsed.positionals.slice(1));
+    case "snap":
+      return snapCommand(parsed.positionals.slice(1), parsed);
     default:
       process.stderr.write(`novahiz: unknown command "${command}"\n\n`);
       usage();

@@ -9,6 +9,7 @@ import { loadSpec } from "../../src/spec.ts";
 import { loadCatalog, loadInstalledSkills } from "../../src/catalog.ts";
 import { rankSkills } from "../../src/relevance.ts";
 import { openDb } from "../../src/db.ts";
+import { capture, diffSnapshots, listSnapshots, loadManifest, matchingIds, restoreSnapshot, snapStatus } from "../../src/snap.ts";
 import { enabledProviders } from "../../src/providers.ts";
 import { checkDependencies } from "../../src/deps.ts";
 import { activeTask, addTodos, amendTodo, blockTodo, buildWorkPackets, completeTodo, createTask, dropTask, dropTodo, getTask, getTodo, insertTodo, ledgerSummary, listTodos, parseReviewDiff, recordTodoDone, reorderTodos, resume, reviewDue, reviewTask, revisionSignals, startTodo } from "../../src/ledger.ts";
@@ -272,6 +273,46 @@ const TOOLS = [
         root: { type: "string", description: "Project root containing project-memory (default cwd)." }
       }
     }
+  },
+  {
+    name: "snap_log",
+    description: "List the ledger's snapshots, newest first (id, date, operation, detail, size). Pass id — exact or unique prefix — to read a single manifest instead.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        limit: { type: "number", description: "Maximum snapshots to return (default 20, max 50)." },
+        id: { type: "string", description: "Snapshot id or unique prefix: return that manifest instead of the list." }
+      }
+    }
+  },
+  {
+    name: "snap_status",
+    description: "Report the snapshot store: location, count, newest snapshot, total size, retention, and captures still waiting for a transaction to close.",
+    inputSchema: { type: "object", properties: {} }
+  },
+  {
+    name: "snap_diff",
+    description: "Compare a snapshot with another snapshot or with the live ledger, row by row. Read-only: writes nothing, snapshots nothing.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        from: { type: "string", description: "Snapshot id or unique prefix." },
+        to: { type: "string", description: "Second snapshot id/prefix, or 'current' (default) for the live ledger." }
+      },
+      required: ["from"]
+    }
+  },
+  {
+    name: "snap_restore",
+    description: "Put the ledger back to a snapshot. Rewrites rows inside one transaction — the database file is never replaced, so an open connection keeps working — writes a safety backup first, then snapshots the restored state. REFUSES unless force is true.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        id: { type: "string", description: "Snapshot id or unique prefix to restore." },
+        force: { type: "boolean", description: "Must be true. Anything else refuses and changes nothing." }
+      },
+      required: ["id"]
+    }
   }
 ];
 
@@ -309,6 +350,25 @@ function normalizeTodo(item) {
         ? Number(item.max_iterations)
         : undefined
   };
+}
+
+/**
+ * Resolve a snapshot id the way the CLI does: an exact id, or any prefix that
+ * names exactly one snapshot. "Not found" and "ambiguous" are different
+ * answers, and both are bad parameters for the caller, so each throws with
+ * its own message instead of collapsing into a generic failure.
+ */
+function resolveSnapId(prefix) {
+  const raw = String(prefix ?? "").trim();
+  const matches = matchingIds(raw);
+  if (matches.length === 1) return matches[0];
+  if (matches.length === 0) throw new Error(`Invalid params: snapshot introuvable: ${raw}`);
+  const shown = matches.slice(0, 5).join(", ");
+  const extra = matches.length > 5 ? " ..." : "";
+  // Thrown messages are sanitized to printable ASCII before they reach the
+  // client (control characters and escape sequences must not survive), so they
+  // are written without accents instead of being mangled on the way out.
+  throw new Error(`Invalid params: prefixe ambigu: ${raw} correspond a ${matches.length} snapshots (${shown}${extra})`);
 }
 
 function callTool(name, args) {
@@ -580,13 +640,16 @@ function callTool(name, args) {
         const target = getTodo(db, id);
         if (!target) return toolResult("no active task", true);
         // H1: completeTodo + recordTodoDone must be atomic. Use a SAVEPOINT
-        // so the nested autoCommit inside completeTodo doesn't break the outer
+        // so the nested capture inside completeTodo doesn't break the outer
         // transaction boundary.
         db.exec("SAVEPOINT done_sp");
         try {
           const todo = completeTodo(db, id, args?.proof ? String(args.proof) : "");
           recordTodoDone(db, todo.task_id);
           db.exec("RELEASE done_sp");
+          // completeTodo's snapshot was refused while the savepoint was open;
+          // the transaction is over, record the completed todo now.
+          capture(db, "todo-completed", id);
           return toolResult(todo);
         } catch (error) {
           db.exec("ROLLBACK TO done_sp");
@@ -845,6 +908,76 @@ function callTool(name, args) {
     const root = safeMemoryRoot(args?.root);
     const index = rebuildIndex(root);
     return toolResult({ root, count: index.slots.length, indexUpdated: index.updated });
+  }
+  if (name === "snap_log") {
+    const wanted = typeof args?.id === "string" && args.id.trim().length > 0 ? args.id.trim() : null;
+    if (wanted) {
+      const manifest = loadManifest(resolveSnapId(wanted));
+      if (!manifest) throw new Error(`Invalid params: manifeste illisible: ${wanted}`);
+      return toolResult(manifest);
+    }
+    // M-MCP: bounded like the other list tools — a log listing must not
+    // serialize the whole store at once.
+    const limit = Number.isFinite(args?.limit) ? Math.min(Math.max(1, Math.trunc(args.limit)), 50) : 20;
+    const items = listSnapshots(limit);
+    const status = snapStatus();
+    return toolResult({
+      count: status.count,
+      retention: status.retention,
+      returned: items.length,
+      snapshots: items.map((manifest) => ({
+        id: manifest.id,
+        parent: manifest.parent,
+        createdAt: manifest.createdAt,
+        operation: manifest.operation,
+        detail: manifest.detail,
+        sourceBytes: manifest.sourceBytes,
+        objectBytes: manifest.objectBytes
+      }))
+    });
+  }
+  if (name === "snap_status") {
+    return toolResult(snapStatus());
+  }
+  if (name === "snap_diff") {
+    if (typeof args?.from !== "string" || args.from.trim().length === 0) {
+      throw new Error("Invalid params: from must be a snapshot id or prefix");
+    }
+    const from = resolveSnapId(args.from);
+    const rawTo = typeof args?.to === "string" && args.to.trim().length > 0 ? args.to.trim() : "current";
+    const to = rawTo === "current" ? null : resolveSnapId(rawTo);
+    const diff = diffSnapshots(from, to, to === null ? resolve(spec.root, spec.config.dbPath) : undefined);
+    return toolResult(diff);
+  }
+  if (name === "snap_restore") {
+    if (typeof args?.id !== "string" || args.id.trim().length === 0) {
+      throw new Error("Invalid params: id must be a snapshot id or prefix");
+    }
+    const id = resolveSnapId(args.id);
+    if (args.force !== true) {
+      // Safety guard: restore rewrites every row, so it takes an explicit
+      // `force: true`. A truthy string or a missing field is not consent.
+      return toolResult(
+        {
+          success: false,
+          refused: true,
+          id,
+          message: "restore refusé sans force:true ; une copie de sauvegarde sera écrite d'abord, puis relancez avec force:true"
+        },
+        true
+      );
+    }
+    const db = openDb(resolve(spec.root, spec.config.dbPath));
+    try {
+      const result = restoreSnapshot(db, id, { force: true });
+      if (!result.success) return toolResult(result, true);
+      // Every ledger write leaves a restore point — including this one, so a
+      // restore can itself be undone.
+      const snapshot = capture(db, "restored", id);
+      return toolResult({ ...result, snapshot: snapshot ? snapshot.id : null });
+    } finally {
+      db.close();
+    }
   }
   throw new Error(`Unknown tool: ${name}`);
 }

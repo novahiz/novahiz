@@ -34,11 +34,19 @@ describe("parseReviewDiff", () => {
 
 describe("reviewTask malformed changes", () => {
   const dir = mkdtempSync(join(tmpdir(), "novahiz-review-"));
+  // Isoler NOVAHIZ_HOME avant openDb : ledger.ts capture() un snapshot après
+  // chaque écriture, et sans isolation ce snapshot du fixture atterrissait
+  // dans le store réel (~/.config/novahiz/.snap) au prix d'un ledger de test
+  // mélangeable à un vrai lors d'un restore.
+  const previousHome = process.env.NOVAHIZ_HOME;
+  process.env.NOVAHIZ_HOME = dir;
   const db = openDb(join(dir, "review-test.sqlite"));
   const task = createTask(db, { title: "review hardening" });
 
   after(() => {
     db.close();
+    if (previousHome === undefined) delete process.env.NOVAHIZ_HOME;
+    else process.env.NOVAHIZ_HOME = previousHome;
     rmSync(dir, { recursive: true, force: true });
   });
 

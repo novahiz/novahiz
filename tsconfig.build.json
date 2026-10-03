@@ -1,0 +1,13 @@
+{
+  "//": "Emit build used by `npm run prepare`. Distinct from tsconfig.json (typecheck only): bin/novahiz.mjs imports dist/cli.js when the package runs from node_modules, so the output root must be dist/cli.js — hence rootDir src. Every source file imports its siblings with a .ts extension (Node's type stripping), and rewriteRelativeImportExtensions turns those specifiers into .js in the emitted JavaScript.",
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "rootDir": "src",
+    "outDir": "dist",
+    "rewriteRelativeImportExtensions": true,
+    "sourceMap": false,
+    "declaration": false
+  },
+  "include": ["src"]
+}

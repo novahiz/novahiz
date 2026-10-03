@@ -183,6 +183,31 @@ Rebuilds the installed-skills index.
 Novahiz sync
 ```
 
+### `Novahiz snap <subcommand>`
+
+Versioned snapshots of the SQLite ledger, kept in a content-addressed store under `<home>/.snap` (gzip objects deduplicated by sha256, 50 snapshots kept per operation with a floor of 10).
+
+```bash
+Novahiz snap save -m "before the migration"   # capture the ledger now
+Novahiz snap diff 9bd58bf current             # what changed since a snapshot
+Novahiz snap restore 9bd58bf --force          # put the ledger back (backup first)
+```
+
+| Subcommand | Effect |
+|-----------|--------|
+| `save -m <msg>` | Capture the ledger now, labelled with your message |
+| `list` / `log` | Snapshots, newest first |
+| `show <id>` | One manifest |
+| `diff <id> [current]` | Row-level diff against a snapshot or the live ledger |
+| `restore <id> --force` | Restore in one transaction; refuses without `--force` |
+| `export <id> <file>` | Copy one snapshot to a `.sqlite` file (workspace paths only) |
+| `verify` | Object hash + `integrity_check` for every snapshot |
+| `prune` | Delete objects no snapshot references |
+| `status` | Store location, count, size, retention, deferred captures |
+| `help` | Subcommand reference |
+
+Snapshot ids accept any unambiguous prefix; an ambiguous one is refused and lists its candidates. `list`, `show`, `diff`, `verify`, `prune` and `status` never write to the ledger — only `save` and `restore` do, and `restore` writes a backup before touching a row. Every subcommand accepts `--json`.
+
 ## Exit codes
 
 | Code | Meaning |

@@ -1,7 +1,7 @@
 import type { DatabaseSync } from "node:sqlite";
 import { resolve } from "node:path";
 import { globToRegExp, isSafeRegexPattern } from "./gate.ts";
-import { autoCommit } from "./graft.ts";
+import { capture } from "./snap.ts";
 
 export type TodoKind = "read" | "edit" | "verify" | "delegate";
 type TodoStatus = "pending" | "in_progress" | "done" | "blocked" | "dropped";
@@ -124,26 +124,45 @@ function nowIso(): string {
 
 // H4: SESSION_TTL_MS was defined but never enforced — sessions accumulated
 // forever. pruneSessions deletes expired sessions and their orphaned rows.
-// Called from openDb on every startup (best effort, never throws).
-export function pruneSessions(db: DatabaseSync): void {
+// Called from openDb on every startup (best effort, never throws). Returns the
+// number of rows it removed: the caller decides whether there is anything
+// worth snapshotting, so an untouched ledger is not captured — and, worse, not
+// mislabelled with this operation while it captures somebody else's write.
+export function pruneSessions(db: DatabaseSync): number {
   const cutoff = new Date(Date.now() - SESSION_TTL_MS).toISOString();
   db.exec("SAVEPOINT prune_sp");
+  let removed = 0;
   try {
-    db.prepare(
-      "DELETE FROM skill_invocations WHERE session_id IN (SELECT id FROM sessions WHERE updated_at < ?)"
-    ).run(cutoff);
-    db.prepare(
-      "DELETE FROM roadmap_progress WHERE session_id IN (SELECT id FROM sessions WHERE updated_at < ?)"
-    ).run(cutoff);
-    db.prepare(
-      "DELETE FROM enforcement_log WHERE session_id IN (SELECT id FROM sessions WHERE updated_at < ?)"
-    ).run(cutoff);
-    db.prepare("DELETE FROM sessions WHERE updated_at < ?").run(cutoff);
+    removed += Number(
+      db
+        .prepare(
+          "DELETE FROM skill_invocations WHERE session_id IN (SELECT id FROM sessions WHERE updated_at < ?)",
+        )
+        .run(cutoff).changes,
+    );
+    removed += Number(
+      db
+        .prepare(
+          "DELETE FROM roadmap_progress WHERE session_id IN (SELECT id FROM sessions WHERE updated_at < ?)",
+        )
+        .run(cutoff).changes,
+    );
+    removed += Number(
+      db
+        .prepare(
+          "DELETE FROM enforcement_log WHERE session_id IN (SELECT id FROM sessions WHERE updated_at < ?)",
+        )
+        .run(cutoff).changes,
+    );
+    removed += Number(
+      db.prepare("DELETE FROM sessions WHERE updated_at < ?").run(cutoff).changes,
+    );
     db.exec("RELEASE SAVEPOINT prune_sp");
   } catch (error) {
     db.exec("ROLLBACK TO SAVEPOINT prune_sp");
     throw error;
   }
+  return removed;
 }
 
 function genId(prefix: string): string {
@@ -174,7 +193,7 @@ export function createTask(db: DatabaseSync, options: { title: string; id?: stri
   db.prepare(
     "INSERT INTO tasks (id, title, status, session_id, created_at, updated_at, project_root) VALUES (?, ?, 'active', ?, ?, ?, ?)"
   ).run(taskId, options.title, options.sessionId ?? null, ts, ts, projectRoot);
-  autoCommit("task-created", options.title);
+  capture(db, "task-created", options.title);
   return getTask(db, taskId) as TaskRow;
 }
 
@@ -245,7 +264,7 @@ export function addTodos(db: DatabaseSync, taskId: string, items: TodoInput[]): 
     db.exec("ROLLBACK TO SAVEPOINT add_todos_sp");
     throw error;
   }
-  autoCommit("todos-added", `${items.length} item(s) to ${taskId}`);
+  capture(db, "todos-added", `${items.length} item(s) to ${taskId}`);
   return ids.map((id) => getTodo(db, id) as TodoRow);
 }
 
@@ -279,7 +298,7 @@ export function completeTodo(db: DatabaseSync, id: string, proof = ""): TodoRow 
   }
   db.prepare("UPDATE todos SET status = 'done', proof = ?, updated_at = ? WHERE id = ?").run(trimmed.length > 0 ? trimmed : null, nowIso(), id);
   maybeCompleteTask(db, todo.task_id);
-  autoCommit("todo-completed", id);
+  capture(db, "todo-completed", id);
   return getTodo(db, id) as TodoRow;
 }
 
@@ -399,6 +418,9 @@ export function insertTodo(db: DatabaseSync, taskId: string, item: TodoInput, po
     const created = addTodos(db, taskId, [item])[0];
     if (position === undefined || position === "end") {
       db.exec("RELEASE SAVEPOINT insert_sp");
+      // addTodos tried to snapshot while insert_sp was open and was deferred:
+      // capture now that the transaction is released.
+      capture(db, "todos-added", `1 item(s) to ${taskId}`);
       return created;
     }
     const others = listTodos(db, taskId).filter((todo) => todo.id !== created.id);
@@ -414,6 +436,7 @@ export function insertTodo(db: DatabaseSync, taskId: string, item: TodoInput, po
     }
     reorderTodos(db, taskId, orderedIds);
     db.exec("RELEASE SAVEPOINT insert_sp");
+    capture(db, "todos-added", `1 item(s) to ${taskId}`);
     return getTodo(db, created.id) as TodoRow;
   } catch (error) {
     db.exec("ROLLBACK TO SAVEPOINT insert_sp");
@@ -431,7 +454,7 @@ export function dropTodo(db: DatabaseSync, id: string, reason = ""): TodoRow {
     id
   );
   maybeCompleteTask(db, todo.task_id);
-  autoCommit("todo-dropped", id);
+  capture(db, "todo-dropped", id);
   return getTodo(db, id) as TodoRow;
 }
 
@@ -454,7 +477,7 @@ export function dropTask(db: DatabaseSync, id: string, reason = ""): TaskRow {
     db.exec("ROLLBACK TO SAVEPOINT drop_task_sp");
     throw error;
   }
-  autoCommit("task-abandoned", trimmed ? `${id}: ${trimmed}` : id);
+  capture(db, "task-abandoned", trimmed ? `${id}: ${trimmed}` : id);
   return requireTask(db, id);
 }
 
@@ -671,7 +694,7 @@ export function reviewTask(db: DatabaseSync, options: { taskId: string } & Revie
       applied: { additions: additions.length, amendments: amendments.length, removals: removals.length, reordered: Boolean(options.order) },
       signals: revisionSignals(db, options.taskId)
     };
-    autoCommit("task-reviewed", `revision ${revision}`);
+    capture(db, "task-reviewed", `revision ${revision}`);
     return result;
   } catch (error) {
     db.exec("ROLLBACK");

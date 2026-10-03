@@ -22,6 +22,10 @@ Tools:
 - `memory_update` edits an existing slot (`replace` / `append` on Détails, `summary` rewrites the bounded Résumé) — archived slots are refused.
 - `memory_archive` marks a slot as archived (idempotent, no data deletion; skipped by routing and search unless `includeArchived`).
 - `memory_rebuild` regenerates `index.json` from the slot markdown files.
+- `snap_log` lists ledger snapshots newest first (or one manifest, by id or unambiguous prefix).
+- `snap_status` reports the snapshot store: location, count, newest snapshot, size, retention, deferred captures.
+- `snap_diff` compares a snapshot with another snapshot or the live ledger, row by row — read-only.
+- `snap_restore` puts the ledger back to a snapshot: it rewrites rows inside one transaction (the file is never replaced, so open connections keep working), writes a safety backup first, then snapshots the restored state. It refuses unless `force` is `true`.
 
 It speaks newline-delimited JSON-RPC over stdio. No npm install is needed.
 

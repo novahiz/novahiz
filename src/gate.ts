@@ -5,7 +5,7 @@ import { determineTier, type ComplexityTier } from "./complexity.ts";
 // Shared ledger enforcement (audit P1-D/M1): the CLI command and the MCP
 // novahiz_gate tool both run these checks so their verdicts cannot diverge.
 import { activeTask, ownedByOpenTodo, recordEdit, reviewBlockReason, reviewDue, traceCheck } from "./ledger.ts";
-import { autoCommit } from "./graft.ts";
+import { capture } from "./snap.ts";
 import type { openDb } from "./db.ts";
 
 type GateDb = ReturnType<typeof openDb>;
@@ -552,9 +552,9 @@ export function enforceLedgerChecks(
       new Date().toISOString()
     );
     try {
-      autoCommit("enforcement", `${currentAllow ? "allow" : "block"} ${tool}`);
+      capture(db, "enforcement", `${currentAllow ? "allow" : "block"} ${tool}`);
     } catch {
-      // autoCommit failures are non-critical; the enforcement is logged regardless
+      // capture failures are non-critical; the enforcement is logged regardless
     }
   }
 
