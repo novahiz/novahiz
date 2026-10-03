@@ -58,4 +58,4 @@ The Novahiz adapter (`adapters/opencode/novahiz.ts`) is first-party under Apache
 
 ## Dependencies
 
-The core and the MCP server use Node.js built-ins only. The opencode adapter imports only Node.js built-ins and the `@opencode-ai/plugin` types, which the harness provides.
+The core and the MCP server use Node.js built-ins only. The opencode adapter imports only Node.js built-ins and the `@opencode/plugin` types, which the harness provides.

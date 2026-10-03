@@ -156,6 +156,16 @@ export function writeJson(path, value) {
   writeFileSync(path, `${JSON.stringify(value, null, 2)}\n`, "utf8");
 }
 
+// --browser flag for the generated Playwright MCP entry. Edge ships with
+// Windows; on macOS/Linux omitting the flag silently launches Playwright's
+// bundled Chromium (coreBundle: browserName ??= "chromium"), which the house
+// rule (adapters/opencode/instructions.md) forbids — WebKit is the sanctioned
+// non-Chromium fallback. Lives here so install.mjs, bootstrap.mjs and tests
+// share one source of truth.
+export function playwrightBrowserFlag(platform = process.platform) {
+  return platform === "win32" ? "--browser=msedge" : "--browser=webkit";
+}
+
 // Config written on a fresh install. Lives here (not in install.mjs) so tests
 // can assert it without executing the installer.
 export function defaultConfig() {
@@ -171,7 +181,7 @@ export function defaultConfig() {
       // Kept for schema compatibility only — the kill-switch name is hardcoded
       // to NOVAHIZ_GATE in the CLI, MCP gate, and plugin (see src/spec.ts).
       envEscape: "NOVAHIZ_GATE",
-      tools: ["edit", "write", "patch", "apply_patch", "bash", "shell", "cron_add_command_task", "cron_update_command_task", "cron_update_task", "cron_run_task_now"]
+      tools: ["edit", "write", "patch", "apply_patch", "bash", "shell", "cron_add_command_task", "cron_add_task", "cron_add_ai_task", "cron_add_http_task", "cron_update_command_task", "cron_update_task", "cron_run_task_now"]
     },
     classify: {
       minScore: 1,
@@ -190,13 +200,45 @@ export function loadManifest(home) {
   return readJson(join(home, ".novahiz-install.json"), { created: [], backups: [] });
 }
 
-// npm/npx are .cmd shims on Windows: direct spawnSync throws ENOENT, so they
-// need cmd.exe. Node deprecates args arrays with shell:true (DEP0190), which
-// only wants a single string — every token here is static (catalog package
-// names, fixed flags), so joining with spaces is safe.
+// npm/npx are .cmd shims on Windows: direct spawnSync throws ENOENT
+// (post-CVE-2024-* Node refuses to run .cmd via CreateProcess), so they need
+// cmd.exe. The line handed to cmd.exe is built only from tokens that pass
+// SAFE_HOST_TOKEN — the install-side mirror of src/exec.ts SAFE_TOKEN, widened
+// by a single character: "*" (cmd.exe performs no glob expansion, and the
+// flutter-skills `--skill *` argument must reach npx literally). Everything a
+// shell can reinterpret — & | < > ^ % ! ( ) " ' ` ; $ ? whitespace, newlines —
+// stays banned, so the joined line can never grow a second command. Tokens are
+// static today (catalog package names, fixed flags); this check keeps that
+// true for any future argument instead of trusting it. Same cmd.exe spelling
+// as src/exec.ts resolveSpawn — cmd.exe is spawned explicitly with argv, no
+// deprecated shell flag (DEP0190), so the joined line is the only string cmd
+// ever parses.
+const SAFE_HOST_TOKEN = /^[A-Za-z0-9@._+*,/:=~-]+$/;
+
+export function unsafeHostToken(tokens) {
+  for (const token of tokens) {
+    if (token.length === 0) return "";
+    if (!SAFE_HOST_TOKEN.test(token)) return token;
+  }
+  return null;
+}
+
+function refusedHost(token) {
+  return {
+    status: 1,
+    stdout: "",
+    stderr: `refused unsafe token: ${token}\n`,
+    error: new Error(`refused unsafe token: ${token}`),
+  };
+}
+
 export function spawnHost(cmd, args, opts = {}) {
   if (process.platform === "win32") {
-    return spawnSync([cmd, ...args].join(" "), { ...opts, encoding: "utf8", shell: true });
+    const bad = unsafeHostToken([cmd, ...args]);
+    if (bad !== null) return refusedHost(bad);
+    const shell = process.env.ComSpec ?? "cmd.exe";
+    const line = [cmd, ...args].join(" ");
+    return spawnSync(shell, ["/d", "/s", "/c", line], { ...opts, encoding: "utf8" });
   }
   return spawnSync(cmd, args, { ...opts, encoding: "utf8" });
 }
@@ -245,6 +287,12 @@ export function pruneEmptyDirs(paths, stops = []) {
       }
     }
   }
+}
+
+// The only supported harness: opencode is on PATH or has a config dir
+// (desktop app, or a CLI that has already been launched once).
+export function detectedHarnesses(dirs, whichFn = which) {
+  return ["opencode"].filter((name) => whichFn(name) || existsSync(dirs[name]));
 }
 
 export function which(cmd) {

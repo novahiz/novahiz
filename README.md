@@ -1,358 +1,394 @@
-# Novahiz: Agent Governance Toolkit
+# Novahiz : la boîte à outils de gouvernance des agents
 
-> **Zero-dependency enforcement layer for AI coding agents** — classifies prompts, assigns execution roadmaps, blocks unsafe edits, and injects session-level skills, all deterministically without model calls.
+> **Couche d'application sans dépendance pour les agents de code IA** — classe les prompts, attribue des roadmaps d'exécution, bloque les éditions non sûres tant que les bonnes skills ne sont pas chargées, et persiste les décisions d'une session à l'autre — tout cela de façon déterministe, sans appel de modèle.
 
-17 categories, 95 skills, 11 gate rules, 7 MCP providers — all deterministic, all local, all JSON.
-
-```
-┌─────────────────────────────────────────────────────────────────────┐
-│                                                                     │
-│    USER PROMPT  ──▶  CLASSIFIER  ──▶  GATE  ──▶  SAFE OUTPUT      │
-│                                                                     │
-│    "Fix the      3 categories    2 missing     Edit blocked        │
-│     auth bug"    detected         skills        until skills       │
-│                                   required      loaded             │
-│                                                                     │
-└─────────────────────────────────────────────────────────────────────┘
-```
-
----
-
-## What it does
+17 catégories, 96 skills, 11 gate rules, 7 MCP providers — tout déterministe, tout local, tout JSON.
 
 ```
 ┌──────────────────────────────────────────────────────────────────────────┐
-│                        HOW Novahiz WORKS                            │
 │                                                                          │
-│  ┌──────────┐    ┌────────────┐    ┌──────────┐    ┌──────────────┐     │
-│  │  USER    │───▶│  CLASSIFY  │───▶│  INJECT  │───▶│    MODEL     │     │
-│  │  PROMPT  │    │            │    │ ENFORCE  │    │   RESPONSE   │     │
-│  └──────────┘    │ keywords   │    │ block +  │    └──────┬───────┘     │
-│                  │ priority   │    │ roadmap  │           │             │
-│                  │ roadmap    │    │ ledger   │           ▼             │
-│                  └────────────┘    └──────────┘    ┌──────────────┐     │
-│                       │                            │  TOOL CALL   │     │
-│                       │                            │ (edit/write) │     │
-│                       │                            └──────┬───────┘     │
-│                       │                                   │             │
-│                       │         ┌────────────┐            │             │
-│                       └────────▶│    GATE    │◀───────────┘             │
-│                                 │            │                          │
-│                                 │  file path │                          │
-│                                 │  skills    │                          │
-│                                 │  content   │                          │
-│                                 └─────┬──────┘                          │
-│                                       │                                 │
-│                                       ▼                                 │
-│                                 ┌──────────┐                           │
-│                                 │ allow /  │                           │
-│                                 │ BLOCK    │                           │
-│                                 └──────────┘                           │
+│   PROMPT UTIL.  ──▶  CLASSIF.  ──▶  GATE  ──▶  SORTIE SÛRE              │
+│                                                                          │
+│   « Corrige le    3 catégories   2 skills       Édition bloquée          │
+│     bug d'auth »  détectées      manquantes     tant que les            │
+│                   exigées        skills ne sont pas chargées            │
 │                                                                          │
 └──────────────────────────────────────────────────────────────────────────┘
 ```
 
-**17 categories**, **95 skills**, **11 gate rules**, **7 MCP providers** — all deterministic, all local, all JSON.
+---
+
+## Comment se déroule une session
+
+1. **Classifier** — chaque prompt est noté contre 17 catégories (mots-clés déterministes, aucun appel de modèle). Le résultat porte jusqu'à trois catégories, une principale, un niveau de confiance, un **tier** (`trivial` / `lite` / `full`), et les skills que le gate attendra.
+2. **Roadmap** — la catégorie principale sélectionne une roadmap ordonnée, et le plugin injecte sa checklist dans la session : l'agent suit plan → clarify → tasks → analyse → implement → converge au lieu d'improviser un ordre.
+3. **Gate sur chaque écriture** — les appels `edit` / `write` / `patch` / `bash` / `shell` sont vérifiés selon la classe de fichier, les règles actives, les skills de roadmap et le contenu (tokens de placeholder) : **allow** ou **block**, en local, sans appel de modèle dans le chemin de décision.
+4. **Gate reload, pas une impasse** — un blocage nomme exactement les skills manquantes et la règle de retry : charger chacune, rejouer l'appel une seule fois. Une skill absente de l'index installé est signalée, jamais appliquée. `NOVAHIZ_GATE=off` est la seule soupape, et elle est bruyante.
+5. **Vérifier et converger** — les roadmaps se terminent par des étapes `verify` qui exigent une preuve ; `novahiz-converge` note le code face à la demande d'origine et transforme chaque reste en étape traçable du ledger.
+6. **Persister** — décisions, causes racines et prochaines étapes survivent à la session via la couche mémoire (ci-dessous), et `novahiz report` boucle la boucle avec un résumé de session.
+
+```
+ PROMPT ─▶ CLASSIFIER ─▶ ROADMAP ─▶ travail ─▶ GATE ─▶ allow ─▶ VERIFY ─▶ MEMORY
+                 │                     ▲         │
+                 └─ tier, skills ──────│         └─ block : charger les skills nommées, retry une fois
+```
+
+**17 catégories**, **96 skills**, **11 gate rules**, **7 MCP providers** — tout déterministe, tout local, tout JSON.
 
 ---
 
-## Quick start
+## Démarrage rapide
 
-### Option 1 — One-liner (recommended)
-
-```bash
-npm install -g Novahiz
-```
-
-This installs Novahiz globally and auto-configures opencode (skills, plugin, MCP servers, config). Then verify:
+### Option 1 — En une ligne (recommandé)
 
 ```bash
-npx Novahiz doctor   # 12 health checks
-npx Novahiz classify "fix the auth bug"
+npm install -g novahiz
+novahiz-install --yes
 ```
 
-### Option 2 — From source
+`npm install -g novahiz` installe le CLI. Sur npm 11+, les scripts de lifecycle sont derrière une confirmation allow-scripts : la configuration est donc une seconde étape explicite. `novahiz-install` configure opencode, le seul harness supporté — skills, plugin/agent, commands, MCP servers, config ; `--yes` accepte la configuration détectée. Puis vérifiez :
+
+```bash
+novahiz doctor   # Santé : 15 checks (17 avec --deep)
+novahiz classify "fix the auth bug"
+```
+
+### Option 2 — Depuis les sources
 
 ```bash
 git clone https://github.com/novahiz/novahiz.git
 cd novahiz
-npm install && npm run build
-node ./install/install.mjs
+npm install            # `prepare` typecheck et build dist/
+node ./install/install.mjs   # ajouter --yes pour accepter les valeurs détectées
 
-# Verify
-npx Novahiz doctor
+# Vérifier
+node ./dist/cli.js doctor
 ```
 
-> Requires **Node.js >= 22.18**. The installer auto-installs opencode if it's missing.
+> Nécessite **Node.js >= 22.18**. L'installeur installe automatiquement le CLI d'opencode (`opencode-ai`) s'il est entièrement absent de la machine, sans bloquer.
 
 ---
 
-## The Classifier
+## Le classifier
 
-Every user prompt passes through the classifier. It scores keywords against 17 categories and picks the top matches.
+Chaque prompt utilisateur passe par le classifier. Il note les mots-clés contre 17 catégories et retient les meilleurs matchs.
 
 ```mermaid
 flowchart LR
-    A[User Prompt] --> B[Text Folding<br/>lowercase + strip accents]
-    B --> C{Keyword Scoring<br/>+1.0 per hit<br/>+1.5 multi-word bonus}
-    C --> D[Rank by Score + Priority]
-    D --> E[Top 3 Categories]
-    E --> F[Primary Category<br/>determines roadmap]
-    F --> G[Required Skills<br/>union of all categories]
-    F --> H[Enforced Skills<br/>primary only — gate blocks if missing]
+    A[Prompt utilisateur] --> B[Folding du texte<br/>minuscules + suppression des accents]
+    B --> C{Scoring mots-clés<br/>+1.0 par hit<br/>+1.5 bonus multi-mots}
+    C --> D[Classement par score + priorité]
+    D --> E[Top 3 des catégories]
+    E --> F[Catégorie principale<br/>détermine la roadmap]
+    F --> G[Skills requises<br/>union de toutes les catégories]
+    F --> H[Skills appliquées<br/>principale seulement — le gate bloque si absente]
 ```
 
-**Example:**
+**Exemple :**
 
-| Prompt | Top Category | Confidence | Skills Required |
-|--------|-------------|------------|-----------------|
+| Prompt | Catégorie principale | Confiance | Skills requises |
+|--------|----------------------|-----------|-----------------|
 | "fix the auth bug" | `debug` | 0.60 | novahiz-plan, novahiz-analyse, novahiz-implement, novahiz-converge |
 | "add a landing page" | `design-ui` | 0.50 | novahiz-humanizer, ui-slop-remover |
 | "create supabase migration" | `database-supabase` | 0.60 | novahiz-supabase, novahiz-postgres, novahiz-plan, novahiz-implement |
 
 ---
 
-## The Gate
+## Le gate
 
-The gate is the enforcement mechanism. It inspects every file edit and decides: **allow** or **block**.
+Le gate est le mécanisme d'application. Il inspecte chaque édition de fichier et décide : **allow** ou **block**.
 
 ```mermaid
 flowchart TD
-    A[Tool Call: edit / write / patch] --> B[File Class Detection]
-    B --> C{Rule Matching}
+    A[Appel outil : edit / write / patch] --> B[Détection de la classe de fichier]
+    B --> C{Correspondance des règles}
     
-    C --> D[R13: Design-ui prompt or style file?<br/>require humanizer + ui-slop + ui-craft]
-    C --> F[R3: Prompt was Supabase?<br/>require novahiz-supabase + postgres]
-    C --> G[R4: Prompt was browser?<br/>require novahiz-browser]
-    C --> H[R6: Workflow prompt?<br/>require plan/clarify/analyse/implement/converge]
+    C --> D[R13 : prompt design-ui ou fichier style ?<br/>exiger humanizer + ui-slop + ui-craft]
+    C --> F[R3 : le prompt était Supabase ?<br/>exiger novahiz-supabase + postgres]
+    C --> G[R4 : le prompt était navigateur ?<br/>exiger novahiz-browser]
+    C --> H[R6 : prompt de workflow ?<br/>exiger plan/clarify/analyse/implement/converge]
     
-    D --> I{Roadmap Enforcement}
+    D --> I{Application de la roadmap}
     F --> I
     G --> I
     H --> I
     
-    I --> J{Placeholder Detection<br/>TODO / FIXME / placeholder tokens}
+    I --> J{Détection de placeholder<br/>tokens TODO / FIXME / placeholder}
     
-    J --> K["Check installed skills<br/>(missing → reported, not blocked)"]
-    J --> L["Check loaded skills<br/>(missing → BLOCKED)"]
+    J --> K["Vérif. des skills installées<br/>(manquante → signalée, non bloquée)"]
+    J --> L["Vérif. des skills chargées<br/>(manquante → BLOQUÉE)"]
     
-    K --> M{All loaded?}
+    K --> M{Toutes chargées ?}
     L --> M
     
-    M -->|Yes| N[✅ Allow edit]
-    M -->|No| O[❌ Block edit<br/>list missing skills]
+    M -->|Oui| N[✅ Édition autorisée]
+    M -->|Non| O[❌ Édition bloquée<br/>liste des skills manquantes]
 ```
 
-### File classes
+### Classes de fichiers
 
-| Class | Extensions |
-|-------|-----------|
+| Classe | Extensions |
+|--------|-----------|
 | `code` | `.ts`, `.tsx`, `.js`, `.jsx`, `.py`, `.go`, `.rs`, `.java`, `.kt`, `.swift`, `.php`, `.dart`, `.rb` |
 | `design` | `.css`, `.scss`, `.html`, `.vue`, `.svelte`, `.astro` |
 | `text` | `.md`, `.txt`, `.rst` |
 | `config` | `.json`, `.yaml`, `.yml`, `.toml` |
 | `data` | `.csv`, `.sql`, `.db` |
 
-### Gate rules
+### Règles du gate
 
-| Rule | Triggers on | Requires |
-|------|-------------|----------|
-| R3-supabase | A Supabase path or a Supabase prompt | novahiz-supabase, novahiz-postgres |
-| R4-playwright | A browser prompt category, or a browser test path (`**/*.spec.ts`, `**/e2e/**`, `**/playwright/**`, …) | novahiz-browser |
-| R6-Novahiz | A prompt in a workflow category | novahiz-plan, -clarify, -analyse, -implement, -converge |
-| R7-assessment | An assessment prompt | novahiz-assess-intake, -research, -define, -shape, -decide |
-| R8-docs | Edits under `novahiz-docs/**/*.md` | novahiz-docs |
-| R9-code-review | A review prompt or a code file under review | novahiz-code-review |
-| R10-security | An audit or security prompt | novahiz-security |
-| R11-accessibility | A design-ui or audit prompt | novahiz-wcag-audit |
-| R12-web-extract | A research prompt | novahiz-web-extract |
-| R13-design-craft | A design-ui prompt or a style file (css/scss/less/html) | novahiz-humanizer, ui-slop-remover, ui-craft-rules |
-| R14-impeccable | A design-ui prompt or a style file (css/scss/less/html) | impeccable |
+| Règle | Se déclenche sur | Exige |
+|-------|------------------|-------|
+| R3-supabase | Un chemin Supabase ou un prompt Supabase | novahiz-supabase, novahiz-postgres |
+| R4-playwright | Une catégorie prompt navigateur, ou un chemin de test navigateur (`**/*.spec.ts`, `**/e2e/**`, `**/playwright/**`, …) | novahiz-browser |
+| R6-Novahiz | Un prompt dans une catégorie de workflow | novahiz-plan, -clarify, -analyse, -implement, -converge |
+| R7-assessment | Un prompt d'assessment | novahiz-assess-intake, -research, -define, -shape, -decide |
+| R8-docs | Une édition sous `novahiz-docs/**/*.md` | novahiz-docs |
+| R9-code-review | Un prompt de review ou un fichier de code en review | novahiz-code-review |
+| R10-security | Un prompt d'audit ou de sécurité | novahiz-security |
+| R11-accessibility | Un prompt design-ui ou audit | novahiz-wcag-audit |
+| R12-web-extract | Un prompt de recherche | novahiz-web-extract |
+| R13-design-craft | Un prompt design-ui ou un fichier style (css/scss/less/html) | novahiz-humanizer, ui-slop-remover, ui-craft-rules |
+| R14-impeccable | Un prompt design-ui ou un fichier style (css/scss/less/html) | impeccable |
 
-`novahiz-humanizer` and `ui-slop-remover` are required only on frontend design tasks (R13); `impeccable` loads the same way (R14) so critique, audit and polish playbooks stay reachable.
+`novahiz-humanizer` et `ui-slop-remover` ne sont exigées que sur les tâches de design frontend (R13) ; `impeccable` se charge de la même façon (R14) pour garder les playbooks shape, critique, audit, harden et polish accessibles, et la roadmap design-ui porte une étape de vérification `impeccable detect` déterministe avant ship. `novahiz init` et `novahiz doctor` affichent les fichiers de contexte `PRODUCT.md` / `DESIGN.md` d'impeccable en lignes advisory.
+
+### Gate reload
+
+Un blocage n'est jamais une impasse. Le refus embarque une recette GATE RELOAD : charger chaque skill nommée via le loader, puis rejouer l'appel exact une fois — aucun outil alternatif, aucune écriture shell, aucun contournement d'édition. Si les mêmes skills sont de nouveau signalées manquantes, le chargement n'a pas été enregistré : exécuter `novahiz doctor`, signaler honnêtement, et s'arrêter. La seule dérogation sanctionnée est `NOVAHIZ_GATE=off` (voir Configuration), déclarée à voix haute.
+
+Une skill requise absente de l'index installé n'est jamais appliquée silencieusement : le gate ajoute `required skill not in index, not enforced — run novahiz sync to realign` à ses raisons au lieu de bloquer pour toujours. Un index illisible rend le gate plus strict, jamais plus laxiste.
 
 ---
 
 ## Roadmaps
 
-Each category has an ordered execution roadmap. The gate enforces non-optional `skill` steps.
+Chaque catégorie possède une roadmap d'exécution ordonnée. Le gate applique les étapes `skill` non optionnelles.
+
+### Le pipeline en six étapes
+
+Huit catégories (`code`, `debug`, `browser`, `design-ui`, `database-supabase`, `planning`, `devops`, `data`) partagent un pipeline — et les étapes 1 à 4 n'écrivent aucun fichier d'application : elles produisent un plan et des décisions :
+
+| # | Étape | Skill | Produit |
+|---|-------|-------|---------|
+| 1 | Plan | `novahiz-plan` | direction, périmètre, ordre des dépendances, stratégie de découpe, risques |
+| 2 | Clarify | `novahiz-clarify` | les questions ouvertes, répondues, et les décisions qu'elles figent |
+| 3 | Tasks | `novahiz-task` | des tâches atomiques, chacune avec critères d'acceptation et preuve |
+| 4 | Analyse | `novahiz-analyse` | les fichiers et symboles qui portent la logique, et les inconnues |
+| 5 | Implement | `novahiz-implement` | des incréments qui laissent le système fonctionnel |
+| 6 | Converge | `novahiz-converge` | l'écart entre intention et code, en tâches restantes traçables |
+
+Clarify renvoie le travail au plan quand une réponse change l'architecture ; converge le renvoie aux tâches quand il trouve un écart. `flutter` et `expo` gardent les six mêmes étapes et insèrent leurs skills qualité autour d'implement. Le **tier** du classifier filtre la suite : `trivial` n'exécute presque rien, `lite` garde implement et converge, `full` parcourt toute la roadmap. Référence complète : [docs/ROADMAPS.md](docs/ROADMAPS.md).
 
 ```mermaid
 flowchart LR
-    subgraph "Feature (code)"
-        A1[advisory: Understand] --> A2[skill: Plan]
+    subgraph "Fonctionnalité (code)"
+        A1[advisory: Comprendre] --> A2[skill: Plan]
         A2 --> A3[skill: Analyse]
         A3 --> A4[skill: Implement]
         A4 --> A5[skill: Converge]
-        A5 --> A6[verify: Verify]
+        A5 --> A6[verify: Vérifier]
     end
     
-    subgraph "Bugfix (debug)"
-        B1[advisory: Reproduce] --> B2[advisory: Isolate]
+    subgraph "Correctif (debug)"
+        B1[advisory: Reproduire] --> B2[advisory: Isoler]
         B2 --> B3[skill: Plan]
         B3 --> B4[skill: Analyse]
         B4 --> B5[skill: Implement]
         B5 --> B6[skill: Converge]
-        B6 --> B7[advisory: Prevent]
+        B6 --> B7[advisory: Prévenir]
     end
     
-    subgraph "Schema (database-supabase)"
+    subgraph "Schéma (database-supabase)"
         C1[skill: Plan] --> C2[skill: Clarify]
-        C2 --> C3[skill: Inspect]
-        C3 --> C4[skill: Load supabase]
+        C2 --> C3[skill: Inspecter]
+        C3 --> C4[skill: Charger supabase]
         C4 --> C5[skill: Implement]
         C5 --> C6[skill: Security]
         C6 --> C7[skill: Converge]
     end
 ```
 
-| Step Kind | What it means | Gate behavior |
-|-----------|---------------|---------------|
-| `skill` | Load a skill before proceeding | **Blocks** if skill not loaded |
-| `edit` | Make code changes | Allowed |
-| `verify` | Check the work is correct | Advisory |
-| `advisory` | Informational | Never blocks |
+| Type d'étape | Ce que ça veut dire | Comportement du gate |
+|--------------|---------------------|----------------------|
+| `skill` | Charger une skill avant de continuer | **Bloque** si la skill n'est pas chargée |
+| `edit` | Modifier le code | Autorisé |
+| `verify` | Vérifier que le travail est correct | Advisory |
+| `advisory` | Informatif | Ne bloque jamais |
 
 ---
 
-## Task Ledger
+## Ledger de tâches
 
-For work that spans more than a few steps, the ledger keeps the plan in SQLite instead of in the conversation.
+Pour un travail qui dépasse quelques étapes, le ledger conserve le plan dans SQLite plutôt que dans la conversation.
 
 ```mermaid
 flowchart TD
-    A["task new 'Add CSV export'"] --> B[Create task + todos from roadmap]
-    B --> C[Dispatch work packets]
-    C --> D[Each packet = one todo<br/>exclusive file ownership]
-    D --> E[Agent works on todos]
-    E --> F{Review cadence<br/>every N edits}
-    F -->|N reached| G[Force review step<br/>reconcile plan]
-    F -->|N not reached| E
+    A["task new 'Ajouter export CSV'"] --> B[Créer tâche + todos depuis la roadmap]
+    B --> C[Dispatch des work packets]
+    C --> D[Chaque packet = un todo<br/>propriété exclusive de fichiers]
+    D --> E[L'agent travaille les todos]
+    E --> F{Cadence de review<br/>tous les N éditions}
+    F -->|N atteint| G[Forcer une étape de review<br/>réconcilier le plan]
+    F -->|N pas atteint| E
     G --> E
-    E --> H[All todos done]
-    H --> I[Task complete]
+    E --> H[Tous les todos faits]
+    H --> I[Tâche terminée]
 ```
 
-- **Exclusive file ownership** — no two work packets can edit the same file
-- **Iteration budget** — each todo has a max (default: 12) before escalation
-- **Review cadence** — forced review every 3 edits or 2 completed todos
-- **Proof required** — verify steps require evidence before completion
+- **Propriété exclusive des fichiers** — deux work packets ne peuvent pas éditer le même fichier
+- **Budget d'itération** — chaque todo a un max (par défaut : 12) avant escalade
+- **Cadence de review** — review forcée après 3 éditions de fichiers détenus par un todo ou 2 todos complétés (les éditions hors du projet de la tâche ou hors du périmètre d'un todo ne comptent pas)
+- **Preuve obligatoire** — les étapes verify exigent une évidence avant complétion
 
 ---
 
-## Installed skills
+## Mémoire
 
-Novahiz ships with 95 skills across all categories:
+La mémoire de session est un système à deux couches : un espace de travail borné et lisible par la machine, et un carnet lisible par l'humain écrit en double.
 
-| Category | Skills | Purpose |
-|----------|--------|---------|
-| `code` | novahiz-code-review, code-standards, openapi-mcp-server, ... | Code quality, patterns, architecture |
-| `debug` | novahiz-analyse, ... | Root cause analysis |
-| `review` | novahiz-code-review, novahiz-delta-review, ... | Structured review, blast radius |
-| `database-supabase` | novahiz-postgres, novahiz-supabase, ... | Schema, RLS, migrations, optimization |
-| `design-ui` | novahiz-humanizer, ui-slop-remover, ui-craft-rules, apple-ui-audit, ... | UI/UX, visual hierarchy, native feel |
-| `docs-writing` | ... | Prose, marketing copy, AI de-tell |
-| `browser` | novahiz-browser, browser-session, novahiz-web-extract, ... | Web automation, screenshots, extraction |
-| `audit` | novahiz-security, package-risk-audit, llm-threat-review, ... | Security, compliance, vulnerability |
-| `expo` | expo-overview, expo-router, expo-module, expo-dev-client, ... | Expo / React Native: routes, native modules, builds |
+| Couche | Où | Comportement |
+|--------|----|--------------|
+| Slots de session | `project-memory/` sous la racine du projet | `index.json` + slots de taille fixe, compact → archive → rotation |
+| Carnet | `MEMORY.md` + page Obsidian | double écriture en fin de tâche ; le dossier du vault vient de `_meta/routing.md` |
 
-Run `npx Novahiz skills --all` to see the full list.
+### Slots de session — `project-memory/`
+
+- Vit sous la racine du projet : `index.json` plus `slots/`, et `novahiz init` le sème avec un slot de base.
+- Slots de taille fixe (**8000 caractères / 200 lignes**) : un slot plein est compacté, archivé, remplacé — la mémoire reste bornée quelle que soit la durée du projet.
+- Les outils MCP l'opèrent : `memory_init`, `memory_list`, `memory_get`, `memory_write` (append et rotation), `memory_rebuild` (réindexe depuis le markdown).
+- C'est ici que vont décisions, causes racines et prochaines étapes quand une tâche complexe se termine.
+- `novahiz doctor` vérifie à la fois la racine mémoire et les outils mémoire.
+
+### Double écriture — `MEMORY.md` + vault
+
+La skill `novahiz-memory` écrit l'état de clôture d'une tâche à deux endroits à la fois :
+
+| Support | Destination |
+|---------|-------------|
+| Projet | `MEMORY.md` à la racine — ce qui marche maintenant, ce qui a changé, ce qui reste ouvert |
+| Vault | une page Obsidian — dossier choisi **uniquement** par la table de routage `_meta/routing.md` |
+
+Règles : frontmatter obligatoire (title, category, tags, sources, created, updated, summary), `[[wikilinks]]` depuis la taxonomie, et enrichir la page existante au lieu d'en créer une seconde. Routage ambigu → demander, jamais deviner.
+
+---
+
+## Skills installées
+
+Novahiz livre 96 skills couvrant toutes les catégories :
+
+| Catégorie | Skills | Objectif |
+|-----------|--------|----------|
+| `code` | novahiz-code-review, code-standards, openapi-mcp-server, ... | Qualité du code, patterns, architecture |
+| `debug` | novahiz-analyse, ... | Analyse de cause racine |
+| `review` | novahiz-code-review, novahiz-delta-review, ... | Review structurée, rayon d'impact |
+| `database-supabase` | novahiz-postgres, novahiz-supabase, ... | Schéma, RLS, migrations, optimisation |
+| `design-ui` | novahiz-humanizer, ui-slop-remover, ui-craft-rules, apple-ui-audit, ... | UI/UX, hiérarchie visuelle, feel natif |
+| `docs-writing` | ... | Prose, copy marketing, dé-IA du texte |
+| `browser` | novahiz-browser, browser-session, novahiz-web-extract, ... | Automatisation web, captures, extraction |
+| `audit` | novahiz-security, package-risk-audit, llm-threat-review, ... | Sécurité, conformité, vulnérabilités |
+| `expo` | expo-overview, expo-router, expo-module, expo-dev-client, ... | Expo / React Native : routes, modules natifs, builds |
+| `devops` | eas-workflows, eas-app-stores, novahiz-release, ... | CI/CD, déploiements, releases versionnées |
+
+Lancer `npx novahiz skills --all` pour voir la liste complète.
 
 ---
 
 ## Providers
 
-Novahiz auto-registers external MCP servers based on the prompt category:
+Novahiz auto-enregistre les serveurs MCP externes selon la catégorie du prompt :
 
-| Provider | Package | License | Categories |
+| Provider | Package | Licence | Catégories |
 |----------|---------|---------|------------|
 | context7 | `@upstash/context7-mcp` | MIT | code |
 | narsil | `narsil-mcp` | MIT OR Apache-2.0 | code, review |
 | novahiz | local (`mcp/novahiz-tools`) | Apache-2.0 | code, planning |
 | playwright | `@playwright/mcp` | Apache-2.0 | browser, design-ui |
 | security | `security-mcp` | MIT | audit |
-| cron | `scheduler-mcp` (local venv clone) | MIT | devops |
+| cron | `scheduler-mcp` (clone local venv) | MIT | devops |
 | dart | `dart mcp-server` (Dart SDK) | BSD-3-Clause | code, debug, design-ui, flutter |
 
-Skill packs (installed from official repos, never vendored): `flutter/agent-plugins` (25 skills), `dart-lang/skills` (15 skills), `expo/skills` (17 skills, the `expo-*` group only; `eas-*` paid services excluded), `pbakaus/impeccable` (1 skill, the upstream `impeccable` design skill). See [docs/PROVIDERS.md](docs/PROVIDERS.md).
+Packs de skills (installés depuis les dépôts officiels, jamais vendorés) : `flutter/agent-plugins` (25 skills), `dart-lang/skills` (15 skills), `expo/skills` (19 skills, le groupe `expo-*` seulement ; les services payants `eas-*` exclus), `pbakaus/impeccable` (1 skill, la skill design upstream `impeccable`). Voir [docs/PROVIDERS.md](docs/PROVIDERS.md).
 
-Upstream repositories and full provenance for MCP providers and opencode plugins: [docs/PROVIDERS.md](docs/PROVIDERS.md), [docs/HARNESSES.md](docs/HARNESSES.md), [NOTICE.md](NOTICE.md).
+Dépôts upstream et provenance complète des providers MCP et plugins opencode : [docs/PROVIDERS.md](docs/PROVIDERS.md), [docs/HARNESSES.md](docs/HARNESSES.md), [NOTICE.md](NOTICE.md).
+
+> Note : les fichiers de `docs/` restent en anglais.
 
 ---
 
 ## Configuration
 
 ```bash
-# Disable the gate (escape hatch)
+# Désactiver le gate (soupape d'urgence)
 NOVAHIZ_GATE=off npx opencode
 
-# Override home directory
-NOVAHIZ_HOME=/path/to/Novahiz npx Novahiz doctor
+# Surcharger le répertoire home
+NOVAHIZ_HOME=/path/to/novahiz npx novahiz doctor
 
-# Force node version
-NOVAHIZ_NODE=/usr/local/bin/node npx Novahiz doctor
+# Forcer la version de node
+NOVAHIZ_NODE=/usr/local/bin/node npx novahiz doctor
 ```
 
-See [docs/CONFIGURATION.md](docs/CONFIGURATION.md) for all options.
+Voir [docs/CONFIGURATION.md](docs/CONFIGURATION.md) pour toutes les options.
 
 ---
 
-## Commands
+## Commandes
 
-| Command | Purpose |
-|---------|---------|
-| `Novahiz init` | One-shot setup |
-| `Novahiz doctor` | 12-check health diagnostic |
-| `Novahiz status` | Current classification + gate state |
-| `Novahiz classify <text>` | Classify a prompt |
-| `Novahiz gate` | Check if an edit is allowed |
-| `Novahiz task new <title>` | Start a tracked task |
-| `Novahiz task status` | Task progress |
-| `Novahiz task done <id>` | Mark a todo complete |
-| `Novahiz report` | Session report |
-| `Novahiz skills` | List loaded or available skills |
-| `Novahiz catalog <query>` | Search the skill catalog |
-| `Novahiz roadmap` | Show execution roadmap |
-| `Novahiz dispatch` | Generate work packets |
-| `Novahiz sync` | Rebuild installed-skills index |
-| `Novahiz clean` | Remove old logs |
-| `Novahiz upgrade` | Pull latest + rebuild |
-| `Novahiz version` | Print version |
+| Commande | Objectif |
+|----------|----------|
+| `novahiz init` | Installation en une passe |
+| `novahiz doctor` | Diagnostic de santé 15-check (17 avec `--deep`) |
+| `novahiz status` | Classification + état du gate actuels |
+| `novahiz classify <text>` | Classer un prompt |
+| `novahiz gate` | Vérifier si une édition est autorisée |
+| `novahiz task new <title>` | Démarrer une tâche suivie |
+| `novahiz task status` | Avancement de la tâche |
+| `novahiz task done <id>` | Marquer un todo complété |
+| `novahiz report` | Rapport de session |
+| `novahiz skills` | Lister les skills chargées ou disponibles |
+| `novahiz catalog <query>` | Chercher dans le catalogue de skills |
+| `novahiz roadmap` | Afficher la roadmap d'exécution |
+| `novahiz dispatch` | Générer des work packets |
+| `novahiz sync` | Reconstruire l'index des skills installées |
+| `novahiz clean` | Supprimer les vieux logs |
+| `novahiz upgrade` | Pull du dernier + rebuild |
+| `novahiz version` | Afficher la version |
 
-See [docs/CLI.md](docs/CLI.md) for full reference.
+Voir [docs/CLI.md](docs/CLI.md) pour la référence complète.
 
 ---
 
 ## Documentation
 
-| File | Topic |
-|------|-------|
-| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | System design, components, data flow |
-| [docs/CLASSIFICATION.md](docs/CLASSIFICATION.md) | How the classifier works |
-| [docs/GATE.md](docs/GATE.md) | Gate rules, file classes, enforcement |
-| [docs/CATALOG.md](docs/CATALOG.md) | Categories, rules, providers, overrides |
-| [docs/PLUGIN.md](docs/PLUGIN.md) | opencode plugin lifecycle |
-| [docs/CLI.md](docs/CLI.md) | CLI command reference |
-| [docs/CONFIGURATION.md](docs/CONFIGURATION.md) | Config files and env vars |
-| [docs/EXECUTION.md](docs/EXECUTION.md) | Task ledger, todos, dispatch |
-| [docs/PROVIDERS.md](docs/PROVIDERS.md) | MCP servers and skill packs |
-| [docs/INSTALL.md](docs/INSTALL.md) | Installation and setup |
-| [docs/ROADMAPS.md](docs/ROADMAPS.md) | Execution roadmaps |
-| [docs/RULES.md](docs/RULES.md) | Gate rules reference |
-| [docs/CONSTITUTION.md](docs/CONSTITUTION.md) | Project principles |
-| [docs/HARNESSES.md](docs/HARNESSES.md) | Harness adapter guide |
-| [docs/TOKENS.md](docs/TOKENS.md) | Token diagnostics |
+| Fichier | Sujet |
+|---------|-------|
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Design système, composants, flux de données |
+| [docs/CLASSIFICATION.md](docs/CLASSIFICATION.md) | Fonctionnement du classifier |
+| [docs/GATE.md](docs/GATE.md) | Règles du gate, classes de fichiers, application |
+| [docs/CATALOG.md](docs/CATALOG.md) | Catégories, règles, providers, overrides |
+| [docs/PLUGIN.md](docs/PLUGIN.md) | Cycle de vie du plugin opencode |
+| [docs/CLI.md](docs/CLI.md) | Référence des commandes CLI |
+| [docs/CONFIGURATION.md](docs/CONFIGURATION.md) | Fichiers de config et variables d'env |
+| [docs/EXECUTION.md](docs/EXECUTION.md) | Ledger de tâches, todos, dispatch |
+| [docs/PROVIDERS.md](docs/PROVIDERS.md) | Serveurs MCP et packs de skills |
+| [docs/INSTALL.md](docs/INSTALL.md) | Installation et configuration |
+| [docs/ROADMAPS.md](docs/ROADMAPS.md) | Roadmaps d'exécution |
+| [docs/RULES.md](docs/RULES.md) | Référence des règles du gate |
+| [docs/CONSTITUTION.md](docs/CONSTITUTION.md) | Principes du projet |
+| [docs/HARNESSES.md](docs/HARNESSES.md) | Guide des adaptateurs de harness |
+| [docs/TOKENS.md](docs/TOKENS.md) | Diagnostics de tokens |
 
 ---
 
-## Philosophy
+## Philosophie
 
-Novahiz treats skills like **locks** and the prompt like a **key**. The classifier determines which locks exist. The gate checks whether you have the right keys loaded. No key, no edit.
+Novahiz traite les skills comme des **serrures** et le prompt comme une **clé**. Le classifier détermine quelles serrures existent. Le gate vérifie que vous avez les bonnes clés chargées. Pas de clé, pas d'édition.
 
-Everything is local, deterministic, and JSON. No cloud calls. No model inference in the decision path. Same prompt + same config = same result, every time.
+Tout est local, déterministe et JSON. Aucun appel cloud. Aucune inférence de modèle dans le chemin de décision. Même prompt + même config = même résultat, à chaque fois.
 
 ---
 
-## License
+## Licence
 
 Apache-2.0

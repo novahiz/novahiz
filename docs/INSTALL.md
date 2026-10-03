@@ -44,7 +44,7 @@ Restart opencode afterward. The plugin in `~/.config/opencode/plugins/novahiz.ts
 
 ## What it touches
 
-The installer merges `skills/` into your opencode skills directory, then writes the plugin, the agent, and the slash commands. It skips a skill that already exists in `~/.agents/skills` or another root the catalog scans, because two copies of one skill make the catalog describe one version while the harness loads the other. Pass `--force-skills` to copy anyway. Any file it overwrites is copied first to `<file>.novahiz-bak`, and the list is stored in `.novahiz-install.json`. It never deletes a file it did not create. `node install/uninstall.mjs` restores the backups and removes what the installer created; `--only <dir>` scopes that to one directory, and `--purge` also removes the Novahiz home.
+The installer configures opencode — the only harness Novahiz supports — merging `skills/` into your opencode skills directory and writing the plugin, the agent, and the slash commands; `--yes` accepts the detected configuration. It skips a skill that already exists in `~/.agents/skills` or another root the catalog scans, because two copies of one skill make the catalog describe one version while the harness loads the other. Pass `--force-skills` to copy anyway. Any file it overwrites is copied first to `<file>.novahiz-bak`, and the list is stored in `.novahiz-install.json`. It never deletes a file it did not create. `node install/uninstall.mjs` restores the backups and removes what the installer created; `--only <dir>` scopes that to one directory, and `--purge` also removes the Novahiz home.
 
 ## Maintenance
 
@@ -55,7 +55,7 @@ node ~/.config/novahiz/src/cli.ts doctor
 node ~/.config/novahiz/src/cli.ts clean --dry-run
 ```
 
-`doctor` runs twelve checks: Node 22.18+, `npx`, the installed-skills index, the referenced skills, the external CLIs the skills call, a gate smoke test, the registry database, the schema version, whether the installed plugin copy matches the source, the memory module limits, the five MCP `memory_*` tools, and whether the installed agent is in sync and grants the `question` tool. It exits non-zero when a blocking check fails, so it works as a pre-flight in scripts.
+`doctor` runs thirteen checks (fourteen with `--deep`): Node 22.18+, `npx`, the installed-skills index, the referenced skills, the external CLIs the skills call, a gate smoke test, the registry database, the schema version, whether the installed plugin copy matches the source, the memory module limits, the five MCP `memory_*` tools, whether the installed agent is in sync and grants the `question` tool, and the MCP config (every `opencode.jsonc` server entry resolved against the catalog). With `--deep` it additionally live-probes each configured MCP server with a JSON-RPC `initialize` handshake — all probes run in parallel, 10 s budget each. It exits non-zero when a blocking check fails, so it works as a pre-flight in scripts.
 
 The gate kill-switch environment variable is `NOVAHIZ_GATE` (`off`, `0`, `false`, `no`, or `disabled`). The config key `gate.envEscape` exists only for schema compatibility: it cannot rename the variable. See [CONFIGURATION.md](CONFIGURATION.md).
 
@@ -87,6 +87,8 @@ git pull
 node install/install.mjs
 ```
 
+Do not run `novahiz upgrade` from the globally installed npm package on a machine whose plugin and adapter copies carry local migration work: it overwrites them with the published 0.3.8 files. Update from this repo with the commands above, or rerun `node install/install.mjs` afterwards to restore the local migration.
+
 ## Uninstall
 
 ```
@@ -108,7 +110,7 @@ Any harness with a stdio MCP client can use the server for `classify`, `list_ski
 node ~/.config/novahiz/mcp/novahiz-tools/index.mjs
 ```
 
-Register it with that client's own MCP command. Novahiz does not write another harness's configuration, so there is no hook to install and no gate outside opencode. See [adapters/README.md](../adapters/README.md) for the full picture.
+Register it with that client's own MCP command. Novahiz writes configuration for opencode only — the plugin provides the gate there. See [adapters/README.md](../adapters/README.md) for the full picture.
 
 ## Publish
 

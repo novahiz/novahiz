@@ -5,10 +5,10 @@
 Obsidian (`C:\Users\hiz\Documents\Novahiz`) is the user's second memory.
 
 ### Rules
-1. When the user asks to **save / memorize / update obsidian memory**, load the `memory-save` skill and follow its procedure without exception.
+1. When the user asks to **save / memorize / update obsidian memory**, load the `memory` skill (alias for `novahiz-memory`) and follow its procedure without exception.
 2. Determine the target folder **only** from the `Novahiz\_meta\routing.md` table (source of truth). Never guess. When ambiguous, ask the user.
 3. Display the chosen path before writing.
-4. Never write to `index.md`, `log.md`, `hot.md`, `.manifest.json`, `_meta/`, or `.obsidian/` **except through a dedicated maintenance skill** (wiki-ingest/wiki-lint/wiki-status for index/log/hot/manifest; graph-colorize for `.obsidian/graph.json`, with mandatory backup). The `memory-save` skill writes only to the targeted content page.
+4. Never write to `index.md`, `log.md`, `hot.md`, `.manifest.json`, `_meta/`, or `.obsidian/`. No installed skill covers maintenance of those files: if the user asks for it, do it step by step in front of them, with a backup first for anything under `.obsidian/`. The `memory` skill writes only to the targeted content page.
 5. Never create a root folder on your own. Every new category requires user agreement and an update to `routing.md`.
 6. Include mandatory frontmatter: `title, category, tags, sources, created, updated, summary`. Use tags from `_meta/taxonomy.md`.
 7. Link pages with `[[wikilinks]]`. Merge rather than duplicate.
@@ -28,8 +28,8 @@ Playwright uses a **persistent profile** that preserves data across sessions (co
 
 ## Behavioral & Quality Rules
 
-1. **Mandatory design skills on frontend design tasks** — `novahiz-humanizer`, `ui-slop-remover` and `ui-craft-rules` are required only on frontend design work (design-ui prompts and style files). Load them with `skill({name})` before any design edit. Outside design, they are not required by the gate. Browser tasks (navigation, search, extraction) proceed as direct actions without a roadmap.
-2. **Impeccable after UI work** — `impeccable` is installed and required on the same design selectors (gate rule R14). Whenever a page, component, section, or screen design is created or substantially changed, run its critique systematically afterwards, an audit when the change warrants it (a11y, performance, responsive), and a polish pass before shipping. The design-ui roadmap carries optional `impeccable-critique`, `impeccable-audit`, and `impeccable-polish` steps for exactly this.
+1. **Mandatory design skills on frontend design tasks** — `novahiz-humanizer`, `ui-slop-remover` and `ui-craft-rules` are required only on frontend design work (design-ui prompts and style files). Load them with `skill({id})` before any design edit. Outside design, they are not required by the gate. Browser tasks (navigation, search, extraction) proceed as direct actions without a roadmap.
+2. **Impeccable after UI work** — `impeccable` is installed and required on the same design selectors (gate rule R14). Whenever a page, component, section, or screen design is created or substantially changed, run its critique systematically afterwards, an audit when the change warrants it (a11y, performance, responsive), harden errors and edge cases, and a polish pass before shipping; a deterministic `impeccable detect` scan backs the verify step. The design-ui roadmap carries optional `impeccable-shape`, `impeccable-critique`, `impeccable-audit`, `impeccable-harden`, `impeccable-polish`, and `impeccable-detect` steps for exactly this.
 3. **Supabase** — On any Supabase task (database, auth, RLS, Edge Functions, migrations, Storage, Realtime, CLI/MCP), load the `novahiz-supabase` and `novahiz-postgres` skills before acting.
 5. **Honesty and critical thinking** — Always be honest. Avoid false good ideas. Maintain critical thinking. **Zero simulation objective:** never claim to have executed, tested, or verified what was not. Explicitly report uncertainties and assumptions.
 6. **Propose next steps** — After completing a task, always honestly propose the relevant next step. Do not invent unnecessary work or mask failures.

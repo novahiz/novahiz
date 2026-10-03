@@ -33,6 +33,7 @@ Do **not** use this to install Novahiz on the machine. That stays `novahiz setup
 3. Fill docs        novahiz-docs templates already created by CLI
 4. Seed memory      memory_write a baseline slot from findings
 5. Cleanup review   confirm list, then novahiz init --apply --json
+6. UI context       /impeccable init when PRODUCT.md is missing (design projects)
 ```
 
 ### 1. Scaffold (CLI, deterministic)
@@ -97,12 +98,17 @@ novahiz init --apply --json
 
 `--yes` alone is never enough to delete files the user has not seen.
 
+### 6. Impeccable context (design projects)
+
+The CLI prints a non-blocking `impeccable` step (it never lands in `failed`). When the step says the `impeccable` skill is installed but `PRODUCT.md` is missing, run `/impeccable init` in the agent to capture product context — audience, goals, constraints. Never invent that context yourself. File resolution follows the impeccable rule: project root, then `.agents/context/`, then `docs/` (first directory that contains the file).
+
 ## Exit criteria
 
 - `novahiz init --json` has `failed: []`
 - `novahiz-docs/` has four files with no remaining fill-in comments on architecture/conventions/standards
 - `project-memory/` has at least one slot
 - Cleanup either applied with consent or left unapplied on purpose
+- The `impeccable` row never fails the run: a missing `PRODUCT.md` leaves the `/impeccable init` hint in `next`, not an error
 
 ## Pitfalls
 

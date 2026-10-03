@@ -1,4 +1,5 @@
 import type { DatabaseSync } from "node:sqlite";
+import { resolve } from "node:path";
 import { globToRegExp, isSafeRegexPattern } from "./gate.ts";
 import { autoCommit } from "./graft.ts";
 
@@ -17,6 +18,7 @@ interface TaskRow {
   reviewed_at: string | null;
   edits_since_review: number;
   todos_since_review: number;
+  project_root: string | null;
 }
 
 interface TodoRow {
@@ -97,7 +99,7 @@ export interface TodoAmendment {
 }
 
 export interface ReviewDiff {
-  additions?: TodoInput[];
+  additions?: Array<string | TodoInput>;
   amendments?: Array<{ id: string } & TodoAmendment>;
   removals?: Array<string | { id: string; reason?: string }>;
   order?: string[];
@@ -158,16 +160,20 @@ function parseDeps(raw: string | null): string[] {
   }
 }
 
-export function createTask(db: DatabaseSync, options: { title: string; id?: string; sessionId?: string }): TaskRow {
+export function createTask(db: DatabaseSync, options: { title: string; id?: string; sessionId?: string; projectRoot?: string }): TaskRow {
   const taskId = options.id && options.id.trim().length > 0 ? options.id.trim() : genId("task");
   const ts = nowIso();
   // H5: ensure referenced session exists (auto-create if needed for FK compliance)
   if (options.sessionId) {
     db.prepare("INSERT OR IGNORE INTO sessions (id, categories, required_skills, updated_at) VALUES (?, '[]', '[]', ?)").run(options.sessionId, ts);
   }
+  // F: remember which project the plan belongs to so the ledger can filter its
+  // edits to that project. Callers that cannot know it (legacy MCP flows) pass
+  // nothing and get NULL = unscoped, the behaviour before this column existed.
+  const projectRoot = options.projectRoot && options.projectRoot.trim().length > 0 ? resolve(options.projectRoot) : null;
   db.prepare(
-    "INSERT INTO tasks (id, title, status, session_id, created_at, updated_at) VALUES (?, ?, 'active', ?, ?, ?)"
-  ).run(taskId, options.title, options.sessionId ?? null, ts, ts);
+    "INSERT INTO tasks (id, title, status, session_id, created_at, updated_at, project_root) VALUES (?, ?, 'active', ?, ?, ?, ?)"
+  ).run(taskId, options.title, options.sessionId ?? null, ts, ts, projectRoot);
   autoCommit("task-created", options.title);
   return getTask(db, taskId) as TaskRow;
 }
@@ -186,9 +192,13 @@ function requireTask(db: DatabaseSync, id: string): TaskRow {
 }
 
 export function activeTask(db: DatabaseSync, sessionId?: string): TaskRow | null {
+  // G2: two worlds, never mixed. A caller with a session only ever sees its own
+  // tasks; a sessionless caller only sees unbound tasks (session_id NULL) — a
+  // session-bound plan can no longer be grabbed (counted, blocked) by a foreign
+  // sessionless gate run, and the newest active task is no longer a free-for-all.
   const row = sessionId
     ? db.prepare("SELECT * FROM tasks WHERE status = 'active' AND session_id = ? ORDER BY created_at DESC LIMIT 1").get(sessionId)
-    : db.prepare("SELECT * FROM tasks WHERE status = 'active' ORDER BY created_at DESC LIMIT 1").get();
+    : db.prepare("SELECT * FROM tasks WHERE status = 'active' AND session_id IS NULL ORDER BY created_at DESC LIMIT 1").get();
   return (row as unknown as TaskRow) ?? null;
 }
 
@@ -472,6 +482,22 @@ export function reviewDue(db: DatabaseSync, taskId: string, policy: ReviewPolicy
 }
 
 /**
+ * Does an open todo of this task own filePath through a non-empty owner
+ * pattern? Blank owners own everything (ownedBy semantics) and are excluded
+ * on purpose: review mechanics — cadence and block — stay tied to explicit
+ * ownership, so edits from another session or project never advance this plan.
+ */
+export function ownedByOpenTodo(db: DatabaseSync, taskId: string, filePath: string): boolean {
+  if (filePath.length === 0) return false;
+  return listTodos(db, taskId).some(
+    (todo) =>
+      (todo.status === "pending" || todo.status === "in_progress") &&
+      (todo.owner ?? "").trim().length > 0 &&
+      ownedBy(todo, filePath)
+  );
+}
+
+/**
  * Which gate targets a due plan review should block.
  * Only paths owned by an open todo with a non-empty owner pattern are blocked.
  * Empty owners and tasks with no owned open todos never expand the block set,
@@ -480,11 +506,7 @@ export function reviewDue(db: DatabaseSync, taskId: string, policy: ReviewPolicy
 export function reviewBlockReason(db: DatabaseSync, taskId: string, filePath: string, policy?: ReviewPolicy): string | null {
   const due = reviewDue(db, taskId, policy);
   if (!due.due) return null;
-  const openOwned = listTodos(db, taskId).filter(
-    (todo) => (todo.status === "pending" || todo.status === "in_progress") && (todo.owner ?? "").trim().length > 0
-  );
-  if (openOwned.length === 0) return null;
-  return openOwned.some((todo) => ownedBy(todo, filePath)) ? due.reason : null;
+  return ownedByOpenTodo(db, taskId, filePath) ? due.reason : null;
 }
 
 export function revisionSignals(db: DatabaseSync, taskId: string): RevisionSignal[] {
@@ -525,7 +547,12 @@ export function revisionSignals(db: DatabaseSync, taskId: string): RevisionSigna
 export function reviewTask(db: DatabaseSync, options: { taskId: string } & ReviewDiff): ReviewOutcome {
   const task = getTask(db, options.taskId);
   if (!task) throw new Error(`unknown task: ${options.taskId}`);
-  const additions = options.additions ?? [];
+  const additions = (options.additions ?? []).map((item) => {
+    // String shorthand mirrors removals: a bare string is the todo's label.
+    if (typeof item === "string" && item.trim().length > 0) return { label: item };
+    if (typeof item === "object" && item !== null && typeof item.label === "string" && item.label.trim().length > 0) return item;
+    throw new Error("review addition must be a non-empty label string or a todo object with a non-empty label");
+  });
   const amendments = options.amendments ?? [];
   const removals = options.removals ?? [];
   db.exec("BEGIN");

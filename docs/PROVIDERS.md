@@ -50,6 +50,10 @@ MCP servers, with provenance from `catalog/providers.json`:
 
 `dart` requires the Dart SDK on `PATH` (`requires: ["dart"]`). Without it the MCP entry still registers, but the server fails to start; disable it or install the SDK.
 
+Known limitation (single instance): `dart mcp-server` serves one running instance per machine. The connect at opencode boot succeeds, but every in-session reconnect times out (`Request timed out`) while that instance holds the server — a second process started beside it stays silent on stdin/stdout, confirmed with a direct `dart.exe mcp-server` probe. When dart's reconnect fails, restart opencode instead of expecting the retry to succeed; the boot connection is the reliable one.
+
+Known limitation (`graft build --deep` needs an LLM key): the structural build (`graft build`, $0 no key) produces the wiring graph that five of the six graft MCP tools serve, and `graft_check_freshness`'s `graph check` half stays `OK` once rebuilt after edits. The other half (`graft/manifest.json`) and the meaning tier only come from the `--deep` pass, which falls back to the structural build without `GRAFT_API_KEY` (plus `GRAFT_PROVIDER` / `GRAFT_BASE_URL` / `GRAFT_MODEL` for your provider). Until a key is set, freshness always answers `No graft/manifest.json found` with a 0% meaning tier while the other tools keep working; re-run `graft build` after large edits to clear the `STALE` drift report.
+
 Skill and command packs:
 
 | Id | Install command | Upstream | License | Categories |
@@ -61,7 +65,7 @@ Skill and command packs:
 
 Installed skills land under `~/.agents/skills` for OpenCode. They are referenced by install command, never vendored in this repository. `dart-lang/skills` is a subset of `flutter/agent-plugins` (same 15 Dart skills); both are listed for provenance.
 
-`expo-skills` names the 17 `expo-*` skills explicitly; the 7 `eas-*` skills (paid EAS services) are excluded. When `npx skills add` cannot reach the repo (git clone failures), fetch the tarball from `codeload.github.com` and copy the skill folders into `~/.agents/skills`, then run `Novahiz sync` — that fallback was used on this machine.
+`expo-skills` names the 19 `expo-*` skills explicitly; the 7 `eas-*` skills (paid EAS services) are excluded. When `npx skills add` cannot reach the repo (git clone failures), fetch the tarball from `codeload.github.com` and copy the skill folders into `~/.agents/skills`, then run `Novahiz sync` — that fallback was used on this machine.
 
 `impeccable` is the one design skill referenced as a provider: gate rule R14 requires it, and it installs from upstream under its own Apache-2.0 terms instead of being vendored. The other design and text skills ship as ordinary Novahiz skills under `skills/`, not as providers.
 
@@ -98,11 +102,13 @@ Control it in `novahiz.config.json`:
 Run the install commands on demand:
 
 ```
-node src/cli.ts providers --install
+node src/cli.ts providers --install --yes
 node install/install.mjs --install-providers
 ```
 
 Installation is opt-in on purpose. The commands download third-party packages, including a large Rust binary for `narsil`, so `autoInstall` defaults to `false`. Enabling it means you trust each upstream listed in `source`.
+
+`providers --install` and `deps --install` print the plan and execute nothing until `--yes` is passed. Whatever runs then goes through a binary allowlist (`node`, `npm`, `npx`, `uv`, `uvx`, `python`, `py`) — the same one bootstrap uses — so a tampered `providers.json` cannot execute an arbitrary program.
 
 ## Dependencies
 
@@ -111,7 +117,7 @@ Each provider declares its prerequisites in `requires` (the executable it needs)
 - `npx` based providers need `npx`, which ships with Node.
 - `dart` needs the Dart SDK on `PATH` (`dart --version`). Flutter installs ship it.
 
-`Novahiz deps` checks every prerequisite and reports what is missing. `Novahiz deps --install` first bootstraps a missing prerequisite through its official installer, then runs each provider's install command. The installer runs the check on every install and, when `providers.autoInstall` is true or `--install-providers` is passed, runs the installs too.
+`Novahiz deps` checks every prerequisite and reports what is missing. `Novahiz deps --install` prints the plan (bootstrap and install steps) and runs nothing; with `--yes` it first bootstraps a missing prerequisite through its official installer, then runs each provider's install command. The installer runs the check on every install and, when `providers.autoInstall` is true or `--install-providers` is passed, runs the installs with `--yes` too.
 
 ## Troubleshooting
 
@@ -137,7 +143,7 @@ Confirm the tool count with `narsil-mcp tools list` afterwards, then rerun `Nova
 
 - `Novahiz providers` lists providers, optionally by `--category` or a query.
 - `Novahiz providers --mcp-json` prints the MCP entry map.
-- `Novahiz providers --install` runs the official install commands.
-- `Novahiz deps [--install]` checks prerequisites and bootstraps or installs missing ones.
+- `Novahiz providers --install [--yes]` plans the official install commands; `--yes` executes them.
+- `Novahiz deps [--install] [--yes]` checks prerequisites and plans or runs the bootstrap/install commands.
 - MCP `novahiz_providers` and `novahiz_deps` expose the list and the dependency status over stdio.
 - `Novahiz report` lists the provider ids.

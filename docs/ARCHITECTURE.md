@@ -10,8 +10,8 @@ Novahiz has one core and thin adapters. The core holds every decision. An adapte
                        ▼
 ┌─────────────────────────────────────────────────────────┐
 │              OPENCODE PLUGIN ADAPTER                    │
-│  chat.message hook → classify → inject enforcement      │
-│  tool.execute.before hook → gate → block/allow          │
+│  session.hook(prompt) → classify → inject enforcement   │
+│  tool.hook(execute.before) → gate → block/allow          │
 └──────┬──────────────────────────────────────────────────┘
        │
        ▼
@@ -69,7 +69,7 @@ Three versioned JSON files under `catalog/`:
 
 ### opencode adapter
 
-`adapters/opencode/novahiz.ts` is a plugin. It runs the CLI for classification and gating, tracks loaded skills per session in memory, and injects enforcement text through `experimental.chat.system.transform`. The gate call runs in `tool.execute.before`, which can throw and cancel the tool call.
+`adapters/opencode/novahiz.ts` is a plugin. It runs the CLI for classification and gating, tracks loaded skills per session in memory, and injects enforcement text through `ctx.session.hook("context")`. The gate call runs in `ctx.tool.hook("execute.before")`, which can throw and cancel the tool call.
 
 ### Content rules and roadmaps
 
@@ -105,8 +105,8 @@ Each category carries a `roadmap`. The classifier returns the category order, th
                                                └──────────┘
 ```
 
-1. The user sends a message. `chat.message` classifies it, stores the categories and required skills for the session, and reads the active ledger task.
-2. `experimental.chat.system.transform` adds a short enforcement block to the system prompt, including the ledger summary and any review signal.
+1. The user sends a message. The `prompt` hook classifies it, stores the categories and required skills for the session, and reads the active ledger task.
+2. The `context` hook adds a short enforcement block to the system prompt, including the ledger summary and any review signal.
 3. The model calls `skill` to load a skill. The adapter records it for the session.
 4. The model calls `edit`, `write`, or `patch`. The adapter runs `Novahiz gate` with the file path, the session categories, and the loaded skills.
 5. If the gate blocks, the adapter throws and the model sees the list of missing skills or the review reason.

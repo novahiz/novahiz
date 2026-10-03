@@ -1,7 +1,10 @@
 {
-  "version": "0.3.4",
-  "installedAt": "2026-09-28T02:11:36.554Z",
+  "version": "0.3.8",
+  "installedAt": "2026-10-03T15:40:10.771Z",
   "harness": "opencode",
+  "harnesses": [
+    "opencode"
+  ],
   "configDir": "C:\\Users\\hiz\\.config\\opencode",
   "home": "C:\\Users\\hiz\\.config\\novahiz",
   "coreCopied": true,
@@ -93,6 +96,7 @@
     "C:\\Users\\hiz\\.config\\novahiz\\skills\\novahiz-plan\\SKILL.md",
     "C:\\Users\\hiz\\.config\\novahiz\\skills\\novahiz-planner\\SKILL.md",
     "C:\\Users\\hiz\\.config\\novahiz\\skills\\novahiz-postgres\\SKILL.md",
+    "C:\\Users\\hiz\\.config\\novahiz\\skills\\novahiz-release\\SKILL.md",
     "C:\\Users\\hiz\\.config\\novahiz\\skills\\novahiz-security\\SKILL.md",
     "C:\\Users\\hiz\\.config\\novahiz\\skills\\novahiz-supabase\\SKILL.md",
     "C:\\Users\\hiz\\.config\\novahiz\\skills\\novahiz-task\\SKILL.md",
@@ -148,6 +152,7 @@
     "C:\\Users\\hiz\\.config\\novahiz\\src\\gate-repair.ts",
     "C:\\Users\\hiz\\.config\\novahiz\\src\\gate.ts",
     "C:\\Users\\hiz\\.config\\novahiz\\src\\graft.ts",
+    "C:\\Users\\hiz\\.config\\novahiz\\src\\impeccable.ts",
     "C:\\Users\\hiz\\.config\\novahiz\\src\\ledger.ts",
     "C:\\Users\\hiz\\.config\\novahiz\\src\\memory.ts",
     "C:\\Users\\hiz\\.config\\novahiz\\src\\prompt-rewriter.ts",
@@ -204,6 +209,7 @@
     "C:\\Users\\hiz\\.config\\opencode\\skills\\novahiz-plan\\SKILL.md",
     "C:\\Users\\hiz\\.config\\opencode\\skills\\novahiz-planner\\SKILL.md",
     "C:\\Users\\hiz\\.config\\opencode\\skills\\novahiz-postgres\\SKILL.md",
+    "C:\\Users\\hiz\\.config\\opencode\\skills\\novahiz-release\\SKILL.md",
     "C:\\Users\\hiz\\.config\\opencode\\skills\\novahiz-security\\SKILL.md",
     "C:\\Users\\hiz\\.config\\opencode\\skills\\novahiz-supabase\\SKILL.md",
     "C:\\Users\\hiz\\.config\\opencode\\skills\\novahiz-task\\SKILL.md",
@@ -311,6 +317,10 @@
       "backup": "C:\\Users\\hiz\\.config\\novahiz\\docs\\INSTALL.md.novahiz-bak"
     },
     {
+      "path": "C:\\Users\\hiz\\.config\\novahiz\\docs\\PLUGIN.md",
+      "backup": "C:\\Users\\hiz\\.config\\novahiz\\docs\\PLUGIN.md.novahiz-bak"
+    },
+    {
       "path": "C:\\Users\\hiz\\.config\\novahiz\\docs\\PROVIDERS.md",
       "backup": "C:\\Users\\hiz\\.config\\novahiz\\docs\\PROVIDERS.md.novahiz-bak"
     },
@@ -327,12 +337,24 @@
       "backup": "C:\\Users\\hiz\\.config\\novahiz\\install\\bootstrap.mjs.novahiz-bak"
     },
     {
+      "path": "C:\\Users\\hiz\\.config\\novahiz\\install\\hooks.mjs",
+      "backup": "C:\\Users\\hiz\\.config\\novahiz\\install\\hooks.mjs.novahiz-bak"
+    },
+    {
       "path": "C:\\Users\\hiz\\.config\\novahiz\\install\\install.mjs",
       "backup": "C:\\Users\\hiz\\.config\\novahiz\\install\\install.mjs.novahiz-bak"
     },
     {
       "path": "C:\\Users\\hiz\\.config\\novahiz\\install\\lib.mjs",
       "backup": "C:\\Users\\hiz\\.config\\novahiz\\install\\lib.mjs.novahiz-bak"
+    },
+    {
+      "path": "C:\\Users\\hiz\\.config\\novahiz\\install\\prompt.mjs",
+      "backup": "C:\\Users\\hiz\\.config\\novahiz\\install\\prompt.mjs.novahiz-bak"
+    },
+    {
+      "path": "C:\\Users\\hiz\\.config\\novahiz\\install\\uninstall.mjs",
+      "backup": "C:\\Users\\hiz\\.config\\novahiz\\install\\uninstall.mjs.novahiz-bak"
     },
     {
       "path": "C:\\Users\\hiz\\.config\\novahiz\\mcp\\novahiz-tools\\README.md",
@@ -353,6 +375,10 @@
     {
       "path": "C:\\Users\\hiz\\.config\\novahiz\\skills\\gate\\SKILL.md",
       "backup": "C:\\Users\\hiz\\.config\\novahiz\\skills\\gate\\SKILL.md.novahiz-bak"
+    },
+    {
+      "path": "C:\\Users\\hiz\\.config\\novahiz\\skills\\memory\\SKILL.md",
+      "backup": "C:\\Users\\hiz\\.config\\novahiz\\skills\\memory\\SKILL.md.novahiz-bak"
     },
     {
       "path": "C:\\Users\\hiz\\.config\\novahiz\\skills\\novahiz-analyse\\SKILL.md",
@@ -377,6 +403,14 @@
     {
       "path": "C:\\Users\\hiz\\.config\\novahiz\\skills\\novahiz-implement\\SKILL.md",
       "backup": "C:\\Users\\hiz\\.config\\novahiz\\skills\\novahiz-implement\\SKILL.md.novahiz-bak"
+    },
+    {
+      "path": "C:\\Users\\hiz\\.config\\novahiz\\skills\\novahiz-init\\SKILL.md",
+      "backup": "C:\\Users\\hiz\\.config\\novahiz\\skills\\novahiz-init\\SKILL.md.novahiz-bak"
+    },
+    {
+      "path": "C:\\Users\\hiz\\.config\\novahiz\\skills\\novahiz-memory\\SKILL.md",
+      "backup": "C:\\Users\\hiz\\.config\\novahiz\\skills\\novahiz-memory\\SKILL.md.novahiz-bak"
     },
     {
       "path": "C:\\Users\\hiz\\.config\\novahiz\\skills\\novahiz-plan\\SKILL.md",
@@ -415,6 +449,14 @@
       "backup": "C:\\Users\\hiz\\.config\\novahiz\\src\\commands\\graft.ts.novahiz-bak"
     },
     {
+      "path": "C:\\Users\\hiz\\.config\\novahiz\\src\\commands\\hook.ts",
+      "backup": "C:\\Users\\hiz\\.config\\novahiz\\src\\commands\\hook.ts.novahiz-bak"
+    },
+    {
+      "path": "C:\\Users\\hiz\\.config\\novahiz\\src\\commands\\init.ts",
+      "backup": "C:\\Users\\hiz\\.config\\novahiz\\src\\commands\\init.ts.novahiz-bak"
+    },
+    {
       "path": "C:\\Users\\hiz\\.config\\novahiz\\src\\commands\\inspect.ts",
       "backup": "C:\\Users\\hiz\\.config\\novahiz\\src\\commands\\inspect.ts.novahiz-bak"
     },
@@ -423,8 +465,16 @@
       "backup": "C:\\Users\\hiz\\.config\\novahiz\\src\\commands\\task.ts.novahiz-bak"
     },
     {
+      "path": "C:\\Users\\hiz\\.config\\novahiz\\src\\db.ts",
+      "backup": "C:\\Users\\hiz\\.config\\novahiz\\src\\db.ts.novahiz-bak"
+    },
+    {
       "path": "C:\\Users\\hiz\\.config\\novahiz\\src\\exec.ts",
       "backup": "C:\\Users\\hiz\\.config\\novahiz\\src\\exec.ts.novahiz-bak"
+    },
+    {
+      "path": "C:\\Users\\hiz\\.config\\novahiz\\src\\gate-repair.ts",
+      "backup": "C:\\Users\\hiz\\.config\\novahiz\\src\\gate-repair.ts.novahiz-bak"
     },
     {
       "path": "C:\\Users\\hiz\\.config\\novahiz\\src\\gate.ts",
@@ -463,6 +513,10 @@
       "backup": "C:\\Users\\hiz\\.config\\opencode\\skills\\gate\\SKILL.md.novahiz-bak"
     },
     {
+      "path": "C:\\Users\\hiz\\.config\\opencode\\skills\\memory\\SKILL.md",
+      "backup": "C:\\Users\\hiz\\.config\\opencode\\skills\\memory\\SKILL.md.novahiz-bak"
+    },
+    {
       "path": "C:\\Users\\hiz\\.config\\opencode\\skills\\novahiz-analyse\\SKILL.md",
       "backup": "C:\\Users\\hiz\\.config\\opencode\\skills\\novahiz-analyse\\SKILL.md.novahiz-bak"
     },
@@ -485,6 +539,14 @@
     {
       "path": "C:\\Users\\hiz\\.config\\opencode\\skills\\novahiz-implement\\SKILL.md",
       "backup": "C:\\Users\\hiz\\.config\\opencode\\skills\\novahiz-implement\\SKILL.md.novahiz-bak"
+    },
+    {
+      "path": "C:\\Users\\hiz\\.config\\opencode\\skills\\novahiz-init\\SKILL.md",
+      "backup": "C:\\Users\\hiz\\.config\\opencode\\skills\\novahiz-init\\SKILL.md.novahiz-bak"
+    },
+    {
+      "path": "C:\\Users\\hiz\\.config\\opencode\\skills\\novahiz-memory\\SKILL.md",
+      "backup": "C:\\Users\\hiz\\.config\\opencode\\skills\\novahiz-memory\\SKILL.md.novahiz-bak"
     },
     {
       "path": "C:\\Users\\hiz\\.config\\opencode\\skills\\novahiz-plan\\SKILL.md",

@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 import { cpSync, existsSync, mkdirSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
@@ -6,6 +7,7 @@ import {
   copyFileWithBackup,
   copyInto,
   defaultConfig,
+  detectedHarnesses,
   loadManifest,
   mergeBackups,
   mergeCreated,
@@ -13,6 +15,7 @@ import {
   NovahizHome,
   opencodeConfigDir,
   parseArgs,
+  playwrightBrowserFlag,
   readJson,
   repoRoot,
   saveManifest,
@@ -68,26 +71,9 @@ async function main() {
     }
   }
 
-  // Check for opencode and auto-install if missing
-  if (!which("opencode")) {
-    if (dryRun) {
-      note("opencode not detected. Would install globally (npm install -g opencode-ai).");
-    } else {
-      note("opencode not detected. Global installation...");
-      const installResult = spawnHost("npm", ["install", "-g", "opencode-ai"], {
-        stdio: "inherit"
-      });
-      if (installResult.status !== 0) {
-        // Non-blocking: the core install still lands; the user can install
-        // opencode afterwards.
-        note("WARNING: Failed to install opencode automatically (non-blocking). Run: npm install -g opencode-ai");
-      } else {
-        note("opencode installed successfully.");
-      }
-    }
-  } else {
-    note("opencode detected.");
-  }
+  const harnessDirs = { opencode: configDir };
+  const harnessPackages = { opencode: "opencode-ai" };
+  const detected = detectedHarnesses(harnessDirs);
 
   const yes = Boolean(flags.yes) || Boolean(flags["yes"]);
   const interactive = !yes && !dryRun && (Boolean(flags.interactive) || process.stdin.isTTY === true);
@@ -116,6 +102,63 @@ async function main() {
     }
     providersChoice = await prompt.confirm("Install provider packages and their prerequisites now?", false);
     prompt.close();
+  }
+
+  // Harness resolution: --harness flag > detection (opencode is the only
+  // supported harness; --yes and non-interactive runs take the detection,
+  // falling back to opencode so a fresh machine still gets a baseline).
+  const flagHarnesses =
+    typeof flags.harness === "string"
+      ? flags.harness
+          .split(",")
+          .map((value) => value.trim().toLowerCase())
+          .filter((value) => value === "opencode")
+      : [];
+  const configured = [
+    ...new Set(
+      flagHarnesses.length > 0
+        ? flagHarnesses
+        : detected.length > 0
+          ? detected
+          : ["opencode"]
+    )
+  ];
+  note(`Harnesses to configure: ${configured.length > 0 ? configured.join(", ") : "(none)"}`);
+
+  // Auto-install the CLI of every selected harness that is entirely absent
+  // (no config dir and no binary). A harness already on the machine - CLI or
+  // desktop config dir - is left alone, and a harness that was not selected
+  // is never installed nor configured. Failures stay non-blocking, like the
+  // historical opencode behaviour.
+  for (const name of configured) {
+    const hasCli = which(name);
+    const hasDir = existsSync(harnessDirs[name]);
+    if (hasCli) {
+      note(`${name} detected.`);
+      continue;
+    }
+    if (hasDir) {
+      note(`${name} config present in ${harnessDirs[name]}; ${name} CLI not on PATH (optional).`);
+      continue;
+    }
+    const pkg = harnessPackages[name];
+    if (dryRun) {
+      note(`Would install ${name} globally (npm install -g ${pkg}).`);
+      continue;
+    }
+    note(`${name} not detected. Global installation...`);
+    const installResult = spawnHost("npm", ["install", "-g", pkg], { stdio: "inherit" });
+    if (installResult.status !== 0) {
+      note(`WARNING: Failed to install ${name} automatically (non-blocking). Run: npm install -g ${pkg}`);
+    } else {
+      note(`${name} installed successfully.`);
+    }
+  }
+
+  if (!dryRun) {
+    for (const name of configured) {
+      if (!existsSync(harnessDirs[name])) mkdirSync(harnessDirs[name], { recursive: true });
+    }
   }
 
   const created = [];
@@ -148,9 +191,14 @@ async function main() {
     coreCopied = true;
   }
 
-  if (withSkills) {
+  if (withSkills && !configured.includes("opencode")) {
+    note("Skipping opencode skills copy (opencode not selected).");
+  }
+  if (withSkills && configured.includes("opencode")) {
     const skillsSource = existsSync(join(home, "skills")) ? join(home, "skills") : join(root, "skills");
     if (existsSync(skillsSource)) {
+      // Dedup only against roots the catalog actually scans (see
+      // skillRoots): ~/.agents/skills is the only external root.
       const externalRoots = [join(homedir(), ".agents", "skills")];
       const alreadyInstalled = skillNamesIn(externalRoots);
       // renamed: the outer `force` (--force, config overwrite) lives in the
@@ -189,7 +237,7 @@ async function main() {
 
   const pluginSource = join(home, "adapters", "opencode", "novahiz.ts");
   const pluginTarget = join(pluginsDir, "novahiz.ts");
-  if (existsSync(pluginSource)) {
+  if (configured.includes("opencode") && existsSync(pluginSource)) {
     note(`Installing opencode plugin in ${pluginTarget}`);
     if (!dryRun) {
       const result = copyFileWithBackup(pluginSource, pluginTarget, true);
@@ -202,7 +250,7 @@ async function main() {
     ? join(home, "adapters", "opencode", "agent", "novahiz.md")
     : join(root, "adapters", "opencode", "agent", "novahiz.md");
   const agentTarget = join(configDir, "agent", "novahiz.md");
-  if (existsSync(agentSource)) {
+  if (configured.includes("opencode") && existsSync(agentSource)) {
     note(`Installing Novahiz agent in ${agentTarget}`);
     if (!dryRun) {
       const result = copyFileWithBackup(agentSource, agentTarget, true);
@@ -215,7 +263,7 @@ async function main() {
     ? join(home, "adapters", "opencode", "commands")
     : join(root, "adapters", "opencode", "commands");
   const commandsTarget = join(configDir, "commands");
-  if (existsSync(commandsSource)) {
+  if (configured.includes("opencode") && existsSync(commandsSource)) {
     note(`Installing Novahiz commands in ${commandsTarget}`);
     if (!dryRun) {
       const result = copyInto(commandsSource, commandsTarget, true);
@@ -248,6 +296,7 @@ async function main() {
       version: pkgVersion,
       installedAt: new Date().toISOString(),
       harness: "opencode",
+      harnesses: [...configured],
       configDir,
       home,
       coreCopied: previous.coreCopied || coreCopied,
@@ -285,7 +334,7 @@ async function main() {
     if (check.stdout) process.stdout.write(check.stdout);
     if (autoInstall) {
       note("Installing dependencies and providers (MCP, skills, commands)");
-      const result = spawnSync(process.execPath, [cli, "deps", "--install"], {
+      const result = spawnSync(process.execPath, [cli, "deps", "--install", "--yes"], {
         encoding: "utf8",
         env: { ...process.env, NOVAHIZ_HOME: home }
       });
@@ -296,10 +345,11 @@ async function main() {
 
   // Install MCP servers globally
   const mcpServers = [
-    { pkg: "@upstash/context7-mcp", bin: "context7-mcp", name: "context7" },
     { pkg: "narsil-mcp", bin: "narsil-mcp", name: "narsil" },
     { pkg: "security-mcp", bin: "security-mcp", name: "security" },
   ];
+  // context7 is invoked via `npx -y @upstash/context7-mcp@4.1.1` (pinned in
+  // the generated config), so no global shim is installed for it.
   // `cron` has no npm package and ships disabled (local scheduler clone only);
   // enable it after the local setup documented in docs/PROVIDERS.md.
 
@@ -381,7 +431,10 @@ async function main() {
   }
 
   // Generate opencode.jsonc
-  if (!dryRun) {
+  if (!configured.includes("opencode")) {
+    note("Skipping opencode.jsonc (opencode not selected).");
+  }
+  if (!dryRun && configured.includes("opencode")) {
     const configPath = join(configDir, "opencode.jsonc");
     if (!existsSync(configPath)) {
       note(`\nCreating ${configPath}`);
@@ -393,7 +446,7 @@ async function main() {
         "mcp": {
           "context7": {
             "type": "local",
-            "command": ["context7-mcp", "--transport", "stdio"],
+            "command": ["npx", "-y", "@upstash/context7-mcp@4.1.1", "--transport", "stdio"],
             "enabled": true
           },
           "narsil": {
@@ -406,7 +459,8 @@ async function main() {
           // after the local scheduler clone setup (docs/PROVIDERS.md).
           "playwright": {
             "type": "local",
-            "command": ["npx", "@playwright/mcp@latest", "--browser=msedge"],
+            // See playwrightBrowserFlag() in lib.mjs for the platform rule.
+            "command": ["npx", "-y", "@playwright/mcp@0.0.82", playwrightBrowserFlag()],
             "enabled": true
           },
           "dart": {
@@ -426,7 +480,12 @@ async function main() {
           "prune": true,
           "reserved": 10000
         },
-        "shell": process.platform === "win32" ? "pwsh" : "bash"
+        // PowerShell 7 (pwsh) is NOT bundled with Windows — Windows ships
+        // Windows PowerShell 5.1 (powershell.exe). Writing a hard "pwsh" gave
+        // every machine without PS7 an opencode config whose shell does not
+        // exist; probe and fall back to the one that always does. bash is
+        // universal on macOS/Linux.
+        "shell": process.platform === "win32" ? (which("pwsh") ? "pwsh" : "powershell") : "bash"
       };
 
       // Official skills land in ~/.agents/skills (skills CLI) — load them too.
@@ -445,7 +504,9 @@ async function main() {
 
   if (!dryRun) {
     process.stdout.write(`\nNovahiz installed in ${home}.\n`);
-    process.stdout.write("Restart opencode to activate the plugin and the MCP server.\n");
+    if (configured.length > 0) {
+      process.stdout.write(`Restart opencode to activate the plugin and MCP server.\n`);
+    }
     process.stdout.write("Gate can be disabled with the NOVAHIZ_GATE=off environment variable.\n");
     
     // Auto-update dependencies

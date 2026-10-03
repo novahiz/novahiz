@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
-import { join, resolve, sep } from "node:path";
+import { dirname, join, resolve, sep } from "node:path";
 
 type Keyword = { term: string; weight?: number };
 export type CategoryKeyword = string | Keyword;
@@ -113,6 +113,37 @@ type LedgerConfig = {
   review: LedgerReviewConfig;
 };
 
+// S-AUTO: capture et consultation automatiques de la memoire.
+// write = les 5 triggers d'ecriture automatique (T1-T5), tous actifs par
+// defaut ("full-on"): T1 todo done, T2 review, T3 fin de tache (directive de
+// synthese), T4 compaction (directive de synthese), T5 spec/config change.
+// read = injection de resumes sur le prompt (k resultats au-dessus de
+// minScore), anti-repetition par session, re-injection post-compaction (R4).
+export type MemoryAutoWriteConfig = {
+  todoDone: boolean;
+  review: boolean;
+  taskEnd: boolean;
+  compaction: boolean;
+  spec: boolean;
+};
+
+export type MemoryAutoReadConfig = {
+  k: number;
+  minScore: number;
+  antiRepetition: boolean;
+  postCompaction: boolean;
+};
+
+export type MemoryAutoConfig = {
+  enabled: boolean;
+  write: MemoryAutoWriteConfig;
+  read: MemoryAutoReadConfig;
+};
+
+export type MemoryConfig = {
+  auto: MemoryAutoConfig;
+};
+
 export type NovahizConfig = {
   dbPath: string;
   skillRoots: string[];
@@ -120,6 +151,7 @@ export type NovahizConfig = {
   classify: ClassifyConfig;
   providers: ProvidersConfig;
   ledger: LedgerConfig;
+  memory: MemoryConfig;
 };
 
 export type Spec = {
@@ -153,12 +185,16 @@ export const DEFAULT_CONFIG: NovahizConfig = {
   // Documented default (docs/CONFIGURATION.md). An empty array would index
   // nothing when a config omits the key; relative paths resolve against the
   // Novahiz home.
-  skillRoots: ["./skills"],
+  // Mirrors novahiz.config.example.json (and install/lib.mjs defaultConfig):
+  // bundled skills, the harness skills dir and the external packs (~/.agents/
+  // skills) must all be indexed, or gate-required pack skills are invisible
+  // whenever a config is missing a skillRoots key.
+  skillRoots: ["./skills", "~/.config/opencode/skills", "~/.agents/skills"],
   gate: {
     enabled: true,
     mode: "block",
     envEscape: "NOVAHIZ_GATE", // canonical kill-switch name; gate command ignores this field
-    tools: ["edit", "write", "patch", "apply_patch", "bash", "shell", "cron_add_command_task", "cron_update_command_task", "cron_update_task", "cron_run_task_now"],
+    tools: ["edit", "write", "patch", "apply_patch", "bash", "shell", "cron_add_command_task", "cron_add_task", "cron_add_ai_task", "cron_add_http_task", "cron_update_command_task", "cron_update_task", "cron_run_task_now"],
     ignoreFiles: DEFAULT_IGNORE_FILES,
     placeholders: true,
     trace: {
@@ -181,6 +217,30 @@ export const DEFAULT_CONFIG: NovahizConfig = {
     review: {
       edits: 3,
       todos: 2
+    }
+  },
+  // S-AUTO: memoire automatique full-on — les 5 triggers T1-T5 actives, la
+  // lecture injecte k=3 resumes au score >= 0.25 avec anti-repetition et
+  // re-injection post-compaction. Le kill-switch d'environnement
+  // NOVAHIZ_MEM_AUTO (vocabulaire off/0/false/no/disabled) est lu par le
+  // consommateur (plugin opencode), pas par cette config, au motif de
+  // gate.envEscape: une config ecrivable ne redirige jamais le kill-switch.
+  memory: {
+    auto: {
+      enabled: true,
+      write: {
+        todoDone: true,
+        review: true,
+        taskEnd: true,
+        compaction: true,
+        spec: true
+      },
+      read: {
+        k: 3,
+        minScore: 0.25,
+        antiRepetition: true,
+        postCompaction: true
+      }
     }
   }
 };
@@ -265,13 +325,48 @@ export function mergeConfig(raw: Partial<NovahizConfig> | null | undefined): Nov
     review
   };
 
+  // S-AUTO: un bloc memory.auto absent ou invalide retombe sur les defauts
+  // full-on — une config corrompue ne desactive jamais l'auto par accident
+  // (meme regle que gate.tools). k entier dans [1,20], minScore dans [0,1].
+  const memorySource: Partial<MemoryConfig> = source.memory && typeof source.memory === "object" ? source.memory : {};
+  const autoSource: Partial<MemoryAutoConfig> = memorySource.auto && typeof memorySource.auto === "object" ? memorySource.auto : {};
+  const writeSource: Partial<MemoryAutoWriteConfig> = autoSource.write && typeof autoSource.write === "object" ? autoSource.write : {};
+  const readSource: Partial<MemoryAutoReadConfig> = autoSource.read && typeof autoSource.read === "object" ? autoSource.read : {};
+  const autoWrite: MemoryAutoWriteConfig = {
+    todoDone: typeof writeSource.todoDone === "boolean" ? writeSource.todoDone : DEFAULT_CONFIG.memory.auto.write.todoDone,
+    review: typeof writeSource.review === "boolean" ? writeSource.review : DEFAULT_CONFIG.memory.auto.write.review,
+    taskEnd: typeof writeSource.taskEnd === "boolean" ? writeSource.taskEnd : DEFAULT_CONFIG.memory.auto.write.taskEnd,
+    compaction: typeof writeSource.compaction === "boolean" ? writeSource.compaction : DEFAULT_CONFIG.memory.auto.write.compaction,
+    spec: typeof writeSource.spec === "boolean" ? writeSource.spec : DEFAULT_CONFIG.memory.auto.write.spec
+  };
+  const autoRead: MemoryAutoReadConfig = {
+    k:
+      typeof readSource.k === "number" && Number.isFinite(readSource.k) && readSource.k >= 1 && readSource.k <= 20
+        ? Math.trunc(readSource.k)
+        : DEFAULT_CONFIG.memory.auto.read.k,
+    minScore:
+      typeof readSource.minScore === "number" && Number.isFinite(readSource.minScore) && readSource.minScore >= 0 && readSource.minScore <= 1
+        ? readSource.minScore
+        : DEFAULT_CONFIG.memory.auto.read.minScore,
+    antiRepetition: typeof readSource.antiRepetition === "boolean" ? readSource.antiRepetition : DEFAULT_CONFIG.memory.auto.read.antiRepetition,
+    postCompaction: typeof readSource.postCompaction === "boolean" ? readSource.postCompaction : DEFAULT_CONFIG.memory.auto.read.postCompaction
+  };
+  const memory: MemoryConfig = {
+    auto: {
+      enabled: typeof autoSource.enabled === "boolean" ? autoSource.enabled : DEFAULT_CONFIG.memory.auto.enabled,
+      write: autoWrite,
+      read: autoRead
+    }
+  };
+
   return {
     dbPath: typeof source.dbPath === "string" ? source.dbPath : DEFAULT_CONFIG.dbPath,
     skillRoots: Array.isArray(source.skillRoots) ? source.skillRoots : [...DEFAULT_CONFIG.skillRoots],
     gate,
     classify,
     providers,
-    ledger
+    ledger,
+    memory
   };
 }
 
@@ -315,13 +410,40 @@ function readCatalog<T>(path: string): T {
   }
 }
 
+// Community path: `npm install -g novahiz` leaves the home untouched (npm 11+
+// gates lifecycle scripts, and the postinstall only previews anyway), so a
+// brand-new machine has no catalog in its home yet — every command used to die
+// with ENOENT right after the documented install. The package ships its own
+// catalog/: fall back to it before failing. The entry script (bin/novahiz.mjs,
+// dist/cli.js or src/cli.ts) always sits exactly one directory below the
+// package root, so dirname(argv[1])/.. resolves in every supported shape.
+// Exported: doctor resolves the shipped skills/ the same way.
+export function packageRoot(): string | null {
+  const entry = process.argv[1];
+  if (!entry || entry.length === 0) return null;
+  return join(dirname(resolve(entry)), "..");
+}
+
+// The home copy always wins when present, because that is what the installer
+// refreshes.
+function catalogPath(root: string, name: string): string {
+  const homePath = join(root, "catalog", name);
+  if (existsSync(homePath)) return homePath;
+  const pkgRoot = packageRoot();
+  if (pkgRoot) {
+    const packagePath = join(pkgRoot, "catalog", name);
+    if (existsSync(packagePath)) return packagePath;
+  }
+  return homePath;
+}
+
 export function loadSpec(root: string = NovahizHome()): Spec {
-  const categories = readCatalog<Category[]>(join(root, "catalog", "categories.json"));
-  const rules = readCatalog<Rule[]>(join(root, "catalog", "rules.json"));
-  const overrides = readCatalog<Overrides>(join(root, "catalog", "overrides.json"));
+  const categories = readCatalog<Category[]>(catalogPath(root, "categories.json"));
+  const rules = readCatalog<Rule[]>(catalogPath(root, "rules.json"));
+  const overrides = readCatalog<Overrides>(catalogPath(root, "overrides.json"));
   let providers: Provider[] = [];
   try {
-    const loaded = readCatalog<Provider[]>(join(root, "catalog", "providers.json"));
+    const loaded = readCatalog<Provider[]>(catalogPath(root, "providers.json"));
     if (Array.isArray(loaded)) providers = loaded;
   } catch {
     providers = [];

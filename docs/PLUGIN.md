@@ -2,6 +2,8 @@
 
 The opencode adapter is a thin plugin that bridges the Novahiz core with the opencode harness. It lives at `adapters/opencode/novahiz.ts` and is copied to `~/.config/opencode/plugins/novahiz.ts` during installation.
 
+The harness runs OpenCode V2, whose plugin API takes a default-exported `{ id, setup }` definition. The adapter declares `export default novahizPlugin` and registers every hook inside `setup(ctx)`; hook callbacks throw to deny a tool call, exactly as the V1 hooks did.
+
 ## Plugin lifecycle
 
 ```
@@ -11,14 +13,14 @@ The opencode adapter is a thin plugin that bridges the Novahiz core with the ope
 │  1. Plugin loads                                            │
 │  2. Read novahiz.config.json                           │
 │  3. Check DISABLED flag (env escape or config)              │
-│  4. Register hooks:                                         │
-│     • config → inject MCP server + providers                │
-│     • event → session.deleted cleanup;                      │
+│  4. Register hooks (OpenCode V2 plugin API):                │
+│     • mcp.transform → inject MCP server + providers          │
+│     • event.subscribe → session.deleted cleanup;            │
 │               session.idle → flush autodocs (fail-open)     │
-│     • chat.message → classify prompt, build enforcement     │
-│     • experimental.chat.system.transform → inject into prompt│
-│     • tool.execute.before → gate check on edits             │
-│     • tool.execute.after → mark major path dirty (autodocs)  │
+│     • session.hook(prompt) → classify, build enforcement     │
+│     • session.hook(context) → inject into prompt             │
+│     • tool.hook(execute.before) → gate check on edits        │
+│     • tool.hook(execute.after) → mark major path dirty       │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -26,33 +28,33 @@ The plugin is self-contained: prompt rewriting and autodocs helpers are inlined 
 
 ## Hooks
 
-### `config`
+### `mcp.transform`
 
-Registers the Novahiz MCP server and any additional providers from `catalog/providers.json`. Runs once at startup.
+Registers the Novahiz MCP server and any additional providers from `catalog/providers.json`. Runs once at startup. The CLI output is read *before* the transform, because transform callbacks must stay synchronous:
 
 ```typescript
-config: async (input) => {
-  // Register Novahiz MCP server (key is lowercase: config.mcp.novahiz)
-  config.mcp.novahiz = {
-    type: "local",
-    command: [NODE, join(HOME, "mcp", "novahiz-tools", "index.mjs")],
-    enabled: true
-  };
-  // Auto-register providers from catalog
-  const providers = run(["providers", "--mcp-json"]);
-  // ... merge into config.mcp
-}
+const providers = run(["providers", "--mcp-json"]); // read first
+await ctx.mcp.transform((editor) => {
+  // Register Novahiz MCP server unless the user configured one already
+  if (!editor.get("novahiz")) {
+    editor.set("novahiz", {
+      type: "local",
+      command: [NODE, join(HOME, "mcp", "novahiz-tools", "index.mjs")]
+    });
+  }
+  // ... auto-register providers from catalog, skipping names already present
+});
 ```
 
-### `chat.message`
+### `session.hook("prompt")`
 
-Classifies every user message and builds the enforcement block:
+Classifies every user prompt and builds the enforcement block:
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │  USER: "corrige le bug de login"                            │
 │                                                             │
-│  1. Extract text from message parts                         │
+│  1. Read the prompt text (event.prompt.text)                │
 │  2. Run: Novahiz classify "corrige le bug de login"    │
 │  3. Parse JSON output:                                      │
 │     categories: ["debug"]                                   │
@@ -80,18 +82,26 @@ Classifies every user message and builds the enforcement block:
 └─────────────────────────────────────────────────────────────┘
 ```
 
-### `experimental.chat.system.transform`
+### `session.hook("context")`
 
-Injects the enforcement block into the system prompt on every model turn:
+Injects the enforcement block into the system prompt on every agent model turn:
 
 ```typescript
-"experimental.chat.system.transform": async (input, output) => {
-  const block = enforcementBySession.get(input.sessionID);
-  if (block) output.system.push(block);
-}
+await ctx.session.hook("context", async (event) => {
+  const block = enforcementBySession.get(event.sessionID);
+  if (!block) return;
+  // Replace, never stack: one fresh block per prompt, stale copies dropped.
+  for (let i = event.system.length - 1; i >= 0; i--) {
+    const entry = event.system[i];
+    if (entry.type === "text" && entry.text.startsWith("[Novahiz enforcement]")) {
+      event.system.splice(i, 1);
+    }
+  }
+  event.system.push({ type: "text", text: block });
+});
 ```
 
-### `tool.execute.before`
+### `tool.hook("execute.before")`
 
 The core enforcement hook. Intercepts tool calls and runs the gate:
 
@@ -116,16 +126,16 @@ The core enforcement hook. Intercepts tool calls and runs the gate:
 └─────────────────────────────────────────────────────────────┘
 ```
 
-### `event`
+### `event.subscribe`
 
-Two event types:
+Two event types, consumed from the subscription started in `setup` (aborted when the plugin unloads):
 
 | Event | Behavior |
 |-------|----------|
 | `session.deleted` | Forget in-memory session state |
 | `session.idle` | If autodocs is enabled and state is dirty, spawn `novahiz autodocs --flush` (fail-open, unref'd child) |
 
-### `tool.execute.after`
+### `tool.hook("execute.after")`
 
 After an edit-like tool succeeds, if the path is a major source file (`src/…`, `package.json`, `.ts`, …), call the inlined `markDirty` so the next `session.idle` can flush docs. Non-edit tools and non-major paths are ignored. Never throws.
 
@@ -144,7 +154,7 @@ Sessions are pruned after 4 hours of inactivity.
 
 ## Skill loading
 
-When the model calls `skill({name: "novahiz-humanizer"})`:
+When the model calls `skill({id: "novahiz-humanizer"})`:
 
 1. The plugin records `"humanizer"` in `loadedBySession`
 2. Runs `Novahiz session-load --session <id> --skill humanizer`

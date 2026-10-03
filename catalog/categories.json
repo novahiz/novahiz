@@ -507,6 +507,14 @@
           "id": "report",
           "label": "Report findings",
           "kind": "advisory"
+        },
+        {
+          "id": "audit",
+          "label": "Session compliance audit",
+          "kind": "advisory",
+          "requireSkills": [
+            "novahiz-audit"
+          ]
         }
       ]
     }
@@ -792,6 +800,14 @@
           ]
         },
         {
+          "id": "tokens",
+          "label": "Design tokens (when a token system is involved)",
+          "kind": "advisory",
+          "requireSkills": [
+            "design-token-pipeline"
+          ]
+        },
+        {
           "id": "design-craft",
           "label": "Apply design craft, humanizer and anti-slop pass",
           "kind": "skill",
@@ -799,6 +815,15 @@
             "novahiz-humanizer",
             "ui-slop-remover",
             "ui-craft-rules"
+          ],
+          "optional": true
+        },
+        {
+          "id": "impeccable-shape",
+          "label": "Impeccable shape (UX/UI design brief before code)",
+          "kind": "skill",
+          "requireSkills": [
+            "impeccable"
           ],
           "optional": true
         },
@@ -829,9 +854,27 @@
           "optional": true
         },
         {
+          "id": "impeccable-harden",
+          "label": "Impeccable harden (errors, i18n, edge cases before polish)",
+          "kind": "skill",
+          "requireSkills": [
+            "impeccable"
+          ],
+          "optional": true
+        },
+        {
           "id": "impeccable-polish",
           "label": "Impeccable polish (final pass before ship)",
           "kind": "skill",
+          "requireSkills": [
+            "impeccable"
+          ],
+          "optional": true
+        },
+        {
+          "id": "impeccable-detect",
+          "label": "Impeccable detector scan (deterministic UI check, exit 0 = clean)",
+          "kind": "verify",
           "requireSkills": [
             "impeccable"
           ],
@@ -1106,7 +1149,15 @@
       "nginx",
       "infra",
       "monitoring",
-      "eas"
+      "eas",
+      "release",
+      "cut a release",
+      "publish",
+      "npm publish",
+      "version bump",
+      "bump version",
+      "tag a version",
+      "changelog"
     ],
     "defaultSkills": [
       "eas-workflows",
@@ -1167,6 +1218,14 @@
           "kind": "verify",
           "requireSkills": [
             "novahiz-converge"
+          ]
+        },
+        {
+          "id": "release",
+          "label": "Ship a release",
+          "kind": "advisory",
+          "requireSkills": [
+            "novahiz-release"
           ]
         }
       ]

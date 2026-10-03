@@ -15,4 +15,4 @@ metadata:
 
 The dual-write save is defined once in the `novahiz-memory` skill.
 
-Load `novahiz-memory` instead of applying custom logic here. It writes the project's `MEMORY.md`, then the matching Obsidian vault page through `memory-save`.
+Load `novahiz-memory` instead of applying custom logic here. It writes the project's `MEMORY.md`, then the matching Obsidian vault page from the routing table.

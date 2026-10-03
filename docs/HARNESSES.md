@@ -1,6 +1,6 @@
 # Harnesses
 
-Novahiz keeps its decisions in the CLI. A harness integration is a thin adapter that calls it. opencode is the supported harness; the MCP server stays usable from any other client.
+Novahiz keeps its decisions in the CLI. A harness integration is a thin adapter that calls it. opencode is the only supported harness; the MCP server stays usable from any other client.
 
 ## opencode
 
@@ -30,19 +30,21 @@ Full provider MCP provenance lives in [PROVIDERS.md](PROVIDERS.md) and `catalog/
 
 ### Official Flutter / Dart providers
 
-The installer can register the Dart MCP (`dart mcp-server`) and, with `--flutter-skills`, install the official skill packs into `~/.agents/skills` (merged into `skills.paths`). Nothing is vendored here; commands and licences are in [PROVIDERS.md](PROVIDERS.md) and `NOTICE.md`. After a config change, restart opencode so the new MCP entry is read at import.
+The installer can register the Dart MCP (`dart mcp-server`) and, with `--flutter-skills`, install the official skill packs into `~/.agents/skills` (merged into `skills.paths`). Nothing is vendored here; commands and licences are in [PROVIDERS.md](PROVIDERS.md) and [NOTICE.md](../NOTICE.md). After a config change, restart opencode so the new MCP entry is read at import.
 
 ## Other clients
 
-Any harness with a stdio MCP client can use the same server, `mcp/novahiz-tools/index.mjs`, for `classify`, `catalog`, `roadmap`, `providers`, `deps`, `step`, `list_skills`, `gate`, `task`, and `dispatch`. Register it with that client's own MCP command. Novahiz writes no other harness's configuration.
+Any harness with a stdio MCP client can use the same server, `mcp/novahiz-tools/index.mjs`, for `classify`, `catalog`, `roadmap`, `providers`, `deps`, `step`, `list_skills`, `gate`, `task`, and `dispatch`. Register it with that client's own MCP command. Novahiz writes no configuration outside opencode.
 
 ## What the installer does
 
-`node install/install.mjs` installs the opencode integration:
+`node install/install.mjs` configures opencode:
 
-- Skills into `~/.config/opencode/skills/`, the plugin into `~/.config/opencode/plugins/`, the agent into `~/.config/opencode/agent/`, and the four slash commands into `~/.config/opencode/commands/`.
-- The Novahiz MCP server, registered by the plugin at startup rather than written into `opencode.jsonc`.
-- A skill that already exists in `~/.agents/skills` is skipped rather than copied twice, because the catalog scans both roots and two copies make it describe one version while the harness loads the other. `--force-skills` overrides.
+- Interactive runs show the detected paths and ask before installing the core (skills, plugin, agent, slash commands).
+- Skills go into `~/.config/opencode/skills/`, the plugin into `~/.config/opencode/plugins/`, the agent into `~/.config/opencode/agent/`, the four slash commands into `~/.config/opencode/commands/`, and `opencode.jsonc` is written when missing.
+- A harness entirely absent from the machine (no config directory and no binary) gets its CLI installed with `npm install -g opencode-ai`, non-blocking.
+- The Novahiz MCP server on opencode is registered by the plugin at startup rather than written into `opencode.jsonc`.
+- A skill that already exists in `~/.agents/skills` or another scanned root is skipped rather than copied twice, because two copies make it describe one version while the harness loads the other. `--force-skills` overrides.
 
 Run it non-interactively:
 

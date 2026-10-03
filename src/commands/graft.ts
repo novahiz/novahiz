@@ -4,7 +4,7 @@
  * Subcommands: init, log, diff, status, restore, export, commit
  */
 import { execFileSync } from "node:child_process";
-import { existsSync } from "node:fs";
+import { existsSync, writeSync } from "node:fs";
 import { resolve } from "node:path";
 import { NovahizHome } from "../spec.ts";
 import {
@@ -33,8 +33,12 @@ Usage:
 `;
 
 function fail(msg: string): void {
-  console.error(`error: ${msg}`);
-  process.exitCode = 1;
+  // WS3: exit immediately — a fail() that only sets exitCode let the switch
+  // keep running (usage-fail then commitGraft(""), "graft not found" then a
+  // spawn anyway). writeSync(2, ...) so the message survives the exit on a
+  // piped stderr (console.error is async on pipes).
+  writeSync(2, `error: ${msg}\n`);
+  process.exit(1);
 }
 
 export function graftCommand(argv: string[]): void {

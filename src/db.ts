@@ -160,13 +160,17 @@ function ensureColumn(db: DatabaseSync, table: string, column: string, definitio
   db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition};`);
 }
 
-export const SCHEMA_VERSION = 1;
+export const SCHEMA_VERSION = 2;
 
 function migrate(db: DatabaseSync): void {
   ensureColumn(db, "tasks", "revision", "INTEGER NOT NULL DEFAULT 0");
   ensureColumn(db, "tasks", "reviewed_at", "TEXT");
   ensureColumn(db, "tasks", "edits_since_review", "INTEGER NOT NULL DEFAULT 0");
   ensureColumn(db, "tasks", "todos_since_review", "INTEGER NOT NULL DEFAULT 0");
+  // F: the project a task belongs to — ledger edits are filtered against it so
+  // one project's plan never counts or blocks another project's files. NULL on
+  // legacy tasks keeps the previous unscoped owner behaviour.
+  ensureColumn(db, "tasks", "project_root", "TEXT");
   db.exec(`PRAGMA user_version = ${SCHEMA_VERSION};`);
 }
 

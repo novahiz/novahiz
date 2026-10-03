@@ -1,9 +1,10 @@
 import type { Rule, Spec } from "./spec.ts";
+import { isAbsolute, relative, resolve } from "node:path";
 import { hasPlaceholder, hasProse, hasStyle, isTrivial } from "./content.ts";
 import { determineTier, type ComplexityTier } from "./complexity.ts";
 // Shared ledger enforcement (audit P1-D/M1): the CLI command and the MCP
 // novahiz_gate tool both run these checks so their verdicts cannot diverge.
-import { activeTask, recordEdit, reviewBlockReason, reviewDue, traceCheck } from "./ledger.ts";
+import { activeTask, ownedByOpenTodo, recordEdit, reviewBlockReason, reviewDue, traceCheck } from "./ledger.ts";
 import { autoCommit } from "./graft.ts";
 import type { openDb } from "./db.ts";
 
@@ -265,7 +266,7 @@ type GateInput = {
   spec: Spec;
 };
 
-type GateResult = {
+export type GateResult = {
   allow: boolean;
   ignored: boolean;
   fileClass: FileClass;
@@ -496,13 +497,31 @@ export function enforceLedgerChecks(
   if (ledgerConfig?.enabled !== false) {
     const task = activeTask(db, session || undefined);
     if (task) {
-      if (["edit", "write", "patch", "apply_patch"].includes(tool)) recordEdit(db, task.id);
+      // F: a task bound to a project only ever owns paths inside that project —
+      // another project's edits never advance or block it. Legacy tasks without
+      // project_root keep the owner-only behaviour. Relative paths resolve
+      // against the caller's cwd; absolute paths (plugin flow) stand as-is.
+      const inProject = (filePath: string): boolean => {
+        if (!task.project_root) return true;
+        const abs = isAbsolute(filePath) ? resolve(filePath) : resolve(process.cwd(), filePath);
+        const rel = relative(task.project_root, abs);
+        return rel.length === 0 || (!rel.startsWith("..") && !isAbsolute(rel));
+      };
+      // Cadence counts only edits an open todo actually owns (owner-scoped
+      // review): a session or project touching unrelated paths must never
+      // advance this plan toward its review block.
+      const ownedTarget = results.some(
+        (entry) => entry.path.length > 0 && inProject(entry.path) && ownedByOpenTodo(db, task.id, entry.path)
+      );
+      if (["edit", "write", "patch", "apply_patch"].includes(tool) && ownedTarget) recordEdit(db, task.id);
       // Targeted review: block only paths owned by an open todo with an owner
       // pattern. A due review no longer freezes every target.
       for (const entry of results) {
         // MAJEUR l.135: no path means no todo owner can claim it — a
         // pathless command must not be blocked by a file-ownership check.
         if (entry.path.length === 0) continue;
+        // F: outside the task's project nothing in this ledger applies to it.
+        if (!inProject(entry.path)) continue;
         const reason = reviewBlockReason(db, task.id, entry.path, ledgerConfig.review);
         if (reason && !entry.ignored) {
           entry.allow = false;

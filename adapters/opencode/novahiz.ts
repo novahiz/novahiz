@@ -1,4 +1,4 @@
-import type { Plugin } from "@opencode-ai/plugin";
+import type { Cleanup, Context, Plugin } from "@opencode/plugin/promise/plugin";
 import { spawn, spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
@@ -369,11 +369,72 @@ const HOME =
     ? process.env.NOVAHIZ_HOME
     : join(homedir(), ".config", "novahiz");
 const CLI = join(HOME, "src", "cli.ts");
+const MCP = join(HOME, "mcp", "novahiz-tools", "index.mjs");
 const NODE =
   process.env.NOVAHIZ_NODE && process.env.NOVAHIZ_NODE.length > 0 ? process.env.NOVAHIZ_NODE : "node";
 
 type GateConfig = { enabled?: boolean; mode?: string; envEscape?: string; tools?: string[] };
-type NovahizConfig = { gate?: GateConfig };
+
+// S-AUTO: forme brute du bloc memory.auto lue dans novahiz.config.json.
+type MemoryAutoWriteConfig = {
+  todoDone: boolean;
+  review: boolean;
+  taskEnd: boolean;
+  compaction: boolean;
+  spec: boolean;
+};
+type MemoryAutoReadConfig = {
+  k: number;
+  minScore: number;
+  antiRepetition: boolean;
+  postCompaction: boolean;
+};
+type MemoryAutoConfig = {
+  enabled: boolean;
+  write: MemoryAutoWriteConfig;
+  read: MemoryAutoReadConfig;
+};
+type NovahizConfig = { gate?: GateConfig; memory?: unknown };
+
+/**
+ * S-AUTO: resout le bloc memory.auto avec kill-switch d'environnement
+ * NOVAHIZ_MEM_AUTO. Exporte tel quel pour les tests (pure function).
+ *
+ * - env NOVAHIZ_MEM_AUTO dans le vocabulaire off/0/false/no/disabled → null
+ *   (meme vocabulaire que NOVAHIZ_GATE; la config ne peut pas le requalifier).
+ * - memory.auto.enabled === false → null (desactivation explicite).
+ * - sinon defauts full-on: T1-T5 tous actifs, lecture k=3 minScore=0.25
+ *   anti-repetition + re-injection post-compaction — miroir de
+ *   DEFAULT_CONFIG.memory.auto (src/spec.ts); le plugin installe ne peut pas
+ *   resoudre ../../src/*, donc les defauts sont enonces ici aussi.
+ * - toute valeur absente ou hors bornes retombe sur le defaut: une config
+ *   corrompue ne desactive ni ne rend bruyant l'auto par accident.
+ */
+export function resolveMemoryAuto(raw: unknown, envValue: string | undefined): MemoryAutoConfig | null {
+  if (["off", "0", "false", "no", "disabled"].includes(String(envValue ?? "").trim().toLowerCase())) return null;
+  const memory = raw && typeof raw === "object" ? (raw as { auto?: unknown }).auto : undefined;
+  const auto = memory && typeof memory === "object" ? (memory as Record<string, unknown>) : {};
+  if (auto.enabled === false) return null;
+  const writeRaw = auto.write && typeof auto.write === "object" ? (auto.write as Record<string, unknown>) : {};
+  const readRaw = auto.read && typeof auto.read === "object" ? (auto.read as Record<string, unknown>) : {};
+  const bool = (value: unknown, fallback: boolean): boolean => (typeof value === "boolean" ? value : fallback);
+  const write: MemoryAutoWriteConfig = {
+    todoDone: bool(writeRaw.todoDone, true),
+    review: bool(writeRaw.review, true),
+    taskEnd: bool(writeRaw.taskEnd, true),
+    compaction: bool(writeRaw.compaction, true),
+    spec: bool(writeRaw.spec, true)
+  };
+  const inRange = (value: unknown, min: number, max: number): value is number =>
+    typeof value === "number" && Number.isFinite(value) && value >= min && value <= max;
+  const read: MemoryAutoReadConfig = {
+    k: inRange(readRaw.k, 1, 20) ? Math.trunc(readRaw.k) : 3,
+    minScore: inRange(readRaw.minScore, 0, 1) ? readRaw.minScore : 0.25,
+    antiRepetition: bool(readRaw.antiRepetition, true),
+    postCompaction: bool(readRaw.postCompaction, true)
+  };
+  return { enabled: true, write, read };
+}
 
 function readConfig(): NovahizConfig {
   for (const name of ["novahiz.config.json", "novahiz.config.example.json"]) {
@@ -399,19 +460,31 @@ const DISABLED = ["off", "0", "false", "no", "disabled"].includes(ESCAPE);
 const GATE_TOOLS = new Set(
   (Array.isArray(GATE.tools) && GATE.tools.length > 0
     ? GATE.tools
-    // MINEUR#8: cron tools that carry/execute shell commands are gated too —
-    // cron_add_command_task was a bash-gate bypass. Keep in sync with
-    // DEFAULT_CONFIG.gate.tools (src/spec.ts) and novahiz.config.json.
-    : ["edit", "write", "patch", "apply_patch", "bash", "shell", "cron_add_command_task", "cron_update_command_task", "cron_update_task", "cron_run_task_now"]
+    // MINEUR#8 + 0.3.6 hardening: every cron tool that carries, creates, or
+    // executes shell commands is gated — cron_add_command_task was a bash-gate
+    // bypass, and cron_add_task / cron_add_ai_task / cron_add_http_task each
+    // accept a `command` field (HTTP/AI tasks run shell_command type too).
+    // Keep in sync with DEFAULT_CONFIG.gate.tools (src/spec.ts), install/lib.mjs,
+    // novahiz.config.example.json, the live novahiz.config.json, and
+    // docs/CONFIGURATION.md.
+    : ["edit", "write", "patch", "apply_patch", "bash", "shell", "cron_add_command_task", "cron_add_task", "cron_add_ai_task", "cron_add_http_task", "cron_update_command_task", "cron_update_task", "cron_run_task_now"]
   ).map((tool) => tool.toLowerCase())
 );
+
+// S-AUTO: memoire automatique lue une fois a l'import, comme le gate.
+// null = auto coupee (kill-switch NOVAHIZ_MEM_AUTO ou memory.auto.enabled=false).
+const MEMORY_AUTO = resolveMemoryAuto(CONFIG.memory, process.env.NOVAHIZ_MEM_AUTO);
 
 type RunResult = { status: number; stdout: string; stderr: string; spawnError?: string };
 
 // C1: timeout prevents a hung CLI from freezing the whole OpenCode process.
+// Raised 10 s -> 30 s (audit 2026-09-25, MEDIUM): gate/CLI runs legitimately
+// exceeded 10 s on 23-24/09 and the cap turned them into 14 spurious
+// fail-closed refusals. Still bounded, so a truly hung CLI cannot freeze
+// OpenCode for more than 30 s.
 // C2: maxBuffer caps output; oversized output is treated as a gate failure,
 // never as truncated-then-allowed.
-const RUN_TIMEOUT_MS = 10_000;
+const RUN_TIMEOUT_MS = 30_000;
 const RUN_MAX_BUFFER = 1_048_576;
 
 function run(args: string[], input?: string): RunResult {
@@ -425,7 +498,11 @@ function run(args: string[], input?: string): RunResult {
     input,
     timeout: RUN_TIMEOUT_MS,
     maxBuffer: RUN_MAX_BUFFER,
-    killSignal: isWin ? "SIGKILL" : "SIGTERM"
+    killSignal: isWin ? "SIGKILL" : "SIGTERM",
+    // FIX fenetres console: sans ce cache, chaque lecture/ecriture/prompt
+    // creait une console Windows visible puis la fermait (le service
+    // OpenCode n'a pas de console a laquelle l'enfant pourrait s'attacher).
+    windowsHide: true
   });
   if (result.error) return { status: 1, stdout: "", stderr: "", spawnError: result.error.message };
   // On Windows, timeout-killed processes always exit with status 1 (TerminateProcess).
@@ -435,14 +512,272 @@ function run(args: string[], input?: string): RunResult {
   return { status: result.status ?? 1, stdout: result.stdout ?? "", stderr: result.stderr ?? "" };
 }
 
-function textFromParts(parts: unknown): string {
-  if (!Array.isArray(parts)) return "";
-  const chunks: string[] = [];
-  for (const part of parts) {
-    const record = part as { type?: string; text?: string };
-    if (record && record.type === "text" && typeof record.text === "string") chunks.push(record.text);
+type McpCall = { ok: boolean; data: Record<string, unknown> | null; error: string | null };
+
+// S-AUTO: tour unique vers le serveur MCP (mode --call). Le plugin installe
+// ne peut pas importer src/*, donc memory_write / memory_search / novahiz_task
+// passent par le meme handle() que le transport stdio: une seule source de
+// verite pour la validation, la dedup, le routage et le lock.
+function callMcp(tool: string, args: Record<string, unknown>): McpCall {
+  let payload: string;
+  try {
+    payload = JSON.stringify(args);
+  } catch (error) {
+    return { ok: false, data: null, error: `serialize failed: ${String(error)}` };
   }
-  return chunks.join("\n").trim();
+  const isWin = process.platform === "win32";
+  const result = spawnSync(NODE, [MCP, "--call", tool], {
+    encoding: "utf8",
+    input: payload,
+    timeout: RUN_TIMEOUT_MS,
+    maxBuffer: RUN_MAX_BUFFER,
+    killSignal: isWin ? "SIGKILL" : "SIGTERM",
+    // FIX fenetres console: meme cache que run() ci-dessus — c'est ce spawn
+    // qui clignotait a chaque auto-lecture/auto-ecriture de la memoire.
+    windowsHide: true
+  });
+  if (result.error) return { ok: false, data: null, error: result.error.message };
+  const stdout = (result.stdout ?? "").trim();
+  if (stdout.length === 0) return { ok: false, data: null, error: `empty response (exit ${result.status ?? 1})` };
+  // --call n'imprime qu'une ligne JSON; la derniere ligne non vide couvre
+  // quand meme d'eventuelles traces d'en-tete d'un sous-processus.
+  const line = stdout.split(/\r?\n/).filter((entry) => entry.trim().length > 0).pop() ?? "";
+  let envelope: unknown;
+  try {
+    envelope = JSON.parse(line);
+  } catch {
+    return { ok: false, data: null, error: `invalid JSON response: ${line.slice(0, 160)}` };
+  }
+  const record = envelope as { result?: { content?: unknown; isError?: boolean }; error?: { message?: unknown } };
+  if (record.error) return { ok: false, data: null, error: String(record.error.message ?? "mcp error") };
+  const content = record.result?.content;
+  const text =
+    typeof content === "string"
+      ? content
+      : Array.isArray(content)
+        ? content
+            .map((part) =>
+              part && typeof part === "object" && typeof (part as { text?: unknown }).text === "string"
+                ? (part as { text: string }).text
+                : ""
+            )
+            .join("\n")
+        : "";
+  if (record.result?.isError === true) return { ok: false, data: null, error: text.slice(0, 300) || "tool error" };
+  try {
+    const parsed = JSON.parse(text) as unknown;
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+      return { ok: true, data: parsed as Record<string, unknown>, error: null };
+    }
+    return { ok: true, data: { value: parsed }, error: null };
+  } catch {
+    // Les resultats texte simples ("no active task") ne sont pas du JSON:
+    // on les rend tels quels pour l'appelant.
+    return { ok: true, data: { text }, error: null };
+  }
+}
+
+// S-AUTO: extraction du payload JSON d'un Tool.Result (content string ou
+// tableau de blocs texte). Null si le resultat n'est pas du JSON d'objet.
+function parseToolPayload(result: unknown): Record<string, unknown> | null {
+  const content = (result as { content?: unknown } | undefined)?.content;
+  const text =
+    typeof content === "string"
+      ? content
+      : Array.isArray(content)
+        ? content
+            .map((part) =>
+              part && typeof part === "object" && typeof (part as { text?: unknown }).text === "string"
+                ? (part as { text: string }).text
+                : ""
+            )
+            .join("\n")
+        : "";
+  if (text.trim().length === 0) return null;
+  try {
+    const parsed = JSON.parse(text) as unknown;
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) return parsed as Record<string, unknown>;
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+export type AutoTrigger = "todoDone" | "review" | "spec";
+export type AutoReadHit = { id?: unknown; title?: unknown; score?: unknown; snippet?: unknown };
+
+// S-AUTO: detection deterministic du trigger depuis un execute.after réussi.
+// T1/T2 sur l'outil MCP novahiz_task (done/review), T5 sur l'edition des
+// fichiers spec/config novahiz (nom de fichier, peu importe le repertoire).
+export function autoWriteTrigger(tool: string, input: unknown): AutoTrigger | null {
+  const name = String(tool).toLowerCase();
+  const args = input && typeof input === "object" ? (input as Record<string, unknown>) : {};
+  if (name.endsWith("novahiz_task")) {
+    const action = typeof args.action === "string" ? args.action : "";
+    if (action === "done") return "todoDone";
+    if (action === "review") return "review";
+    return null;
+  }
+  if (["edit", "write", "patch", "apply_patch"].includes(name)) {
+    const raw =
+      (typeof args.filePath === "string" && args.filePath) ||
+      (typeof args.file_path === "string" && args.file_path) ||
+      (typeof args.path === "string" && args.path) ||
+      "";
+    if (raw.length > 0 && isSpecConfigPath(raw)) return "spec";
+  }
+  return null;
+}
+
+export function isSpecConfigPath(path: string): boolean {
+  const base = String(path).replace(/\\/g, "/").split("/").pop() ?? String(path);
+  return base === "novahiz.config.json" || base === "novahiz.config.example.json";
+}
+
+// S-AUTO: contenu deterministe des faits auto-ecrits. Meme payload + meme
+// session → meme bloc (la dedup sha256 de memory_write encaisse les replays).
+export function buildAutoWrite(
+  trigger: AutoTrigger,
+  payload: Record<string, unknown>,
+  ctx: { sessionID: string }
+): { title: string; content: string; tags: string[] } | null {
+  const iso = new Date().toISOString();
+  const session = ctx.sessionID;
+  if (trigger === "todoDone") {
+    const label =
+      typeof payload.label === "string" && payload.label.trim().length > 0
+        ? payload.label.trim()
+        : String(payload.id ?? "todo");
+    const proof =
+      typeof payload.proof === "string" && payload.proof.trim().length > 0
+        ? payload.proof.trim()
+        : "aucune preuve fournie";
+    return {
+      title: `Todo done: ${label}`.slice(0, 200),
+      content: [
+        "T1 — capture automatique (todo done).",
+        `todo: ${String(payload.id ?? "inconnu")}`,
+        `tache: ${String(payload.task_id ?? "inconnu")}`,
+        `label: ${label}`,
+        `preuve: ${proof}`,
+        `session: ${session}`,
+        `horodatage: ${iso}`
+      ].join("\n"),
+      tags: ["auto", "todo-done"]
+    };
+  }
+  if (trigger === "review") {
+    const task = payload.task && typeof payload.task === "object" ? (payload.task as Record<string, unknown>) : {};
+    const applied =
+      payload.applied && typeof payload.applied === "object" ? (payload.applied as Record<string, unknown>) : {};
+    const signals = Array.isArray(payload.signals) ? payload.signals.length : 0;
+    const revision = payload.revision ?? "?";
+    return {
+      title: `Ledger review r${String(revision)}`.slice(0, 200),
+      content: [
+        "T2 — capture automatique (review du ledger).",
+        `revision: ${String(revision)}`,
+        `tache: ${String(task.id ?? "inconnu")} — ${String(task.title ?? "sans titre")}`,
+        `applied: +${String(applied.additions ?? 0)} additions, ~${String(applied.amendments ?? 0)} amendments, -${String(applied.removals ?? 0)} removals, reordered=${String(applied.reordered ?? false)}`,
+        `signals: ${signals}`,
+        `session: ${session}`,
+        `horodatage: ${iso}`
+      ].join("\n"),
+      tags: ["auto", "review"]
+    };
+  }
+  const path = String(payload.path ?? "novahiz.config.json");
+  const base = path.replace(/\\/g, "/").split("/").pop() ?? path;
+  return {
+    title: `Spec change: ${base}`.slice(0, 200),
+    content: [
+      "T5 — capture automatique (spec/config novahiz modifie).",
+      `fichier: ${path}`,
+      `outil: ${String(payload.tool ?? "edit")}`,
+      "La config est lue a l'import: redemarrer opencode pour appliquer le changement.",
+      `session: ${session}`,
+      `horodatage: ${iso}`
+    ].join("\n"),
+    tags: ["auto", "spec"]
+  };
+}
+
+// S-AUTO (R1-R3): filtre k / minScore / anti-repetition, puis formatage des
+// lignes de resume injectees dans le bloc d'enforcement du prompt, suivies de
+// la directive de consultation. Retourne les ids retenus et les lignes de
+// detail (alignees sur injectedIds) pour que l'appelant les accumule dans la
+// fenetre anti-repetition de la session.
+export const MEMORY_READ_DIRECTIVE =
+  "Directive: call memory_get(id) for the full slot before re-deriving anything already known; append session-surviving facts via memory_write.";
+
+export function summaryHeader(count: number, read: MemoryAutoReadConfig): string {
+  return `[Novahiz memory] auto-injected summaries (${count}/${read.k}, minScore ${read.minScore}):`;
+}
+
+// S-AUTO: la requete de recherche est la TETE du prompt, bornee a des tokens.
+// rankSlots normalise par le nombre de tokens de la requete (maxRaw ∝ |query|):
+// un prompt complet, ou seul un sous-ensemble de tokens matche la slot, tombe
+// toujours sous le seuil 0.25 (observe en E2E: prompt complet = 0.223, requete
+// concentree = 0.506). Concentrer la requete sur l'intention en tete de prompt
+// preserve la porte du seuil sans le modifier.
+export function autoReadQuery(text: string, maxTokens = 16): string {
+  const words = text.trim().split(/\s+/).filter((word) => word.length > 0);
+  return words.slice(0, maxTokens).join(" ");
+}
+
+// S-AUTO: fenetre glissante anti-repetition — un id deja injecte n'entre
+// jamais deux fois; la fenetre garde au plus k resumes (FIFO) pour que le
+// bloc reste borne tout en persistant d'un prompt a l'autre (le bloc est
+// reconstruit a chaque prompt: sans accumulation, les resumes disparaitraient
+// des que le second prompt).
+export function mergeSummaryWindow(
+  state: { ids: string[]; details: string[] },
+  freshIds: readonly string[],
+  freshDetails: readonly string[],
+  k: number
+): { ids: string[]; details: string[] } {
+  const ids = [...state.ids];
+  const details = [...state.details];
+  freshIds.forEach((id, index) => {
+    if (ids.includes(id)) return;
+    const line = freshDetails[index];
+    if (typeof line !== "string" || line.length === 0) return;
+    ids.push(id);
+    details.push(line);
+  });
+  while (ids.length > k) {
+    ids.shift();
+    details.shift();
+  }
+  return { ids, details };
+}
+
+export function buildAutoReadLines(
+  hits: readonly AutoReadHit[],
+  read: MemoryAutoReadConfig,
+  injected: ReadonlySet<string>
+): { lines: string[]; injectedIds: string[]; details: string[] } {
+  const kept: string[] = [];
+  const detail: string[] = [];
+  const seen = new Set(injected);
+  for (const hit of hits) {
+    if (kept.length >= read.k) break;
+    const id = typeof hit.id === "string" ? hit.id : "";
+    const score = typeof hit.score === "number" && Number.isFinite(hit.score) ? hit.score : -1;
+    if (id.length === 0 || score < read.minScore) continue;
+    if (read.antiRepetition && seen.has(id)) continue;
+    const title = typeof hit.title === "string" && hit.title.trim().length > 0 ? hit.title.trim() : id;
+    const snippet = typeof hit.snippet === "string" ? hit.snippet.trim() : "";
+    detail.push(`  - ${id} (score ${score.toFixed(2)}): ${snippet.length > 0 ? `${title} — ${snippet}` : title}`);
+    kept.push(id);
+    seen.add(id);
+  }
+  if (kept.length === 0) return { lines: [], injectedIds: [], details: [] };
+  return {
+    lines: [summaryHeader(kept.length, read), ...detail, MEMORY_READ_DIRECTIVE],
+    injectedIds: kept,
+    details: detail
+  };
 }
 
 // H2: Session IDs must be non-empty strings. This guards against undefined/null
@@ -492,18 +827,21 @@ function buildRepairDirective(failure: GateFailure, attempt: number): string {
   }
 
   if (attempt <= 1) {
-    const steps = missing.map((skill, index) => `  ${index + 1}. skill({name:"${skill}"})`).join("\n");
+    // Always add novahiz-gate: it explains why the block happened and how to
+    // satisfy the rule, which is what the agent needs before retrying.
+    const loads = missing.includes("novahiz-gate") ? missing : [...missing, "novahiz-gate"];
+    const steps = loads.map((skill, index) => `  ${index + 1}. skill({id:"${skill}"})`).join("\n");
     return [
       `${head} Missing skills: ${missing.join(", ")}.`,
-      "AUTO-REPAIR — execute now, do not ask the user, do not stop:",
+      "GATE RELOAD — execute now, do not ask the user, do not stop:",
       steps,
-      `  ${missing.length + 1}. Retry this exact ${failure.tool} call once, then continue the user's task where it left off.`,
+      `  ${loads.length + 1}. Retry this exact ${failure.tool} call once, then continue the user's task where it left off.`,
       "Never bypass the gate: no NOVAHIZ_GATE, no alternate tool, no shell write, no editing around the block."
     ].join("\n");
   }
 
   return [
-    `${head} AUTO-REPAIR FAILED on attempt ${attempt}: still missing ${missing.join(", ")} after skill() loads.`,
+    `${head} GATE RELOAD FAILED on attempt ${attempt}: still missing ${missing.join(", ")} after skill() loads.`,
     "The loads did not register — diagnose instead of retrying:",
     "  1. Confirm the skill is installed and the index matches (`novahiz doctor`).",
     "  2. Realign the index (`novahiz sync`), then load the named skills again.",
@@ -511,7 +849,7 @@ function buildRepairDirective(failure: GateFailure, attempt: number): string {
   ].join("\n");
 }
 
-export const NovahizPlugin: Plugin = async ({ client }) => {
+async function setup(ctx: Context): Promise<Cleanup> {
   const loadedBySession = new Map<string, Set<string>>();
   const categoriesBySession = new Map<string, string[]>();
   const enforcementBySession = new Map<string, string>();
@@ -519,15 +857,30 @@ export const NovahizPlugin: Plugin = async ({ client }) => {
   // P0-B: reason of the last failed classify per session — gate tool calls are
   // refused while set, instead of running with empty categories (fail-open).
   const classifyFailedBySession = new Map<string, string>();
-  // Auto-repair: denial count per `session|tool|missing set`. A first denial
-  // carries the repair protocol; an identical repeat escalates to diagnosis
+  // Gate reload: denial count per `session|tool|missing set`. A first denial
+  // carries the reload protocol; an identical repeat escalates to diagnosis
   // instead of looping. Cleared on a successful call of the same tool.
   const repairAttemptsBySession = new Map<string, number>();
+  // S-AUTO: injection memoire par session — fenetre glissante des resumes
+  // deja injectes (ids + lignes, anti-repetition par id, FIFO borne a k),
+  // dernier prompt (requete de recherche post-compaction), directives posees
+  // (T3 fin de tache / T4 compaction) qui survivent au rebuild du bloc a
+  // chaque prompt, chunk de resumes courant (remplacement post-compaction)
+  // et cles de directive T3 deja posees.
+  const autoReadBySession = new Map<string, { ids: string[]; details: string[] }>();
+  const lastPromptBySession = new Map<string, string>();
+  const directivesBySession = new Map<string, string[]>();
+  const summaryChunkBySession = new Map<string, string[]>();
+  const taskEndDirectiveBySession = new Set<string>();
   const SESSION_TTL_MS = 4 * 60 * 60 * 1000;
 
+  // OpenCode V2 dropped client.app.log: plugin diagnostics go through console,
+  // which the service keeps with the rest of its output.
   const log = async (level: "info" | "warn", message: string): Promise<void> => {
     try {
-      await client.app.log({ body: { service: "Novahiz", level, message } });
+      const line = `[Novahiz] ${message}`;
+      if (level === "warn") console.warn(line);
+      else console.log(line);
     } catch {
       return;
     }
@@ -539,9 +892,17 @@ export const NovahizPlugin: Plugin = async ({ client }) => {
     enforcementBySession.delete(sessionID);
     lastSeenBySession.delete(sessionID);
     classifyFailedBySession.delete(sessionID);
-    // Auto-repair keys are prefixed with the session ID — drop them too.
+    autoReadBySession.delete(sessionID);
+    lastPromptBySession.delete(sessionID);
+    directivesBySession.delete(sessionID);
+    summaryChunkBySession.delete(sessionID);
+    // Gate reload keys are prefixed with the session ID — drop them too.
     for (const key of repairAttemptsBySession.keys()) {
       if (key.startsWith(`${sessionID}|`)) repairAttemptsBySession.delete(key);
+    }
+    // S-AUTO: les cles de directive T3 sont prefixees par la session.
+    for (const key of taskEndDirectiveBySession) {
+      if (key.startsWith(`${sessionID}|`)) taskEndDirectiveBySession.delete(key);
     }
   };
 
@@ -559,316 +920,550 @@ export const NovahizPlugin: Plugin = async ({ client }) => {
     await log("warn", "gate.enabled=false in config is ignored; enforcement stays active. Use NOVAHIZ_GATE=off to disable the gate.");
   if (DISABLED) await log("info", "Gate disabled via environment escape");
 
-  return {
-    config: async (input) => {
-      ensureProjectMemory(process.cwd());
-      if (DISABLED) return;
+  ensureProjectMemory(process.cwd());
+
+  // S-AUTO: aides d'auto-capture/auto-lecture — fermetures de session (etat,
+  // logs et enforcement restent dans le meme scope que les hooks).
+  //
+  // Une directive (T3 fin de tache / T4 compaction) est posee une seule fois
+  // par session et survive au rebuild du bloc a chaque prompt — sinon le
+  // prompt suivant l'effacerait au moment precis ou elle doit pousser
+  // l'agent a ecrire la synthese. Retourne true si la directive vient
+  // d'etre posee (log d'observation).
+  const appendDirective = (sessionID: string, text: string): boolean => {
+    const posted = directivesBySession.get(sessionID) ?? [];
+    if (posted.includes(text)) return false;
+    directivesBySession.set(sessionID, [...posted, text]);
+    const current = enforcementBySession.get(sessionID);
+    enforcementBySession.set(sessionID, current ? `${current}\n${text}` : `[Novahiz enforcement]\n${text}`);
+    return true;
+  };
+
+  const autoWriteFact = (trigger: AutoTrigger, payload: Record<string, unknown>, sessionID: string): void => {
+    const fact = buildAutoWrite(trigger, payload, { sessionID });
+    if (!fact) return;
+    const call = callMcp("memory_write", { title: fact.title, content: fact.content, tags: fact.tags });
+    if (!call.ok) {
+      void log("warn", `memory auto-write (${trigger}) failed: ${call.error}`);
+      return;
+    }
+    const slot = call.data ? (call.data.slot as { id?: unknown } | undefined) : undefined;
+    const id = slot && typeof slot === "object" && typeof slot.id === "string" ? slot.id : "slot-inconnu";
+    void log("info", `memory auto-write ${trigger} -> ${id}`);
+  };
+
+  // S-AUTO (T3): apres un todo done, interroge l'etat de la tache — quand
+  // elle vient de se terminer (done/abandoned), pose une seule fois la
+  // directive de synthese de fin de tache dans le bloc d'enforcement.
+  const checkTaskEnd = (taskId: string, sessionID: string): void => {
+    const key = `${sessionID}|${taskId}`;
+    if (taskEndDirectiveBySession.has(key)) return;
+    const call = callMcp("novahiz_task", { action: "status", task: taskId });
+    const task = call.ok && call.data ? (call.data.task as { status?: unknown } | null) : null;
+    const status = task && typeof task === "object" && typeof task.status === "string" ? task.status : "";
+    if (status !== "done" && status !== "abandoned") return;
+    taskEndDirectiveBySession.add(key);
+    appendDirective(
+      sessionID,
+      `Task ${taskId} finished (${status}) — synthesis directive (T3): write the session outcome to project-memory now (memory_write): decisions, proofs, next steps.`
+    );
+    void log("info", `task end directive posted (T3) for ${taskId}: ${status}`);
+  };
+
+  // S-AUTO (R1-R3): recherche de resumes + anti-repetition. La fenetre de
+  // resumes persiste d'un prompt a l'autre (le bloc est reconstruit a chaque
+  // prompt): seuls les ids nouveaux entrent, FIFO borne a k — un meme resume
+  // n'est jamais injecte deux fois, mais il ne disparait pas au prompt
+  // suivant. Retourne le chunk complet a pousser et le nombre de nouveaux
+  // ids (log d'observation). Pas de spawn si le project-memory est vide.
+  const buildAutoRead = (
+    sessionID: string,
+    query: string
+  ): { lines: string[]; newCount: number } => {
+    if (!MEMORY_AUTO) return { lines: [], newCount: 0 };
+    try {
+      let state: { ids: string[]; details: string[] } = autoReadBySession.get(sessionID) ?? { ids: [], details: [] };
+      let newCount = 0;
+      let active = 0;
       try {
-        const config = input as { mcp?: Record<string, unknown> };
-        if (!config.mcp) config.mcp = {};
-        if (!config.mcp.novahiz) {
-          config.mcp.novahiz = {
-            type: "local",
-            command: [NODE, join(HOME, "mcp", "novahiz-tools", "index.mjs")],
-            enabled: true
-          };
-        }
-        const providers = run(["providers", "--mcp-json"]);
-        if (providers.status === 0 && providers.stdout.trim().length > 0) {
-          try {
-            const entries = JSON.parse(providers.stdout) as Record<string, unknown>;
-            for (const [id, entry] of Object.entries(entries)) {
-              if (!config.mcp[id]) config.mcp[id] = entry;
-            }
-          } catch {
-            await log("warn", "Providers returned invalid JSON, MCP auto-register skipped");
-          }
-        } else if (providers.status !== 0) {
-          await log("warn", `Providers command failed (exit ${providers.status}), MCP auto-register skipped`);
-        }
-      } catch (error) {
-        await log("warn", `Config hook failed: ${String(error).slice(0, 200)}`);
-        return;
-      }
-    },
-
-    event: async ({ event }) => {
-      const type = (event as { type?: string }).type ?? "";
-      if (type === "session.idle") {
-        // Fail-open: never block idle; skip when disabled or nothing pending.
-        try {
-          const cwd = process.cwd();
-          if (autoDocsEnabled(cwd)) {
-            const state = readState(cwd);
-            if (state.dirty || state.pending.length > 0) {
-              const child = spawn(NODE, [CLI, "autodocs", "--flush"], {
-                cwd,
-                stdio: "ignore",
-                timeout: RUN_TIMEOUT_MS,
-                windowsHide: true
-              });
-              child.on("error", () => undefined);
-              child.unref();
-            }
-          }
-        } catch {
-          // fail-open
-        }
-        return;
-      }
-      if (type !== "session.deleted") return;
-      const properties = (event as { properties?: { info?: { id?: string }; sessionID?: string } }).properties ?? {};
-      const sessionID = properties.info?.id ?? properties.sessionID;
-      if (sessionID) forget(sessionID);
-    },
-
-    "chat.message": async (input, output) => {
-      ensureProjectMemory(process.cwd());
-      if (DISABLED) return;
-      try {
-        if (!isValidSessionId(input.sessionID)) return;
-        touch(input.sessionID);
-        const text = textFromParts(output.parts);
-        if (text.length === 0) return;
-
-        // Prompt rewriter: translate non-English prompts to optimized English
-        // before classification. Responses always match the user's language.
-        const rewrite = rewritePrompt(text);
-        const classifyText = rewrite.rewritten;
-        if (rewrite.wasRewritten) {
-          await log("info", `Prompt rewritten: ${rewrite.sourceLanguage} → English ("${classifyText.slice(0, 80)}")`);
-        }
-
-        // P0-B: the prompt travels on stdin. On argv it allowed option
-        // injection (--home), broke past the Windows 32k limit, and was
-        // readable in the process list.
-        const result = run(["classify", "--stdin"], classifyText);
-        if (result.status !== 0) {
-          classifyFailedBySession.set(input.sessionID, `classify exit ${result.status}`);
-          await log("warn", `Classify failed (exit ${result.status}), gate tool calls refused for this session: ${result.stderr.trim().slice(0, 200)}`);
-          return;
-        }
-        let parsed: {
-          categories?: { id: string }[];
-          primary?: string | null;
-          requiredSkills?: string[];
-          enforcedSkills?: string[];
-          providers?: string[];
-          roadmaps?: { id: string; steps: { label: string; kind: string; requireSkills?: string[] }[] }[];
+        const index = JSON.parse(readFileSync(join(process.cwd(), "project-memory", "index.json"), "utf8")) as {
+          slots?: unknown;
         };
-        try {
-          parsed = JSON.parse(result.stdout) as typeof parsed;
-        } catch {
-          classifyFailedBySession.set(input.sessionID, "classify returned invalid JSON");
-          await log("warn", "Classify returned invalid JSON, gate tool calls refused for this session");
-          return;
-        }
-        // M5: the `as` cast is compile-time only — validate the shape at runtime
-        // so a malformed classify response cannot silently disable enforcement.
-        if (!parsed || typeof parsed !== "object" || !Array.isArray(parsed.categories)) {
-          classifyFailedBySession.set(input.sessionID, "classify returned an unexpected structure");
-          await log("warn", "Classify returned unexpected structure, gate tool calls refused for this session");
-          return;
-        }
-        classifyFailedBySession.delete(input.sessionID);
-        const categories = (parsed.categories ?? []).map((entry) => entry.id);
-        categoriesBySession.set(input.sessionID, categories);
-        const primary = parsed.primary ?? categories[0] ?? null;
-        const enforced = parsed.enforcedSkills ?? [];
-        const required = parsed.requiredSkills ?? [];
-        const suggested = required.filter((skill) => !enforced.includes(skill));
-        const roadmap = (parsed.roadmaps ?? [])[0];
-        const providers = parsed.providers ?? [];
-        const lines = [
-          "[Novahiz enforcement]",
-          `Categories detected: ${categories.join(", ") || "none"}${primary ? ` (primary: ${primary})` : ""}`
-        ];
-        if (rewrite.sourceLanguage !== "en") {
-          lines.push(`User language: ${rewrite.sourceLanguage} — respond in this language, not English.`);
-        }
-        if (roadmap) {
-          lines.push(`Roadmap ${roadmap.id}:`);
-          roadmap.steps.forEach((step, index) => {
-            const skills = step.requireSkills?.length ? ` (${step.requireSkills.join(", ")})` : "";
-            lines.push(`  ${index + 1}. [${step.kind}] ${step.label}${skills}`);
-          });
-        }
-        if (enforced.length > 0) lines.push(`Required skills (roadmap): ${enforced.join(", ")}`);
-        if (suggested.length > 0) lines.push(`Suggested skills: ${suggested.join(", ")}`);
-        if (providers.length > 0) lines.push(`Tools for this task: ${providers.join(", ")}`);
-        const ledger = run(["task", "current", "--session", input.sessionID]);
-        if (ledger.status === 0 && ledger.stdout.trim().length > 0) {
-          try {
-            const state = JSON.parse(ledger.stdout) as { task?: unknown; summary?: string[] };
-            if (state.task && Array.isArray(state.summary) && state.summary.length > 0) lines.push(...state.summary);
-          } catch {
-            await log("warn", "Ledger state is invalid JSON, enforcement injected without the task summary");
-          }
-        }
-        lines.push("The gate blocks edit/write/patch/apply_patch/bash/shell until the required skills are loaded via skill({name:\"...\"}).");
-        lines.push("The gate is content-aware: novahiz-humanizer, ui-slop-remover and ui-craft-rules are required only on frontend design tasks (R13), and impeccable on the same design selectors (R14).");
-        lines.push("Config edited = opencode restart required (config read at import).");
-        lines.push("Memory lives in project-memory/ under the project root (cwd): index.json + fixed-size slots (8000 chars / 200 lines) with compact → archive → new-slot rotation. Use the MCP memory_* tools to read and append.");
-        enforcementBySession.set(input.sessionID, lines.join("\n"));
-      } catch (error) {
-        classifyFailedBySession.set(input.sessionID, "chat.message hook error");
-        await log("warn", `chat.message hook failed, gate tool calls refused for this session: ${String(error).slice(0, 200)}`);
-        return;
+        active = Array.isArray(index.slots)
+          ? index.slots.filter(
+              (slot) => slot && typeof slot === "object" && (slot as { status?: unknown }).status !== "archived"
+            ).length
+          : 0;
+      } catch {
+        active = 0;
       }
-    },
-
-    "experimental.chat.system.transform": async (input, output) => {
-      if (DISABLED) return;
-      try {
-        const sessionID = input.sessionID;
-        if (!sessionID) return;
-        const block = enforcementBySession.get(sessionID);
-        if (block) output.system.push(block);
-      } catch (error) {
-        await log("warn", `system.transform hook failed: ${String(error).slice(0, 200)}`);
-      }
-    },
-
-    "tool.execute.before": async (input, output) => {
-      try {
-        const tool = input.tool.toLowerCase();
-        const gated = !DISABLED && GATE_TOOLS.has(tool);
-        // P0-B: an invalid session ID must not bypass the gate. Gate tools and
-        // skill loads are refused; tools that need no enforcement still pass.
-        if (!isValidSessionId(input.sessionID)) {
-          if (gated || (!DISABLED && tool === "skill")) {
-            throw new Error(
-              `Novahiz gate blocked ${input.tool}: invalid session ID — loaded skills cannot be tracked. Fix the session or set NOVAHIZ_GATE=off to disable.`
+      if (active > 0) {
+        const limit = Math.min(20, Math.max(MEMORY_AUTO.read.k * 3, 6));
+        // Tete du prompt (voir autoReadQuery): la longueur dilue le score fold.
+        const call = callMcp("memory_search", { query: autoReadQuery(query), limit });
+        if (!call.ok || !call.data) {
+          // info (console.log) et non warn: seul ce canal est capture par les
+          // logs opencode — observe en E2E serve --print-logs --log-level all.
+          void log("info", `memory auto-read skipped: ${call.error}`);
+        } else {
+          const results = Array.isArray(call.data.results) ? (call.data.results as AutoReadHit[]) : [];
+          const fresh = buildAutoReadLines(results, MEMORY_AUTO.read, new Set(state.ids));
+          if (fresh.injectedIds.length > 0) {
+            newCount = fresh.injectedIds.length;
+            // Anti-repetition desactivee: la fenetre est remplacee a chaque
+            // recherche — les memes resumes sont re-injectes volontairement.
+            state = MEMORY_AUTO.read.antiRepetition
+              ? mergeSummaryWindow(state, fresh.injectedIds, fresh.details, MEMORY_AUTO.read.k)
+              : { ids: [...fresh.injectedIds], details: [...fresh.details] };
+          } else {
+            void log(
+              "info",
+              `memory auto-read: ${results.length} result(s), 0 injected (minScore ${MEMORY_AUTO.read.minScore})`
             );
           }
-          return;
         }
-        touch(input.sessionID);
-        if (!loadedBySession.has(input.sessionID)) loadedBySession.set(input.sessionID, new Set());
-        const loaded = loadedBySession.get(input.sessionID)!;
-
-        if (tool === "skill") {
-          const args = output.args as { name?: unknown; skill?: unknown } | undefined;
-          const raw = args?.name ?? args?.skill;
-          if (raw !== undefined && raw !== null && typeof raw !== "string") {
-            throw new Error("Novahiz gate blocked the skill load: the skill name must be a string.");
-          }
-          const name = typeof raw === "string" ? raw.trim() : "";
-          // P0-B: no commas or spaces — the gate re-splits --loaded on commas,
-          // so a loose name could inject extra "loaded" skills.
-          if (name.length > 0 && !/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(name)) {
-            throw new Error(`Novahiz gate blocked the skill load: invalid skill name "${name.slice(0, 64)}".`);
-          }
-          if (name.length > 0) {
-            // P0-B: record only after session-load validated the name against
-            // the installed index — an unverified name never counts as loaded.
-            // H3 stays: failures are surfaced in the log instead of vanishing.
-            const loadResult = run(["session-load", "--session", input.sessionID, "--skill", name]);
-            if (loadResult.status !== 0) {
-              await log("warn", `session-load failed for skill ${name}, not recorded: ${(loadResult.stderr || loadResult.stdout || "").trim().slice(0, 200)}`);
-            } else {
-              loaded.add(name);
-            }
-          }
-          return;
-        }
-
-        if (!gated) return;
-        // P0-B: a failed classify would empty the session categories and
-        // neutralize the prompt-scoped rules — refuse instead of failing open.
-        const classifyFailure = classifyFailedBySession.get(input.sessionID);
-        if (classifyFailure) {
-          throw new Error(
-            `Novahiz gate blocked ${input.tool}: prompt classification failed (${classifyFailure}). Fix the install (run "novahiz sync", check catalog/) and send a new message, or set NOVAHIZ_GATE=off to disable.`
-          );
-        }
-
-        const categories = categoriesBySession.get(input.sessionID) ?? [];
-        const result = run(
-          [
-            "gate",
-            "--tool",
-            input.tool,
-            "--args-stdin",
-            "--categories",
-            categories.join(","),
-            "--loaded",
-            [...loaded].join(","),
-            "--session",
-            input.sessionID
-          ],
-          (() => {
-            try {
-              return JSON.stringify(output.args ?? {});
-            } catch (error) {
-              throw new Error(`Novahiz gate blocked ${input.tool}: could not serialize tool args (${String(error)}).`);
-            }
-          })()
-        );
-
-        // H2: fail-closed — an unavailable gate denies the tool call instead of
-        // silently bypassing enforcement. NOVAHIZ_GATE=off remains the escape hatch.
-        if (result.spawnError) {
-          await log("warn", `Gate unavailable, denying the tool call: ${result.spawnError}`);
-          throw new Error(
-            `Novahiz gate blocked ${input.tool}: gate unavailable (${result.spawnError}). Fix the install (run sync, check catalog/) or set NOVAHIZ_GATE=off to disable.`
-          );
-        }
-        if (result.status === 2) {
-          // Auto-repair: a structured denial becomes an executable directive
-          // (load the named skills, retry the same call, resume the task).
-          // Counting identical denials turns a failed repair into a diagnosis
-          // instead of an infinite retry loop. The denial itself still stands
-          // until the gate CLI sees the skills — nothing is granted here.
-          const failure = parseGateFailure(result.stdout);
-          if (failure) {
-            const key = `${input.sessionID}|${failure.tool}|${[...failure.missingSkills].sort().join(",")}`;
-            const attempt = (repairAttemptsBySession.get(key) ?? 0) + 1;
-            repairAttemptsBySession.set(key, attempt);
-            throw new Error(buildRepairDirective(failure, attempt));
-          }
-          throw new Error(`Novahiz gate blocked ${input.tool}.\n${result.stdout}`);
-        }
-        if (result.status !== 0) {
-          throw new Error(
-            `Novahiz gate unavailable (exit ${result.status}). Fix the install (run sync, check catalog/) or set the escape variable to disable.\n${result.stderr}`
-          );
-        }
-        // The call is allowed: the repair converged — drop this session's
-        // denial counters so the next task starts a fresh cycle.
-        const allowedPrefix = `${input.sessionID}|${input.tool.toLowerCase()}|`;
-        for (const key of repairAttemptsBySession.keys()) {
-          if (key.startsWith(allowedPrefix)) repairAttemptsBySession.delete(key);
-        }
-      } catch (error) {
-        if (error instanceof Error && error.message.startsWith("Novahiz gate")) throw error;
-        // H2: fail-closed — unknown gate errors deny, they never bypass.
-        await log("warn", `Gate error, denying the tool call as precaution: ${String(error)}`);
-        throw new Error(`Novahiz gate blocked ${input.tool}: internal gate error. Set NOVAHIZ_GATE=off to disable.`);
+      } else {
+        void log("info", "memory auto-read: no active slots in project-memory/index.json");
       }
-    },
-
-    "tool.execute.after": async (input) => {
-      // Fail-open: mark major paths only; never break the tool result.
-      try {
-        const tool = input.tool.toLowerCase();
-        if (!["edit", "write", "patch", "apply_patch"].includes(tool)) return;
-        const args = (input.args ?? {}) as Record<string, unknown>;
-        const raw =
-          (typeof args.filePath === "string" && args.filePath) ||
-          (typeof args.file_path === "string" && args.file_path) ||
-          (typeof args.path === "string" && args.path) ||
-          "";
-        if (!raw) return;
-        const cwd = process.cwd();
-        const abs = resolve(cwd, raw);
-        const rel = relative(cwd, abs).replace(/\\/g, "/");
-        if (!rel || rel.startsWith("..")) return;
-        if (!isMajorPath(rel)) return;
-        markDirty(cwd, rel);
-      } catch {
-        // fail-open
-      }
+      autoReadBySession.set(sessionID, state);
+      if (state.details.length === 0) return { lines: [], newCount };
+      return {
+        lines: [summaryHeader(state.details.length, MEMORY_AUTO.read), ...state.details, MEMORY_READ_DIRECTIVE],
+        newCount
+      };
+    } catch (error) {
+      void log("info", `memory auto-read failed: ${String(error).slice(0, 200)}`);
+      return { lines: [], newCount: 0 };
     }
   };
-};
+
+  // V1 `config` hook → MCP transform. The CLI is queried first: transform
+  // callbacks must stay synchronous and free of one-time side effects.
+  if (!DISABLED) {
+    try {
+      const providers = run(["providers", "--mcp-json"]);
+      const entries: Record<string, unknown> = {};
+      if (providers.status === 0 && providers.stdout.trim().length > 0) {
+        try {
+          Object.assign(entries, JSON.parse(providers.stdout) as Record<string, unknown>);
+        } catch {
+          await log("warn", "Providers returned invalid JSON, MCP auto-register skipped");
+        }
+      } else if (providers.status !== 0) {
+        await log("warn", `Providers command failed (exit ${providers.status}), MCP auto-register skipped`);
+      }
+      await ctx.mcp.transform((editor) => {
+        // A server configured by the user wins over the catalog registration.
+        if (!editor.get("novahiz")) {
+          editor.set("novahiz", { type: "local", command: [NODE, join(HOME, "mcp", "novahiz-tools", "index.mjs")] });
+        }
+        for (const [id, raw] of Object.entries(entries)) {
+          if (editor.get(id)) continue;
+          const entry = raw as { type?: unknown; command?: unknown; url?: unknown; enabled?: unknown };
+          // V2 replaced `enabled` with `disabled`: an explicit `enabled: false`
+          // is carried across instead of silently flipping the server on.
+          const disabled = entry.enabled === false ? { disabled: true as const } : {};
+          if (entry.type === "remote" && typeof entry.url === "string") {
+            editor.set(id, { type: "remote", url: entry.url, ...disabled });
+          } else if (
+            entry.type === "local" &&
+            Array.isArray(entry.command) &&
+            entry.command.every((part) => typeof part === "string")
+          ) {
+            editor.set(id, { type: "local", command: entry.command as string[], ...disabled });
+          }
+        }
+      });
+    } catch (error) {
+      await log("warn", `MCP registration failed: ${String(error).slice(0, 200)}`);
+    }
+  }
+
+  // V1 `event` hook → subscription on the public event stream, aborted from the
+  // cleanup function returned by setup.
+  const events = new AbortController();
+  void (async () => {
+    try {
+      for await (const event of ctx.event.subscribe({ signal: events.signal })) {
+        if (event.type === "session.idle") {
+          // Fail-open: never block idle; skip when disabled or nothing pending.
+          try {
+            const cwd = process.cwd();
+            if (autoDocsEnabled(cwd)) {
+              const state = readState(cwd);
+              if (state.dirty || state.pending.length > 0) {
+                const child = spawn(NODE, [CLI, "autodocs", "--flush"], {
+                  cwd,
+                  stdio: "ignore",
+                  timeout: RUN_TIMEOUT_MS,
+                  windowsHide: true
+                });
+                child.on("error", () => undefined);
+                child.unref();
+              }
+            }
+          } catch {
+            // fail-open
+          }
+        } else if (event.type === "session.deleted") {
+          const sessionID = event.data?.sessionID;
+          if (sessionID) forget(sessionID);
+        }
+      }
+    } catch {
+      // stream closed while the plugin unloads
+    }
+  })();
+
+  // V1 `chat.message` → prompt admission hook.
+  await ctx.session.hook("prompt", async (event) => {
+    ensureProjectMemory(process.cwd());
+    if (DISABLED) return;
+    const sessionID = event.sessionID;
+    try {
+      if (!isValidSessionId(sessionID)) return;
+      touch(sessionID);
+      const text = (event.prompt?.text ?? "").trim();
+      if (text.length === 0) return;
+
+      // Prompt rewriter: translate non-English prompts to optimized English
+      // before classification. Responses always match the user's language.
+      const rewrite = rewritePrompt(text);
+      const classifyText = rewrite.rewritten;
+      if (rewrite.wasRewritten) {
+        await log("info", `Prompt rewritten: ${rewrite.sourceLanguage} → English ("${classifyText.slice(0, 80)}")`);
+      }
+
+      // P0-B: the prompt travels on stdin. On argv it allowed option
+      // injection (--home), broke past the Windows 32k limit, and was
+      // readable in the process list.
+      const result = run(["classify", "--stdin"], classifyText);
+      if (result.status !== 0) {
+        classifyFailedBySession.set(sessionID, `classify exit ${result.status}`);
+        await log("warn", `Classify failed (exit ${result.status}), gate tool calls refused for this session: ${result.stderr.trim().slice(0, 200)}`);
+        return;
+      }
+      let parsed: {
+        categories?: { id: string }[];
+        primary?: string | null;
+        requiredSkills?: string[];
+        enforcedSkills?: string[];
+        providers?: string[];
+        roadmaps?: { id: string; steps: { label: string; kind: string; requireSkills?: string[] }[] }[];
+      };
+      try {
+        parsed = JSON.parse(result.stdout) as typeof parsed;
+      } catch {
+        classifyFailedBySession.set(sessionID, "classify returned invalid JSON");
+        await log("warn", "Classify returned invalid JSON, gate tool calls refused for this session");
+        return;
+      }
+      // M5: the `as` cast is compile-time only — validate the shape at runtime
+      // so a malformed classify response cannot silently disable enforcement.
+      if (!parsed || typeof parsed !== "object" || !Array.isArray(parsed.categories)) {
+        classifyFailedBySession.set(sessionID, "classify returned an unexpected structure");
+        await log("warn", "Classify returned unexpected structure, gate tool calls refused for this session");
+        return;
+      }
+      classifyFailedBySession.delete(sessionID);
+      const categories = (parsed.categories ?? []).map((entry) => entry.id);
+      categoriesBySession.set(sessionID, categories);
+      const primary = parsed.primary ?? categories[0] ?? null;
+      const enforced = parsed.enforcedSkills ?? [];
+      const required = parsed.requiredSkills ?? [];
+      const suggested = required.filter((skill) => !enforced.includes(skill));
+      const roadmap = (parsed.roadmaps ?? [])[0];
+      const providers = parsed.providers ?? [];
+      const lines = [
+        "[Novahiz enforcement]",
+        `Categories detected: ${categories.join(", ") || "none"}${primary ? ` (primary: ${primary})` : ""}`
+      ];
+      if (rewrite.sourceLanguage !== "en") {
+        lines.push(`User language: ${rewrite.sourceLanguage} — respond in this language, not English.`);
+      }
+      if (roadmap) {
+        lines.push(`Roadmap ${roadmap.id}:`);
+        roadmap.steps.forEach((step, index) => {
+          const skills = step.requireSkills?.length ? ` (${step.requireSkills.join(", ")})` : "";
+          lines.push(`  ${index + 1}. [${step.kind}] ${step.label}${skills}`);
+        });
+      }
+      if (enforced.length > 0) lines.push(`Required skills (roadmap): ${enforced.join(", ")}`);
+      if (suggested.length > 0) lines.push(`Suggested skills: ${suggested.join(", ")}`);
+      if (providers.length > 0) lines.push(`Tools for this task: ${providers.join(", ")}`);
+      const ledger = run(["task", "current", "--session", sessionID]);
+      if (ledger.status === 0 && ledger.stdout.trim().length > 0) {
+        try {
+          const state = JSON.parse(ledger.stdout) as { task?: unknown; summary?: string[] };
+          if (state.task && Array.isArray(state.summary) && state.summary.length > 0) lines.push(...state.summary);
+        } catch {
+          await log("warn", "Ledger state is invalid JSON, enforcement injected without the task summary");
+        }
+      }
+      lines.push("The gate blocks edit/write/patch/apply_patch/bash/shell until the required skills are loaded via skill({id:\"...\"}).");
+      lines.push("The gate is content-aware: novahiz-humanizer, ui-slop-remover and ui-craft-rules are required only on frontend design tasks (R13), and impeccable on the same design selectors (R14).");
+      lines.push("Config edited = opencode restart required (config read at import).");
+      lines.push("Memory lives in project-memory/ under the project root (cwd): index.json + fixed-size slots (8000 chars / 200 lines) with compact → archive → new-slot rotation. Use the MCP memory_* tools: memory_search to find relevant slots first, then memory_get to read, memory_write to append, memory_update to correct, memory_archive to retire.");
+      // S-AUTO (R1-R3): a chaque prompt, injection du chunk de resumes
+      // (fenetre anti-repetition persistante — le bloc est reconstruit a
+      // chaque prompt, donc le chunk entier est re-emis: un resume deja
+      // vu ne repart pas de zero, il reste dans le contexte) puis des
+      // directives posees (T3/T4) qui survivent au rebuild. buildAutoRead
+      // est sans effet si memory auto est coupee.
+      if (MEMORY_AUTO) {
+        lastPromptBySession.set(sessionID, text.slice(0, 300));
+        const auto = buildAutoRead(sessionID, text);
+        // Ligne de synthese inconditionnelle: elle prouve en E2E que le
+        // chemin lecture a tourne, y compris quand il ressort vide.
+        await log("info", `memory auto-read prompt: ${auto.lines.length} line(s), ${auto.newCount} new`);
+        lines.push(...auto.lines);
+        summaryChunkBySession.set(sessionID, auto.lines);
+        const directives = directivesBySession.get(sessionID) ?? [];
+        lines.push(...directives);
+      }
+      enforcementBySession.set(sessionID, lines.join("\n"));
+    } catch (error) {
+      classifyFailedBySession.set(sessionID, "prompt hook error");
+      await log("warn", `prompt hook failed, gate tool calls refused for this session: ${String(error).slice(0, 200)}`);
+      return;
+    }
+  });
+
+  // V1 `experimental.chat.system.transform` → model-context hook.
+  await ctx.session.hook("context", async (event) => {
+    if (DISABLED) return;
+    try {
+      const block = enforcementBySession.get(event.sessionID);
+      if (!block) return;
+      // The system array can still hold the block from a previous request:
+      // pushing again duplicated "[Novahiz enforcement]" once per request.
+      // Drop every stale copy, then inject exactly one fresh block.
+      for (let i = event.system.length - 1; i >= 0; i--) {
+        const entry = event.system[i];
+        if (entry && entry.type === "text" && typeof entry.text === "string" && entry.text.startsWith("[Novahiz enforcement]")) {
+          event.system.splice(i, 1);
+        }
+      }
+      event.system.push({ type: "text", text: block });
+    } catch (error) {
+      await log("warn", `system.transform hook failed: ${String(error).slice(0, 200)}`);
+    }
+  });
+
+  // S-AUTO (T4 + R4): a chaque compaction, on pose la directive de synthese
+  // (une fois par session, elle survit au rebuild du prompt suivant) et on
+  // recharge le chunk de resumes — le chunk precedent est retire du bloc puis
+  // remplace par sa version fraiche (recherche sur le dernier prompt), jamais
+  // duplique.
+  if (MEMORY_AUTO) {
+    await ctx.session.hook("compaction", async (event) => {
+      try {
+        const sessionID = (event as unknown as { sessionID?: unknown }).sessionID;
+        if (!isValidSessionId(sessionID)) return;
+        touch(sessionID);
+        if (MEMORY_AUTO.write.compaction) {
+          const posted = appendDirective(
+            sessionID,
+            "Context compacted — synthesis directive (T4): persist to project-memory (memory_write) the facts from the compacted context that must survive (decisions, proofs, next steps), if not already written."
+          );
+          if (posted) void log("info", "compaction synthesis directive posted (T4)");
+        }
+        if (MEMORY_AUTO.read.postCompaction) {
+          const query = lastPromptBySession.get(sessionID) ?? "session";
+          const auto = buildAutoRead(sessionID, query);
+          if (auto.lines.length > 0) {
+            const previous = new Set(summaryChunkBySession.get(sessionID) ?? []);
+            const block = enforcementBySession.get(sessionID) ?? "[Novahiz enforcement]";
+            const kept = block.split("\n").filter((line) => !previous.has(line));
+            enforcementBySession.set(sessionID, [...kept, ...auto.lines].join("\n"));
+            summaryChunkBySession.set(sessionID, auto.lines);
+            void log("info", `memory auto-read re-injected post-compaction: ${auto.lines[0]}`);
+          }
+        }
+      } catch (error) {
+        await log("warn", `compaction hook failed: ${String(error).slice(0, 200)}`);
+      }
+    });
+  }
+
+  // V1 `tool.execute.before` → tool hook. Throwing denies the tool call.
+  await ctx.tool.hook("execute.before", async (event) => {
+    try {
+      const tool = event.tool.toLowerCase();
+      const gated = !DISABLED && GATE_TOOLS.has(tool);
+      // P0-B: an invalid session ID must not bypass the gate. Gate tools and
+      // skill loads are refused; tools that need no enforcement still pass.
+      if (!isValidSessionId(event.sessionID)) {
+        if (gated || (!DISABLED && tool === "skill")) {
+          throw new Error(
+            `Novahiz gate blocked ${event.tool}: invalid session ID — loaded skills cannot be tracked. Fix the session or set NOVAHIZ_GATE=off to disable.`
+          );
+        }
+        return;
+      }
+      touch(event.sessionID);
+      if (!loadedBySession.has(event.sessionID)) loadedBySession.set(event.sessionID, new Set());
+      const loaded = loadedBySession.get(event.sessionID)!;
+
+      if (tool === "skill") {
+        // V2 regression fix: opencode's skill tool carries the identifier
+        // under `id` in execute.before input. Reading only name/skill made
+        // every load silently unrecorded — GATE RELOAD could never succeed.
+        // name/skill stay as fallbacks for older harness argument shapes.
+        const args = event.input as { id?: unknown; name?: unknown; skill?: unknown } | undefined;
+        const raw = args?.id ?? args?.name ?? args?.skill;
+        if (raw !== undefined && raw !== null && typeof raw !== "string") {
+          throw new Error("Novahiz gate blocked the skill load: the skill name must be a string.");
+        }
+        const name = typeof raw === "string" ? raw.trim() : "";
+        // P0-B: no commas or spaces — the gate re-splits --loaded on commas,
+        // so a loose name could inject extra "loaded" skills.
+        if (name.length > 0 && !/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(name)) {
+          throw new Error(`Novahiz gate blocked the skill load: invalid skill name "${name.slice(0, 64)}".`);
+        }
+        if (name.length > 0) {
+          // P0-B: record only after session-load validated the name against
+          // the installed index — an unverified name never counts as loaded.
+          // H3 stays: failures are surfaced in the log instead of vanishing,
+          // with the exit code — a bare empty reason hid real failures.
+          const loadResult = run(["session-load", "--session", event.sessionID, "--skill", name]);
+          if (loadResult.status !== 0) {
+            await log("warn", `session-load failed for skill ${name} (exit ${loadResult.status}), not recorded: ${(loadResult.stderr || loadResult.stdout || "").trim().slice(0, 200)}`);
+          } else {
+            loaded.add(name);
+          }
+        }
+        return;
+      }
+
+      if (!gated) return;
+      // P0-B: a failed classify would empty the session categories and
+      // neutralize the prompt-scoped rules — refuse instead of failing open.
+      const classifyFailure = classifyFailedBySession.get(event.sessionID);
+      if (classifyFailure) {
+        throw new Error(
+          `Novahiz gate blocked ${event.tool}: prompt classification failed (${classifyFailure}). Fix the install (run "novahiz sync", check catalog/) and send a new message, or set NOVAHIZ_GATE=off to disable.`
+        );
+      }
+
+      const categories = categoriesBySession.get(event.sessionID) ?? [];
+      const result = run(
+        [
+          "gate",
+          "--tool",
+          event.tool,
+          "--args-stdin",
+          "--categories",
+          categories.join(","),
+          "--loaded",
+          [...loaded].join(","),
+          "--session",
+          event.sessionID
+        ],
+        (() => {
+          try {
+            return JSON.stringify(event.input ?? {});
+          } catch (error) {
+            throw new Error(`Novahiz gate blocked ${event.tool}: could not serialize tool args (${String(error)}).`);
+          }
+        })()
+      );
+
+      // H2: fail-closed — an unavailable gate denies the tool call instead of
+      // silently bypassing enforcement. NOVAHIZ_GATE=off remains the escape hatch.
+      if (result.spawnError) {
+        await log("warn", `Gate unavailable, denying the tool call: ${result.spawnError}`);
+        throw new Error(
+          `Novahiz gate blocked ${event.tool}: gate unavailable (${result.spawnError}). Fix the install (run sync, check catalog/) or set NOVAHIZ_GATE=off to disable.`
+        );
+      }
+      if (result.status === 2) {
+        // Gate reload: a structured denial becomes an executable directive
+        // (load the named skills, retry the same call, resume the task).
+        // Counting identical denials turns a failed reload into a diagnosis
+        // instead of an infinite retry loop. The denial itself still stands
+        // until the gate CLI sees the skills — nothing is granted here.
+        const failure = parseGateFailure(result.stdout);
+        if (failure) {
+          const key = `${event.sessionID}|${failure.tool}|${[...failure.missingSkills].sort().join(",")}`;
+          const attempt = (repairAttemptsBySession.get(key) ?? 0) + 1;
+          repairAttemptsBySession.set(key, attempt);
+          throw new Error(buildRepairDirective(failure, attempt));
+        }
+        throw new Error(`Novahiz gate blocked ${event.tool}.\n${result.stdout}`);
+      }
+      if (result.status !== 0) {
+        throw new Error(
+          `Novahiz gate unavailable (exit ${result.status}). Fix the install (run sync, check catalog/) or set the escape variable to disable.\n${result.stderr}`
+        );
+      }
+      // The call is allowed: the repair converged — drop this session's
+      // denial counters so the next task starts a fresh cycle.
+      const allowedPrefix = `${event.sessionID}|${event.tool.toLowerCase()}|`;
+      for (const key of repairAttemptsBySession.keys()) {
+        if (key.startsWith(allowedPrefix)) repairAttemptsBySession.delete(key);
+      }
+    } catch (error) {
+      if (error instanceof Error && error.message.startsWith("Novahiz gate")) throw error;
+      // H2: fail-closed — unknown gate errors deny, they never bypass.
+      await log("warn", `Gate error, denying the tool call as precaution: ${String(error)}`);
+      throw new Error(`Novahiz gate blocked ${event.tool}: internal gate error. Set NOVAHIZ_GATE=off to disable.`);
+    }
+  });
+
+  // V1 `tool.execute.after` → tool hook. Session state only, never fails.
+  await ctx.tool.hook("execute.after", async (event) => {
+    // Fail-open: mark major paths only; never break the tool result.
+    try {
+      const tool = event.tool.toLowerCase();
+
+      // S-AUTO (T1/T2/T5 + T3): ecriture deterministe des faits observes,
+      // uniquement sur un appel reussi et si memory auto est activee. Les
+      // echecs sont logues, jamais remontes: le resultat d'outil reste intact.
+      if (MEMORY_AUTO && event.status === "completed") {
+        const trigger = autoWriteTrigger(tool, event.input);
+        if (trigger === "todoDone" || trigger === "review") {
+          const wantsWrite = trigger === "todoDone" ? MEMORY_AUTO.write.todoDone : MEMORY_AUTO.write.review;
+          const payload = parseToolPayload(event.result);
+          if (payload) {
+            if (wantsWrite) autoWriteFact(trigger, payload, event.sessionID);
+            // T3: un todo done peut terminer la tache → directive de synthese.
+            if (trigger === "todoDone" && MEMORY_AUTO.write.taskEnd && typeof payload.task_id === "string") {
+              checkTaskEnd(payload.task_id, event.sessionID);
+            }
+          }
+        } else if (trigger === "spec" && MEMORY_AUTO.write.spec) {
+          const args = (event.input ?? {}) as Record<string, unknown>;
+          const raw =
+            (typeof args.filePath === "string" && args.filePath) ||
+            (typeof args.file_path === "string" && args.file_path) ||
+            (typeof args.path === "string" && args.path) ||
+            "";
+          autoWriteFact("spec", { path: raw, tool: event.tool }, event.sessionID);
+        }
+      }
+
+      if (!["edit", "write", "patch", "apply_patch"].includes(tool)) return;
+      const args = (event.input ?? {}) as Record<string, unknown>;
+      const raw =
+        (typeof args.filePath === "string" && args.filePath) ||
+        (typeof args.file_path === "string" && args.file_path) ||
+        (typeof args.path === "string" && args.path) ||
+        "";
+      if (!raw) return;
+      const cwd = process.cwd();
+      const abs = resolve(cwd, raw);
+      const rel = relative(cwd, abs).replace(/\\/g, "/");
+      if (!rel || rel.startsWith("..")) return;
+      if (!isMajorPath(rel)) return;
+      markDirty(cwd, rel);
+    } catch {
+      // fail-open
+    }
+  });
+
+  return () => events.abort();
+}
+
+const novahizPlugin: Plugin = { id: "novahiz", setup };
+export default novahizPlugin;

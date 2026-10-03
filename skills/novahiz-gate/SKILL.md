@@ -65,7 +65,7 @@ Trois conséquences à connaître :
 
 ## Débloquer
 
-Charger chaque skill manquante avec `skill({name})`. Le chargement est enregistré dans la session et le gate repasse. Une skill requise devenue introuvable signale une divergence index/disque : un `sync` les remet d'accord.
+Charger chaque skill manquante avec `skill({id})`. Le chargement est enregistré dans la session et le gate repasse. Une skill requise devenue introuvable signale une divergence index/disque : un `sync` les remet d'accord.
 
 ## Contournement
 

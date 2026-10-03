@@ -28,7 +28,13 @@ A finished session leaves a trace in two places. One write is never enough.
 
 `_meta\routing.md` is the only source of truth for the target folder. When routing is ambiguous, ask instead of guessing.
 
-The full procedure lives in the `memory-save` skill. Load it and follow it rather than writing freehand.
+The procedure is this skill: read the routing table, show the chosen path, then write the page with the mandatory frontmatter. There is no separate save skill to load.
+
+## project-memory is a different layer
+
+`project-memory/` (slots) is the machine-facing memory of the same project: dated entries with a bounded Résumé and Détails, searched with `memory_search`, written with `memory_write` (or `memory_update` / `memory_archive`). The opencode plugin also writes there automatically (todo done, review, task end, compaction). Slots feed the next session; they are not a page.
+
+This skill writes the human-facing narrative: `MEMORY.md` and the vault page. When both apply, distill the slot into the page — never copy it verbatim, and never store prose pages inside a slot.
 
 ## Forbidden
 

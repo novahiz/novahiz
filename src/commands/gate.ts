@@ -30,12 +30,18 @@ export function commandGate(parsed: Parsed): void {
   const categories = splitList(parsed.flags.categories);
   let loaded = splitList(parsed.flags.loaded);
   const session = asString(parsed.flags.session);
-  if (loaded.length === 0 && session.length > 0) {
+  // Union, not fallback: skills recorded in the DB (previous plugin run,
+  // resumed session, explicit session-load) stay visible even when the
+  // in-memory --loaded list is partially filled after a hot reload — a
+  // non-empty in-memory list must never hide durable rows.
+  if (session.length > 0) {
     let db: ReturnType<typeof openDb> | null = null;
     try {
       db = openDb(dbPathFor(root, spec));
       const rows = db.prepare("SELECT skill FROM skill_invocations WHERE session_id = ?").all(session) as { skill: string }[];
-      loaded = rows.map((row) => row.skill);
+      const merged = new Set(loaded);
+      for (const row of rows) merged.add(row.skill);
+      loaded = [...merged];
     } catch (error) {
       process.stderr.write(`novahiz: session DB open failed: ${String(error).slice(0, 200)}\n`);
       print({ allow: false, error: `session DB error`, tool, missingSkills: [], reasons: [`session DB open failed`] });

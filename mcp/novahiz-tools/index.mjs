@@ -12,7 +12,7 @@ import { openDb } from "../../src/db.ts";
 import { enabledProviders } from "../../src/providers.ts";
 import { checkDependencies } from "../../src/deps.ts";
 import { activeTask, addTodos, amendTodo, blockTodo, buildWorkPackets, completeTodo, createTask, dropTask, dropTodo, getTask, getTodo, insertTodo, ledgerSummary, listTodos, recordTodoDone, reorderTodos, resume, reviewDue, reviewTask, revisionSignals, startTodo } from "../../src/ledger.ts";
-import { DEFAULT_LIMIT_CHARS, DEFAULT_LIMIT_LINES, ensureMemoryRoot, getSlot, listSlots, memoryRoot, parseSlotInput, rebuildIndex, writeEntry } from "../../src/memory.ts";
+import { DEFAULT_LIMIT_CHARS, DEFAULT_LIMIT_LINES, archiveSlot, ensureMemoryRoot, getSlot, listSlots, memoryRoot, parseSlotInput, rebuildIndex, searchSlots, updateSlot, writeEntry } from "../../src/memory.ts";
 
 // A memory root must stay inside the workspace: memory_* used to create
 // project-memory/ directories anywhere the caller named (audit P1-D/M4).
@@ -134,6 +134,7 @@ const TOOLS = [
         id: { type: "string", description: "Task id (new) or todo/task id (start, done, block, drop)." },
         task: { type: "string", description: "Task id. Defaults to the active task." },
         session: { type: "string", description: "Session id used to scope the active task." },
+        projectRoot: { type: "string", description: "Project directory a new task belongs to (action new). Omitted = unscoped legacy task." },
         label: { type: "string", description: "Todo label for action todo." },
         kind: { type: "string", enum: ["read", "edit", "verify", "delegate"], description: "Todo kind." },
         acceptance: { type: "string", description: "Acceptance criterion for the todo." },
@@ -185,25 +186,71 @@ const TOOLS = [
     }
   },
   {
-    name: "memory_list",
-    description: "List project-memory slots from index.json (active and archived).",
+    name: "memory_update",
+    description: "Update an existing slot: replace or append its Détails, or rewrite its Résumé (bounded to 1000 chars). Archived slots are refused.",
     inputSchema: {
       type: "object",
       properties: {
+        id: { type: "string", description: "Slot id to update, e.g. slot-001." },
+        mode: { type: "string", enum: ["replace", "append", "summary"], description: "replace/append edit Détails, summary rewrites Résumé." },
+        content: { type: "string", description: "Markdown body for Détails (replace/append)." },
+        summary: { type: "string", description: "New Résumé (mode=summary only)." },
         root: { type: "string", description: "Project root containing project-memory (default cwd)." }
+      },
+      required: ["id", "mode"]
+    }
+  },
+  {
+    name: "memory_archive",
+    description: "Mark a slot as archived (idempotent, no data deletion): archived slots are skipped by routing and search unless includeArchived.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        id: { type: "string", description: "Slot id to archive, e.g. slot-001." },
+        root: { type: "string", description: "Project root containing project-memory (default cwd)." }
+      },
+      required: ["id"]
+    }
+  },
+  {
+    name: "memory_list",
+    description: "List project-memory slots from index.json (active and archived) with optional status/tag/limit filters and summary previews.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        root: { type: "string", description: "Project root containing project-memory (default cwd)." },
+        status: { type: "string", enum: ["active", "archived", "all"], description: "Filter by slot status (default all)." },
+        tag: { type: "string", description: "Keep slots carrying this tag (case-insensitive)." },
+        limit: { type: "number", description: "Return at most this many slots (default: no limit)." },
+        preview: { type: "boolean", description: "Add a short Résumé preview to each slot." }
       }
     }
   },
   {
     name: "memory_get",
-    description: "Read one project-memory slot (frontmatter, Résumé, Détails).",
+    description: "Read one project-memory slot: full body by default, or only meta / only Résumé via section.",
     inputSchema: {
       type: "object",
       properties: {
         id: { type: "string", description: "Slot id, e.g. slot-001." },
-        root: { type: "string", description: "Project root containing project-memory (default cwd)." }
+        root: { type: "string", description: "Project root containing project-memory (default cwd)." },
+        section: { type: "string", enum: ["full", "meta", "summary"], description: "Part to return: full (default), meta, or summary (Résumé only)." }
       },
       required: ["id"]
+    }
+  },
+  {
+    name: "memory_search",
+    description: "Search project-memory slots by relevance: fold + IDF ranking over title, description, tags, Résumé and Détails; returns scored results with confidence and snippet.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        query: { type: "string", description: "Free-text query to rank slots against." },
+        root: { type: "string", description: "Project root containing project-memory (default cwd)." },
+        limit: { type: "number", description: "Maximum results (default 5, max 20)." },
+        includeArchived: { type: "boolean", description: "Also search archived slots (default false)." }
+      },
+      required: ["query"]
     }
   },
   {
@@ -393,36 +440,37 @@ function callTool(name, args) {
     // Same shape as the CLI's results array: path alongside the GateResult,
     // on the same object so enforceLedgerChecks mutates this verdict in place.
     result.path = file;
-    if (session.length > 0) {
-      let mdb = null;
+    // Parity with the CLI: an empty session no longer skips this block. The
+    // sessionless call still enforces unbound tasks (activeTask) and fails
+    // closed on DB errors; it simply writes no enforcement_log row.
+    let mdb = null;
+    try {
+      mdb = openDb(resolve(spec.root, spec.config.dbPath));
+    } catch {
+      mdb = null;
+    }
+    if (mdb) {
       try {
-        mdb = openDb(resolve(spec.root, spec.config.dbPath));
-      } catch {
-        mdb = null;
-      }
-      if (mdb) {
-        try {
-          const enforced = enforceLedgerChecks(mdb, {
-            session,
-            tool: String(args?.tool ?? "edit"),
-            paths: [file],
-            categories,
-            results: [result],
-            spec,
-            gateConfig: spec.config.gate
-          });
-          if (enforced.reasons.length > 0) {
-            result.reasons.push(...enforced.reasons);
-            result.allow = false;
-          }
-          if (enforced.reviewWarning) result.reasons.push(enforced.reviewWarning);
-        } finally {
-          mdb.close();
+        const enforced = enforceLedgerChecks(mdb, {
+          session,
+          tool: String(args?.tool ?? "edit"),
+          paths: [file],
+          categories,
+          results: [result],
+          spec,
+          gateConfig: spec.config.gate
+        });
+        if (enforced.reasons.length > 0) {
+          result.reasons.push(...enforced.reasons);
+          result.allow = false;
         }
-      } else {
-        result.allow = false;
-        result.reasons.push("DB open failed: ledger enforcement unavailable");
+        if (enforced.reviewWarning) result.reasons.push(enforced.reviewWarning);
+      } finally {
+        mdb.close();
       }
+    } else {
+      result.allow = false;
+      result.reasons.push("DB open failed: ledger enforcement unavailable");
     }
     // A gate refusal is a normal verdict, not an execution error.
     return toolResult(result, false);
@@ -466,6 +514,11 @@ function callTool(name, args) {
   if (name === "novahiz_step") {
     const session = String(args?.session ?? "default");
     const done = args?.done ? String(args.done) : "";
+    // WS3: the step id follows the roadmap naming pattern (plan, write,
+    // impeccable-critique) — reject anything else before it reaches the database.
+    if (done.length > 0 && !/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(done)) {
+      throw new Error(`Invalid params: step id must match [A-Za-z0-9][A-Za-z0-9._-]{0,127} (got "${done}")`);
+    }
     const db = openDb(resolve(spec.root, spec.config.dbPath));
     try {
       if (done.length > 0) {
@@ -497,7 +550,9 @@ function callTool(name, args) {
     const db = openDb(resolve(spec.root, spec.config.dbPath));
     try {
       if (action === "new") {
-        return toolResult(createTask(db, { title: String(args?.title ?? ""), id: args?.id ? String(args.id) : undefined, sessionId: session }));
+        // F: projectRoot scopes the new task to a project when the caller knows
+        // it; omitted = unscoped legacy task (no path filtering).
+        return toolResult(createTask(db, { title: String(args?.title ?? ""), id: args?.id ? String(args.id) : undefined, sessionId: session, projectRoot: args?.projectRoot ? String(args.projectRoot) : undefined }));
       }
       if (action === "plan") {
         const taskId = args?.task ? String(args.task) : activeTask(db, session)?.id;
@@ -642,31 +697,142 @@ function callTool(name, args) {
       rotated: result.rotated,
       compacted: result.compacted,
       created: result.created,
+      confidence: result.confidence,
+      duplicate: result.duplicate === true,
+      healed: result.index.healed === true,
       limits: { limit_chars: DEFAULT_LIMIT_CHARS, limit_lines: DEFAULT_LIMIT_LINES },
       indexUpdated: result.index.updated
+    });
+  }
+  if (name === "memory_update") {
+    const id = String(args?.id ?? "");
+    if (id.length === 0) throw new Error("Invalid params: id must be a non-empty string");
+    const mode = String(args?.mode ?? "");
+    if (mode !== "replace" && mode !== "append" && mode !== "summary") {
+      throw new Error("Invalid params: mode must be one of replace|append|summary");
+    }
+    const root = safeMemoryRoot(args?.root);
+    const result = updateSlot({
+      id,
+      root,
+      mode,
+      content: typeof args?.content === "string" ? args.content : undefined,
+      summary: typeof args?.summary === "string" ? args.summary : undefined
+    });
+    return toolResult({
+      slot: result.slot,
+      mode: result.mode,
+      updated: true,
+      compacted: result.compacted,
+      healed: result.index.healed === true
+    });
+  }
+  if (name === "memory_archive") {
+    const id = String(args?.id ?? "");
+    if (id.length === 0) throw new Error("Invalid params: id must be a non-empty string");
+    const root = safeMemoryRoot(args?.root);
+    const result = archiveSlot(id, root);
+    return toolResult({
+      slot: result.slot,
+      archived: true,
+      changed: result.changed,
+      healed: result.index.healed === true
     });
   }
   if (name === "memory_list") {
     const root = safeMemoryRoot(args?.root);
     const index = listSlots(root);
+    const status = args?.status === "active" || args?.status === "archived" ? args.status : "all";
+    const tagFilter =
+      typeof args?.tag === "string" && args.tag.trim().length > 0 ? args.tag.trim() : null;
+    const limit = Number.isFinite(args?.limit) && args.limit > 0 ? Math.trunc(args.limit) : 0;
+    const preview = args?.preview === true;
+    let matched = index.slots;
+    if (status !== "all") matched = matched.filter((slot) => slot.status === status);
+    if (tagFilter !== null) {
+      const wanted = tagFilter.toLowerCase();
+      matched = matched.filter((slot) => slot.tags.some((value) => value.toLowerCase() === wanted));
+    }
+    const total = matched.length;
+    if (limit > 0) matched = matched.slice(0, limit);
+    const slots = preview
+      ? matched.map((slot) => {
+          let summary = "";
+          try {
+            summary = getSlot(slot.id, root).body.summary;
+          } catch {
+            // Slot sans fichier lisible: preview vide — l'erreur bruyante
+            // reste accessible via memory_get sur le meme id.
+          }
+          return { ...slot, preview: summary.length > 160 ? `${summary.slice(0, 157)}...` : summary };
+        })
+      : matched;
     return toolResult({
       root,
-      count: index.slots.length,
+      count: slots.length,
+      total,
       active: index.slots.filter((slot) => slot.status === "active").length,
       archived: index.slots.filter((slot) => slot.status === "archived").length,
-      slots: index.slots
+      healed: index.healed === true,
+      filter: { status, tag: tagFilter, limit: limit > 0 ? limit : null, preview },
+      slots
     });
   }
   if (name === "memory_get") {
     const id = String(args?.id ?? "");
     if (id.length === 0) throw new Error("Invalid params: id must be a non-empty string");
     const root = safeMemoryRoot(args?.root);
-    return toolResult(getSlot(id, root));
+    const section =
+      args?.section === undefined || args?.section === null ? "full" : String(args.section);
+    if (section !== "full" && section !== "meta" && section !== "summary") {
+      throw new Error("Invalid params: section must be one of full|meta|summary");
+    }
+    const file = getSlot(id, root);
+    if (section === "meta") return toolResult({ meta: file.meta });
+    if (section === "summary") return toolResult({ meta: file.meta, summary: file.body.summary });
+    return toolResult(file);
+  }
+  if (name === "memory_search") {
+    const query = typeof args?.query === "string" ? args.query : "";
+    if (query.trim().length === 0) {
+      throw new Error("Invalid params: query must be a non-empty string");
+    }
+    const root = safeMemoryRoot(args?.root);
+    const limit = Number.isFinite(args?.limit)
+      ? Math.min(Math.max(1, Math.trunc(args.limit)), 20)
+      : 5;
+    const result = searchSlots(root, query, {
+      limit,
+      includeArchived: args?.includeArchived === true
+    });
+    return toolResult({
+      root: result.root,
+      query: result.query,
+      searched: result.searched,
+      count: result.hits.length,
+      results: result.hits.map((hit) => ({
+        id: hit.meta.id,
+        title: hit.meta.title,
+        status: hit.meta.status,
+        tags: hit.meta.tags,
+        file: hit.meta.file,
+        score: hit.score,
+        confidence: hit.confidence,
+        matched: hit.matched,
+        snippet: hit.snippet
+      }))
+    });
   }
   if (name === "memory_init") {
     const root = safeMemoryRoot(args?.root);
     const index = ensureMemoryRoot(root);
-    return toolResult({ root, created: true, slots: index.slots.length, indexUpdated: index.updated });
+    return toolResult({
+      root,
+      created: true,
+      healed: index.healed === true,
+      slots: index.slots.length,
+      indexUpdated: index.updated
+    });
   }
   if (name === "memory_rebuild") {
     const root = safeMemoryRoot(args?.root);
@@ -728,6 +894,28 @@ const isMain = (() => {
   }
 })();
 if (isMain) {
+  // S-AUTO: mode one-shot pour le plugin opencode — `index.mjs --call <tool>`
+  // lit les arguments JSON sur stdin (jamais sur argv: limite 32k sous
+  // Windows et la liste des processus est visible), route par le meme
+  // handle() que le transport stdio, imprime la reponse JSON-RPC sur stdout
+  // puis sort. 0 = resultat valide, 1 = erreur de protocole ou isError.
+  if (process.argv[2] === "--call") {
+    const name = String(process.argv[3] ?? "");
+    let args = {};
+    let parseError = null;
+    try {
+      const raw = process.stdin.isTTY ? "" : readFileSync(0, "utf8").trim();
+      if (raw.length > 0) args = JSON.parse(raw);
+    } catch (error) {
+      parseError = String(error?.message ?? error);
+    }
+    const response = parseError
+      ? { jsonrpc: "2.0", id: 1, error: { code: -32700, message: `Parse error: ${parseError}` } }
+      : handle({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name, arguments: args } });
+    process.stdout.write(`${JSON.stringify(response)}\n`);
+    const ok = Boolean(response?.result) && response.result.isError !== true;
+    process.exit(ok ? 0 : 1);
+  }
   const reader = createInterface({ input: process.stdin });
   // If the parent (opencode) dies or closes the pipe, stdout.write throws —
   // exit gracefully instead of crashing with an unhandled exception.

@@ -5,7 +5,7 @@ import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { nodeVersionOk, opencodeConfigDir, NovahizHome } from "./lib.mjs";
+import { nodeVersionOk, opencodeConfigDir, NovahizHome, playwrightBrowserFlag, unsafeHostToken } from "./lib.mjs";
 
 const REPO_URL = "https://github.com/novahiz/novahiz.git";
 // Was hardcoded to ~/.config/novahiz, ignoring NOVAHIZ_HOME/NOVAHIZ_HOME.
@@ -21,19 +21,34 @@ function error(msg) {
 }
 
 // npm/npx are .cmd shims on Windows: spawning them without a shell throws
-// ENOENT (post-CVE-2024-* Node refuses to run .cmd via CreateProcess). Node
-// deprecates args arrays with shell:true (DEP0190), which wants a single
-// string — tokens are static (catalog package names), so joining is safe.
+// ENOENT (post-CVE-2024-* Node refuses to run .cmd via CreateProcess). The
+// line handed to cmd.exe only contains tokens accepted by unsafeHostToken
+// (lib.mjs — the install-side mirror of src/exec.ts SAFE_TOKEN, widened by
+// "*" for the literal flutter-skills glob); a refused token fails the run
+// loudly instead of being reinterpreted by cmd.exe. Same explicit cmd.exe
+// spelling as src/exec.ts resolveSpawn — argv form, no deprecated shell flag
+// (DEP0190).
 const HOST_CMDS = new Set(["npm", "npx"]);
 function hostInvocation(cmd, args) {
   if (process.platform === "win32" && HOST_CMDS.has(cmd)) {
-    return { command: [cmd, ...args].join(" "), spawnArgs: undefined, opts: { shell: true } };
+    const bad = unsafeHostToken([cmd, ...args]);
+    if (bad !== null) return { refused: bad };
+    const shell = process.env.ComSpec ?? "cmd.exe";
+    return { command: shell, spawnArgs: ["/d", "/s", "/c", [cmd, ...args].join(" ")], opts: {} };
   }
   return { command: cmd, spawnArgs: args, opts: {} };
 }
 
+function refusedResult(token) {
+  return { ok: false, status: 1, stdout: "", stderr: `refused unsafe token: ${token}\n` };
+}
+
 function run(cmd, args, opts = {}) {
   const inv = hostInvocation(cmd, args);
+  if (inv.refused !== undefined) {
+    error(`refused unsafe token in spawn: ${inv.refused}`);
+    return false;
+  }
   const result = spawnSync(inv.command, inv.spawnArgs, {
     encoding: "utf8",
     stdio: "inherit",
@@ -45,6 +60,7 @@ function run(cmd, args, opts = {}) {
 
 function runCapture(cmd, args, opts = {}) {
   const inv = hostInvocation(cmd, args);
+  if (inv.refused !== undefined) return refusedResult(inv.refused);
   const result = spawnSync(inv.command, inv.spawnArgs, {
     encoding: "utf8",
     stdio: ["pipe", "pipe", "pipe"],
@@ -73,7 +89,10 @@ function which(cmd) {
 }
 
 function detectShell() {
-  if (process.platform === "win32") return "pwsh";
+  // PowerShell 7 (pwsh) is not bundled with Windows; Windows PowerShell 5.1
+  // (powershell.exe) always is. Probe so the generated opencode config never
+  // names a shell the machine does not have.
+  if (process.platform === "win32") return which("pwsh") ? "pwsh" : "powershell";
   return "bash";
 }
 
@@ -87,7 +106,7 @@ function generateOpenCodeJson(configDir, NovahizHome) {
     mcp: {
       context7: {
         type: "local",
-        command: ["context7-mcp", "--transport", "stdio"],
+        command: ["npx", "-y", "@upstash/context7-mcp@4.1.1", "--transport", "stdio"],
         enabled: true,
       },
       narsil: {
@@ -100,7 +119,8 @@ function generateOpenCodeJson(configDir, NovahizHome) {
       // (scheduler-mcp local venv); no npm install, no template entry.
       playwright: {
         type: "local",
-        command: ["npx", "@playwright/mcp@latest", "--browser=msedge"],
+        // See playwrightBrowserFlag() in lib.mjs for the platform rule.
+        command: ["npx", "-y", "@playwright/mcp@0.0.82", playwrightBrowserFlag()],
         enabled: true,
       },
       dart: {
@@ -189,10 +209,11 @@ async function main() {
   log("");
   log("Installing MCP servers...");
   const mcpServers = [
-    { pkg: "@upstash/context7-mcp", bin: "context7-mcp" },
     { pkg: "narsil-mcp", bin: "narsil-mcp" },
     { pkg: "security-mcp", bin: "security-mcp" },
   ];
+  // context7 is invoked via `npx -y @upstash/context7-mcp@4.1.1` (pinned in
+  // the generated config), so no global shim is installed for it.
   // `cron` has no npm package: the plugin registers it from catalog/providers.json
   // (scheduler-mcp local venv, see docs/PROVIDERS.md). Disabled by default in
   // fresh configs — users opt in explicitly.
