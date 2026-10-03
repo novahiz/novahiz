@@ -10,6 +10,7 @@ import { loadCatalog, loadInstalledSkills } from "../../src/catalog.ts";
 import { rankSkills } from "../../src/relevance.ts";
 import { openDb } from "../../src/db.ts";
 import { capture, diffSnapshots, listSnapshots, loadManifest, matchingIds, restoreSnapshot, snapStatus } from "../../src/snap.ts";
+import { graphFileApi, graphFind, graphFindAll, graphFreshness, graphRepoMap, graphTrace } from "../../src/graph/query.ts";
 import { enabledProviders } from "../../src/providers.ts";
 import { checkDependencies } from "../../src/deps.ts";
 import { activeTask, addTodos, amendTodo, blockTodo, buildWorkPackets, completeTodo, createTask, dropTask, dropTodo, getTask, getTodo, insertTodo, ledgerSummary, listTodos, parseReviewDiff, recordTodoDone, reorderTodos, resume, reviewDue, reviewTask, revisionSignals, startTodo } from "../../src/ledger.ts";
@@ -312,6 +313,85 @@ const TOOLS = [
         force: { type: "boolean", description: "Must be true. Anything else refuses and changes nothing." }
       },
       required: ["id"]
+    }
+  },
+  {
+    name: "graph_find",
+    description: "Locate symbol declarations by name in the auto-indexed workspace: exact match first, then case-insensitive, then substring — each hit carries file, span, enclosing scope and whitespace-collapsed signature. Replaces graft_find_code.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        query: { type: "string", description: "Symbol name, full or partial." },
+        kind: { type: "string", description: "Comma-separated kinds filter: function, method, class, interface, type, enum, const, namespace, heading." },
+        file: { type: "string", description: "Restrict to paths containing this fragment." },
+        limit: { type: "number", description: "Maximum hits (default 20, max 200)." },
+        root: { type: "string", description: "Workspace root (default: process cwd)." }
+      },
+      required: ["query"]
+    }
+  },
+  {
+    name: "graph_find_all",
+    description: "Every masked occurrence of an identifier across the workspace — strings, comments, template text and regex literals excluded — grep-like: per-file counts and line numbers loaded from the content-addressed objects. Replaces graft_find_all.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        query: { type: "string", description: "Exact identifier, case-sensitive." },
+        file: { type: "string", description: "Restrict to paths containing this fragment." },
+        root: { type: "string", description: "Workspace root (default: process cwd)." }
+      },
+      required: ["query"]
+    }
+  },
+  {
+    name: "graph_trace",
+    description: "Call-graph blast radius from one symbol: callers and/or callees over N hops, direct edges carrying their confidence (local/import/unique/method, uncertain flagged), module-level call sites listed separately, ambiguous names returned as candidates instead of a guess. Replaces graft_trace_calls.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        symbol: { type: "string", description: "Symbol name to start from." },
+        file: { type: "string", description: "Path fragment narrowing an ambiguous name (first declaration by line wins)." },
+        direction: { type: "string", enum: ["callers", "callees", "both"], description: "Default both." },
+        depth: { type: "number", description: "Hop count 0-5 (default 1)." },
+        limit: { type: "number", description: "Maximum hits per direction (default 20, max 200)." },
+        root: { type: "string", description: "Workspace root (default: process cwd)." }
+      },
+      required: ["symbol"]
+    }
+  },
+  {
+    name: "graph_file_api",
+    description: "Signatures-only view of one file: every definition with span and enclosing scope, plus exports and raw import specifiers resolved against the workspace. Replaces graft_file_api.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        file: { type: "string", description: "Workspace path or a unique fragment of it." },
+        root: { type: "string", description: "Workspace root (default: process cwd)." }
+      },
+      required: ["file"]
+    }
+  },
+  {
+    name: "graph_repo_map",
+    description: "Aggregated tree of the workspace: directories and files with symbol and line counts — aggregates stay complete below the depth cut — optionally scoped to a prefix, with workspace-level call statistics. Replaces graft_repo_map.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        path: { type: "string", description: "Subtree prefix, e.g. src." },
+        depth: { type: "number", description: "Tree levels 1-6 (default 3)." },
+        root: { type: "string", description: "Workspace root (default: process cwd)." }
+      }
+    }
+  },
+  {
+    name: "graph_freshness",
+    description: "Drift check: does the stored graph match the workspace? Stat-only by default — reports added/changed/removed files and never writes. Pass rebuild:true to run the incremental reindex first, then report. Replaces graft_check_freshness.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        rebuild: { type: "boolean", description: "Reindex incrementally before reporting (default false)." },
+        root: { type: "string", description: "Workspace root (default: process cwd)." }
+      }
     }
   }
 ];
@@ -978,6 +1058,47 @@ function callTool(name, args) {
     } finally {
       db.close();
     }
+  }
+  if (name.startsWith("graph_")) {
+    const root = typeof args?.root === "string" && args.root.length > 0 ? args.root : process.cwd();
+    const str = (value) => (value !== undefined && value !== null ? String(value) : undefined);
+    if (name === "graph_find") {
+      return toolResult(graphFind(root, {
+        query: String(args?.query ?? ""),
+        kind: str(args?.kind),
+        file: str(args?.file),
+        limit: Number.isFinite(args?.limit) ? Number(args.limit) : undefined
+      }));
+    }
+    if (name === "graph_find_all") {
+      return toolResult(graphFindAll(root, {
+        query: String(args?.query ?? ""),
+        file: str(args?.file)
+      }));
+    }
+    if (name === "graph_trace") {
+      const direction = args?.direction === "callers" || args?.direction === "callees" ? args.direction : "both";
+      return toolResult(graphTrace(root, {
+        symbol: String(args?.symbol ?? ""),
+        file: str(args?.file),
+        direction,
+        depth: Number.isFinite(args?.depth) ? Number(args.depth) : undefined,
+        limit: Number.isFinite(args?.limit) ? Number(args.limit) : undefined
+      }));
+    }
+    if (name === "graph_file_api") {
+      return toolResult(graphFileApi(root, { file: String(args?.file ?? "") }));
+    }
+    if (name === "graph_repo_map") {
+      return toolResult(graphRepoMap(root, {
+        path: str(args?.path),
+        depth: Number.isFinite(args?.depth) ? Number(args.depth) : undefined
+      }));
+    }
+    if (name === "graph_freshness") {
+      return toolResult(graphFreshness(root, { rebuild: args?.rebuild === true }));
+    }
+    throw new Error(`Unknown tool: ${name}`);
   }
   throw new Error(`Unknown tool: ${name}`);
 }

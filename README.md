@@ -347,6 +347,7 @@ Voir [docs/CONFIGURATION.md](docs/CONFIGURATION.md) pour toutes les options.
 | `novahiz task status` | Avancement de la tâche |
 | `novahiz task done <id>` | Marquer un todo complété |
 | `novahiz snap <sub>` | Snapshots versionnés du ledger (`save` / `list` / `diff` / `restore`) |
+| `novahiz graph <sub>` | Graphe de code du workspace (`build` / `find` / `trace` / `api` / `map` / `fresh`) — le nôtre, en processus, sans binaire externe ([docs/GRAPH.md](docs/GRAPH.md)) |
 | `novahiz report` | Rapport de session |
 | `novahiz skills` | Lister les skills chargées ou disponibles |
 | `novahiz catalog <query>` | Chercher dans le catalogue de skills |

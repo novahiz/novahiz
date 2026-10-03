@@ -208,6 +208,31 @@ Novahiz snap restore 9bd58bf --force          # put the ledger back (backup firs
 
 Snapshot ids accept any unambiguous prefix; an ambiguous one is refused and lists its candidates. `list`, `show`, `diff`, `verify`, `prune` and `status` never write to the ledger — only `save` and `restore` do, and `restore` writes a backup before touching a row. Every subcommand accepts `--json`.
 
+### `Novahiz graph <subcommand>`
+
+The workspace code graph, built in-process by our own lexer, extractor and resolver (no external tool). The index lives under `<home>/.graph/<sha12(root)>`; the indexed workspace is never written to. Full architecture and precision rules: [GRAPH.md](GRAPH.md).
+
+```bash
+Novahiz graph build                 # rebuild the index now (incremental)
+Novahiz graph find snapStatus --json # locate declarations, machine-readable
+Novahiz graph trace ensureGraph --depth 2   # callers/callees, N hops
+Novahiz graph fresh                 # drift check (stat-only, writes nothing)
+```
+
+| Subcommand | Effect |
+|-----------|--------|
+| `build` | Rebuild the index now — unchanged files reuse their stored object |
+| `status` | Store location, build time, freshness, added/changed/removed lists |
+| `fresh [--rebuild]` | Drift check against the workspace; `--rebuild` reindexes first |
+| `find <name> [--kind k] [--file f] [--limit n]` | Locate declarations: exact → case-insensitive → substring |
+| `all <ident> [--file f]` | Every masked occurrence (strings/comments excluded): counts + lines |
+| `trace <symbol> [--file f] [--direction both] [--depth 1] [--limit 20]` | Blast radius; ambiguous names return candidates instead of a guess |
+| `api <file>` | Signatures-only view: exports, raw imports resolved, definitions |
+| `map [--path p] [--depth 3]` | Aggregated tree + workspace call statistics |
+| `help` | Subcommand reference |
+
+Subcommands accept any unambiguous prefix (`fi` → `find`); an ambiguous one is refused with its candidates. `--root <path>` indexes another workspace (default: cwd). `find`, `all`, `trace` and `api` exit `1` when they match nothing (grep-style). Every subcommand accepts `--json`.
+
 ## Exit codes
 
 | Code | Meaning |

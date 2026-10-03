@@ -26,6 +26,14 @@ Tools:
 - `snap_status` reports the snapshot store: location, count, newest snapshot, size, retention, deferred captures.
 - `snap_diff` compares a snapshot with another snapshot or the live ledger, row by row — read-only.
 - `snap_restore` puts the ledger back to a snapshot: it rewrites rows inside one transaction (the file is never replaced, so open connections keep working), writes a safety backup first, then snapshots the restored state. It refuses unless `force` is `true`.
+- `graph_find` locates symbol declarations by name in the auto-indexed workspace: exact match first, then case-insensitive, then substring — each hit carries file, span, enclosing scope and a whitespace-collapsed signature (replaces `graft_find_code`).
+- `graph_find_all` returns every masked occurrence of an identifier — strings, comments, template text and regex literals excluded — grep-like, with per-file counts and line numbers (replaces `graft_find_all`).
+- `graph_trace` walks the call graph from one symbol: callers and/or callees over N hops, direct edges carrying their confidence (`local`/`import`/`unique`/`method`, uncertain flagged), module-level call sites listed separately, ambiguous names returned as candidates instead of a guess (replaces `graft_trace_calls`).
+- `graph_file_api` renders the signatures-only view of one file: every definition with span and enclosing scope, plus exports and raw import specifiers resolved against the workspace (replaces `graft_file_api`).
+- `graph_repo_map` returns the aggregated tree of the workspace — directories and files with symbol and line counts, aggregates complete below the depth cut — with workspace-level call statistics (replaces `graft_repo_map`).
+- `graph_freshness` reports whether the stored graph matches the workspace (added/changed/removed files, stat-only, never writes unless `rebuild: true` is passed) (replaces `graft_check_freshness`).
+
+The six `graph_*` tools accept an optional `root` (default: process cwd), auto-index on first use, and share their store with `novahiz graph` — see [docs/GRAPH.md](../../docs/GRAPH.md) for the architecture and precision rules.
 
 It speaks newline-delimited JSON-RPC over stdio. No npm install is needed.
 
