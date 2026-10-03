@@ -11,7 +11,7 @@ import { rankSkills } from "../../src/relevance.ts";
 import { openDb } from "../../src/db.ts";
 import { enabledProviders } from "../../src/providers.ts";
 import { checkDependencies } from "../../src/deps.ts";
-import { activeTask, addTodos, amendTodo, blockTodo, buildWorkPackets, completeTodo, createTask, dropTask, dropTodo, getTask, getTodo, insertTodo, ledgerSummary, listTodos, recordTodoDone, reorderTodos, resume, reviewDue, reviewTask, revisionSignals, startTodo } from "../../src/ledger.ts";
+import { activeTask, addTodos, amendTodo, blockTodo, buildWorkPackets, completeTodo, createTask, dropTask, dropTodo, getTask, getTodo, insertTodo, ledgerSummary, listTodos, parseReviewDiff, recordTodoDone, reorderTodos, resume, reviewDue, reviewTask, revisionSignals, startTodo } from "../../src/ledger.ts";
 import { DEFAULT_LIMIT_CHARS, DEFAULT_LIMIT_LINES, archiveSlot, ensureMemoryRoot, getSlot, listSlots, memoryRoot, parseSlotInput, rebuildIndex, searchSlots, updateSlot, writeEntry } from "../../src/memory.ts";
 
 // A memory root must stay inside the workspace: memory_* used to create
@@ -598,8 +598,15 @@ function callTool(name, args) {
       if (action === "review") {
         const taskId = args?.task ? String(args.task) : activeTask(db, session)?.id;
         if (!taskId) return toolResult("no active task", true);
-        const diff = args?.changes && typeof args.changes === "object" ? args.changes : {};
-        return toolResult(reviewTask(db, { taskId, ...diff }));
+        try {
+          // parseReviewDiff accepts an object or a JSON string, keeps only the
+          // known keys and drops the rest — raw input is never spread into SQL.
+          const diff = parseReviewDiff(args?.changes);
+          if (diff.additions) diff.additions = diff.additions.map((item) => normalizeTodo(item));
+          return toolResult(reviewTask(db, { taskId, ...diff }));
+        } catch (error) {
+          return toolResult(`review failed: ${error instanceof Error ? error.message : String(error)}`, true);
+        }
       }
       if (action === "amend") {
         const patch = {

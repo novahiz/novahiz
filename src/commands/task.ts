@@ -2,7 +2,7 @@ import { join } from "node:path";
 import { asString, dbPathFor, numberFlag, parse, print, readStdin, splitList, type Parsed } from "./context.ts";
 import { loadSpec, NovahizHome } from "../spec.ts";
 import { openDb } from "../db.ts";
-import { activeTask, addTodos, amendTodo, blockTodo, completeTodo, createTask, dropTask, dropTodo, getTask, getTodo, insertTodo, ledgerSummary, recordTodoDone, reorderTodos, resume, reviewDue, reviewTask, revisionSignals, startTodo, type ReviewDiff, type TodoAmendment, type TodoInput, type TodoKind } from "../ledger.ts";
+import { activeTask, addTodos, amendTodo, blockTodo, completeTodo, createTask, dropTask, dropTodo, getTask, getTodo, insertTodo, ledgerSummary, parseReviewDiff, recordTodoDone, reorderTodos, resume, reviewDue, reviewTask, revisionSignals, startTodo, type ReviewDiff, type TodoAmendment, type TodoInput, type TodoKind } from "../ledger.ts";
 
 const TODO_KINDS: readonly string[] = ["read", "edit", "verify", "delegate"];
 
@@ -225,15 +225,20 @@ function taskReview(parsed: Parsed, db: ReturnType<typeof openDb>, session: stri
   let diff: ReviewDiff = {};
   if (raw.length > 0) {
     try {
-      diff = JSON.parse(raw) as ReviewDiff;
-    } catch {
-      print({ error: "invalid JSON review diff" });
+      diff = parseReviewDiff(raw);
+    } catch (error) {
+      print({ error: error instanceof Error ? error.message : String(error) });
       process.exitCode = 1;
       return;
     }
   }
-  const outcome = reviewTask(db, { taskId, ...diff });
-  print({ ...outcome, reason: asString(parsed.flags.reason) });
+  try {
+    const outcome = reviewTask(db, { taskId, ...diff });
+    print({ ...outcome, reason: asString(parsed.flags.reason) });
+  } catch (error) {
+    print({ error: error instanceof Error ? error.message : String(error) });
+    process.exitCode = 1;
+  }
   return;
     }
 

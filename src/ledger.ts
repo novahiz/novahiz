@@ -544,22 +544,105 @@ export function revisionSignals(db: DatabaseSync, taskId: string): RevisionSigna
   return signals;
 }
 
+/**
+ * Parse an untrusted plan diff (the `changes` payload): accepts an object or
+ * a JSON string, keeps only the four known keys and requires each of them to
+ * be an array. Unknown keys are dropped on purpose — spreading the raw
+ * payload into reviewTask is what used to feed non-scalar values to SQLite
+ * ("Provided value cannot be bound to SQLite parameter 1").
+ */
+export function parseReviewDiff(raw: unknown): ReviewDiff {
+  if (raw === undefined || raw === null || raw === "") return {};
+  let value = raw;
+  if (typeof raw === "string") {
+    try {
+      value = JSON.parse(raw);
+    } catch {
+      throw new Error('changes must be JSON like {"additions":[...],"removals":[...]}');
+    }
+  }
+  if (typeof value !== "object" || Array.isArray(value)) {
+    throw new Error("changes must be an object like { additions, amendments, removals, order }");
+  }
+  const source = value as Record<string, unknown>;
+  const diff: Record<string, unknown> = {};
+  for (const key of ["additions", "amendments", "removals", "order"] as const) {
+    const entry = source[key];
+    if (entry === undefined || entry === null) continue;
+    if (!Array.isArray(entry)) throw new Error(`changes.${key} must be an array`);
+    diff[key] = entry;
+  }
+  return diff as ReviewDiff;
+}
+
+/**
+ * Scalar-only guard for todo fields SQLite will bind: a nested object used to
+ * escape as a binding error deep inside addTodos/amendTodo. Every malformed
+ * field is refused here with a readable message instead.
+ */
+function assertScalarTodoFields(item: object, origin: "addition" | "amendment"): void {
+  const rec = item as Record<string, unknown>;
+  const fail = (field: string, expected: string): never => {
+    throw new Error(`review ${origin} ${field} must be ${expected}`);
+  };
+  if (rec.label !== undefined && (typeof rec.label !== "string" || rec.label.trim().length === 0)) {
+    fail("label", "a non-empty string");
+  }
+  if (rec.kind !== undefined && typeof rec.kind !== "string") fail("kind", "a string");
+  if (rec.status !== undefined && typeof rec.status !== "string") fail("status", "a string");
+  if (rec.acceptance !== undefined && rec.acceptance !== null && typeof rec.acceptance !== "string") {
+    fail("acceptance", "a string or null");
+  }
+  if (rec.owner !== undefined && rec.owner !== null && typeof rec.owner !== "string") {
+    fail("owner", "a string or null");
+  }
+  if (
+    rec.dependsOn !== undefined &&
+    (!Array.isArray(rec.dependsOn) || rec.dependsOn.some((id) => typeof id !== "string"))
+  ) {
+    fail("dependsOn", "an array of todo ids");
+  }
+  if (
+    rec.maxIterations !== undefined &&
+    (typeof rec.maxIterations !== "number" || !Number.isInteger(rec.maxIterations) || rec.maxIterations <= 0)
+  ) {
+    fail("maxIterations", "a positive integer");
+  }
+}
+
 export function reviewTask(db: DatabaseSync, options: { taskId: string } & ReviewDiff): ReviewOutcome {
   const task = getTask(db, options.taskId);
   if (!task) throw new Error(`unknown task: ${options.taskId}`);
   const additions = (options.additions ?? []).map((item) => {
     // String shorthand mirrors removals: a bare string is the todo's label.
     if (typeof item === "string" && item.trim().length > 0) return { label: item };
-    if (typeof item === "object" && item !== null && typeof item.label === "string" && item.label.trim().length > 0) return item;
+    if (typeof item === "object" && item !== null && typeof item.label === "string" && item.label.trim().length > 0) {
+      assertScalarTodoFields(item, "addition");
+      return item;
+    }
     throw new Error("review addition must be a non-empty label string or a todo object with a non-empty label");
   });
-  const amendments = options.amendments ?? [];
-  const removals = options.removals ?? [];
+  const amendments = (options.amendments ?? []).map((item) => {
+    if (typeof item !== "object" || item === null || typeof item.id !== "string" || item.id.trim().length === 0) {
+      throw new Error("review amendment must be an object with a non-empty id");
+    }
+    assertScalarTodoFields(item, "amendment");
+    return item;
+  });
+  const removals = (options.removals ?? []).map((item) => {
+    if (typeof item === "string" && item.trim().length > 0) return { id: item, reason: "" };
+    if (typeof item === "object" && item !== null && typeof item.id === "string" && item.id.trim().length > 0) {
+      return { id: item.id, reason: typeof item.reason === "string" ? item.reason : "" };
+    }
+    throw new Error("review removal must be a todo id string or an object with a non-empty id");
+  });
+  const order = options.order;
+  if (order !== undefined && (!Array.isArray(order) || order.some((id) => typeof id !== "string" || id.trim().length === 0))) {
+    throw new Error("review order must be an array of todo id strings");
+  }
   db.exec("BEGIN");
   try {
-    for (const item of removals) {
-      const id = typeof item === "string" ? item : item.id;
-      const reason = typeof item === "string" ? "" : item.reason ?? "";
+    for (const { id, reason } of removals) {
       const target = getTodo(db, id);
       if (!target || target.task_id !== options.taskId) {
         throw new Error(`review removal targets a todo outside this task: ${id}`);
@@ -575,7 +658,7 @@ export function reviewTask(db: DatabaseSync, options: { taskId: string } & Revie
       amendTodo(db, id, patch);
     }
     for (const item of additions) insertTodo(db, options.taskId, item, "end");
-    if (options.order) reorderTodos(db, options.taskId, options.order);
+    if (order) reorderTodos(db, options.taskId, order);
     const revision = task.revision + 1;
     const ts = nowIso();
     db.prepare(

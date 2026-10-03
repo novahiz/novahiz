@@ -211,6 +211,14 @@ function killTree(child: ReturnType<typeof spawn>): void {
  *  with stdin kept OPEN: mcp-cron reads stdin asynchronously and exits cleanly
  *  (status 0, no output) if the pipe closes before it starts reading. Remote
  *  entries (type: remote) get one HTTP initialize round-trip instead. */
+// The initialize probe gets one fast window (10 s — enough for most servers,
+// and for a crash to surface) plus one slow window while the process is still
+// alive: JIT-compiled servers like `dart mcp-server` take 6-10 s to boot
+// before the initialize reply, so a single 10 s cut-off produced false
+// negatives on a healthy server.
+const MCP_INITIAL_TIMEOUT_MS = 10_000;
+const MCP_SLOW_START_MS = 30_000;
+
 export function probeMcpServer(entry: Record<string, unknown>): Promise<{ ok: boolean; detail: string }> {
   const command = Array.isArray(entry.command) ? (entry.command as unknown[]).map(String) : [];
   if (command.length === 0) {
@@ -288,9 +296,20 @@ export function probeMcpServer(entry: Record<string, unknown>): Promise<{ ok: bo
       killTree(child);
       resolve({ ok, detail });
     };
-    const timer = setTimeout(() => {
-      settle(false, `no initialize response in ${Date.now() - started} ms (timeout)`);
-    }, 10_000);
+    const timeoutDetail = (): string => {
+      const tail = errBuffer.trim() ? ` — ${errBuffer.trim().slice(0, 160)}` : "";
+      return `no initialize response in ${Date.now() - started} ms (timeout)${tail}`;
+    };
+    const onSlowTick = (): void => {
+      if (child.exitCode === null && child.signalCode === null) {
+        // Alive but silent: a slow-start server gets one extension instead of
+        // a false negative; a crashed process still fails on the first tick.
+        timer = setTimeout(() => settle(false, timeoutDetail()), MCP_SLOW_START_MS);
+        return;
+      }
+      settle(false, timeoutDetail());
+    };
+    let timer: ReturnType<typeof setTimeout> | undefined = setTimeout(onSlowTick, MCP_INITIAL_TIMEOUT_MS);
     child.stdout?.on("data", (chunk) => {
       buffer += String(chunk);
       for (const line of buffer.split(/\r?\n/)) {
@@ -643,7 +662,8 @@ export async function commandDoctor(parsed: Parsed): Promise<void> {
   });
 
   // Live probe: explicit opt-in, because npx cold caches can exceed the 10 s
-  // per-server budget and a false negative would be worse than no probe.
+  // per-server budget (a still-alive slow server gets one 30 s extension) and
+  // a false negative would be worse than no probe.
   if (flagOn(parsed, "deep")) {
     const targets = mcpEntries.filter(({ entry }) => entry.enabled !== false);
     const results = await Promise.all(
