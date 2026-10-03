@@ -19,7 +19,7 @@ const CORPUS_TITLES = [
   "workflow git commits tags",
   "hooks plugin opencode session",
   "base sqlite ledger revisions",
-  "graphe graft fraicheur deep",
+  "graphe code analyse symboles",
   "publication npm versionnage"
 ];
 

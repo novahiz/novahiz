@@ -11,10 +11,6 @@ node_modules/
 .env
 *.tgz
 
-# graft's local graph cache — regenerable, not committed (run `graft build`).
-/graft/
-# graft.exe's local VCS store (SQLite) — machine data, like novahiz.sqlite.
-/.graft/
 # novahiz snap — the ledger snapshot store (machine data: gzip objects, manifests,
 # backups), regenerable by capture, like novahiz.sqlite itself.
 /.snap/

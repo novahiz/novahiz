@@ -52,8 +52,6 @@ MCP servers, with provenance from `catalog/providers.json`:
 
 Known limitation (single instance): `dart mcp-server` serves one running instance per machine. The connect at opencode boot succeeds, but every in-session reconnect times out (`Request timed out`) while that instance holds the server — a second process started beside it stays silent on stdin/stdout, confirmed with a direct `dart.exe mcp-server` probe. When dart's reconnect fails, restart opencode instead of expecting the retry to succeed; the boot connection is the reliable one.
 
-Known limitation (`graft build --deep` needs an LLM key): the structural build (`graft build`, $0 no key) produces the wiring graph that five of the six graft MCP tools serve, and `graft_check_freshness`'s `graph check` half stays `OK` once rebuilt after edits. The other half (`graft/manifest.json`) and the meaning tier only come from the `--deep` pass, which falls back to the structural build without `GRAFT_API_KEY` (plus `GRAFT_PROVIDER` / `GRAFT_BASE_URL` / `GRAFT_MODEL` for your provider). Until a key is set, freshness always answers `No graft/manifest.json found` with a 0% meaning tier while the other tools keep working; re-run `graft build` after large edits to clear the `STALE` drift report.
-
 Skill and command packs:
 
 | Id | Install command | Upstream | License | Categories |

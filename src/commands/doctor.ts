@@ -74,9 +74,10 @@ function memoryLifecycleProbe(): DoctorCheck {
 
 // ── MCP configuration health (0.3.6) ───────────────────────────────────────
 // Three real incidents motivated this: a purged context7 npx shim, a broken
-// graft install, and a security-mcp running without its auth secret. All were
-// only discovered mid-session. These checks are read-only and non-blocking —
-// the CLI must stay usable on machines without an OpenCode install.
+// install of a local MCP server, and a security-mcp running without its auth
+// secret. All were only discovered mid-session. These checks are read-only and
+// non-blocking — the CLI must stay usable on machines without an OpenCode
+// install.
 
 /** JSONC → JSON: strips // and block comments plus trailing commas,
  *  string-aware so URLs and globs inside values survive. */

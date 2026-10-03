@@ -138,7 +138,6 @@
     "C:\\Users\\hiz\\.config\\novahiz\\src\\commands\\context.ts",
     "C:\\Users\\hiz\\.config\\novahiz\\src\\commands\\doctor.ts",
     "C:\\Users\\hiz\\.config\\novahiz\\src\\commands\\gate.ts",
-    "C:\\Users\\hiz\\.config\\novahiz\\src\\commands\\graft.ts",
     "C:\\Users\\hiz\\.config\\novahiz\\src\\commands\\init.ts",
     "C:\\Users\\hiz\\.config\\novahiz\\src\\commands\\inspect.ts",
     "C:\\Users\\hiz\\.config\\novahiz\\src\\commands\\report.ts",
@@ -151,7 +150,6 @@
     "C:\\Users\\hiz\\.config\\novahiz\\src\\exec.ts",
     "C:\\Users\\hiz\\.config\\novahiz\\src\\gate-repair.ts",
     "C:\\Users\\hiz\\.config\\novahiz\\src\\gate.ts",
-    "C:\\Users\\hiz\\.config\\novahiz\\src\\graft.ts",
     "C:\\Users\\hiz\\.config\\novahiz\\src\\impeccable.ts",
     "C:\\Users\\hiz\\.config\\novahiz\\src\\ledger.ts",
     "C:\\Users\\hiz\\.config\\novahiz\\src\\memory.ts",
@@ -445,10 +443,6 @@
       "backup": "C:\\Users\\hiz\\.config\\novahiz\\src\\commands\\gate.ts.novahiz-bak"
     },
     {
-      "path": "C:\\Users\\hiz\\.config\\novahiz\\src\\commands\\graft.ts",
-      "backup": "C:\\Users\\hiz\\.config\\novahiz\\src\\commands\\graft.ts.novahiz-bak"
-    },
-    {
       "path": "C:\\Users\\hiz\\.config\\novahiz\\src\\commands\\hook.ts",
       "backup": "C:\\Users\\hiz\\.config\\novahiz\\src\\commands\\hook.ts.novahiz-bak"
     },
@@ -479,10 +473,6 @@
     {
       "path": "C:\\Users\\hiz\\.config\\novahiz\\src\\gate.ts",
       "backup": "C:\\Users\\hiz\\.config\\novahiz\\src\\gate.ts.novahiz-bak"
-    },
-    {
-      "path": "C:\\Users\\hiz\\.config\\novahiz\\src\\graft.ts",
-      "backup": "C:\\Users\\hiz\\.config\\novahiz\\src\\graft.ts.novahiz-bak"
     },
     {
       "path": "C:\\Users\\hiz\\.config\\novahiz\\src\\ledger.ts",
