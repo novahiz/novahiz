@@ -69,7 +69,7 @@ Any action that destroys data, breaks compatibility, or cannot be undone goes th
 
 ## Never invent
 
-Do not write an API, function, or import whose existence you have not verified. Two real sources: the code itself, and the installed version's documentation via `context7`. A presumed symbol turns into debt on the spot.
+Do not write an API, function, or import whose existence you have not verified. Two real sources: the code itself, and the installed version's documentation via `novahiz-docs`. A presumed symbol turns into debt on the spot.
 
 ## When proof is red
 

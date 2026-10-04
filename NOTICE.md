@@ -29,7 +29,7 @@ Providers are referenced by install command, never vendored. Each lists its upst
 | `playwright` | `@playwright/mcp` | https://github.com/microsoft/playwright-mcp | Apache-2.0 |
 | `security` | `security-mcp` | https://github.com/AbrahamOO/security-mcp | MIT |
 | `narsil` | `narsil-mcp` | https://github.com/postrv/narsil-mcp | MIT OR Apache-2.0 |
-| `context7` | `@upstash/context7-mcp` | https://github.com/upstash/context7 | MIT |
+| `novahiz-docs` | local novahiz-docs MCP | https://github.com/novahiz/novahiz | Apache-2.0 |
 | `cron` | `scheduler-mcp` (local venv clone) | https://github.com/PhialsBasement/scheduler-mcp | MIT |
 | `novahiz` | local Novahiz MCP | https://github.com/novahiz/novahiz | Apache-2.0 |
 | `dart` | Dart SDK (`dart mcp-server`) | https://github.com/dart-lang/ai (pkgs/dart_mcp_server) | BSD-3-Clause |

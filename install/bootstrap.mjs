@@ -104,9 +104,9 @@ function generateOpenCodeJson(configDir, NovahizHome) {
   const config = {
     $schema: "https://opencode.ai/config.json",
     mcp: {
-      context7: {
+      novahiz-docs: {
         type: "local",
-        command: ["npx", "-y", "@upstash/context7-mcp@4.1.1", "--transport", "stdio"],
+        command: ["node", join(NovahizHome, "mcp", "novahiz-docs", "index.mjs")],
         enabled: true,
       },
       narsil: {
@@ -212,8 +212,8 @@ async function main() {
     { pkg: "narsil-mcp", bin: "narsil-mcp" },
     { pkg: "security-mcp", bin: "security-mcp" },
   ];
-  // context7 is invoked via `npx -y @upstash/context7-mcp@4.1.1` (pinned in
-  // the generated config), so no global shim is installed for it.
+  // `novahiz-docs` is a local file run through `node` (no package, no shim:
+  // the config points straight at <home>/mcp/novahiz-docs/index.mjs).
   // `cron` has no npm package: the plugin registers it from catalog/providers.json
   // (scheduler-mcp local venv, see docs/PROVIDERS.md). Disabled by default in
   // fresh configs — users opt in explicitly.

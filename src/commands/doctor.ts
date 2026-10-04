@@ -689,6 +689,21 @@ export async function commandDoctor(parsed: Parsed): Promise<void> {
     });
     // S5: meme opt-in --deep, cycle memoire reel sur racine temporaire.
     checks.push(memoryLifecycleProbe());
+
+    // S5: probe live du serveur novahiz-docs, teste directement chez lui —
+    // son entree n'arrive dans opencode.jsonc qu'au swap final (S6), sur
+    // accord explicite ; le serveur lui-meme doit desormais repondre au docteur.
+    const docsServer = join(root, "mcp", "novahiz-docs", "index.mjs");
+    const docsProbe = existsSync(docsServer)
+      ? await probeMcpServer({ command: [process.execPath, docsServer] })
+      : { ok: false, detail: "mcp/novahiz-docs/index.mjs missing" };
+    checks.push({
+      id: "mcp-docs-probe",
+      label: "MCP novahiz-docs probe",
+      ok: docsProbe.ok,
+      detail: docsProbe.detail,
+      blocking: false
+    });
   }
 
   const failing = checks.filter((check) => !check.ok);

@@ -88,7 +88,7 @@ These files live in `catalog/` and are part of the git repository:
 
 The installer generates `opencode.jsonc` with:
 
-- MCP server registrations (context7, narsil, cron, playwright, security, dart, novahiz)
+- MCP server registrations (novahiz-docs, narsil, cron, playwright, security, dart, novahiz)
 - Skill paths
 - Plugin list
 - Compaction settings

@@ -41,7 +41,7 @@ MCP servers, with provenance from `catalog/providers.json`:
 | `playwright` | `@playwright/mcp` | [microsoft/playwright-mcp](https://github.com/microsoft/playwright-mcp) | Apache-2.0 | browser, design-ui |
 | `security` | `security-mcp` | [AbrahamOO/security-mcp](https://github.com/AbrahamOO/security-mcp) | MIT | audit |
 | `narsil` | `narsil-mcp` | [postrv/narsil-mcp](https://github.com/postrv/narsil-mcp) | MIT OR Apache-2.0 | code, review |
-| `context7` | `@upstash/context7-mcp` | [upstash/context7](https://github.com/upstash/context7) | MIT | code |
+| `novahiz-docs` | local `mcp/novahiz-docs` | [novahiz/novahiz](https://github.com/novahiz/novahiz) | Apache-2.0 | code |
 | `cron` | `scheduler-mcp` (local venv) | [PhialsBasement/scheduler-mcp](https://github.com/PhialsBasement/scheduler-mcp) | MIT | devops |
 | `novahiz` | local (`mcp/novahiz-tools`) | [novahiz/novahiz](https://github.com/novahiz/novahiz) | Apache-2.0 | code, planning |
 | `dart` | `dart mcp-server` (Dart SDK) | [dart-lang/ai · dart_mcp_server](https://github.com/dart-lang/ai/tree/main/pkgs/dart_mcp_server) | BSD-3-Clause | code, debug, design-ui, flutter |

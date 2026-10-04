@@ -302,7 +302,7 @@ Novahiz auto-enregistre les serveurs MCP externes selon la catégorie du prompt 
 
 | Provider | Package | Licence | Catégories |
 |----------|---------|---------|------------|
-| context7 | `@upstash/context7-mcp` | MIT | code |
+| novahiz-docs | `mcp/novahiz-docs/index.mjs` (local) | Apache-2.0 | code |
 | narsil | `narsil-mcp` | MIT OR Apache-2.0 | code, review |
 | novahiz | local (`mcp/novahiz-tools`) | Apache-2.0 | code, planning |
 | playwright | `@playwright/mcp` | Apache-2.0 | browser, design-ui |

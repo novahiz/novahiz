@@ -27,12 +27,12 @@
     "categories": ["code", "review"]
   },
   {
-    "id": "context7",
-    "label": "Context7 Documentation",
+    "id": "novahiz-docs",
+    "label": "novahiz-docs Documentation",
     "kind": "mcp",
-    "command": ["npx", "-y", "@upstash/context7-mcp@4.1.1"],
-    "source": "https://github.com/upstash/context7",
-    "license": "MIT",
+    "command": ["node", "~/.config/novahiz/mcp/novahiz-docs/index.mjs"],
+    "source": "https://github.com/novahiz/novahiz",
+    "license": "Apache-2.0",
     "categories": ["code"]
   },
   {

@@ -14,9 +14,12 @@ node_modules/
 # novahiz snap — the ledger snapshot store (machine data: gzip objects, manifests,
 # backups), regenerable by capture, like novahiz.sqlite itself.
 /.snap/
-# novahiz graph — the workspace index store (manifest, gzipped FileIndex objects,
+# novahiz graph - the workspace index store (manifest, gzipped FileIndex objects,
 # graph.json), rebuilt from the workspace on demand.
 /.graph/
+# novahiz-docs - the local documentation index (SQLite FTS5, refilled by
+# ingestion from the sources recorded in mcp/novahiz-docs/data/catalog.json).
+/mcp/novahiz-docs/data/index.sqlite*
 # build output of `npm run prepare` (tsc -p tsconfig.build.json) — regenerated.
 /dist/
 # agent session memory — machine data, regenerated as the session runs.

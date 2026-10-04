@@ -348,8 +348,8 @@ async function main() {
     { pkg: "narsil-mcp", bin: "narsil-mcp", name: "narsil" },
     { pkg: "security-mcp", bin: "security-mcp", name: "security" },
   ];
-  // context7 is invoked via `npx -y @upstash/context7-mcp@4.1.1` (pinned in
-  // the generated config), so no global shim is installed for it.
+  // `novahiz-docs` is a local file run through `node` (no package, no shim:
+  // the config points straight at <home>/mcp/novahiz-docs/index.mjs).
   // `cron` has no npm package and ships disabled (local scheduler clone only);
   // enable it after the local setup documented in docs/PROVIDERS.md.
 
@@ -444,9 +444,9 @@ async function main() {
       const openCodeConfig = {
         "$schema": "https://opencode.ai/config.json",
         "mcp": {
-          "context7": {
+          "novahiz-docs": {
             "type": "local",
-            "command": ["npx", "-y", "@upstash/context7-mcp@4.1.1", "--transport", "stdio"],
+            "command": ["node", join(home, "mcp", "novahiz-docs", "index.mjs")],
             "enabled": true
           },
           "narsil": {

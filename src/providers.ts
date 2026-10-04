@@ -1,4 +1,4 @@
-import type { Provider, Spec } from "./spec.ts";
+import { expandHome, type Provider, type Spec } from "./spec.ts";
 
 type McpEntry = {
   type: "local" | "remote";
@@ -34,7 +34,10 @@ export function buildMcpEntries(spec: Spec): Record<string, McpEntry> {
       // "npx supabase"). If the provider ID is actually a scoped
       // npm package (e.g., "@scope/pkg"), this fallback will fail silently —
       // the provider should define `command` explicitly in that case.
-      entries[provider.id] = { type: "local", command: provider.command ?? [provider.id], enabled: true };
+      // `~` in a command path is expanded here: transform callbacks hand the
+      // argv to opencode verbatim, and a literal `~` would not resolve
+      // (novahiz-docs lives under the user's home by convention).
+      entries[provider.id] = { type: "local", command: (provider.command ?? [provider.id]).map(expandHome), enabled: true };
     }
   }
   return entries;
