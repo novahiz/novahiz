@@ -105,5 +105,15 @@
     "license": "Apache-2.0",
     "categories": ["design-ui"],
     "purpose": "Upstream Impeccable skill (critique, audit and polish playbooks) required by gate rule R14. Installed to ~/.agents/skills; rerun the command to update."
+  },
+  {
+    "id": "argus",
+    "label": "Argus MCP",
+    "kind": "mcp",
+    "command": ["node", "~/.config/novahiz/mcp/argus/src/cli.mjs"],
+    "source": "https://github.com/novahiz/novahiz",
+    "license": "MIT",
+    "categories": ["audit"],
+    "purpose": "Local stdio static-analysis server (zero npm dependency): scans files and directories with local security rules (SQL injection, XSS, command injection, hardcoded secrets, insecure deserialization), creates custom rules behind a ReDoS gate, exports json/sarif/csv/html. Original clean-room implementation for the audit category."
   }
 ]

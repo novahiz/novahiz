@@ -1,0 +1,25 @@
+{
+  "name": "argus-mcp",
+  "version": "0.1.0",
+  "description": "Argus — an original, dependency-free MCP server for static security analysis of source code.",
+  "type": "module",
+  "main": "src/cli.mjs",
+  "bin": {
+    "argus-mcp": "src/cli.mjs"
+  },
+  "scripts": {
+    "start": "node src/cli.mjs",
+    "test": "node src/commands/test.mjs"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {},
+  "license": "MIT",
+  "keywords": [
+    "mcp",
+    "security",
+    "static-analysis",
+    "sast"
+  ]
+}
