@@ -233,6 +233,28 @@ Novahiz graph fresh                 # drift check (stat-only, writes nothing)
 
 Subcommands accept any unambiguous prefix (`fi` → `find`); an ambiguous one is refused with its candidates. `--root <path>` indexes another workspace (default: cwd). `find`, `all`, `trace` and `api` exit `1` when they match nothing (grep-style). Every subcommand accepts `--json`.
 
+### `novahiz memory <subcommand>`
+
+Project memory hygiene (`project-memory/`: `index.json` + `slots/`). `clean` and `prune` are **dry-run by default** — they report the planned actions and write nothing until `--apply`. Nothing here ever deletes content: GC means *archive, never destroy*.
+
+```bash
+novahiz memory status              # read-only report (no heal, no write)
+novahiz memory clean --json        # plan: stale lock, failed drains, .tmp, duplicates, reindex
+novahiz memory clean --apply       # execute the plan
+novahiz memory prune --days 7      # list actives not used (read or written) for 7 days
+novahiz memory prune --decay 90    # list never-read slots stale for 90 days
+novahiz memory prune --retention 90  # list pre-compact copies older than 90 days
+novahiz memory prune --apply       # archive/move them (files stay on disk)
+```
+
+| Subcommand | Effect |
+|-----------|--------|
+| `status` | Root/layout, index state, slot counts, orphans/ghosts/unreadable files, stale `.lock`, `.pending` queue — strictly read-only (no auto-heal) |
+| `clean [--apply]` | Dry-run plan: remove a stale `.lock` (dead pid or malformed), drop `.pending/failed-*.json`, drop `.tmp-*` fragments of interrupted atomic writes (root and `slots/`), rebuild `index.json` (adopts orphan slots, drops ghosts), archive duplicate slots (Resume + Détails byte-identical: the oldest is kept, the newest archived, file kept). Junk non-`.md` files and unreadable slots are reported, never deleted |
+| `prune [--days n] [--decay n] [--retention n] [--apply]` | Dry-run lists. `--days` (default 30): active slots whose last use — last read (`last_read`, traced by `memory_get`) or last write — is older than `n`; a recent read extends a slot's life. `--decay` (default 90): active slots **never read** (`last_read` absent) and stale since creation/update. `--retention` (default 90): pre-compact copies in `slots/archive/` older than `n` days, moved to `slots/archive/retention/` (byte-identical). `--apply` archives the slots (`archiveSlot`: status flip, file kept) and moves the copies — nothing is ever deleted |
+
+`--root <path>` targets another project root or memory dir (an explicit path is the workspace reference, so it is honored as-is); default is cwd. Every subcommand accepts `--json`. `prune` exits `1` on a corrupt index and points you at `clean --apply`.
+
 ## Exit codes
 
 | Code | Meaning |

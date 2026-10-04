@@ -4,12 +4,15 @@ import {
   readFileSync,
   readdirSync,
   renameSync,
+  statSync,
   unlinkSync,
   writeFileSync
 } from "node:fs";
 import { createHash } from "node:crypto";
-import { join } from "node:path";
+import { basename, join, resolve, sep } from "node:path";
 import { fold } from "./classify.ts";
+import { queryMemoryFts, syncMemoryFts } from "./memory-fts.ts";
+import type { FtsSyncResult } from "./memory-fts.ts";
 import { rankSlots } from "./relevance.ts";
 import type { SlotDoc } from "./relevance.ts";
 
@@ -29,7 +32,10 @@ export const MAX_SUMMARY_CHARS = 1000;
 // etre ouvert dans plusieurs instances opencode, chacune avec son MCP).
 const LOCK_FILE = ".lock";
 const LOCK_STALE_MS = 30_000;
-const LOCK_WAIT_DEFAULT_MS = 2_000;
+// P1 multi-sessions: plusieurs sessions du meme projet ecrivent en parallele
+// dans la meme racine. Attendre longtemps avant d'echouer (la file .pending
+// MCP absorbe le reste) plutot que de renvoyer E_LOCK des la 2e seconde.
+const LOCK_WAIT_DEFAULT_MS = 10_000;
 const LOCK_RETRY_MS = 25;
 // Delais d'attente (synchrone) entre les tentatives de rename de l'index:
 // un antivirus peut refuser le remplacement quelques dizaines de ms sur Windows.
@@ -52,6 +58,8 @@ export type SlotMeta = {
   file: string;
   /** S3: id du slot parent branche par rotation (chaine de ancestraux). */
   previous?: string;
+  /** P5 decay: derniere consultation explicite (memory_get); absent = jamais lu. */
+  last_read?: string;
 };
 
 export type MemoryIndex = {
@@ -65,6 +73,12 @@ export type MemoryIndex = {
    * propagent tel quel pour signaler la guerison.
    */
   healed?: boolean;
+  /**
+   * P1 degradation gracieuse: fichiers slots illisibles (corrompus, EISDIR...)
+   * exclus du scan — la memoire reste utilisable et chaque exclusion est
+   * listee ici. Runtime seul, jamais persiste (comme healed).
+   */
+  warnings?: string[];
 };
 
 export type SlotBody = {
@@ -94,6 +108,8 @@ export type WriteEntryResult = {
   created: boolean;
   /** S3: true quand le contenu existe deja dans le slot (ecriture idempotente). */
   duplicate?: boolean;
+  /** S5: chemin (relatif a la racine memoire) de la copie complete ecrite AVANT compaction. */
+  archivedTo?: string;
   /** S4: qualite du routage — high >= 0.5, medium >= 0.25, low sinon (memes bornes que memory_search). */
   confidence: "high" | "medium" | "low";
   index: MemoryIndex;
@@ -110,6 +126,38 @@ function memError(code: string, message: string): MemoryError {
 export function memoryRoot(cwd?: string): string {
   const base = cwd && cwd.length > 0 ? cwd : process.cwd();
   return join(base, MEMORY_DIR);
+}
+
+export type MemoryLayout = "canonical" | "legacy";
+
+export type ResolvedMemoryDir = { dir: string; layout: MemoryLayout };
+
+/**
+ * Resout le dossier memoire a partir d'un "project root" — le contrat annonce
+ * par les schemas MCP ("Project root containing project-memory"). Regles, dans
+ * l'ordre :
+ *   1. root vide -> <workspace>/project-memory (comportement historique).
+ *   2. le dossier s'appelle deja project-memory -> tel quel.
+ *   3. <root>/project-memory existe -> dedans (le canonique prime sur un
+ *      ancien index.json place a la racine du projet).
+ *   4. <root> est un ancien layout (index.json + slots/) -> tel quel, legacy.
+ *   5. sinon -> <root>/project-memory (cree au besoin).
+ * Hors workspace -> E_ROOT : memory_* ne depose jamais de memoire n'importe
+ * ou (ancien safeMemoryRoot, audit P1-D/M4).
+ */
+export function resolveMemoryDir(raw?: string, workspace?: string): ResolvedMemoryDir {
+  const ws = resolve(workspace && workspace.length > 0 ? workspace : process.cwd());
+  const abs = resolve(raw && raw.length > 0 ? raw : join(ws, MEMORY_DIR));
+  if (abs !== ws && !abs.startsWith(ws + sep)) {
+    throw memError("E_ROOT", "Invalid params: memory root outside the workspace");
+  }
+  if (basename(abs) === MEMORY_DIR) return { dir: abs, layout: "canonical" };
+  const canonical = join(abs, MEMORY_DIR);
+  if (existsSync(canonical)) return { dir: canonical, layout: "canonical" };
+  if (existsSync(join(abs, INDEX_FILE)) && existsSync(join(abs, SLOTS_DIR))) {
+    return { dir: abs, layout: "legacy" };
+  }
+  return { dir: canonical, layout: "canonical" };
 }
 
 export function slotsDir(root: string): string {
@@ -350,13 +398,14 @@ export function ensureMemoryRoot(root: string): MemoryIndex {
         const healed = readIndex(root);
         return healed;
       } catch {
+        const warnings: string[] = [];
         const rebuilt: MemoryIndex = {
           version: 1,
           updated: nowIso(),
-          slots: scanSlots(root)
+          slots: scanSlots(root, warnings)
         };
         writeIndex(root, rebuilt);
-        return { ...rebuilt, healed: true };
+        return { ...rebuilt, healed: true, ...(warnings.length > 0 ? { warnings } : {}) };
       }
     } finally {
       release();
@@ -446,10 +495,34 @@ export function slotPath(root: string, meta: Pick<SlotMeta, "file">): string {
   return join(root, meta.file);
 }
 
+// P4 cache mtime: la recherche relit les memes fichiers a chaque requete
+// (auto-read du plugin a chaque prompt). Le brut est memoise, valide par
+// mtime+taille — invalide des qu'un ecrivain (sous verrou) reecrit le fichier.
+const slotTextCache = new Map<string, { mtimeMs: number; size: number; raw: string }>();
+const SLOT_TEXT_CACHE_MAX = 512;
+// P6 bench: bascule pour mesurer cote a cote le repli "avant" (sans cache) et
+// le chemin par defaut (cache on). Production: toujours true.
+let slotTextCacheEnabled = true;
+
+export function setSlotTextCacheEnabled(enabled: boolean): void {
+  slotTextCacheEnabled = enabled;
+}
+
+function readSlotText(file: string): string {
+  if (!slotTextCacheEnabled) return readFileSync(file, "utf8");
+  const stat = statSync(file);
+  const cached = slotTextCache.get(file);
+  if (cached && cached.mtimeMs === stat.mtimeMs && cached.size === stat.size) return cached.raw;
+  const raw = readFileSync(file, "utf8");
+  if (slotTextCache.size >= SLOT_TEXT_CACHE_MAX) slotTextCache.clear();
+  slotTextCache.set(file, { mtimeMs: stat.mtimeMs, size: stat.size, raw });
+  return raw;
+}
+
 export function readSlot(root: string, meta: Pick<SlotMeta, "file" | "id">): SlotFile {
   const file = slotPath(root, meta);
   if (!existsSync(file)) throw memError("E_SLOT", `slot introuvable: ${meta.id}`);
-  const raw = readFileSync(file, "utf8");
+  const raw = readSlotText(file);
   const parsed = parseFrontmatter(raw);
   const body = splitSections(parsed.body);
   const withFile: SlotMeta = {
@@ -470,11 +543,20 @@ export function readSlot(root: string, meta: Pick<SlotMeta, "file" | "id">): Slo
   return { meta: withFile, body, raw };
 }
 
-export function nextSlotId(index: MemoryIndex): string {
+export function nextSlotId(index: MemoryIndex, root?: string): string {
   let max = 0;
   for (const slot of index.slots) {
     const match = slot.id.match(/^slot-(\d+)$/);
     if (match) max = Math.max(max, Number(match[1]));
+  }
+  // Orphelins: un fichier slots/slot-*.md absent de l'index ne doit ni etre
+  // ecrase (meme slug -> meme nom de fichier) ni rejoue (meme id -> deux
+  // fichiers portant le meme id) — l'id alloue suit aussi le disque.
+  if (root && existsSync(slotsDir(root))) {
+    for (const name of readdirSync(slotsDir(root))) {
+      const match = name.match(/^slot-(\d+)(?:-.*)?\.md$/);
+      if (match) max = Math.max(max, Number(match[1]));
+    }
   }
   return `slot-${String(max + 1).padStart(3, "0")}`;
 }
@@ -623,7 +705,7 @@ export function createSlot(
   input: { title: string; description?: string; tags?: string[] }
 ): { meta: SlotMeta; index: MemoryIndex } {
   const index = ensureMemoryRoot(root);
-  const id = nextSlotId(index);
+  const id = nextSlotId(index, root);
   const file = join(SLOTS_DIR, `${id}-${slugify(input.title)}.md`);
   const body: SlotBody = { summary: input.description?.trim() || input.title.trim(), details: "" };
   const base = {
@@ -661,13 +743,35 @@ function boundSummary(summary: string): string {
   return [head, ...tail].join("\n");
 }
 
+// S5: avant toute reduction de corps, la copie complete part dans
+// slots/archive/ (hors portee de scanSlots — le scan n'est pas recursif).
+// L'incident slot-005 (2026-10-04) a detruit 5698 chars sans trace : jamais plus.
+const ARCHIVE_DIR = "archive";
+
+/**
+ * Ecrit le corps tel qu'il existe AVANT compaction et retourne son chemin
+ * relatif a la racine memoire (convention meta.file).
+ */
+function archivePreCompact(root: string, meta: SlotMeta, body: SlotBody): string {
+  const dir = join(slotsDir(root), ARCHIVE_DIR);
+  if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+  const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+  const rel = join(SLOTS_DIR, ARCHIVE_DIR, `${meta.id}-precompact-${stamp}.md`);
+  writeFileSync(join(root, rel), serializeSlot(meta, body), "utf8");
+  return rel;
+}
+
 function compactBody(body: SlotBody): { body: SlotBody; changed: boolean } {
   const details = body.details.trim();
   if (details.length === 0) return { body, changed: false };
   const lines = details.split(/\r?\n/).filter((line) => line.trim().length > 0);
   if (lines.length <= 4) return { body, changed: false };
   const keep = lines.slice(-4).join("\n");
-  const fold = lines.slice(0, -4).join("\n");
+  // Les titres "## " du fold sont demotes en puces : remis dans le Resume,
+  // ils couperaient la section au reparse (splitSections) et avaleraient tout
+  // ce qui suit jusqu'a "## Details" — perte silencieuse constatee le
+  // 2026-10-04 sur slot-005.
+  const fold = lines.slice(0, -4).join("\n").replace(/^#{2,6}[ \t]+/gm, "- ");
   // S3: le fold est insere PUIS le Resume est borne — compacter libere
   // reellement des caracteres au lieu de seulement deplacer le contenu.
   const summary = boundSummary([body.summary.trim(), `- ${fold}`].filter(Boolean).join("\n"));
@@ -798,10 +902,15 @@ function writeEntryLocked(
   }
 
   let nextMeta = persistSlot(root, slot.meta, body);
+  let archivedTo: string | undefined;
 
   if (isFull(nextMeta)) {
     const compact = compactBody(body);
     if (compact.changed) {
+      // S5: la copie complete est ecrite AVANT la reduction — jamais de perte
+      // silencieuse (incident slot-005 du 2026-10-04). Chemin relatif a la
+      // racine memoire, remonte au caller via archivedTo.
+      archivedTo = archivePreCompact(root, nextMeta, body);
       body = compact.body;
       nextMeta = persistSlot(root, nextMeta, body);
       compacted = true;
@@ -822,12 +931,12 @@ function writeEntryLocked(
     index = upsertIndexSlot(index, nextMeta);
     index = upsertIndexSlot(index, rotatedMeta);
     index = writeIndex(root, index);
-    return { slot: rotatedMeta, rotated: true, compacted, created, confidence, index: withHeal(index) };
+    return { slot: rotatedMeta, rotated: true, compacted, archivedTo, created, confidence, index: withHeal(index) };
   }
 
   index = upsertIndexSlot(index, nextMeta);
   index = writeIndex(root, index);
-  return { slot: nextMeta, rotated: false, compacted, created, confidence, index: withHeal(index) };
+  return { slot: nextMeta, rotated: false, compacted, archivedTo, created, confidence, index: withHeal(index) };
 }
 
 export function listSlots(root?: string): MemoryIndex {
@@ -847,28 +956,36 @@ export function getSlot(id: string, root?: string): SlotFile {
 // Reconstruit les metadonnees depuis les fichiers slots, SANS lire l'index:
 // c'est exactement ce qui echouait quand l'index etait corrompu (bug revele
 // en S0, corrige ici — les fichiers .md font foi).
-function scanSlots(root: string): SlotMeta[] {
+function scanSlots(root: string, warnings?: string[]): SlotMeta[] {
   const dir = slotsDir(root);
   const files = existsSync(dir) ? readdirSync(dir).filter((name) => name.endsWith(".md")) : [];
   const slots: SlotMeta[] = [];
   for (const name of files) {
-    const raw = readFileSync(join(dir, name), "utf8");
-    const parsed = parseFrontmatter(raw);
-    const body = splitSections(parsed.body);
-    const id = parsed.meta.id ?? name.replace(/\.md$/, "").split("-").slice(0, 2).join("-");
-    const base = {
-      id,
-      title: parsed.meta.title ?? id,
-      description: parsed.meta.description ?? "",
-      created: parsed.meta.created ?? nowIso(),
-      limit_chars: parsed.meta.limit_chars ?? DEFAULT_LIMIT_CHARS,
-      limit_lines: parsed.meta.limit_lines ?? DEFAULT_LIMIT_LINES,
-      status: parsed.meta.status ?? ("active" as SlotStatus),
-      tags: parsed.meta.tags ?? [],
-      previous: parsed.meta.previous,
-      file: join(SLOTS_DIR, name)
-    };
-    slots.push(measure(base, body));
+    try {
+      const raw = readFileSync(join(dir, name), "utf8");
+      const parsed = parseFrontmatter(raw);
+      const body = splitSections(parsed.body);
+      const id = parsed.meta.id ?? name.replace(/\.md$/, "").split("-").slice(0, 2).join("-");
+      const base = {
+        id,
+        title: parsed.meta.title ?? id,
+        description: parsed.meta.description ?? "",
+        created: parsed.meta.created ?? nowIso(),
+        limit_chars: parsed.meta.limit_chars ?? DEFAULT_LIMIT_CHARS,
+        limit_lines: parsed.meta.limit_lines ?? DEFAULT_LIMIT_LINES,
+        status: parsed.meta.status ?? ("active" as SlotStatus),
+        tags: parsed.meta.tags ?? [],
+        previous: parsed.meta.previous,
+        file: join(SLOTS_DIR, name)
+      };
+      slots.push(measure(base, body));
+    } catch (error) {
+      // P1: un slot corrompu (EISDIR, UTF-8 casse...) n'arrete ni le heal ni
+      // le rebuild — on l'exclut du scan et on l'annonce via warnings plutot
+      // que de faire echouer toute la memoire du projet.
+      const reason = String((error as Error).message ?? error).slice(0, 120);
+      warnings?.push(`slot illisible exclu du scan: ${name} (${reason})`);
+    }
   }
   slots.sort((a, b) => a.id.localeCompare(b.id));
   return slots;
@@ -878,7 +995,9 @@ export function rebuildIndex(root: string): MemoryIndex {
   const release = acquireRootLock(root);
   try {
     ensureRootDirs(root);
-    return writeIndex(root, { version: 1, updated: nowIso(), slots: scanSlots(root) });
+    const warnings: string[] = [];
+    const written = writeIndex(root, { version: 1, updated: nowIso(), slots: scanSlots(root, warnings) });
+    return { ...written, ...(warnings.length > 0 ? { warnings } : {}) };
   } finally {
     release();
   }
@@ -929,6 +1048,8 @@ export type SlotSearchResult = {
   query: string;
   searched: number;
   hits: SlotSearchHit[];
+  /** P4: "fts" = candidats pris dans l'index SQLite; "files" = repli fichiers. */
+  engine?: "fts" | "files";
 };
 
 // S2: snippet = premiere ligne non vide dont le texte froisse contient un
@@ -956,7 +1077,7 @@ function buildSnippet(text: string, matched: string[]): string {
 export function searchSlots(
   root: string,
   query: string,
-  options: { limit?: number; includeArchived?: boolean } = {}
+  options: { limit?: number; includeArchived?: boolean; fts?: { dbPath: string } } = {}
 ): SlotSearchResult {
   const dir = root && root.length > 0 ? root : memoryRoot();
   const index = ensureMemoryRoot(dir);
@@ -964,10 +1085,39 @@ export function searchSlots(
   const includeArchived = options.includeArchived === true;
   const pool = index.slots.filter((slot) => (includeArchived ? true : slot.status === "active"));
 
+  // P4: retrieval via l'index SQLite si demande — candidats bm25 (x3), puis
+  // classement existant sur ce sous-ensemble (scores 0..1 preserves). Repli
+  // fichiers complet quand l'index est indisponible OU ne renvoie rien
+  // (parite de rappel: un match fold existerait aussi en prefixe FTS, donc
+  // l'ensemble vide repasse par le scan complet par prudence).
+  let engine: "fts" | "files" = "files";
+  let candidates: Set<string> | null = null;
+  if (options.fts) {
+    const fts = queryMemoryFts(
+      options.fts.dbPath,
+      dir,
+      query,
+      Math.min(Math.max(pool.length, 1), limit * 3),
+      {
+        includeArchived,
+        readBody: (slot) => {
+          const file = readSlot(dir, slot);
+          return `${file.body.summary}\n${file.body.details}`;
+        }
+      }
+    );
+    if (fts && fts.ids.length > 0) {
+      candidates = new Set(fts.ids);
+      engine = "fts";
+    }
+  }
+  const wanted = candidates;
+  const scanPool = wanted ? pool.filter((slot) => wanted.has(slot.id)) : pool;
+
   const docs: SlotDoc[] = [];
   const metaById = new Map<string, SlotMeta>();
   const textById = new Map<string, string>();
-  for (const meta of pool) {
+  for (const meta of scanPool) {
     let file: SlotFile;
     try {
       file = readSlot(dir, meta);
@@ -1001,7 +1151,55 @@ export function searchSlots(
       snippet: buildSnippet(textById.get(rankedSlot.id) ?? "", rankedSlot.matched)
     };
   });
-  return { root: dir, query: query.trim(), searched: pool.length, hits };
+  return { root: dir, query: query.trim(), searched: pool.length, hits, engine };
+}
+
+/**
+ * P4: re-synchro forcee de l'index derive SQLite (outil MCP memory_rebuild).
+ * Le markdown reste la source de verite; SQLite n'est qu'un reflet.
+ * `null` = index indisponible (l'outil le signale, rien d'autre n'echoue).
+ */
+export function rebuildFts(dbPath: string, root?: string): FtsSyncResult | null {
+  const dir = root && root.length > 0 ? root : memoryRoot();
+  try {
+    ensureMemoryRoot(dir);
+    return syncMemoryFts(dbPath, dir, (slot) => {
+      const file = readSlot(dir, slot);
+      return `${file.body.summary}\n${file.body.details}`;
+    });
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * P5 decay: trace la derniere consultation explicite (memory_get) dans
+ * index.json. Meilleure-effort: verrou court (250 ms), contention = simple
+ * absence d'ecriture — la lecture qui a appele cette fonction a deja reussi.
+ * L'auto-read du plugin (memory_search) ne compte pas: chemin chaud, une
+ * ecriture par prompt couterait plus qu'elle ne rapporte.
+ */
+export function touchSlotRead(root: string, id: string): void {
+  const dir = root && root.length > 0 ? root : memoryRoot();
+  let release: (() => void) | null = null;
+  try {
+    release = acquireRootLock(dir, 250);
+    const index = ensureMemoryRoot(dir);
+    const target = index.slots.find((slot) => slot.id === id);
+    if (!target) return;
+    const now = nowIso();
+    if (target.last_read === now) return;
+    index.slots = index.slots.map((slot) => (slot.id === id ? { ...slot, last_read: now } : slot));
+    writeIndex(dir, index);
+  } catch {
+    // E_LOCK ou ecriture refusee: pas de touch, jamais d'erreur propagee.
+  } finally {
+    try {
+      release?.();
+    } catch {
+      // Release best-effort.
+    }
+  }
 }
 
 function withHealFlag(value: MemoryIndex, healed: boolean): MemoryIndex {
@@ -1021,6 +1219,8 @@ export type SlotUpdateResult = {
   mode: SlotUpdateInput["mode"];
   updated: true;
   compacted: boolean;
+  /** S5: chemin (relatif a la racine memoire) de la copie complete ecrite AVANT compaction. */
+  archivedTo?: string;
   index: MemoryIndex;
 };
 
@@ -1071,9 +1271,13 @@ export function updateSlot(input: SlotUpdateInput): SlotUpdateResult {
 
     let nextMeta = persistSlot(root, meta, body);
     let compacted = false;
+    let archivedTo: string | undefined;
     if (isFull(nextMeta)) {
       const compact = compactBody(body);
       if (compact.changed) {
+        // S5: copie complete ecrite AVANT reduction — jamais de perte
+        // silencieuse (incident slot-005 du 2026-10-04), remontee via archivedTo.
+        archivedTo = archivePreCompact(root, nextMeta, body);
         body = compact.body;
         nextMeta = persistSlot(root, nextMeta, body);
         compacted = true;
@@ -1081,7 +1285,7 @@ export function updateSlot(input: SlotUpdateInput): SlotUpdateResult {
     }
 
     const nextIndex = writeIndex(root, upsertIndexSlot(index, nextMeta));
-    return { slot: nextMeta, mode, updated: true, compacted, index: withHealFlag(nextIndex, healed) };
+    return { slot: nextMeta, mode, updated: true, compacted, archivedTo, index: withHealFlag(nextIndex, healed) };
   } finally {
     release();
   }

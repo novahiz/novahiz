@@ -11,12 +11,15 @@ import { after, describe, test } from "node:test";
 
 import { DEFAULT_CONFIG, mergeConfig, type NovahizConfig } from "../src/spec.ts";
 import plugin, {
+  applyInjectionBudget,
   autoReadQuery,
   autoWriteTrigger,
   buildAutoReadLines,
   buildAutoWrite,
+  formatInheritance,
   isSpecConfigPath,
   mergeSummaryWindow,
+  pickInheritance,
   resolveMemoryAuto
 } from "../adapters/opencode/novahiz.ts";
 
@@ -35,7 +38,7 @@ describe("S-AUTO - bloc spec memory.auto (src/spec.ts)", () => {
     const auto = DEFAULT_CONFIG.memory.auto;
     assert.equal(auto.enabled, true);
     assert.deepEqual(auto.write, { todoDone: true, review: true, taskEnd: true, compaction: true, spec: true });
-    assert.deepEqual(auto.read, { k: 3, minScore: 0.25, antiRepetition: true, postCompaction: true });
+    assert.deepEqual(auto.read, { k: 3, minScore: 0.25, antiRepetition: true, postCompaction: true, budgetTokens: 1500 });
   });
 
   test("mergeConfig: config absente -> defauts intacts", () => {
@@ -115,7 +118,7 @@ describe("S-AUTO - kill-switch NOVAHIZ_MEM_AUTO (resolveMemoryAuto)", () => {
 });
 
 describe("S-AUTO - injection lecture (buildAutoReadLines)", () => {
-  const READ = { k: 3, minScore: 0.25, antiRepetition: true, postCompaction: true };
+  const READ = { k: 3, minScore: 0.25, antiRepetition: true, postCompaction: true, budgetTokens: 1500 };
   const hit = (id: string, score: number, title = id, snippet = "note") => ({ id, score, title, snippet });
 
   test("k=3: au plus 3 resumes au-dessus du seuil, entetes + directive", () => {
@@ -311,6 +314,131 @@ describe("S-AUTO - triggers d'ecriture deterministes", () => {
     assert.deepEqual(fact.tags, ["auto", "spec"]);
     assert.doesNotMatch(fact.content, PLACEHOLDER);
   });
+
+  test("P2: la provenance (session/tache/date) ouvre chaque entree auto", () => {
+    const done = buildAutoWrite(
+      "todoDone",
+      { id: "todo_1", task_id: "task_1", label: "S1 lock", proof: "ok" },
+      { sessionID: "ses_x" }
+    );
+    assert.ok(done);
+    assert.match(done.content.split("\n")[0], /^Provenance: session ses_x \| tache task_1 \| \d{4}-\d{2}-\d{2}T/);
+
+    const review = buildAutoWrite(
+      "review",
+      { revision: 3, task: { id: "task_1", title: "Memoire" } },
+      { sessionID: "ses_x" }
+    );
+    assert.ok(review);
+    assert.match(review.content.split("\n")[0], /^Provenance: session ses_x \| tache task_1 \| \d{4}-\d{2}-\d{2}T/);
+
+    const spec = buildAutoWrite("spec", { path: "novahiz.config.json", tool: "edit" }, { sessionID: "ses_x" });
+    assert.ok(spec);
+    assert.match(spec.content.split("\n")[0], /^Provenance: session ses_x \| \d{4}-\d{2}-\d{2}T/);
+  });
+});
+
+describe("P3 - heritage inter-sessions + budget de tokens", () => {
+  const READ_FULL = { k: 3, minScore: 0.25, antiRepetition: true, postCompaction: true, budgetTokens: 1500 };
+  const slot = (id: string, title: string, updated: string, extra: Record<string, unknown> = {}) => ({
+    id,
+    title,
+    updated,
+    status: "active",
+    tags: [],
+    file: `slots/${id}-x.md`,
+    ...extra
+  });
+
+  test("pickInheritance: recent d'abord (top 3), regles durables isolees, non-active exclues", () => {
+    const slots = [
+      slot("slot-001", "note ordinaire", "2026-01-01T00:00:00.000Z"),
+      slot("slot-002", "regle-durable: toujours tester", "2026-01-02T00:00:00.000Z"),
+      slot("slot-003", "note recente", "2026-10-01T00:00:00.000Z"),
+      slot("slot-004", "ancien archive", "2025-01-01T00:00:00.000Z", { status: "archived" }),
+      slot("slot-005", "note avec tag", "2026-10-02T00:00:00.000Z", { tags: ["règle-durable"] }),
+      slot("slot-006", "note plus recente", "2026-10-03T00:00:00.000Z"),
+      slot("slot-007", "note en tete", "2026-10-04T00:00:00.000Z")
+    ];
+    const { recent, rules } = pickInheritance(slots);
+    assert.deepEqual(
+      recent.map((entry) => entry.id),
+      ["slot-007", "slot-006", "slot-003"],
+      "top 3 par updated decroissant, hors regles et hors archives"
+    );
+    assert.deepEqual(
+      rules.map((entry) => entry.id),
+      ["slot-002", "slot-005"],
+      "regles durables detectees par titre OU tags, graphies accentuees comprise"
+    );
+  });
+
+  test("formatInheritance: sections, provenance session, jamais au-dela du budget", () => {
+    const recent = [
+      { id: "slot-008", title: "T5 migration", updated: "2026-10-03T12:00:00.000Z", session: "ses_abc" },
+      { id: "slot-007", title: "Plan", updated: "2026-10-02T12:00:00.000Z" }
+    ];
+    const rules = [{ id: "slot-002", title: "regle-durable: tester" }];
+    const lines = formatInheritance(recent, rules, 4000);
+    assert.match(lines[0], /^Heritage des sessions precedentes/);
+    assert.ok(lines.some((line) => line.includes("slot-008 (2026-10-03, ses_abc)")), "provenance session incluse");
+    assert.ok(lines.some((line) => line.includes("slot-007 (2026-10-02)")), "date seule sans provenance");
+    assert.ok(lines.some((line) => line.includes("Regles durables:")), "section regles presente");
+    assert.ok(lines.some((line) => line.includes("slot-002")), "regle durablee injectee");
+    // Budget serr: les entrees s'arretent avant le depasseement.
+    const tiny = formatInheritance(recent, rules, 80);
+    const used = tiny.reduce((sum, line) => sum + line.length + 1, 0);
+    assert.ok(used <= 80, `budget depasse: ${used}`);
+    assert.ok(tiny.length >= 1, "au moins l'en-tete passe");
+    // Rien a heriter -> rien a injecter.
+    assert.deepEqual(formatInheritance([], [], 4000), []);
+  });
+
+  test("applyInjectionBudget: ordre conserve, arret au premier depassement", () => {
+    const lines = ["a", "bb", "ccc", "dddd"];
+    assert.deepEqual(applyInjectionBudget(lines, 100), lines, "tout tient");
+    assert.deepEqual(applyInjectionBudget(lines, 7), ["a", "bb"], "2+3=5 tient, +4=9 depasse");
+    assert.deepEqual(applyInjectionBudget(lines, 1), [], "rien ne tient");
+  });
+
+  test("buildAutoReadLines(maxChars): details tronquees, ids alignes, entete reflete l'effectif", () => {
+    const hits = [
+      { id: "slot-001", score: 0.9, title: "T1", snippet: "note" },
+      { id: "slot-002", score: 0.6, title: "T2", snippet: "note" },
+      { id: "slot-003", score: 0.5, title: "T3", snippet: "note" }
+    ];
+    const all = buildAutoReadLines(hits, READ_FULL, new Set());
+    assert.equal(all.details.length, 3);
+    const cut = all.details[0].length + 1 + all.details[1].length + 1;
+    const trimmed = buildAutoReadLines(hits, READ_FULL, new Set(), cut);
+    assert.equal(trimmed.details.length, 2, "3e ligne hors budget");
+    assert.deepEqual(trimmed.injectedIds, ["slot-001", "slot-002"], "ids alignes sur les lignes conservees");
+    assert.match(trimmed.lines[0], /auto-injected summaries \(2\/3, minScore 0\.25\)/);
+    assert.match(trimmed.lines[trimmed.lines.length - 1], /^Directive: /, "la directive lazy reste");
+  });
+
+  test("resolveMemoryAuto: budgetTokens 1500 par defaut, sur-mesure, hors bornes retombe", () => {
+    const def = resolveMemoryAuto(undefined, undefined);
+    assert.ok(def);
+    assert.equal(def.read.budgetTokens, 1500);
+    const custom = resolveMemoryAuto({ auto: { read: { budgetTokens: 900 } } }, undefined);
+    assert.ok(custom);
+    assert.equal(custom.read.budgetTokens, 900);
+    for (const bad of [50, 9999, Number.NaN, "1500"]) {
+      const resolved = resolveMemoryAuto({ auto: { read: { budgetTokens: bad } } }, undefined);
+      assert.ok(resolved);
+      assert.equal(resolved.read.budgetTokens, 1500, `hors bornes: ${String(bad)}`);
+    }
+  });
+
+  test("spec.ts: budgetTokens reflete dans mergeConfig (miroir plugin)", () => {
+    const custom = mergeConfig(rawConfig({ memory: { auto: { read: { budgetTokens: 700 } } } }));
+    assert.equal(custom.memory.auto.read.budgetTokens, 700);
+    const outOfRange = mergeConfig(rawConfig({ memory: { auto: { read: { budgetTokens: 42 } } } }));
+    assert.equal(outOfRange.memory.auto.read.budgetTokens, 1500);
+    const absent = mergeConfig(rawConfig({}));
+    assert.equal(absent.memory.auto.read.budgetTokens, 1500);
+  });
 });
 
 describe("S-AUTO - plugin importable", () => {
@@ -328,8 +456,16 @@ describe("S-AUTO - MCP one-shot (--call)", () => {
     rmSync(cwd, { recursive: true, force: true });
   });
 
+  // NOVAHIZ_DB isole la DB des tests: memory_search indexe (P4) dans SQLite
+  // et la ledger reelle ne doit recevoir aucune ligne de ces appels.
   const call = (tool: string, input: string) =>
-    spawnSync(process.execPath, [MCP, "--call", tool], { encoding: "utf8", input, cwd, timeout: 60_000 });
+    spawnSync(process.execPath, [MCP, "--call", tool], {
+      encoding: "utf8",
+      input,
+      cwd,
+      env: { ...process.env, NOVAHIZ_DB: join(cwd, "fts.sqlite") },
+      timeout: 60_000
+    });
 
   test("memory_write cree un slot sous cwd/project-memory", () => {
     const res = call("memory_write", JSON.stringify({ title: "Auto probe", content: "fait observe en session", tags: ["auto"] }));

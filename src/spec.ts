@@ -132,6 +132,9 @@ export type MemoryAutoReadConfig = {
   minScore: number;
   antiRepetition: boolean;
   postCompaction: boolean;
+  // P3: plafond d'injection par session en tokens (~4 chars/token), heritage
+  // sessions precedentes + resumes de pertinence compris. Defaut 1500 tokens.
+  budgetTokens: number;
 };
 
 export type MemoryAutoConfig = {
@@ -239,7 +242,8 @@ export const DEFAULT_CONFIG: NovahizConfig = {
         k: 3,
         minScore: 0.25,
         antiRepetition: true,
-        postCompaction: true
+        postCompaction: true,
+        budgetTokens: 1500
       }
     }
   }
@@ -349,7 +353,11 @@ export function mergeConfig(raw: Partial<NovahizConfig> | null | undefined): Nov
         ? readSource.minScore
         : DEFAULT_CONFIG.memory.auto.read.minScore,
     antiRepetition: typeof readSource.antiRepetition === "boolean" ? readSource.antiRepetition : DEFAULT_CONFIG.memory.auto.read.antiRepetition,
-    postCompaction: typeof readSource.postCompaction === "boolean" ? readSource.postCompaction : DEFAULT_CONFIG.memory.auto.read.postCompaction
+    postCompaction: typeof readSource.postCompaction === "boolean" ? readSource.postCompaction : DEFAULT_CONFIG.memory.auto.read.postCompaction,
+    budgetTokens:
+      typeof readSource.budgetTokens === "number" && Number.isFinite(readSource.budgetTokens) && readSource.budgetTokens >= 100 && readSource.budgetTokens <= 4000
+        ? Math.trunc(readSource.budgetTokens)
+        : DEFAULT_CONFIG.memory.auto.read.budgetTokens
   };
   const memory: MemoryConfig = {
     auto: {

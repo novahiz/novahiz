@@ -14,14 +14,18 @@ Tools:
 - `novahiz_deps` reports provider dependency status.
 - `novahiz_task` drives the durable task ledger (create, plan, todo, start, done, block, review, amend, insert, drop, reorder, signals, status, resume, current).
 - `novahiz_dispatch` turns pending todos into work packets and reports file-ownership conflicts.
-- `memory_init` creates the `project-memory/` skeleton (index + slots) under a project root.
+- `memory_init` creates the `project-memory/` skeleton (index + slots) under the resolved memory dir.
 - `memory_list` lists project-memory slots from `index.json`, with optional `status` / `tag` / `limit` filters and `preview` summaries.
-- `memory_get` reads one slot (frontmatter, Résumé, Détails) — `section=meta|summary` returns only part of it.
-- `memory_search` ranks slots against a free-text query (fold + IDF over title, description, tags, Résumé, Détails) and returns scored results with `confidence` and a `snippet`.
-- `memory_write` appends a dated entry to the matching slot, rotating when full; routing weighs stopwords-filtered tokens, IDF over active slots and the Résumé; identical blocks are deduplicated (`duplicate: true`); the result exposes routing `confidence` (`high` / `medium` / `low`).
-- `memory_update` edits an existing slot (`replace` / `append` on Détails, `summary` rewrites the bounded Résumé) — archived slots are refused.
+- `memory_get` reads one slot (frontmatter, Résumé, Détails) — `section=meta|summary` returns only part of it; it also stamps `last_read` on the slot (best-effort, non-blocking), the data source for `novahiz memory prune --decay`.
+- `memory_search` ranks slots against a free-text query: candidates come from the SQLite FTS5 index in `novahiz.sqlite` (derived and rebuildable; response field `engine: "fts"`) with automatic fallback to the full fold + IDF file scan (`engine: "files"`); ranking stays fold + IDF over title, description, tags, Résumé, Détails, returning `confidence` and `snippet`.
+- `memory_write` appends a dated entry to the matching slot, rotating when full; routing weighs stopwords-filtered tokens, IDF over active slots and the Résumé; identical blocks are deduplicated (`duplicate: true`); the result exposes routing `confidence` (`high` / `medium` / `low`); when the slot is compacted, the complete body is copied to `slots/archive/<id>-precompact-<ts>.md` **before** any reduction and the response carries `archivedTo`.
+- `memory_update` edits an existing slot (`replace` / `append` on Détails, `summary` rewrites the bounded Résumé) — archived slots are refused; the same pre-compact archive applies (`archivedTo`).
 - `memory_archive` marks a slot as archived (idempotent, no data deletion; skipped by routing and search unless `includeArchived`).
-- `memory_rebuild` regenerates `index.json` from the slot markdown files.
+- `memory_rebuild` regenerates `index.json` from the slot markdown files (files under `slots/archive/` are never scanned) and then re-syncs the derived SQLite FTS5 index (`fts.synced` on the response; markdown stays the source of truth).
+
+Root contract for every `memory_*` tool (honest schema): `root` may be the project root **or** the memory dir itself (default cwd) — it is resolved to `<root>/project-memory`, a legacy layout (`index.json` + `slots/`) is accepted as-is. A path outside the workspace never fails the call: it **degrades** to the workspace memory instead (`degraded: true` + `degradeReason` on the response, no write ever happens outside the workspace). Every `memory_*` response echoes the resolved `root` that was actually used.
+
+Graceful degradation (P1): a lock still held after the core's long wait (10s) queues the operation in `<memory>/.pending/` (`pending: true`) instead of failing — the queue is replayed ahead of every mutating `memory_*` call and the response reports `pendingReplayed` / `pendingFailed`. Unexpected OS errors (EPERM, ENOTDIR…) return `degraded: true` + `failed: true` + `error` instead of a protocol error (`E_SLOT` / `E_CONTENT` stay clear failures). Unreadable slot files are skipped by heal/rebuild and listed under `warnings`.
 - `snap_log` lists ledger snapshots newest first (or one manifest, by id or unambiguous prefix).
 - `snap_status` reports the snapshot store: location, count, newest snapshot, size, retention, deferred captures.
 - `snap_diff` compares a snapshot with another snapshot or the live ledger, row by row — read-only.

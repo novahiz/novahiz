@@ -388,6 +388,9 @@ type MemoryAutoReadConfig = {
   minScore: number;
   antiRepetition: boolean;
   postCompaction: boolean;
+  // P3: plafond d'injection par session en tokens (~4 chars/token), heritage
+  // sessions precedentes + resumes de pertinence compris. Defaut 1500.
+  budgetTokens: number;
 };
 type MemoryAutoConfig = {
   enabled: boolean;
@@ -404,9 +407,9 @@ type NovahizConfig = { gate?: GateConfig; memory?: unknown };
  *   (meme vocabulaire que NOVAHIZ_GATE; la config ne peut pas le requalifier).
  * - memory.auto.enabled === false → null (desactivation explicite).
  * - sinon defauts full-on: T1-T5 tous actifs, lecture k=3 minScore=0.25
- *   anti-repetition + re-injection post-compaction — miroir de
- *   DEFAULT_CONFIG.memory.auto (src/spec.ts); le plugin installe ne peut pas
- *   resoudre ../../src/*, donc les defauts sont enonces ici aussi.
+ *   anti-repetition + re-injection post-compaction + budget 1500 tokens —
+ *   miroir de DEFAULT_CONFIG.memory.auto (src/spec.ts); le plugin installe
+ *   ne peut pas resoudre ../../src/*, donc les defauts sont enonces ici aussi.
  * - toute valeur absente ou hors bornes retombe sur le defaut: une config
  *   corrompue ne desactive ni ne rend bruyant l'auto par accident.
  */
@@ -431,7 +434,8 @@ export function resolveMemoryAuto(raw: unknown, envValue: string | undefined): M
     k: inRange(readRaw.k, 1, 20) ? Math.trunc(readRaw.k) : 3,
     minScore: inRange(readRaw.minScore, 0, 1) ? readRaw.minScore : 0.25,
     antiRepetition: bool(readRaw.antiRepetition, true),
-    postCompaction: bool(readRaw.postCompaction, true)
+    postCompaction: bool(readRaw.postCompaction, true),
+    budgetTokens: inRange(readRaw.budgetTokens, 100, 4000) ? Math.trunc(readRaw.budgetTokens) : 1500
   };
   return { enabled: true, write, read };
 }
@@ -655,6 +659,9 @@ export function buildAutoWrite(
     return {
       title: `Todo done: ${label}`.slice(0, 200),
       content: [
+        // P2: provenance EN TETE de l'entree — qui, quoi, quand, lisible
+        // sans deplier le reste (standard handoff).
+        `Provenance: session ${session} | tache ${String(payload.task_id ?? "inconnu")} | ${iso}`,
         "T1 — capture automatique (todo done).",
         `todo: ${String(payload.id ?? "inconnu")}`,
         `tache: ${String(payload.task_id ?? "inconnu")}`,
@@ -675,6 +682,7 @@ export function buildAutoWrite(
     return {
       title: `Ledger review r${String(revision)}`.slice(0, 200),
       content: [
+        `Provenance: session ${session} | tache ${String(task.id ?? "inconnu")} | ${iso}`,
         "T2 — capture automatique (review du ledger).",
         `revision: ${String(revision)}`,
         `tache: ${String(task.id ?? "inconnu")} — ${String(task.title ?? "sans titre")}`,
@@ -691,6 +699,7 @@ export function buildAutoWrite(
   return {
     title: `Spec change: ${base}`.slice(0, 200),
     content: [
+      `Provenance: session ${session} | ${iso}`,
       "T5 — capture automatique (spec/config novahiz modifie).",
       `fichier: ${path}`,
       `outil: ${String(payload.tool ?? "edit")}`,
@@ -752,10 +761,110 @@ export function mergeSummaryWindow(
   return { ids, details };
 }
 
+// --- P3: heritage inter-sessions (injection au demarrage) -----------------
+// L'index porte id/title/updated/status/tags (SlotMeta, src/memory.ts); le
+// plugin installe ne resout pas ../../src/*, donc le type est re-declare ici.
+export type MemorySlotMeta = {
+  id?: unknown;
+  title?: unknown;
+  updated?: unknown;
+  status?: unknown;
+  tags?: unknown;
+  file?: unknown;
+};
+export type InheritanceEntry = { id: string; title: string; updated: string };
+export type RuleEntry = { id: string; title: string };
+
+// Regle durable = slot dont le titre ou les tags portent "regle-durable" ou
+// "rule-durable" (graphies sans accents, accord inclus via normalization).
+// Les slots non-active sortent de l'heritage: on ne ressuscite pas du mort.
+export function pickInheritance(slots: readonly MemorySlotMeta[]): {
+  recent: InheritanceEntry[];
+  rules: RuleEntry[];
+} {
+  const active: MemorySlotMeta[] = [];
+  for (const slot of slots) {
+    if (slot.status !== undefined && slot.status !== "active") continue;
+    if (typeof slot.id !== "string" || slot.id.length === 0) continue;
+    active.push(slot);
+  }
+  const rules: RuleEntry[] = [];
+  const rest: MemorySlotMeta[] = [];
+  for (const slot of active) {
+    const title = typeof slot.title === "string" && slot.title.length > 0 ? slot.title : String(slot.id);
+    const tags = Array.isArray(slot.tags)
+      ? slot.tags.filter((tag): tag is string => typeof tag === "string").join(" ")
+      : "";
+    const haystack = `${title} ${tags}`.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    if (haystack.includes("regle-durable") || haystack.includes("rule-durable")) {
+      rules.push({ id: String(slot.id), title });
+    } else {
+      rest.push(slot);
+    }
+  }
+  // Recent d'abord: updated decroissant, top 3 — au-delà, la recherche lazy
+  // (directive memory_search) couvre, le budget a un plafond a respecter.
+  rest.sort((a, b) => String(b.updated ?? "").localeCompare(String(a.updated ?? "")));
+  const recent = rest.slice(0, 3).map((slot) => ({
+    id: String(slot.id),
+    title: typeof slot.title === "string" && slot.title.length > 0 ? slot.title : String(slot.id),
+    updated: typeof slot.updated === "string" ? slot.updated : ""
+  }));
+  return { recent, rules: rules.slice(0, 3) };
+}
+
+// P3: format pur sous budget de caracteres — sections « recent d'abord » puis
+// « regles durables », jamais plus que maxChars. `session` (provenance) est
+// optionnel par entree: extrait de la 1re ligne « Provenance: » du slot si
+// l'ecriture etait auto (T1/T2/T5), absent sinon.
+export function formatInheritance(
+  recent: readonly (InheritanceEntry & { session?: string })[],
+  rules: readonly RuleEntry[],
+  maxChars: number
+): string[] {
+  if (recent.length === 0 && rules.length === 0) return [];
+  const lines: string[] = [];
+  let used = 0;
+  const push = (line: string): boolean => {
+    if (used + line.length + 1 > maxChars) return false;
+    lines.push(line);
+    used += line.length + 1;
+    return true;
+  };
+  if (recent.length > 0 && push("Heritage des sessions precedentes (recent d'abord):")) {
+    for (const entry of recent) {
+      const date = entry.updated.slice(0, 10);
+      const where = [date, entry.session].filter((part): part is string => Boolean(part)).join(", ");
+      if (!push(`  - ${entry.id}${where ? ` (${where})` : ""} — ${entry.title}`)) break;
+    }
+  }
+  if (rules.length > 0 && push("Regles durables:")) {
+    for (const entry of rules) {
+      if (!push(`  - ${entry.id} — ${entry.title}`)) break;
+    }
+  }
+  return lines;
+}
+
+// P3: plafond commun du bloc d'injection (~4 chars/token). On empile ligne a
+// ligne en gardant l'ordre (recent puis pertinent) et on s'arrete au premier
+// depassement: au-delà, la directive de recherche lazy reste la porte de sortie.
+export function applyInjectionBudget(lines: readonly string[], maxChars: number): string[] {
+  const kept: string[] = [];
+  let used = 0;
+  for (const line of lines) {
+    if (used + line.length + 1 > maxChars) break;
+    kept.push(line);
+    used += line.length + 1;
+  }
+  return kept;
+}
+
 export function buildAutoReadLines(
   hits: readonly AutoReadHit[],
   read: MemoryAutoReadConfig,
-  injected: ReadonlySet<string>
+  injected: ReadonlySet<string>,
+  maxChars: number = Number.POSITIVE_INFINITY
 ): { lines: string[]; injectedIds: string[]; details: string[] } {
   const kept: string[] = [];
   const detail: string[] = [];
@@ -773,10 +882,14 @@ export function buildAutoReadLines(
     seen.add(id);
   }
   if (kept.length === 0) return { lines: [], injectedIds: [], details: [] };
+  // P3: le budget de tokens porte sur les lignes de detail (en-tete et
+  // directive restent: fixes et courts). Les ids suivent les lignes conservees.
+  const trimmed = applyInjectionBudget(detail, maxChars);
+  if (trimmed.length === 0) return { lines: [], injectedIds: [], details: [] };
   return {
-    lines: [summaryHeader(kept.length, read), ...detail, MEMORY_READ_DIRECTIVE],
-    injectedIds: kept,
-    details: detail
+    lines: [summaryHeader(trimmed.length, read), ...trimmed, MEMORY_READ_DIRECTIVE],
+    injectedIds: kept.slice(0, trimmed.length),
+    details: trimmed
   };
 }
 
@@ -871,6 +984,10 @@ async function setup(ctx: Context): Promise<Cleanup> {
   const lastPromptBySession = new Map<string, string>();
   const directivesBySession = new Map<string, string[]>();
   const summaryChunkBySession = new Map<string, string[]>();
+  // P3: bloc d'heritage construit UNE fois au demarrage de la session (premier
+  // prompt), re-emis ensuite a chaque prompt — la memoire des sessions
+  // precedentes du projet ne disparait pas du bloc reconstruit.
+  const inheritanceBySession = new Map<string, string[]>();
   const taskEndDirectiveBySession = new Set<string>();
   const SESSION_TTL_MS = 4 * 60 * 60 * 1000;
 
@@ -896,6 +1013,7 @@ async function setup(ctx: Context): Promise<Cleanup> {
     lastPromptBySession.delete(sessionID);
     directivesBySession.delete(sessionID);
     summaryChunkBySession.delete(sessionID);
+    inheritanceBySession.delete(sessionID);
     // Gate reload keys are prefixed with the session ID — drop them too.
     for (const key of repairAttemptsBySession.keys()) {
       if (key.startsWith(`${sessionID}|`)) repairAttemptsBySession.delete(key);
@@ -965,7 +1083,7 @@ async function setup(ctx: Context): Promise<Cleanup> {
     taskEndDirectiveBySession.add(key);
     appendDirective(
       sessionID,
-      `Task ${taskId} finished (${status}) — synthesis directive (T3): write the session outcome to project-memory now (memory_write): decisions, proofs, next steps.`
+      `Task ${taskId} finished (${status}) — synthesis directive (T3): write ONE structured handoff entry to project-memory now (memory_write), provenance (session + date) first, then four sections: ## Decisions / ## Details techniques / ## Questions ouvertes / ## Prochaines etapes (agent-handoff standard).`
     );
     void log("info", `task end directive posted (T3) for ${taskId}: ${status}`);
   };
@@ -976,6 +1094,29 @@ async function setup(ctx: Context): Promise<Cleanup> {
   // n'est jamais injecte deux fois, mais il ne disparait pas au prompt
   // suivant. Retourne le chunk complet a pousser et le nombre de nouveaux
   // ids (log d'observation). Pas de spawn si le project-memory est vide.
+  // P3: bloc d'heritage au demarrage — partition pure (pickInheritance) puis
+  // provenance session lue sur la 1re ligne des slots recents ("Provenance: "
+  // posee par T1/T2/T5, absente sinon). Construit UNE fois, re-emis ensuite.
+  const buildInheritanceBlock = (slots: readonly MemorySlotMeta[], maxChars: number): string[] => {
+    try {
+      const picked = pickInheritance(slots);
+      const recent = picked.recent.map((entry) => {
+        const file = slots.find((slot) => slot.id === entry.id)?.file;
+        if (typeof file !== "string" || file.length === 0) return entry;
+        try {
+          const firstLine = readFileSync(join(process.cwd(), "project-memory", file), "utf8").split("\n", 1)[0] ?? "";
+          const match = /^Provenance: session (\S+)/.exec(firstLine);
+          return match ? { ...entry, session: match[1] } : entry;
+        } catch {
+          return entry;
+        }
+      });
+      return formatInheritance(recent, picked.rules, maxChars);
+    } catch {
+      return [];
+    }
+  };
+
   const buildAutoRead = (
     sessionID: string,
     query: string
@@ -985,17 +1126,29 @@ async function setup(ctx: Context): Promise<Cleanup> {
       let state: { ids: string[]; details: string[] } = autoReadBySession.get(sessionID) ?? { ids: [], details: [] };
       let newCount = 0;
       let active = 0;
+      let slots: MemorySlotMeta[] = [];
       try {
         const index = JSON.parse(readFileSync(join(process.cwd(), "project-memory", "index.json"), "utf8")) as {
           slots?: unknown;
         };
-        active = Array.isArray(index.slots)
-          ? index.slots.filter(
-              (slot) => slot && typeof slot === "object" && (slot as { status?: unknown }).status !== "archived"
-            ).length
-          : 0;
+        slots = Array.isArray(index.slots)
+          ? index.slots.filter((slot): slot is MemorySlotMeta => Boolean(slot) && typeof slot === "object")
+          : [];
+        active = slots.filter((slot) => slot.status !== "archived").length;
       } catch {
         active = 0;
+        slots = [];
+      }
+      // P3: plafond d'injection (~4 chars/token) — heritage d'abord (demarrage
+      // de session), puis la fenetre de resumes dans le reliquat de budget.
+      const budgetChars = MEMORY_AUTO.read.budgetTokens * 4;
+      let inherit = inheritanceBySession.get(sessionID);
+      if (!inherit) {
+        inherit = buildInheritanceBlock(slots, budgetChars);
+        // On ne fige que ce qui a reussi: un index illisible au premier
+        // prompt ne condamne pas la session — le build reprend au prompt
+        // suivant, idempotent et peu couteux, jusqu'au premier succes.
+        if (inherit.length > 0) inheritanceBySession.set(sessionID, inherit);
       }
       if (active > 0) {
         const limit = Math.min(20, Math.max(MEMORY_AUTO.read.k * 3, 6));
@@ -1026,11 +1179,16 @@ async function setup(ctx: Context): Promise<Cleanup> {
         void log("info", "memory auto-read: no active slots in project-memory/index.json");
       }
       autoReadBySession.set(sessionID, state);
-      if (state.details.length === 0) return { lines: [], newCount };
-      return {
-        lines: [summaryHeader(state.details.length, MEMORY_AUTO.read), ...state.details, MEMORY_READ_DIRECTIVE],
-        newCount
-      };
+      const inheritUsed = inherit.reduce((sum, line) => sum + line.length + 1, 0);
+      const keptDetails = applyInjectionBudget(state.details, Math.max(0, budgetChars - inheritUsed));
+      const lines = [...inherit];
+      if (keptDetails.length > 0) {
+        lines.push(summaryHeader(keptDetails.length, MEMORY_AUTO.read), ...keptDetails);
+      }
+      // La directive de recherche lazy reste toujours quand un bloc existe:
+      // c'est la porte de sortie au-dela du budget (recherche lazy P3).
+      if (lines.length > 0) lines.push(MEMORY_READ_DIRECTIVE);
+      return { lines, newCount };
     } catch (error) {
       void log("info", `memory auto-read failed: ${String(error).slice(0, 200)}`);
       return { lines: [], newCount: 0 };

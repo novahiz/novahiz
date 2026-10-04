@@ -47,6 +47,7 @@
     "bootstrap": "node install/bootstrap.mjs",
     "bootstrap:dry": "node install/bootstrap.mjs --dry-run",
     "test": "node --experimental-strip-types --test",
+    "bench": "node --experimental-strip-types tests/bench-memory.ts",
     "ci:local": "node scripts/ci-local.mjs",
     "typecheck": "tsc --noEmit",
     "prepare": "tsc --noEmit && tsc -p tsconfig.build.json",

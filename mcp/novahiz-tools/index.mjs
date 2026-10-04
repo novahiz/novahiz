@@ -2,7 +2,7 @@
 import { createInterface } from "node:readline";
 import { pathToFileURL } from "node:url";
 import { resolve, sep } from "node:path";
-import { readFileSync, realpathSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, readdirSync, realpathSync, unlinkSync, writeFileSync } from "node:fs";
 import { classify } from "../../src/classify.ts";
 import { enforceLedgerChecks, evaluateGate } from "../../src/gate.ts";
 import { loadSpec } from "../../src/spec.ts";
@@ -14,18 +14,122 @@ import { graphFileApi, graphFind, graphFindAll, graphFreshness, graphRepoMap, gr
 import { enabledProviders } from "../../src/providers.ts";
 import { checkDependencies } from "../../src/deps.ts";
 import { activeTask, addTodos, amendTodo, blockTodo, buildWorkPackets, completeTodo, createTask, dropTask, dropTodo, getTask, getTodo, insertTodo, ledgerSummary, listTodos, parseReviewDiff, recordTodoDone, reorderTodos, resume, reviewDue, reviewTask, revisionSignals, startTodo } from "../../src/ledger.ts";
-import { DEFAULT_LIMIT_CHARS, DEFAULT_LIMIT_LINES, archiveSlot, ensureMemoryRoot, getSlot, listSlots, memoryRoot, parseSlotInput, rebuildIndex, searchSlots, updateSlot, writeEntry } from "../../src/memory.ts";
+import { DEFAULT_LIMIT_CHARS, DEFAULT_LIMIT_LINES, archiveSlot, ensureMemoryRoot, getSlot, listSlots, parseSlotInput, rebuildFts, rebuildIndex, resolveMemoryDir, searchSlots, touchSlotRead, updateSlot, writeEntry } from "../../src/memory.ts";
 
-// A memory root must stay inside the workspace: memory_* used to create
-// project-memory/ directories anywhere the caller named (audit P1-D/M4).
+// --- P1 degradation gracieuse: la memoire ne bloque jamais l'agent ---------
+// Le schema annonce la racine projet ou le dossier memoire (canonique
+// prioritaire, ancien layout legacy accepte) — la resolution vit dans le coeur
+// (resolveMemoryDir, src/memory.ts) pour rester testable. Quand root pointe
+// HORS workspace, l'appel n'echoue pas: il degrade vers la memoire du
+// workspace (jamais d'ecriture hors workspace) et l'info part en reponse via
+// decorate(). Retourne le DOSSIER MEMOIRE resolu, jamais le projet tel quel.
+let degradedRoot = null;
+let lastDrain = null;
+
 function safeMemoryRoot(raw) {
-  const base = typeof raw === "string" && raw.length > 0 ? raw : memoryRoot();
-  const abs = resolve(base);
-  const ws = resolve(process.cwd());
-  if (abs !== ws && !abs.startsWith(ws + sep)) {
-    throw new Error("Invalid params: memory root outside the workspace");
+  try {
+    return resolveMemoryDir(raw, process.cwd()).dir;
+  } catch (error) {
+    if (error?.code !== "E_ROOT") throw error;
+    const fallback = resolveMemoryDir(undefined, process.cwd()).dir;
+    degradedRoot = { root: fallback, reason: String(error?.message ?? error) };
+    return fallback;
   }
-  return abs;
+}
+
+// File .pending: quand le verrou racine est encore pris apres l'attente longue
+// du coeur (10s), l'ecriture est METTEE EN FILE au lieu d'echouer; chaque
+// appel memory_* rejoue la file avant sa propre execution. Zero perte, zero
+// E_LOCK visible pour l'agent.
+const PENDING_DIR = ".pending";
+
+function pendingDir(root) {
+  return resolve(root, PENDING_DIR);
+}
+
+function enqueuePending(root, name, args) {
+  const dir = pendingDir(root);
+  if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+  const file = resolve(dir, `${Date.now()}-${process.pid}-${Math.random().toString(16).slice(2, 8)}.json`);
+  writeFileSync(file, JSON.stringify({ name, args, root, ts: Date.now() }), "utf8");
+  return file;
+}
+
+let draining = false;
+
+function drainPending(root) {
+  if (draining) return { replayed: 0, failed: 0 };
+  const dir = pendingDir(root);
+  if (!existsSync(dir)) return { replayed: 0, failed: 0 };
+  draining = true;
+  let replayed = 0;
+  let failed = 0;
+  try {
+    const files = readdirSync(dir).filter((name) => name.endsWith(".json")).sort();
+    for (const file of files) {
+      const path = resolve(dir, file);
+      let entry;
+      try {
+        entry = JSON.parse(readFileSync(path, "utf8"));
+      } catch {
+        // Entree illisible: retiree (aucune boucle possible), comptee en echec.
+        try { unlinkSync(path); } catch { /* deja partie */ }
+        failed += 1;
+        continue;
+      }
+      // Retirer AVANT application: un crash pendant le replay ne rejoue pas
+      // en boucle; l'operation est soit appliquee, soit perdue en .failed
+      // consultable — jamais appliquee deux fois par accident.
+      try { unlinkSync(path); } catch { continue; }
+      try {
+        callTool(entry.name, entry.args);
+        replayed += 1;
+      } catch (error) {
+        if (error?.code === "E_LOCK") {
+          // Verrou toujours pris: on remet l'entree et on arrete le drain.
+          try { writeFileSync(path, JSON.stringify(entry), "utf8"); } catch { /* EPERM: perdue, tracee ci-dessous */ }
+          break;
+        }
+        // Echec de l'operation rejouee (slot parti, contenu invalide...):
+        // conserve sous failed-*.json pour audit, jamais rejoue en boucle.
+        try {
+          writeFileSync(resolve(dir, `failed-${file}`), JSON.stringify({ ...entry, error: String(error?.message ?? error) }), "utf8");
+        } catch { /* EPERM: tracee en memoire only */ }
+        failed += 1;
+      }
+    }
+  } finally {
+    draining = false;
+  }
+  return { replayed, failed };
+}
+
+// Attache aux reponses memoire les drapeaux P1: degraded (fallback root) et
+// le bilan de drain. Les cles sont omises quand rien a signaler (JSON sans
+// champs parasites).
+function decorate(result) {
+  const info = degradedRoot;
+  const drain = lastDrain;
+  degradedRoot = null;
+  lastDrain = null;
+  if (!info && !drain) return result;
+  try {
+    const text = result?.content?.[0]?.text;
+    if (typeof text !== "string") return result;
+    const payload = JSON.parse(text);
+    if (info) {
+      payload.degraded = true;
+      payload.degradeReason = info.reason;
+      if (payload.root === undefined) payload.root = info.root;
+    }
+    if (drain && (drain.replayed > 0 || drain.failed > 0)) {
+      payload.pendingReplayed = drain.replayed;
+      payload.pendingFailed = drain.failed;
+    }
+    return { ...result, content: [{ ...result.content[0], text: JSON.stringify(payload) }] };
+  } catch {
+    return result;
+  }
 }
 
 const SUPPORTED_PROTOCOLS = ["2024-11-05", "2025-06-18"];
@@ -182,7 +286,7 @@ const TOOLS = [
         description: { type: "string", description: "Slot description when creating." },
         tags: { type: "array", items: { type: "string" } },
         slotId: { type: "string", description: "Force a target slot id instead of relatedness." },
-        root: { type: "string", description: "Project root containing project-memory (default cwd)." }
+        root: { type: "string", description: "Project root or memory dir (default cwd): resolved to <root>/project-memory; a legacy layout (index.json + slots/) is accepted as-is; outside the workspace -> degrades to the workspace memory (degraded: true on the response)." }
       },
       required: ["title", "content"]
     }
@@ -197,7 +301,7 @@ const TOOLS = [
         mode: { type: "string", enum: ["replace", "append", "summary"], description: "replace/append edit Détails, summary rewrites Résumé." },
         content: { type: "string", description: "Markdown body for Détails (replace/append)." },
         summary: { type: "string", description: "New Résumé (mode=summary only)." },
-        root: { type: "string", description: "Project root containing project-memory (default cwd)." }
+        root: { type: "string", description: "Project root or memory dir (default cwd): resolved to <root>/project-memory; a legacy layout (index.json + slots/) is accepted as-is; outside the workspace -> degrades to the workspace memory (degraded: true on the response)." }
       },
       required: ["id", "mode"]
     }
@@ -209,7 +313,7 @@ const TOOLS = [
       type: "object",
       properties: {
         id: { type: "string", description: "Slot id to archive, e.g. slot-001." },
-        root: { type: "string", description: "Project root containing project-memory (default cwd)." }
+        root: { type: "string", description: "Project root or memory dir (default cwd): resolved to <root>/project-memory; a legacy layout (index.json + slots/) is accepted as-is; outside the workspace -> degrades to the workspace memory (degraded: true on the response)." }
       },
       required: ["id"]
     }
@@ -220,7 +324,7 @@ const TOOLS = [
     inputSchema: {
       type: "object",
       properties: {
-        root: { type: "string", description: "Project root containing project-memory (default cwd)." },
+        root: { type: "string", description: "Project root or memory dir (default cwd): resolved to <root>/project-memory; a legacy layout (index.json + slots/) is accepted as-is; outside the workspace -> degrades to the workspace memory (degraded: true on the response)." },
         status: { type: "string", enum: ["active", "archived", "all"], description: "Filter by slot status (default all)." },
         tag: { type: "string", description: "Keep slots carrying this tag (case-insensitive)." },
         limit: { type: "number", description: "Return at most this many slots (default: no limit)." },
@@ -230,12 +334,12 @@ const TOOLS = [
   },
   {
     name: "memory_get",
-    description: "Read one project-memory slot: full body by default, or only meta / only Résumé via section.",
+    description: "Read one project-memory slot: full body by default, or only meta / only Résumé via section. Traces last_read on the slot (best-effort) — the decay data source for `novahiz memory prune --decay`.",
     inputSchema: {
       type: "object",
       properties: {
         id: { type: "string", description: "Slot id, e.g. slot-001." },
-        root: { type: "string", description: "Project root containing project-memory (default cwd)." },
+        root: { type: "string", description: "Project root or memory dir (default cwd): resolved to <root>/project-memory; a legacy layout (index.json + slots/) is accepted as-is; outside the workspace -> degrades to the workspace memory (degraded: true on the response)." },
         section: { type: "string", enum: ["full", "meta", "summary"], description: "Part to return: full (default), meta, or summary (Résumé only)." }
       },
       required: ["id"]
@@ -243,12 +347,12 @@ const TOOLS = [
   },
   {
     name: "memory_search",
-    description: "Search project-memory slots by relevance: fold + IDF ranking over title, description, tags, Résumé and Détails; returns scored results with confidence and snippet.",
+    description: "Search project-memory slots by relevance: candidates from the SQLite FTS5 index (novahiz.sqlite, derived, engine: 'fts') with automatic fallback to a fold + IDF file scan (engine: 'files'); returns scored results with confidence and snippet.",
     inputSchema: {
       type: "object",
       properties: {
         query: { type: "string", description: "Free-text query to rank slots against." },
-        root: { type: "string", description: "Project root containing project-memory (default cwd)." },
+        root: { type: "string", description: "Project root or memory dir (default cwd): resolved to <root>/project-memory; a legacy layout (index.json + slots/) is accepted as-is; outside the workspace -> degrades to the workspace memory (degraded: true on the response)." },
         limit: { type: "number", description: "Maximum results (default 5, max 20)." },
         includeArchived: { type: "boolean", description: "Also search archived slots (default false)." }
       },
@@ -261,17 +365,17 @@ const TOOLS = [
     inputSchema: {
       type: "object",
       properties: {
-        root: { type: "string", description: "Project root (default cwd)." }
+        root: { type: "string", description: "Project root or memory dir (default cwd): resolved to <root>/project-memory; a legacy layout (index.json + slots/) is accepted as-is; outside the workspace -> degrades to the workspace memory (degraded: true on the response)." }
       }
     }
   },
   {
     name: "memory_rebuild",
-    description: "Rebuild project-memory/index.json from slot markdown files.",
+    description: "Rebuild project-memory/index.json from slot markdown files, then regenerate the derived SQLite FTS5 index (fts.synced on the response; markdown stays the source of truth).",
     inputSchema: {
       type: "object",
       properties: {
-        root: { type: "string", description: "Project root containing project-memory (default cwd)." }
+        root: { type: "string", description: "Project root or memory dir (default cwd): resolved to <root>/project-memory; a legacy layout (index.json + slots/) is accepted as-is; outside the workspace -> degrades to the workspace memory (degraded: true on the response)." }
       }
     }
   },
@@ -464,6 +568,18 @@ function callTool(name, args) {
   const MAX_PROMPT_LEN = 100000;
   const MAX_CONTENT_LEN = 1000000;
   const spec = loadSpec();
+  // P1: rejoue la file .pending avant chaque acces memoire mutant. Un replay
+  // reapelle callTool — le garde module `draining` empeche la recursion.
+  if (
+    (name === "memory_write" || name === "memory_update" || name === "memory_archive" || name === "memory_init") &&
+    args
+  ) {
+    try {
+      lastDrain = drainPending(safeMemoryRoot(args.root));
+    } catch {
+      // Le drain ne bloque jamais l'operation courante.
+    }
+  }
   if (name === "novahiz_classify") {
     const prompt = String(args?.prompt ?? "");
     if (prompt.length > MAX_PROMPT_LEN) {
@@ -838,14 +954,19 @@ function callTool(name, args) {
       throw new Error(`Invalid params: content exceeds ${MAX_CONTENT_LEN} characters`);
     }
     const input = parseSlotInput(args ?? {});
-    if (typeof input.root === "string" && input.root.length > 0) {
-      input.root = safeMemoryRoot(input.root);
-    }
+    // Resolution INCONDITIONNELLE: root absent -> <workspace>/project-memory,
+    // root projet -> project-memory dedans, legacy accepte, hors workspace
+    // E_ROOT (resolveMemoryDir, src/memory.ts). Le root echoe est toujours
+    // le DOSSIER MEMOIRE reellement utilise.
+    input.root = safeMemoryRoot(input.root);
     const result = writeEntry(input);
     return toolResult({
+      root: input.root,
       slot: result.slot,
       rotated: result.rotated,
       compacted: result.compacted,
+      // S5: undefined => cle absente du JSON (jamais de champ null parasite).
+      archivedTo: result.archivedTo,
       created: result.created,
       confidence: result.confidence,
       duplicate: result.duplicate === true,
@@ -870,10 +991,12 @@ function callTool(name, args) {
       summary: typeof args?.summary === "string" ? args.summary : undefined
     });
     return toolResult({
+      root,
       slot: result.slot,
       mode: result.mode,
       updated: true,
       compacted: result.compacted,
+      archivedTo: result.archivedTo,
       healed: result.index.healed === true
     });
   }
@@ -883,6 +1006,7 @@ function callTool(name, args) {
     const root = safeMemoryRoot(args?.root);
     const result = archiveSlot(id, root);
     return toolResult({
+      root,
       slot: result.slot,
       archived: true,
       changed: result.changed,
@@ -938,9 +1062,11 @@ function callTool(name, args) {
       throw new Error("Invalid params: section must be one of full|meta|summary");
     }
     const file = getSlot(id, root);
-    if (section === "meta") return toolResult({ meta: file.meta });
-    if (section === "summary") return toolResult({ meta: file.meta, summary: file.body.summary });
-    return toolResult(file);
+    // P5 decay: consultation explicite tracee (best-effort, jamais bloquante).
+    touchSlotRead(root, id);
+    if (section === "meta") return toolResult({ root, meta: file.meta });
+    if (section === "summary") return toolResult({ root, meta: file.meta, summary: file.body.summary });
+    return toolResult({ root, ...file });
   }
   if (name === "memory_search") {
     const query = typeof args?.query === "string" ? args.query : "";
@@ -953,12 +1079,16 @@ function callTool(name, args) {
       : 5;
     const result = searchSlots(root, query, {
       limit,
-      includeArchived: args?.includeArchived === true
+      includeArchived: args?.includeArchived === true,
+      // P4: retrieval via l'index SQLite de la memoire; searchSlots retombe
+      // sur les fichiers des que l'index est indisponible.
+      fts: { dbPath: resolve(spec.root, spec.config.dbPath) }
     });
     return toolResult({
       root: result.root,
       query: result.query,
       searched: result.searched,
+      engine: result.engine ?? "files",
       count: result.hits.length,
       results: result.hits.map((hit) => ({
         id: hit.meta.id,
@@ -987,7 +1117,16 @@ function callTool(name, args) {
   if (name === "memory_rebuild") {
     const root = safeMemoryRoot(args?.root);
     const index = rebuildIndex(root);
-    return toolResult({ root, count: index.slots.length, indexUpdated: index.updated });
+    // P4: l'index SQLite derive est rebati depuis le markdown (source de verite).
+    const fts = rebuildFts(resolve(spec.root, spec.config.dbPath), root);
+    return toolResult({
+      root,
+      count: index.slots.length,
+      indexUpdated: index.updated,
+      fts: fts
+        ? { synced: true, slots: fts.slots }
+        : { synced: false, reason: "index SQLite indisponible (repli fichiers)" }
+    });
   }
   if (name === "snap_log") {
     const wanted = typeof args?.id === "string" && args.id.trim().length > 0 ? args.id.trim() : null;
@@ -1122,8 +1261,12 @@ function handle(message) {
   }
   if (method === "tools/list") return { jsonrpc: "2.0", id, result: { tools: TOOLS } };
   if (method === "tools/call") {
+    // P1: chaque appel repart d'un etat propre — les drapeaux de decoration
+    // valent pour un seul appel (les replays imbriques ne les volent pas).
+    degradedRoot = null;
+    lastDrain = null;
     try {
-      return { jsonrpc: "2.0", id, result: callTool(params.name, params.arguments ?? {}) };
+      return { jsonrpc: "2.0", id, result: decorate(callTool(params.name, params.arguments ?? {})) };
     } catch (error) {
       // Printable ASCII only: strips control chars and non-Latin scripts that
       // could smuggle terminal escapes. Also strip Windows paths (C:\...) to
@@ -1138,6 +1281,70 @@ function handle(message) {
       }
       if (raw.startsWith("Invalid params:")) {
         return { jsonrpc: "2.0", id, error: { code: -32602, message: msg } };
+      }
+      // --- P1: aucune exception ne doit bloquer une session memoire ---------
+      if (String(params?.name ?? "").startsWith("memory_")) {
+        const code = error?.code;
+        if (code === "E_LOCK") {
+          // Verrou encore pris apres l'attente longue du coeur (10s): mise en
+          // file .pending (rejouee au prochain appel) plutot qu'un echec
+          // visible. Si la file elle-meme echoue (EPERM), on chute en
+          // degraded/failed — honnête: l'operation n'est PAS appliquee.
+          let root = null;
+          try {
+            root = safeMemoryRoot(params?.arguments?.root);
+          } catch {
+            // Racine inutilisable: chute degraded ci-dessous.
+          }
+          if (root) {
+            let queued = false;
+            try {
+              enqueuePending(root, params.name, { ...(params.arguments ?? {}), root });
+              queued = true;
+            } catch {
+              // EPERM sur .pending: chute degraded ci-dessous.
+            }
+            if (queued) {
+              return {
+                jsonrpc: "2.0",
+                id,
+                result: decorate(
+                  toolResult({
+                    root,
+                    pending: true,
+                    degraded: true,
+                    queuedAt: new Date().toISOString(),
+                    notice: "memoire occupe: operation mise en file .pending, rejouee au prochain appel memory_*"
+                  })
+                )
+              };
+            }
+          }
+        }
+        if (code !== "E_SLOT" && code !== "E_CONTENT") {
+          // Erreur OS inattendue (EPERM, ENOTDIR, EACCES...) ou E_LOCK non
+          // enfilable: degradation gracieuse — la reponse porte l'erreur au
+          // lieu de casser l'agent. E_SLOT/E_CONTENT restent des echecs clairs
+          // (isError): ce sont des erreurs de parametrage, pas d'infrastructure.
+          let fallback = null;
+          try {
+            fallback = safeMemoryRoot(undefined);
+          } catch {
+            // <cwd>/project-memory: ne peut pas echouer en pratique.
+          }
+          return {
+            jsonrpc: "2.0",
+            id,
+            result: decorate(
+              toolResult({
+                ...(fallback ? { root: fallback } : {}),
+                degraded: true,
+                failed: true,
+                error: msg
+              })
+            )
+          };
+        }
       }
       return { jsonrpc: "2.0", id, result: toolResult(`internal error: ${msg}`, true) };
     }

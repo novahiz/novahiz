@@ -32,7 +32,7 @@ The procedure is this skill: read the routing table, show the chosen path, then 
 
 ## project-memory is a different layer
 
-`project-memory/` (slots) is the machine-facing memory of the same project: dated entries with a bounded Résumé and Détails, searched with `memory_search`, written with `memory_write` (or `memory_update` / `memory_archive`). The opencode plugin also writes there automatically (todo done, review, task end, compaction). Slots feed the next session; they are not a page.
+`project-memory/` (slots) is the machine-facing memory of the same project: dated entries with a bounded Résumé and Détails, searched with `memory_search`, written with `memory_write` (or `memory_update` / `memory_archive`). The opencode plugin also writes there automatically (todo done, review, task end, compaction). Pass `root` as the project root or as the memory dir itself — it is resolved the same way (a legacy `index.json` + `slots/` layout is accepted; outside the workspace the call degrades to the workspace memory with `degraded: true`, it is never refused and never writes outside the workspace) and every response echoes the resolved root. If the lock is still held the write is queued in `.pending/` and replayed on the next call (`pending: true`); unreadable slot files are skipped with `warnings`. A compaction always copies the complete body to `slots/archive/` first (`archivedTo`) and demotes the folded `## ` headings, so a reparse never swallows content. Slots feed the next session; they are not a page.
 
 This skill writes the human-facing narrative: `MEMORY.md` and the vault page. When both apply, distill the slot into the page — never copy it verbatim, and never store prose pages inside a slot.
 

@@ -255,9 +255,10 @@ La mémoire de session est un système à deux couches : un espace de travail bo
 
 ### Slots de session — `project-memory/`
 
-- Vit sous la racine du projet : `index.json` plus `slots/`, et `novahiz init` le sème avec un slot de base.
-- Slots de taille fixe (**8000 caractères / 200 lignes**) : un slot plein est compacté, archivé, remplacé — la mémoire reste bornée quelle que soit la durée du projet.
-- Les outils MCP l'opèrent : `memory_init`, `memory_list`, `memory_get`, `memory_write` (append et rotation), `memory_rebuild` (réindexe depuis le markdown).
+- Vit sous la racine du projet : `index.json` plus `slots/`, et `novahiz init` le sème avec un slot de base. La racine est résolue une seule fois (`resolveMemoryDir`) : on peut passer la racine du projet **ou** le dossier mémoire lui-même, l'ancien layout (`index.json` + `slots/`) est accepté tel quel, un chemin hors du projet **dégrade** vers la mémoire du projet (`degraded: true`, jamais d'écriture hors workspace) — et chaque réponse `memory_*` écho le `root` réellement utilisé. Verrou pris trop longtemps → mise en file `.pending` rejouée au prochain appel ; slot illisible → exclu avec `warnings`. La mémoire ne bloque jamais la session.
+- Slots de taille fixe (**8000 caractères / 200 lignes**) : un slot plein est compacté, archivé, remplacé — mais jamais à l'aveugle : la copie complète part d'abord dans `slots/archive/<id>-precompact-<ts>.md` (réponse `archivedTo`) et les titres `## ` du fold sont démotés en puces pour que le reparse n'avale rien. La mémoire reste bornée **et** intacte quelle que soit la durée du projet.
+- Les outils MCP l'opèrent : `memory_init`, `memory_list`, `memory_get` (trace `last_read`, donnée d'entrée du decay), `memory_search` (shortlist via l'index SQLite FTS5 de `novahiz.sqlite` — index **dérivé**, `engine: "fts"`, repli automatique sur le scan fichiers en `engine: "files"` — puis classement IDF existant, scores 0..1 inchangés), `memory_write` (append et rotation), `memory_update`, `memory_archive`, `memory_rebuild` (réindexe depuis le markdown, hors archives, **et** régénère l'index FTS5).
+- Hygiène par la CLI, **dry-run par défaut** (`--apply` exécute, GC = archiver, jamais détruire) : `novahiz memory status | clean | prune` — verrous périmés, échecs `.pending`, fragments `.tmp`, doublons inter-slots (Resume + Détails identiques → le plus récent archivé), orphelins/fantômes, archives au-delà de `--retention` (déplacées vers `slots/archive/retention/`, contenu intact) et slots **jamais lus** depuis `--decay` jours ; `--days` compte la dernière *utilisation* (une lecture récente prolonge la vie). Le banc `npm run bench` mesure le chemin : fold sans cache → fold+cache → FTS+cache.
 - C'est ici que vont décisions, causes racines et prochaines étapes quand une tâche complexe se termine.
 - `novahiz doctor` vérifie à la fois la racine mémoire et les outils mémoire.
 
@@ -348,6 +349,7 @@ Voir [docs/CONFIGURATION.md](docs/CONFIGURATION.md) pour toutes les options.
 | `novahiz task done <id>` | Marquer un todo complété |
 | `novahiz snap <sub>` | Snapshots versionnés du ledger (`save` / `list` / `diff` / `restore`) |
 | `novahiz graph <sub>` | Graphe de code du workspace (`build` / `find` / `trace` / `api` / `map` / `fresh`) — le nôtre, en processus, sans binaire externe ([docs/GRAPH.md](docs/GRAPH.md)) |
+| `novahiz memory <sub>` | Hygiène de la mémoire projet (`status` / `clean` / `prune`) — dry-run par défaut, `--apply` pour exécuter ; `prune` archive, rien n'est supprimé |
 | `novahiz report` | Rapport de session |
 | `novahiz skills` | Lister les skills chargées ou disponibles |
 | `novahiz catalog <query>` | Chercher dans le catalogue de skills |
