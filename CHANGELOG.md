@@ -1,0 +1,94 @@
+# Changelog
+
+All notable changes to Novahiz are documented in this file.
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
+
+## [Unreleased]
+
+### Added
+
+- **clepsydre** — a local scheduling MCP server (`mcp/clepsydre`) written in
+  this repository with zero npm dependency: 5-field cron expressions plus
+  macros, `every Ns/Nm` intervals, one-shot ISO dates, IANA timezones, an
+  atomic JSON store with a JSONL execution journal, and 14 `clepsydre_*` tools
+  (CRUD, enable/disable, detached manual runs, history, schedule validation).
+  Both MCP protocol eras are supported (`initialize` legacy and the 2026-07-28
+  `server/discover` era). The stdio transport, protocol layer, parser,
+  scheduler, and executors are original code — no third-party scheduler code
+  is used or vendored.
+- `clepsydre-mcp` bin entry in `package.json`; `mcp-clepsydre-probe` check in
+  `novahiz doctor --deep`.
+- `novahiz-gate` — the rule gate extracted from the core server into its own
+  stdio MCP server (`mcp/novahiz-gate`, tool `novahiz_gate`, same `src/gate.ts`
+  core as the CLI), with `mcp-gate` and `mcp-gate-probe` checks in
+  `novahiz doctor` (the probe runs with `--deep`).
+
+### Changed
+
+- Plugin file renamed to the same `novahiz-<function>` convention:
+  `adapters/opencode/novahiz.ts` → `novahiz-plugin.ts`, in the source tree and
+  in `~/.config/opencode/plugins/` (installer scripts, doctor `adapter` check,
+  tests, and docs follow).
+- MCP server ids renamed to the `novahiz-<function>` convention:
+  `lodestone` → `novahiz-search`, `clepsydre` → `novahiz-scheduler`, `argus` →
+  `novahiz-scan`, `novahiz` → `novahiz-core`. Updated in
+  `catalog/providers.json`, `opencode.jsonc`, the installer templates, the
+  plugin fallback and the docs; tool names (`lodestone_*`, `clepsydre_*`,
+  `novahiz_*`) and file paths are unchanged.
+
+- The external scheduler providers are replaced by the local `clepsydre`
+  server: `opencode.jsonc` now launches `node mcp/clepsydre/index.mjs`
+  instead of the former `mcp-cron` command, `catalog/providers.json` lists
+  `clepsydre` (local, Apache-2.0) in place of the `cron` venv-clone entry,
+  and the `cron_*` gate tools were renamed to their `clepsydre_*`
+  equivalents across `src/spec.ts`, `install/lib.mjs`, the adapter, the
+  configs, and `docs/CONFIGURATION.md`.
+- `providers.disabled` defaults to `[]`: every bundled server now runs
+  locally with no setup step.
+
+### Removed
+
+- The `cron` provider entry (third-party scheduler clone) and its
+  documentation. Replaced by `clepsydre`; no third-party scheduler
+  dependency remains. See `NOTICE.md` for provenance.
+- The `security` provider (`security-mcp`) and every installation vector for
+  it: the entry is gone from `catalog/providers.json`, and `install.mjs` /
+  `bootstrap.mjs` keep an empty MCP install list while purging any trace of
+  `security-mcp` or `mcp-cron` (shim and global package) on every run — never
+  reinstall, per explicit user decision. `providers.disabled` in
+  `novahiz.config.json` keeps the id out of the registry; the `audit` category
+  stays served by `novahiz-scan`.
+
+### Fixed
+
+- **Audit 2026-09-25 follow-up — every P0→P3 finding resolved in one batch.**
+  - **P0 (secret exposure)** — the Stitch API key left `opencode.jsonc`: the
+    header now references `{env:NOVAHIZ_STITCH_API_KEY}` and the value lives in
+    the user environment (never logged, never printed). Rotating the key in the
+    Google Cloud console is the one manual step remaining.
+  - **P1 (gate hardening)** — the CLI accepts `--tools` (the plugin passes its
+    frozen snapshot, so a live `gate.tools` edit cannot weaken enforcement
+    before the required restart) and `--prompt` (the last prompt seeds the
+    tier); it classifies the seed itself when `--categories` is empty instead
+    of evaluating unscoped, failing closed only when classification breaks.
+    The MCP gate follows: tool case normalized, DB-recorded skills unioned
+    like the CLI, warn/audit mode reports `wouldBlock` instead of blocking
+    silently, and only block mode fails closed on DB errors.
+  - **P2 (robustness)** — the plugin runner is async: a CLI/MCP call can no
+    longer freeze OpenCode's event loop for up to 30 s, and a deterministic
+    timeout flag replaced the status/signal heuristic. `novahiz-scan` joined
+    the hard-coded MCP fallbacks and every catalog server registers with a
+    structured 120 s timeout. `snap_restore` and `clepsydre_enable_task` joined
+    `gate.tools` across all six copies; R8 covers the docs tree,
+    README/CHANGELOG and docs-writing prompts; R13/R14 skip sub-200-char
+    touch-ups (`minChange: 200`; the doctor's operational probe now carries a
+    real CSS payload and asserts the trivial case stays allowed); classify's
+    lite tier only advertises skills the gate enforces; the inline gate-repair
+    text gained its step 3; `writeState` writes through a temp file + rename;
+    the dirty-path marker rejects cross-drive absolute paths; prompt text is
+    no longer logged (language + size only); doctor flags missing script
+    arguments (R1) and version-drifted installed copies (R6).
+  - **P3 (hygiene)** — purged 63 `*.novahiz-bak`/`*.pre-v2` files, the stale
+    `opencode.jsonc.bak`, and the dead `mcp-cron`/`security-mcp` global shims
+    (with two orphaned `mcp-cron` processes); repaired three memory slots
+    (addendum heading, duplicated review block, comma-split tags).

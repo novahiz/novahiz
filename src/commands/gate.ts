@@ -4,6 +4,7 @@ import { loadSpec, NovahizHome } from "../spec.ts";
 import { openDb } from "../db.ts";
 import { loadInstalledSkills } from "../catalog.ts";
 import { changeText } from "../content.ts";
+import { classify } from "../classify.ts";
 import { enforceLedgerChecks, evaluateGate } from "../gate.ts";
 import { extractTargetPaths } from "../targets.ts";
 
@@ -23,11 +24,12 @@ export function commandGate(parsed: Parsed): void {
     return;
   }
   const gateConfig = spec.config.gate;
-  // MINEUR#5: normalize case — the plugin lowercases tool names (adapters
-  // novahiz.ts), so a case-sensitive check here would treat "EDIT" as
-  // un-gated and silently allow the call.
+  // MINEUR#5: normalize case — the plugin passes event.tool as-is on --tool
+  // (adapters opencode/novahiz-plugin.ts lowercases only for its own in-memory
+  // check), so a case-sensitive check here would treat "EDIT" as un-gated and
+  // silently allow the call.
   const tool = (asString(parsed.flags.tool) || "edit").toLowerCase();
-  const categories = splitList(parsed.flags.categories);
+  let categories = splitList(parsed.flags.categories);
   let loaded = splitList(parsed.flags.loaded);
   const session = asString(parsed.flags.session);
   // Union, not fallback: skills recorded in the DB (previous plugin run,
@@ -68,7 +70,12 @@ export function commandGate(parsed: Parsed): void {
     return;
   }
 
-  const gated = gateConfig.tools.includes(tool);
+  // Audit 2026-09-25 (P1-1): the plugin passes its frozen GATE_TOOLS snapshot
+  // via --tools, so a live edit of gate.tools in novahiz.config.json cannot
+  // weaken enforcement before the required opencode restart. Standalone CLI
+  // calls (no flag) still fall back to the config file.
+  const toolsFlag = splitList(parsed.flags.tools).map((entry) => entry.toLowerCase());
+  const gated = (toolsFlag.length > 0 ? toolsFlag : gateConfig.tools).includes(tool);
   if (!gated) {
     print({ allow: true, tool, reason: "tool is not gated" });
     return;
@@ -99,6 +106,22 @@ export function commandGate(parsed: Parsed): void {
     process.stderr.write("novahiz: gate requires --file <path> or --args-stdin\n");
     process.exitCode = 1;
     return;
+  }
+
+  // Audit 2026-09-25 (P1-3): empty categories no longer fall through to an
+  // unscoped evaluation — the CLI classifies the seed itself (same contract as
+  // the MCP gate) and fails closed only when classification itself is broken.
+  if (categories.length === 0) {
+    const seed = prompt || content || paths[0] || "";
+    try {
+      categories = classify(spec, seed).categories.map((entry) => entry.id);
+    } catch (error) {
+      const msg = `classify failed: ${String(error).slice(0, 200)}`;
+      process.stderr.write(`novahiz: ${msg}\n`);
+      print({ allow: false, error: msg, tool, missingSkills: [], reasons: [msg] });
+      process.exitCode = 2;
+      return;
+    }
   }
 
   const pathless = paths.length === 0;

@@ -9,22 +9,14 @@
     "categories": ["browser", "design-ui"]
   },
   {
-    "id": "security",
-    "label": "Security MCP",
+    "id": "novahiz-search",
+    "label": "Novahiz Search",
     "kind": "mcp",
-    "command": ["npx", "-y", "security-mcp@1.3.7", "serve"],
-    "source": "https://github.com/AbrahamOO/security-mcp",
-    "license": "MIT",
-    "categories": ["audit"]
-  },
-  {
-    "id": "narsil",
-    "label": "Narsil Code Intelligence",
-    "kind": "mcp",
-    "command": ["npx", "-y", "narsil-mcp@1.7.0", "--repos", "."],
-    "source": "https://github.com/postrv/narsil-mcp",
-    "license": "MIT OR Apache-2.0",
-    "categories": ["code", "review"]
+    "command": ["node", "~/.config/novahiz/mcp/lodestone/index.mjs"],
+    "source": "https://github.com/novahiz/novahiz",
+    "license": "Apache-2.0",
+    "categories": ["code", "review"],
+    "purpose": "House clean-room MCP: FTS5 full-text search, symbols, call graph, repo map, git status. Zero npm dependencies (node:sqlite, node:fs, node:child_process); read-only tools, relative paths, bounded results."
   },
   {
     "id": "novahiz-docs",
@@ -36,18 +28,18 @@
     "categories": ["code"]
   },
   {
-    "id": "cron",
-    "label": "Cron Scheduler",
+    "id": "novahiz-scheduler",
+    "label": "Novahiz Scheduler",
     "kind": "mcp",
-    "command": ["python", "C:/path/to/scheduler-mcp/main.py"],
-    "source": "https://github.com/PhialsBasement/scheduler-mcp",
-    "license": "MIT",
+    "command": ["node", "~/.config/novahiz/mcp/clepsydre/index.mjs"],
+    "source": "https://github.com/novahiz/novahiz",
+    "license": "Apache-2.0",
     "categories": ["devops"],
-    "purpose": "MIT scheduler clone (requirements pin mcp<2); no npm package exists. Clone PhialsBasement/scheduler-mcp, install its requirements into a venv, then point `command` at that venv's python and your clone's main.py (setup in docs/PROVIDERS.md). Shipped disabled: enable it after the local setup."
+    "purpose": "Local stdio scheduler written in this repository (zero npm dependency, own cron parser, atomic JSON store). Replaces the external mcp-cron server; no third-party scheduler code is used."
   },
   {
-    "id": "novahiz",
-    "label": "novahiz",
+    "id": "novahiz-core",
+    "label": "Novahiz Core",
     "kind": "mcp",
     "command": ["node", "~/.config/novahiz/mcp/novahiz-tools/index.mjs"],
     "source": "https://github.com/novahiz/novahiz",
@@ -107,13 +99,23 @@
     "purpose": "Upstream Impeccable skill (critique, audit and polish playbooks) required by gate rule R14. Installed to ~/.agents/skills; rerun the command to update."
   },
   {
-    "id": "argus",
-    "label": "Argus MCP",
+    "id": "novahiz-scan",
+    "label": "Novahiz Scan",
     "kind": "mcp",
     "command": ["node", "~/.config/novahiz/mcp/argus/src/cli.mjs"],
     "source": "https://github.com/novahiz/novahiz",
     "license": "MIT",
     "categories": ["audit"],
     "purpose": "Local stdio static-analysis server (zero npm dependency): scans files and directories with local security rules (SQL injection, XSS, command injection, hardcoded secrets, insecure deserialization), creates custom rules behind a ReDoS gate, exports json/sarif/csv/html. Original clean-room implementation for the audit category."
+  },
+  {
+    "id": "novahiz-gate",
+    "label": "novahiz-gate",
+    "kind": "mcp",
+    "command": ["node", "~/.config/novahiz/mcp/novahiz-gate/index.mjs"],
+    "source": "https://github.com/novahiz/novahiz",
+    "license": "Apache-2.0",
+    "categories": ["code", "planning"],
+    "purpose": "Novahiz rule gate: validates an edit against the skills roadmap before it lands (allow / required / missing skills), with ledger enforcement parity with the CLI. Extracted from the novahiz-tools server."
   }
 ]

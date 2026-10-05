@@ -4,7 +4,6 @@ import { pathToFileURL } from "node:url";
 import { resolve, sep } from "node:path";
 import { existsSync, mkdirSync, readFileSync, readdirSync, realpathSync, unlinkSync, writeFileSync } from "node:fs";
 import { classify } from "../../src/classify.ts";
-import { enforceLedgerChecks, evaluateGate } from "../../src/gate.ts";
 import { loadSpec } from "../../src/spec.ts";
 import { loadCatalog, loadInstalledSkills } from "../../src/catalog.ts";
 import { rankSkills } from "../../src/relevance.ts";
@@ -139,7 +138,7 @@ try {
   const pkg = JSON.parse(readFileSync(new URL("../../package.json", import.meta.url), "utf8"));
   SERVER_VERSION = pkg.version ?? "0.0.0";
 } catch { /* keep default */ }
-const SERVER_INFO = { name: "novahiz-tools", version: SERVER_VERSION };
+const SERVER_INFO = { name: "novahiz-core", version: SERVER_VERSION };
 
 const TOOLS = [
   {
@@ -169,22 +168,6 @@ const TOOLS = [
         limit: { type: "number", description: "Maximum results (default 10)." }
       },
       required: ["query"]
-    }
-  },
-  {
-    name: "novahiz_gate",
-    description: "Check whether a file edit satisfies the Novahiz rules. Returns allow, required skills and missing skills.",
-    inputSchema: {
-      type: "object",
-      properties: {
-        file: { type: "string", description: "Target file path." },
-        filePath: { type: "string", description: "Alias of file. Some harnesses rename the parameter when they surface the tool." },
-        tool: { type: "string", description: "edit, write or patch." },
-        content: { type: "string", description: "The edited content, used for content-aware rules." },
-        prompt: { type: "string", description: "Optional prompt used to auto-classify when categories is omitted or empty." },
-        categories: { type: "array", items: { type: "string" }, description: "Category ids. When omitted or empty, inferred from prompt, content, or file path." },
-        loaded: { type: "array", items: { type: "string" } }
-      }
     }
   },
   {
@@ -609,127 +592,6 @@ function callTool(name, args) {
     const limit = Math.min(Number.isFinite(args?.limit) ? Number(args.limit) : 10, MAX_CATALOG_LIMIT);
     const catalog = loadCatalog(spec);
     return toolResult({ query, total: catalog.length, results: rankSkills(catalog, query, limit) });
-  }
-  if (name === "novahiz_gate") {
-    // C2: a project-writable config must not silently switch enforcement off
-    // from MCP either. The only kill-switch is NOVAHIZ_GATE=off.
-    if (spec.config.gate.enabled === false) {
-      process.stderr.write(
-        'novahiz: gate.enabled=false in novahiz.config.json is ignored; enforcement stays active. Use NOVAHIZ_GATE=off to disable the gate.\n'
-      );
-    }
-    // C5: envEscape is now hardcoded to "NOVAHIZ_GATE" (the primary env
-    // var). The old configurable envEscape field allowed bypassing enforcement
-    // by setting an arbitrary env var. Hardcoded: the only way to override is
-    // through the canonical NOVAHIZ_GATE var.
-    const escapeValue = (process.env.NOVAHIZ_GATE || "").toLowerCase();
-    if (["off", "0", "false", "no", "disabled"].includes(escapeValue)) {
-      return toolResult({ allow: true, disabled: true });
-    }
-    // Strict validation: the gate is a security boundary — an empty file or
-    // mistyped arrays must never coerce to allow:true. Missing/empty file and
-    // wrong types are caller bugs → -32602, not silent allow.
-    // Clients may send either name: some harnesses rename `file` to `filePath`
-    // when they surface the tool. Accept both, still fail closed on empty.
-    const candidate = typeof args?.file === "string" && args.file.length > 0 ? args.file : args?.filePath;
-    const file = typeof candidate === "string" ? candidate : "";
-    if (file.length === 0) {
-      throw new Error("Invalid params: file (or its filePath alias) must be a non-empty string");
-    }
-    if (args?.categories !== undefined && !Array.isArray(args.categories)) {
-      throw new Error("Invalid params: categories must be an array of strings");
-    }
-    if (args?.loaded !== undefined && !Array.isArray(args.loaded)) {
-      throw new Error("Invalid params: loaded must be an array of strings");
-    }
-    if (args?.content !== undefined && typeof args.content !== "string") {
-      throw new Error("Invalid params: content must be a string");
-    }
-    if (typeof args?.content === "string" && args.content.length > MAX_CONTENT_LEN) {
-      throw new Error(`Invalid params: content exceeds ${MAX_CONTENT_LEN} characters`);
-    }
-    if (args?.tool !== undefined && typeof args.tool !== "string") {
-      throw new Error("Invalid params: tool must be a string");
-    }
-    if (args?.prompt !== undefined && typeof args.prompt !== "string") {
-      throw new Error("Invalid params: prompt must be a string");
-    }
-    if (typeof args?.prompt === "string" && args.prompt.length > MAX_PROMPT_LEN) {
-      throw new Error(`Invalid params: prompt exceeds ${MAX_PROMPT_LEN} characters`);
-    }
-    if (args?.session !== undefined && typeof args.session !== "string") {
-      throw new Error("Invalid params: session must be a string");
-    }
-    // Auto-classify when categories is omitted or empty: seed from prompt,
-    // fall back to content, then file path. Explicit categories always win.
-    let categories = args?.categories ? args.categories.map(String) : [];
-    if (categories.length === 0) {
-      const seed =
-        (typeof args?.prompt === "string" && args.prompt.length > 0 ? args.prompt : "") ||
-        (typeof args?.content === "string" && args.content.length > 0 ? args.content : "") ||
-        file;
-      try {
-        categories = classify(spec, seed).categories.map((entry) => entry.id);
-      } catch {
-        // Fail closed on classify errors: keep empty categories so
-        // evaluateGate still runs path/content rules instead of crashing.
-        categories = [];
-      }
-    }
-    const index = loadInstalledSkills(spec);
-    const result = evaluateGate({
-      tool: String(args?.tool ?? "edit"),
-      filePath: file,
-      content: typeof args?.content === "string" ? args.content : "",
-      prompt: typeof args?.prompt === "string" ? args.prompt : "",
-      categories,
-      loadedSkills: args?.loaded ? args.loaded.map(String) : [],
-      installedSkills: index.skills,
-      installedIndexAvailable: index.available,
-      spec
-    });
-    // Ledger enforcement parity with the CLI gate (audit P1-D/M1): trace
-    // checks, recordEdit/review and the enforcement_log row used to be CLI
-    // only. A ledger refusal is merged into the verdict; a DB failure fails
-    // closed like the CLI instead of passing the edit silently.
-    const session = typeof args?.session === "string" ? args.session : "";
-    // Same shape as the CLI's results array: path alongside the GateResult,
-    // on the same object so enforceLedgerChecks mutates this verdict in place.
-    result.path = file;
-    // Parity with the CLI: an empty session no longer skips this block. The
-    // sessionless call still enforces unbound tasks (activeTask) and fails
-    // closed on DB errors; it simply writes no enforcement_log row.
-    let mdb = null;
-    try {
-      mdb = openDb(resolve(spec.root, spec.config.dbPath));
-    } catch {
-      mdb = null;
-    }
-    if (mdb) {
-      try {
-        const enforced = enforceLedgerChecks(mdb, {
-          session,
-          tool: String(args?.tool ?? "edit"),
-          paths: [file],
-          categories,
-          results: [result],
-          spec,
-          gateConfig: spec.config.gate
-        });
-        if (enforced.reasons.length > 0) {
-          result.reasons.push(...enforced.reasons);
-          result.allow = false;
-        }
-        if (enforced.reviewWarning) result.reasons.push(enforced.reviewWarning);
-      } finally {
-        mdb.close();
-      }
-    } else {
-      result.allow = false;
-      result.reasons.push("DB open failed: ledger enforcement unavailable");
-    }
-    // A gate refusal is a normal verdict, not an execution error.
-    return toolResult(result, false);
   }
   if (name === "novahiz_roadmap") {
     const categoryId = args?.category ? String(args.category) : null;

@@ -41,7 +41,7 @@ Lire chaque hunk. Ne pas ouvrir les fichiers entiers sauf si le contexte local n
 
 Pour chaque symbole modifié (fonction, classe, endpoint, colonne, route) :
 
-- Qui l'appelle (références, imports, `narsil` ou `rg`).
+- Qui l'appelle (références, imports, `lodestone_callers` ou `rg`).
 - Quelles couches touchent (API, données, UI, tests).
 - Ce qui casse si le contrat change.
 

@@ -24,7 +24,7 @@ Previous: `novahiz-task`. Next: `novahiz-implement`.
 
 ## Use the code map
 
-Before reading at random: the `narsil` server exposes call graphs, symbols, references, and imports. A "who calls this" question gets resolved with the tool, so you never guess.
+Before reading at random: the `novahiz-search` server (lodestone) exposes call graphs, symbols, references, and imports (`lodestone_symbol`, `lodestone_callers`, `lodestone_search`, `lodestone_map`, `lodestone_excerpt`). A "who calls this" question gets resolved with the tool, so you never guess.
 
 ## Phase 1: reconnaissance
 

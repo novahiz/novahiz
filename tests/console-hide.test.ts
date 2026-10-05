@@ -10,7 +10,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, test } from "node:test";
 
-const SESSION_FILES = [join(process.cwd(), "adapters", "opencode", "novahiz.ts")];
+const SESSION_FILES = [join(process.cwd(), "adapters", "opencode", "novahiz-plugin.ts")];
 
 // Compte les appels reels: la parenthese suit le nom, donc l'import
 // "import { spawn, spawnSync }" (sans parenthese) ne compte pas.

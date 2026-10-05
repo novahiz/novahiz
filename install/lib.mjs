@@ -181,7 +181,9 @@ export function defaultConfig() {
       // Kept for schema compatibility only — the kill-switch name is hardcoded
       // to NOVAHIZ_GATE in the CLI, MCP gate, and plugin (see src/spec.ts).
       envEscape: "NOVAHIZ_GATE",
-      tools: ["edit", "write", "patch", "apply_patch", "bash", "shell", "cron_add_command_task", "cron_add_task", "cron_add_ai_task", "cron_add_http_task", "cron_update_command_task", "cron_update_task", "cron_run_task_now"]
+      // Audit 2026-09-25 (P1): snap_restore rolls back files, clepsydre_enable_task
+      // re-arms a disabled task — both carry, create or execute state too.
+      tools: ["edit", "write", "patch", "apply_patch", "bash", "shell", "snap_restore", "clepsydre_add_task", "clepsydre_add_shell_task", "clepsydre_add_http_task", "clepsydre_add_prompt_task", "clepsydre_update_task", "clepsydre_remove_task", "clepsydre_run_task_now", "clepsydre_enable_task"]
     },
     classify: {
       minScore: 1,
@@ -191,7 +193,9 @@ export function defaultConfig() {
     providers: {
       autoRegister: true,
       autoInstall: false,
-      disabled: ["cron"]
+      // `clepsydre` is a local server (mcp/clepsydre) with no install step:
+      // nothing needs to stay disabled by default.
+      disabled: []
     }
   };
 }

@@ -31,7 +31,8 @@
     "novahiz-bootstrap": "install/bootstrap.mjs",
     "novahiz-install": "install/install.mjs",
     "novahiz-uninstall": "install/uninstall.mjs",
-    "novahiz-mcp": "mcp/novahiz-tools/index.mjs"
+    "novahiz-mcp": "mcp/novahiz-tools/index.mjs",
+    "clepsydre-mcp": "mcp/clepsydre/index.mjs"
   },
   "engines": {
     "node": ">=22.18.0"
@@ -46,7 +47,7 @@
     "setup:dry": "node install/install.mjs --dry-run",
     "bootstrap": "node install/bootstrap.mjs",
     "bootstrap:dry": "node install/bootstrap.mjs --dry-run",
-    "test": "node --experimental-strip-types --test",
+    "test": "node --experimental-strip-types --test \"tests/*.test.ts\"",
     "bench": "node --experimental-strip-types tests/bench-memory.ts",
     "ci:local": "node scripts/ci-local.mjs",
     "typecheck": "tsc --noEmit",

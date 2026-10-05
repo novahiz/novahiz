@@ -7,7 +7,7 @@ description: |
   dependencies. Built into the plugin adapter.
 license: Apache-2.0
 compatibility: |
-  Implemented in src/prompt-rewriter.ts and inlined in adapters/opencode/novahiz.ts;
+  Implemented in src/prompt-rewriter.ts and inlined in adapters/opencode/novahiz-plugin.ts;
   no external dependencies.
 metadata:
   author: Novahiz
@@ -33,7 +33,7 @@ Models see mostly English during training, technical vocabulary already lives in
 
 ## How it works
 
-The rewriter sits in `src/prompt-rewriter.ts` and is wired into the plugin adapter at `adapters/opencode/novahiz.ts`.
+The rewriter sits in `src/prompt-rewriter.ts` and is wired into the plugin adapter at `adapters/opencode/novahiz-plugin.ts`.
 
 ### Language detection
 

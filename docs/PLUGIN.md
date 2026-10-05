@@ -1,6 +1,6 @@
 # opencode Plugin
 
-The opencode adapter is a thin plugin that bridges the Novahiz core with the opencode harness. It lives at `adapters/opencode/novahiz.ts` and is copied to `~/.config/opencode/plugins/novahiz.ts` during installation.
+The opencode adapter is a thin plugin that bridges the Novahiz core with the opencode harness. It lives at `adapters/opencode/novahiz-plugin.ts` and is copied to `~/.config/opencode/plugins/novahiz-plugin.ts` during installation.
 
 The harness runs OpenCode V2, whose plugin API takes a default-exported `{ id, setup }` definition. The adapter declares `export default novahizPlugin` and registers every hook inside `setup(ctx)`; hook callbacks throw to deny a tool call, exactly as the V1 hooks did.
 
@@ -35,11 +35,17 @@ Registers the Novahiz MCP server and any additional providers from `catalog/prov
 ```typescript
 const providers = run(["providers", "--mcp-json"]); // read first
 await ctx.mcp.transform((editor) => {
-  // Register Novahiz MCP server unless the user configured one already
-  if (!editor.get("novahiz")) {
-    editor.set("novahiz", {
+  // Register Novahiz MCP servers unless the user configured them already
+  if (!editor.get("novahiz-core")) {
+    editor.set("novahiz-core", {
       type: "local",
       command: [NODE, join(HOME, "mcp", "novahiz-tools", "index.mjs")]
+    });
+  }
+  if (!editor.get("novahiz-gate")) {
+    editor.set("novahiz-gate", {
+      type: "local",
+      command: [NODE, join(HOME, "mcp", "novahiz-gate", "index.mjs")]
     });
   }
   // ... auto-register providers from catalog, skipping names already present

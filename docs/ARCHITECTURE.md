@@ -69,7 +69,7 @@ Three versioned JSON files under `catalog/`:
 
 ### opencode adapter
 
-`adapters/opencode/novahiz.ts` is a plugin. It runs the CLI for classification and gating, tracks loaded skills per session in memory, and injects enforcement text through `ctx.session.hook("context")`. The gate call runs in `ctx.tool.hook("execute.before")`, which can throw and cancel the tool call.
+`adapters/opencode/novahiz-plugin.ts` is a plugin. It runs the CLI for classification and gating, tracks loaded skills per session in memory, and injects enforcement text through `ctx.session.hook("context")`. The gate call runs in `ctx.tool.hook("execute.before")`, which can throw and cancel the tool call.
 
 ### Content rules and roadmaps
 
@@ -125,7 +125,7 @@ The core runs on Node with no dependencies. A new harness adapter needs two thin
 
 ## MCP server
 
-`mcp/novahiz-tools/index.mjs` exposes `novahiz_classify`, `novahiz_catalog`, `novahiz_roadmap`, `novahiz_providers`, `novahiz_deps`, `novahiz_step`, `novahiz_list_skills`, `novahiz_gate`, `novahiz_task`, and `novahiz_dispatch` over stdio using newline-delimited JSON-RPC. It has no dependencies and reuses the core modules directly. The opencode plugin registers it through the plugin `config` hook.
+`mcp/novahiz-tools/index.mjs` (registered as `novahiz-core`) exposes `novahiz_classify`, `novahiz_catalog`, `novahiz_roadmap`, `novahiz_providers`, `novahiz_deps`, `novahiz_step`, `novahiz_list_skills`, `novahiz_task`, and `novahiz_dispatch` over stdio using newline-delimited JSON-RPC. The rule gate was extracted into its own server, `mcp/novahiz-gate/index.mjs` (registered as `novahiz-gate`), which exposes `novahiz_gate` on the same `src/gate.ts` core as the CLI. Both servers have no dependencies and reuse the core modules directly. The opencode plugin registers them through the plugin `config` hook.
 
 ## Providers
 

@@ -104,19 +104,25 @@ function generateOpenCodeJson(configDir, NovahizHome) {
   const config = {
     $schema: "https://opencode.ai/config.json",
     mcp: {
-      novahiz-docs: {
+      "novahiz-docs": {
         type: "local",
         command: ["node", join(NovahizHome, "mcp", "novahiz-docs", "index.mjs")],
         enabled: true,
       },
-      narsil: {
+      "novahiz-search": {
         type: "local",
-        command: ["narsil-mcp", "--repos", ".", "--git", "--persist"],
+        command: ["node", join(NovahizHome, "mcp", "lodestone", "index.mjs")],
         timeout: 120000,
         enabled: true,
       },
-      // `cron` is registered by the plugin from catalog/providers.json
-      // (scheduler-mcp local venv); no npm install, no template entry.
+      // `novahiz-scheduler` is the local scheduler (mcp/clepsydre, zero npm
+      // dependency): no package, no shim, config points straight at index.mjs.
+      "novahiz-scheduler": {
+        type: "local",
+        command: ["node", join(NovahizHome, "mcp", "clepsydre", "index.mjs")],
+        timeout: 120000,
+        enabled: true,
+      },
       playwright: {
         type: "local",
         // See playwrightBrowserFlag() in lib.mjs for the platform rule.
@@ -134,7 +140,7 @@ function generateOpenCodeJson(configDir, NovahizHome) {
     },
     // 2026-09-26: notifier/dcp uninstalled on purpose — never re-add them.
     plugin: [
-      join(NovahizHome, "adapters", "opencode", "novahiz.ts"),
+      join(NovahizHome, "adapters", "opencode", "novahiz-plugin.ts"),
     ],
     compaction: {
       auto: true,
@@ -207,16 +213,16 @@ async function main() {
 
   // 5. Install MCP servers (global npm packages)
   log("");
-  log("Installing MCP servers...");
-  const mcpServers = [
-    { pkg: "narsil-mcp", bin: "narsil-mcp" },
-    { pkg: "security-mcp", bin: "security-mcp" },
-  ];
+  log("MCP servers: none to install — removed servers stay removed.");
+  // 2026-10-05: intentionally empty — security-mcp was removed on purpose and
+  // the mcp-cron shim before it; never re-add them (user decision: jamais
+  // réinstallés). The purge below enforces the removal on every bootstrap.
+  const mcpServers = [];
   // `novahiz-docs` is a local file run through `node` (no package, no shim:
   // the config points straight at <home>/mcp/novahiz-docs/index.mjs).
-  // `cron` has no npm package: the plugin registers it from catalog/providers.json
-  // (scheduler-mcp local venv, see docs/PROVIDERS.md). Disabled by default in
-  // fresh configs — users opt in explicitly.
+  // `clepsydre` is a local file run through `node` (house scheduler, zero npm
+  // dependency): the config points straight at <home>/mcp/clepsydre/index.mjs,
+  // enabled by default — no install step, no clone, no venv.
 
   for (const server of mcpServers) {
     if (!which(server.bin)) {
@@ -228,6 +234,15 @@ async function main() {
       }
     } else {
       log(`  ${server.pkg} already installed`);
+    }
+  }
+
+  // Removed on purpose: purge any trace of the removed servers on every
+  // bootstrap so a stray reinstall cannot survive (security-mcp, mcp-cron).
+  for (const pkg of ["security-mcp", "mcp-cron"]) {
+    if (which(pkg)) {
+      log(`  ${pkg} found but removed on purpose — uninstalling (never reinstall)...`);
+      run("npm", ["uninstall", "-g", pkg]);
     }
   }
 
@@ -277,8 +292,8 @@ async function main() {
   }
 
   // 9. Copy plugin to opencode plugins dir
-  const pluginSource = join(NOVAHIZ_HOME, "adapters", "opencode", "novahiz.ts");
-  const pluginTarget = join(configDir, "plugins", "novahiz.ts");
+  const pluginSource = join(NOVAHIZ_HOME, "adapters", "opencode", "novahiz-plugin.ts");
+  const pluginTarget = join(configDir, "plugins", "novahiz-plugin.ts");
   if (existsSync(pluginSource)) {
     mkdirSync(join(configDir, "plugins"), { recursive: true });
     const { cpSync } = await import("node:fs");

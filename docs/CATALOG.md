@@ -98,13 +98,13 @@ Lists external tools that Novahiz can register as MCP servers:
 
 ```json
 {
-  "id": "narsil",
-  "label": "Code intelligence",
+  "id": "novahiz-search",
+  "label": "Novahiz Search",
   "kind": "mcp",
   "transport": "local",
-  "command": ["npx", "-y", "narsil-mcp@1.7.0", "--repos", ".", "--git"],
-  "purpose": "Code graph, symbols, taint tracking, dead code, and security scan.",
-  "categories": ["code", "debug", "review", "audit"]
+  "command": ["node", "~/.config/novahiz/mcp/lodestone/index.mjs"],
+  "purpose": "House clean-room server: full-text search, symbols, call graph, repo map, git.",
+  "categories": ["code", "review"]
 }
 ```
 

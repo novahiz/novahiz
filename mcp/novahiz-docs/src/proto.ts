@@ -7,7 +7,8 @@
 // La couche est isolee du transport (index.mjs) : l'evolution de la spec ne
 // touche jamais la boucle readline.
 
-import { readFileSync } from "node:fs";
+import { appendFileSync, readFileSync, renameSync, statSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { docsDb, findLibrary, listLibraries, queryDocs } from "./query.ts";
 
 type Json = Record<string, unknown>;
@@ -91,6 +92,32 @@ function textResult(payload: object, isError = false): Json {
   return { resultType: "complete", content: [{ type: "text", text: JSON.stringify(payload) }], isError };
 }
 
+// --- journal d'usage --------------------------------------------------------
+// Chaque read_docs laisse une trace {ts, library, query, count} dans
+// data/usage.jsonl : la matiere premiere du nudge « consulte sans decision
+// persistee » de `novahiz memory check-docs`. Rotation a 512 Ko (une seule
+// generation .1), NOVAHIZ_DOCS_USAGE deplace le fichier (tests). Un echec de
+// journal ne fait jamais echouer l'outil : la lecture prime, la telemetrie suit.
+const USAGE_MAX_BYTES = 512 * 1024;
+
+function usagePath(): string {
+  return process.env.NOVAHIZ_DOCS_USAGE ?? fileURLToPath(new URL("../data/usage.jsonl", import.meta.url));
+}
+
+function logUsage(entry: { library: string; query: string; count: number }): void {
+  try {
+    const path = usagePath();
+    try {
+      if (statSync(path).size > USAGE_MAX_BYTES) renameSync(path, `${path}.1`);
+    } catch {
+      // Fichier absent ou illisible : pas de rotation, l'ecriture suit.
+    }
+    appendFileSync(path, `${JSON.stringify({ ts: new Date().toISOString(), ...entry })}\n`, "utf8");
+  } catch {
+    // Journal indisponible (disque, permission) : la lecture reussit quand meme.
+  }
+}
+
 // Les trois outils passent par la couche lecture (query.ts) : résolution
 // catalogue, recherche FTS5 locale, citation complète. La validation d'entrée
 // reste ici, avant l'appel — une erreur d'argument est une erreur d'outil
@@ -117,7 +144,9 @@ function callTool(name: string, args: Json): Json {
       typeof args.limit === "number" && Number.isFinite(args.limit) && args.limit > 0
         ? Math.min(Math.floor(args.limit), 20)
         : undefined;
-    return textResult(queryDocs(docsDb(), { library, query, limit }));
+    const outcome = queryDocs(docsDb(), { library, query, limit });
+    logUsage({ library: outcome.resolvedTo ?? outcome.library, query, count: outcome.passages.length });
+    return textResult(outcome);
   }
   return textResult({ error: `outil inconnu : ${name}` }, true);
 }

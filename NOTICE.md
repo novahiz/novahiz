@@ -24,14 +24,19 @@ If you hold rights to a skill and want a different attribution or a removal, ope
 
 Providers are referenced by install command, never vendored. Each lists its upstream package, repository, and SPDX license in `catalog/providers.json`.
 
+### novahiz-scheduler (local scheduler)
+
+`mcp/clepsydre` is written entirely in this repository: cron parser, persistence, scheduler, executors, tool layer, and MCP protocol layer are original code with zero npm dependency. No code, algorithm transcription, or copied text comes from the AGPL `mcp-cron` package (github.com/jolks/mcp-cron) or from any other third-party scheduler; both are referenced by name only, as replacements. The implementation was designed from the MCP specification and this project's own requirements, and is licensed Apache-2.0 like the rest of Novahiz.
+
 | Id | Upstream package | Repository | License |
 | --- | --- | --- | --- |
 | `playwright` | `@playwright/mcp` | https://github.com/microsoft/playwright-mcp | Apache-2.0 |
-| `security` | `security-mcp` | https://github.com/AbrahamOO/security-mcp | MIT |
-| `narsil` | `narsil-mcp` | https://github.com/postrv/narsil-mcp | MIT OR Apache-2.0 |
+| `novahiz-search` | local Novahiz Search MCP (house, clean-room) | https://github.com/novahiz/novahiz | Apache-2.0 |
 | `novahiz-docs` | local novahiz-docs MCP | https://github.com/novahiz/novahiz | Apache-2.0 |
-| `cron` | `scheduler-mcp` (local venv clone) | https://github.com/PhialsBasement/scheduler-mcp | MIT |
-| `novahiz` | local Novahiz MCP | https://github.com/novahiz/novahiz | Apache-2.0 |
+| `novahiz-scheduler` | local Novahiz scheduler MCP (house, clean-room, zero npm dependency) | https://github.com/novahiz/novahiz | Apache-2.0 |
+| `novahiz-core` | local Novahiz core MCP | https://github.com/novahiz/novahiz | Apache-2.0 |
+| `novahiz-gate` | local Novahiz gate MCP | https://github.com/novahiz/novahiz | Apache-2.0 |
+| `novahiz-scan` | local static-analysis MCP (house, clean-room) | https://github.com/novahiz/novahiz | MIT |
 | `dart` | Dart SDK (`dart mcp-server`) | https://github.com/dart-lang/ai (pkgs/dart_mcp_server) | BSD-3-Clause |
 
 ## Skill packs (upstream, not vendored)
@@ -54,7 +59,7 @@ Installed on demand with `npx skills add` (or an upstream tarball when git trans
 | `@mohak34/opencode-notifier` | https://github.com/mohak34/opencode-notifier | MIT | removed 2026-09-26 |
 | `@tarquinen/opencode-dcp` | https://github.com/Opencode-DCP/opencode-dynamic-context-pruning | AGPL-3.0-or-later | removed 2026-09-26 |
 
-The Novahiz adapter (`adapters/opencode/novahiz.ts`) is first-party under Apache-2.0.
+The Novahiz adapter (`adapters/opencode/novahiz-plugin.ts`) is first-party under Apache-2.0.
 
 ## Dependencies
 

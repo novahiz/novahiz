@@ -303,11 +303,12 @@ Novahiz auto-enregistre les serveurs MCP externes selon la catégorie du prompt 
 | Provider | Package | Licence | Catégories |
 |----------|---------|---------|------------|
 | novahiz-docs | `mcp/novahiz-docs/index.mjs` (local) | Apache-2.0 | code |
-| narsil | `narsil-mcp` | MIT OR Apache-2.0 | code, review |
-| novahiz | local (`mcp/novahiz-tools`) | Apache-2.0 | code, planning |
+| novahiz-search | `mcp/lodestone/index.mjs` (local, zéro dépendance) | Apache-2.0 | code, review |
+| novahiz-core | local (`mcp/novahiz-tools`) | Apache-2.0 | code, planning |
+| novahiz-gate | local (`mcp/novahiz-gate`) | Apache-2.0 | code, planning |
+| novahiz-scan | `mcp/argus/src/cli.mjs` (local) | MIT | audit |
 | playwright | `@playwright/mcp` | Apache-2.0 | browser, design-ui |
-| security | `security-mcp` | MIT | audit |
-| cron | `scheduler-mcp` (clone local venv) | MIT | devops |
+| novahiz-scheduler | `mcp/clepsydre/index.mjs` (local, zéro dépendance) | Apache-2.0 | devops |
 | dart | `dart mcp-server` (Dart SDK) | BSD-3-Clause | code, debug, design-ui, flutter |
 
 Packs de skills (installés depuis les dépôts officiels, jamais vendorés) : `flutter/agent-plugins` (25 skills), `dart-lang/skills` (15 skills), `expo/skills` (19 skills, le groupe `expo-*` seulement ; les services payants `eas-*` exclus), `pbakaus/impeccable` (1 skill, la skill design upstream `impeccable`). Voir [docs/PROVIDERS.md](docs/PROVIDERS.md).

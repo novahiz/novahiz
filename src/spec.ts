@@ -197,7 +197,9 @@ export const DEFAULT_CONFIG: NovahizConfig = {
     enabled: true,
     mode: "block",
     envEscape: "NOVAHIZ_GATE", // canonical kill-switch name; gate command ignores this field
-    tools: ["edit", "write", "patch", "apply_patch", "bash", "shell", "cron_add_command_task", "cron_add_task", "cron_add_ai_task", "cron_add_http_task", "cron_update_command_task", "cron_update_task", "cron_run_task_now"],
+    // Audit 2026-09-25 (P1): snap_restore rolls back files, clepsydre_enable_task
+    // re-arms a disabled task — both carry, create or execute state too.
+    tools: ["edit", "write", "patch", "apply_patch", "bash", "shell", "snap_restore", "clepsydre_add_task", "clepsydre_add_shell_task", "clepsydre_add_http_task", "clepsydre_add_prompt_task", "clepsydre_update_task", "clepsydre_remove_task", "clepsydre_run_task_now", "clepsydre_enable_task"],
     ignoreFiles: DEFAULT_IGNORE_FILES,
     placeholders: true,
     trace: {
@@ -213,7 +215,7 @@ export const DEFAULT_CONFIG: NovahizConfig = {
   providers: {
     autoRegister: true,
     autoInstall: false,
-    disabled: ["cron"]
+    disabled: []
   },
   ledger: {
     enabled: true,

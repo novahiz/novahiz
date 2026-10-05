@@ -27,7 +27,7 @@ The installer runs `git`-free and never deletes your files. When run in a termin
 6. Verifies provider dependencies, and installs them when you confirm or `--install-providers` is set.
 7. Installs the Novahiz agent into `~/.config/opencode/agent/novahiz.md` and the four slash commands into `~/.config/opencode/commands/`.
 
-Restart opencode afterward. The plugin in `~/.config/opencode/plugins/novahiz.ts` is auto-discovered (confirmed by `opencode debug config`: `file:///…/plugins/novahiz.ts`, scope local), so it is not listed in `plugin[]` and you do not edit `opencode.jsonc` by hand. See [HARNESSES.md](HARNESSES.md) for the exact paths.
+Restart opencode afterward. The plugin in `~/.config/opencode/plugins/novahiz-plugin.ts` is auto-discovered (confirmed by `opencode debug config`: `file:///…/plugins/novahiz-plugin.ts`, scope local), so it is not listed in `plugin[]` and you do not edit `opencode.jsonc` by hand. See [HARNESSES.md](HARNESSES.md) for the exact paths.
 
 ## Options
 
@@ -104,13 +104,14 @@ The uninstaller restores the files it backed up, deletes the files it created (b
 
 ## Other clients
 
-Any harness with a stdio MCP client can use the server for `classify`, `list_skills`, and `gate`:
+Any harness with a stdio MCP client can use the core server for `classify`, `list_skills`, and the rest of the catalog, plus the gate server for `novahiz_gate`:
 
 ```
-node ~/.config/novahiz/mcp/novahiz-tools/index.mjs
+node ~/.config/novahiz/mcp/novahiz-tools/index.mjs   # novahiz-core
+node ~/.config/novahiz/mcp/novahiz-gate/index.mjs    # novahiz-gate
 ```
 
-Register it with that client's own MCP command. Novahiz writes configuration for opencode only — the plugin provides the gate there. See [adapters/README.md](../adapters/README.md) for the full picture.
+Register them with that client's own MCP command. Novahiz writes configuration for opencode only — the plugin registers both servers there. See [adapters/README.md](../adapters/README.md) for the full picture.
 
 ## Publish
 

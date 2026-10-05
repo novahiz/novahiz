@@ -17,9 +17,17 @@ node_modules/
 # novahiz graph - the workspace index store (manifest, gzipped FileIndex objects,
 # graph.json), rebuilt from the workspace on demand.
 /.graph/
+# novahiz-search - local FTS5 index store (hashed shards), rebuilt on demand by
+# lodestone_reindex. Machine data, like /.graph/ and /.snap/.
+/.search/
+# argus scan artifacts (temporary per-scan results), regenerated on each run.
+/mcp/argus/tmp/
 # novahiz-docs - the local documentation index (SQLite FTS5, refilled by
 # ingestion from the sources recorded in mcp/novahiz-docs/data/catalog.json).
 /mcp/novahiz-docs/data/index.sqlite*
+# novahiz-docs - read_docs usage journal (telemetry for `novahiz memory
+# check-docs` "consulted without a persisted decision"; rotated locally).
+/mcp/novahiz-docs/data/usage.jsonl*
 # build output of `npm run prepare` (tsc -p tsconfig.build.json) — regenerated.
 /dist/
 # agent session memory — machine data, regenerated as the session runs.

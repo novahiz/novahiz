@@ -1,8 +1,8 @@
 import type { Cleanup, Context, Plugin } from "@opencode/plugin/promise/plugin";
-import { spawn, spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { spawn } from "node:child_process";
+import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
-import { join, relative, resolve } from "node:path";
+import { isAbsolute, join, relative, resolve } from "node:path";
 
 // Inlined from src/prompt-rewriter.ts — the installed plugin lives in
 // ~/.config/opencode/plugins/ and cannot resolve ../../src/*.
@@ -313,7 +313,12 @@ function readState(cwd: string): AutoDocsState {
 
 function writeState(cwd: string, state: AutoDocsState): void {
   ensureNovahizDir(projectDir(cwd));
-  writeFileSync(statePath(cwd), `${JSON.stringify(state, null, 2)}\n`, "utf8");
+  // Audit 2026-09-25 (TOCTOU): temp file + rename — a crash mid-write can no
+  // longer truncate the state another reader is consuming.
+  const target = statePath(cwd);
+  const tmp = `${target}.tmp`;
+  writeFileSync(tmp, `${JSON.stringify(state, null, 2)}\n`, "utf8");
+  renameSync(tmp, target);
 }
 
 function normalizePath(filePath: string): string {
@@ -464,14 +469,17 @@ const DISABLED = ["off", "0", "false", "no", "disabled"].includes(ESCAPE);
 const GATE_TOOLS = new Set(
   (Array.isArray(GATE.tools) && GATE.tools.length > 0
     ? GATE.tools
-    // MINEUR#8 + 0.3.6 hardening: every cron tool that carries, creates, or
-    // executes shell commands is gated — cron_add_command_task was a bash-gate
-    // bypass, and cron_add_task / cron_add_ai_task / cron_add_http_task each
-    // accept a `command` field (HTTP/AI tasks run shell_command type too).
+    // MINEUR#8 + 0.3.6 hardening: every clepsydre tool that carries, creates,
+    // or executes shell commands is gated — clepsydre_add_shell_task was a
+    // bash-gate bypass, and clepsydre_add_task / clepsydre_add_http_task each
+    // accept a `command` field. clepsydre_remove_task mutates persisted state
+    // and clepsydre_run_task_now executes immediately.
+    // Audit 2026-09-25 (P1): snap_restore rolls back arbitrary files and
+    // clepsydre_enable_task re-arms a disabled task — both gated too.
     // Keep in sync with DEFAULT_CONFIG.gate.tools (src/spec.ts), install/lib.mjs,
     // novahiz.config.example.json, the live novahiz.config.json, and
     // docs/CONFIGURATION.md.
-    : ["edit", "write", "patch", "apply_patch", "bash", "shell", "cron_add_command_task", "cron_add_task", "cron_add_ai_task", "cron_add_http_task", "cron_update_command_task", "cron_update_task", "cron_run_task_now"]
+    : ["edit", "write", "patch", "apply_patch", "bash", "shell", "snap_restore", "clepsydre_add_task", "clepsydre_add_shell_task", "clepsydre_add_http_task", "clepsydre_add_prompt_task", "clepsydre_update_task", "clepsydre_remove_task", "clepsydre_run_task_now", "clepsydre_enable_task"]
   ).map((tool) => tool.toLowerCase())
 );
 
@@ -481,39 +489,106 @@ const MEMORY_AUTO = resolveMemoryAuto(CONFIG.memory, process.env.NOVAHIZ_MEM_AUT
 
 type RunResult = { status: number; stdout: string; stderr: string; spawnError?: string };
 
-// C1: timeout prevents a hung CLI from freezing the whole OpenCode process.
-// Raised 10 s -> 30 s (audit 2026-09-25, MEDIUM): gate/CLI runs legitimately
-// exceeded 10 s on 23-24/09 and the cap turned them into 14 spurious
-// fail-closed refusals. Still bounded, so a truly hung CLI cannot freeze
-// OpenCode for more than 30 s.
+// C1: timeout bounds a hung CLI without freezing OpenCode. Raised 10 s -> 30 s
+// (audit 2026-09-25, MEDIUM): gate/CLI runs legitimately exceeded 10 s on
+// 23-24/09 and the cap turned them into spurious fail-closed refusals.
+// Audit 2026-09-25 (finding 5): the runner is now async — spawnSync held the
+// whole event loop for up to RUN_TIMEOUT_MS (frozen UI, serialized hooks).
 // C2: maxBuffer caps output; oversized output is treated as a gate failure,
 // never as truncated-then-allowed.
 const RUN_TIMEOUT_MS = 30_000;
 const RUN_MAX_BUFFER = 1_048_576;
+// Audit 2026-09-25 (P2): catalog MCP servers were registered without a timeout
+// — cold starts (argus, clepsydre) then died at the harness default mid-connect.
+// The plugin API takes the structured form, not a plain number (opencode config).
+const MCP_TIMEOUT = { startup: 120_000, catalog: 120_000, execution: 120_000 } as const;
 
-function run(args: string[], input?: string): RunResult {
-  // C1: On Windows, SIGTERM is emulated via process.kill() which sends
-  //TerminateProcess + exit code 1, causing the CLI to report status 1 instead
-  //of being properly terminated. Use SIGKILL on Windows (unavoidable but at
-  //least doesn't pretend graceful shutdown is possible).
-  const isWin = process.platform === "win32";
-  const result = spawnSync(NODE, [CLI, ...args], {
-    encoding: "utf8",
-    input,
-    timeout: RUN_TIMEOUT_MS,
-    maxBuffer: RUN_MAX_BUFFER,
-    killSignal: isWin ? "SIGKILL" : "SIGTERM",
-    // FIX fenetres console: sans ce cache, chaque lecture/ecriture/prompt
-    // creait une console Windows visible puis la fermait (le service
-    // OpenCode n'a pas de console a laquelle l'enfant pourrait s'attacher).
-    windowsHide: true
+function spawnNode(argv: string[], input?: string): Promise<RunResult> {
+  return new Promise((resolveRun) => {
+    // C1: On Windows, SIGTERM is emulated via process.kill() which sends
+    // TerminateProcess + exit code 1, causing the CLI to report status 1 instead
+    // of being properly terminated. Use SIGKILL on Windows (unavoidable but at
+    // least doesn't pretend graceful shutdown is possible).
+    const isWin = process.platform === "win32";
+    let settled = false;
+    const finish = (value: RunResult): void => {
+      if (settled) return;
+      settled = true;
+      resolveRun(value);
+    };
+    let child: ReturnType<typeof spawn>;
+    try {
+      child = spawn(NODE, argv, {
+        stdio: ["pipe", "pipe", "pipe"],
+        // FIX fenetres console: sans ce cache, chaque lecture/ecriture/prompt
+        // creait une console Windows visible puis la fermait (le service
+        // OpenCode n'a pas de console a laquelle l'enfant pourrait s'attacher).
+        windowsHide: true
+      });
+    } catch (error) {
+      finish({ status: 1, stdout: "", stderr: "", spawnError: String(error) });
+      return;
+    }
+    let stdout = "";
+    let stderr = "";
+    let timedOut = false;
+    let overflow = false;
+    const kill = (): void => {
+      try {
+        child.kill(isWin ? "SIGKILL" : "SIGTERM");
+      } catch {
+        // process already gone
+      }
+    };
+    const timer = setTimeout(() => {
+      timedOut = true;
+      kill();
+    }, RUN_TIMEOUT_MS);
+    child.stdout?.setEncoding("utf8");
+    child.stderr?.setEncoding("utf8");
+    child.stdout?.on("data", (chunk: string) => {
+      stdout += chunk;
+      if (stdout.length > RUN_MAX_BUFFER) {
+        overflow = true;
+        kill();
+      }
+    });
+    child.stderr?.on("data", (chunk: string) => {
+      stderr += chunk;
+      if (stderr.length > RUN_MAX_BUFFER) {
+        overflow = true;
+        kill();
+      }
+    });
+    child.on("error", (error) => {
+      clearTimeout(timer);
+      finish({ status: 1, stdout: "", stderr: "", spawnError: error.message });
+    });
+    child.on("close", (code) => {
+      clearTimeout(timer);
+      if (overflow) {
+        finish({ status: 1, stdout, stderr, spawnError: "output exceeded the buffer cap" });
+        return;
+      }
+      // Deterministic timeout flag replaces the old status/signal heuristic
+      // (audit finding 11): the timer owns the decision, not the exit shape.
+      if (timedOut) {
+        finish({ status: 1, stdout: "", stderr: "Novahiz timed out" });
+        return;
+      }
+      finish({ status: code ?? 1, stdout, stderr });
+    });
+    if (child.stdin) {
+      child.stdin.on("error", () => {
+        // reader gone before EOF — close() still fires
+      });
+      child.stdin.end(input ?? "");
+    }
   });
-  if (result.error) return { status: 1, stdout: "", stderr: "", spawnError: result.error.message };
-  // On Windows, timeout-killed processes always exit with status 1 (TerminateProcess).
-  // The `signal` property is set when the process was killed by a signal.
-  const timedOut = result.status === 1 && !result.stdout?.trim() && Boolean(result.signal);
-  if (timedOut) return { status: 1, stdout: "", stderr: "Novahiz timed out" };
-  return { status: result.status ?? 1, stdout: result.stdout ?? "", stderr: result.stderr ?? "" };
+}
+
+async function run(args: string[], input?: string): Promise<RunResult> {
+  return spawnNode([CLI, ...args], input);
 }
 
 type McpCall = { ok: boolean; data: Record<string, unknown> | null; error: string | null };
@@ -522,27 +597,17 @@ type McpCall = { ok: boolean; data: Record<string, unknown> | null; error: strin
 // ne peut pas importer src/*, donc memory_write / memory_search / novahiz_task
 // passent par le meme handle() que le transport stdio: une seule source de
 // verite pour la validation, la dedup, le routage et le lock.
-function callMcp(tool: string, args: Record<string, unknown>): McpCall {
+async function callMcp(tool: string, args: Record<string, unknown>): Promise<McpCall> {
   let payload: string;
   try {
     payload = JSON.stringify(args);
   } catch (error) {
     return { ok: false, data: null, error: `serialize failed: ${String(error)}` };
   }
-  const isWin = process.platform === "win32";
-  const result = spawnSync(NODE, [MCP, "--call", tool], {
-    encoding: "utf8",
-    input: payload,
-    timeout: RUN_TIMEOUT_MS,
-    maxBuffer: RUN_MAX_BUFFER,
-    killSignal: isWin ? "SIGKILL" : "SIGTERM",
-    // FIX fenetres console: meme cache que run() ci-dessus — c'est ce spawn
-    // qui clignotait a chaque auto-lecture/auto-ecriture de la memoire.
-    windowsHide: true
-  });
-  if (result.error) return { ok: false, data: null, error: result.error.message };
-  const stdout = (result.stdout ?? "").trim();
-  if (stdout.length === 0) return { ok: false, data: null, error: `empty response (exit ${result.status ?? 1})` };
+  const result = await spawnNode([MCP, "--call", tool], payload);
+  if (result.spawnError) return { ok: false, data: null, error: result.spawnError };
+  const stdout = result.stdout.trim();
+  if (stdout.length === 0) return { ok: false, data: null, error: `empty response (exit ${result.status})` };
   // --call n'imprime qu'une ligne JSON; la derniere ligne non vide couvre
   // quand meme d'eventuelles traces d'en-tete d'un sous-processus.
   const line = stdout.split(/\r?\n/).filter((entry) => entry.trim().length > 0).pop() ?? "";
@@ -894,7 +959,7 @@ export function buildAutoReadLines(
 }
 
 // H2: Session IDs must be non-empty strings. This guards against undefined/null
-// being passed to spawnSync env, which would throw on Windows.
+// being passed to the spawn env, which would throw on Windows.
 function isValidSessionId(id: unknown): id is string {
   return typeof id === "string" && id.trim().length > 0;
 }
@@ -958,6 +1023,7 @@ function buildRepairDirective(failure: GateFailure, attempt: number): string {
     "The loads did not register — diagnose instead of retrying:",
     "  1. Confirm the skill is installed and the index matches (`novahiz doctor`).",
     "  2. Realign the index (`novahiz sync`), then load the named skills again.",
+    "  3. If doctor shows the skill installed for another root but not this one (for example ~/.agents/skills vs ~/.config/opencode/skills), run `novahiz install --yes` to place it, restart opencode so it discovers the new skills, then load again.",
     "If the skill genuinely does not exist, report that honestly to the user and stop. Never bypass the gate."
   ].join("\n");
 }
@@ -1057,10 +1123,10 @@ async function setup(ctx: Context): Promise<Cleanup> {
     return true;
   };
 
-  const autoWriteFact = (trigger: AutoTrigger, payload: Record<string, unknown>, sessionID: string): void => {
+  const autoWriteFact = async (trigger: AutoTrigger, payload: Record<string, unknown>, sessionID: string): Promise<void> => {
     const fact = buildAutoWrite(trigger, payload, { sessionID });
     if (!fact) return;
-    const call = callMcp("memory_write", { title: fact.title, content: fact.content, tags: fact.tags });
+    const call = await callMcp("memory_write", { title: fact.title, content: fact.content, tags: fact.tags });
     if (!call.ok) {
       void log("warn", `memory auto-write (${trigger}) failed: ${call.error}`);
       return;
@@ -1073,10 +1139,10 @@ async function setup(ctx: Context): Promise<Cleanup> {
   // S-AUTO (T3): apres un todo done, interroge l'etat de la tache — quand
   // elle vient de se terminer (done/abandoned), pose une seule fois la
   // directive de synthese de fin de tache dans le bloc d'enforcement.
-  const checkTaskEnd = (taskId: string, sessionID: string): void => {
+  const checkTaskEnd = async (taskId: string, sessionID: string): Promise<void> => {
     const key = `${sessionID}|${taskId}`;
     if (taskEndDirectiveBySession.has(key)) return;
-    const call = callMcp("novahiz_task", { action: "status", task: taskId });
+    const call = await callMcp("novahiz_task", { action: "status", task: taskId });
     const task = call.ok && call.data ? (call.data.task as { status?: unknown } | null) : null;
     const status = task && typeof task === "object" && typeof task.status === "string" ? task.status : "";
     if (status !== "done" && status !== "abandoned") return;
@@ -1117,10 +1183,10 @@ async function setup(ctx: Context): Promise<Cleanup> {
     }
   };
 
-  const buildAutoRead = (
+  const buildAutoRead = async (
     sessionID: string,
     query: string
-  ): { lines: string[]; newCount: number } => {
+  ): Promise<{ lines: string[]; newCount: number }> => {
     if (!MEMORY_AUTO) return { lines: [], newCount: 0 };
     try {
       let state: { ids: string[]; details: string[] } = autoReadBySession.get(sessionID) ?? { ids: [], details: [] };
@@ -1153,7 +1219,7 @@ async function setup(ctx: Context): Promise<Cleanup> {
       if (active > 0) {
         const limit = Math.min(20, Math.max(MEMORY_AUTO.read.k * 3, 6));
         // Tete du prompt (voir autoReadQuery): la longueur dilue le score fold.
-        const call = callMcp("memory_search", { query: autoReadQuery(query), limit });
+        const call = await callMcp("memory_search", { query: autoReadQuery(query), limit });
         if (!call.ok || !call.data) {
           // info (console.log) et non warn: seul ce canal est capture par les
           // logs opencode — observe en E2E serve --print-logs --log-level all.
@@ -1199,7 +1265,7 @@ async function setup(ctx: Context): Promise<Cleanup> {
   // callbacks must stay synchronous and free of one-time side effects.
   if (!DISABLED) {
     try {
-      const providers = run(["providers", "--mcp-json"]);
+      const providers = await run(["providers", "--mcp-json"]);
       const entries: Record<string, unknown> = {};
       if (providers.status === 0 && providers.stdout.trim().length > 0) {
         try {
@@ -1212,8 +1278,17 @@ async function setup(ctx: Context): Promise<Cleanup> {
       }
       await ctx.mcp.transform((editor) => {
         // A server configured by the user wins over the catalog registration.
-        if (!editor.get("novahiz")) {
-          editor.set("novahiz", { type: "local", command: [NODE, join(HOME, "mcp", "novahiz-tools", "index.mjs")] });
+        // Audit 2026-09-25 (P2): novahiz-scan joined the hard-coded trio — when
+        // `providers --mcp-json` fails, argus must not vanish from the harness.
+        if (!editor.get("novahiz-core")) {
+          editor.set("novahiz-core", { type: "local", command: [NODE, join(HOME, "mcp", "novahiz-tools", "index.mjs")], timeout: MCP_TIMEOUT });
+        }
+        // The gate is its own server since the extraction: same fallback rule.
+        if (!editor.get("novahiz-gate")) {
+          editor.set("novahiz-gate", { type: "local", command: [NODE, join(HOME, "mcp", "novahiz-gate", "index.mjs")], timeout: MCP_TIMEOUT });
+        }
+        if (!editor.get("novahiz-scan")) {
+          editor.set("novahiz-scan", { type: "local", command: [NODE, join(HOME, "mcp", "argus", "src", "cli.mjs")], timeout: MCP_TIMEOUT });
         }
         for (const [id, raw] of Object.entries(entries)) {
           if (editor.get(id)) continue;
@@ -1222,13 +1297,13 @@ async function setup(ctx: Context): Promise<Cleanup> {
           // is carried across instead of silently flipping the server on.
           const disabled = entry.enabled === false ? { disabled: true as const } : {};
           if (entry.type === "remote" && typeof entry.url === "string") {
-            editor.set(id, { type: "remote", url: entry.url, ...disabled });
+            editor.set(id, { type: "remote", url: entry.url, timeout: MCP_TIMEOUT, ...disabled });
           } else if (
             entry.type === "local" &&
             Array.isArray(entry.command) &&
             entry.command.every((part) => typeof part === "string")
           ) {
-            editor.set(id, { type: "local", command: entry.command as string[], ...disabled });
+            editor.set(id, { type: "local", command: entry.command as string[], timeout: MCP_TIMEOUT, ...disabled });
           }
         }
       });
@@ -1289,13 +1364,15 @@ async function setup(ctx: Context): Promise<Cleanup> {
       const rewrite = rewritePrompt(text);
       const classifyText = rewrite.rewritten;
       if (rewrite.wasRewritten) {
-        await log("info", `Prompt rewritten: ${rewrite.sourceLanguage} → English ("${classifyText.slice(0, 80)}")`);
+        // Audit 2026-09-25 (privacy): log the language and size, never the
+        // prompt content — opencode logs land on disk in cleartext.
+        await log("info", `Prompt rewritten: ${rewrite.sourceLanguage} → English (${classifyText.length} chars)`);
       }
 
       // P0-B: the prompt travels on stdin. On argv it allowed option
       // injection (--home), broke past the Windows 32k limit, and was
       // readable in the process list.
-      const result = run(["classify", "--stdin"], classifyText);
+      const result = await run(["classify", "--stdin"], classifyText);
       if (result.status !== 0) {
         classifyFailedBySession.set(sessionID, `classify exit ${result.status}`);
         await log("warn", `Classify failed (exit ${result.status}), gate tool calls refused for this session: ${result.stderr.trim().slice(0, 200)}`);
@@ -1326,6 +1403,9 @@ async function setup(ctx: Context): Promise<Cleanup> {
       classifyFailedBySession.delete(sessionID);
       const categories = (parsed.categories ?? []).map((entry) => entry.id);
       categoriesBySession.set(sessionID, categories);
+      // P1-4: the gate takes the last prompt as its tier seed via --prompt even
+      // when memory auto is off — set unconditionally, not inside MEMORY_AUTO.
+      lastPromptBySession.set(sessionID, text.slice(0, 300));
       const primary = parsed.primary ?? categories[0] ?? null;
       const enforced = parsed.enforcedSkills ?? [];
       const required = parsed.requiredSkills ?? [];
@@ -1349,7 +1429,7 @@ async function setup(ctx: Context): Promise<Cleanup> {
       if (enforced.length > 0) lines.push(`Required skills (roadmap): ${enforced.join(", ")}`);
       if (suggested.length > 0) lines.push(`Suggested skills: ${suggested.join(", ")}`);
       if (providers.length > 0) lines.push(`Tools for this task: ${providers.join(", ")}`);
-      const ledger = run(["task", "current", "--session", sessionID]);
+      const ledger = await run(["task", "current", "--session", sessionID]);
       if (ledger.status === 0 && ledger.stdout.trim().length > 0) {
         try {
           const state = JSON.parse(ledger.stdout) as { task?: unknown; summary?: string[] };
@@ -1369,8 +1449,7 @@ async function setup(ctx: Context): Promise<Cleanup> {
       // directives posees (T3/T4) qui survivent au rebuild. buildAutoRead
       // est sans effet si memory auto est coupee.
       if (MEMORY_AUTO) {
-        lastPromptBySession.set(sessionID, text.slice(0, 300));
-        const auto = buildAutoRead(sessionID, text);
+        const auto = await buildAutoRead(sessionID, text);
         // Ligne de synthese inconditionnelle: elle prouve en E2E que le
         // chemin lecture a tourne, y compris quand il ressort vide.
         await log("info", `memory auto-read prompt: ${auto.lines.length} line(s), ${auto.newCount} new`);
@@ -1428,7 +1507,7 @@ async function setup(ctx: Context): Promise<Cleanup> {
         }
         if (MEMORY_AUTO.read.postCompaction) {
           const query = lastPromptBySession.get(sessionID) ?? "session";
-          const auto = buildAutoRead(sessionID, query);
+          const auto = await buildAutoRead(sessionID, query);
           if (auto.lines.length > 0) {
             const previous = new Set(summaryChunkBySession.get(sessionID) ?? []);
             const block = enforcementBySession.get(sessionID) ?? "[Novahiz enforcement]";
@@ -1484,7 +1563,7 @@ async function setup(ctx: Context): Promise<Cleanup> {
           // the installed index — an unverified name never counts as loaded.
           // H3 stays: failures are surfaced in the log instead of vanishing,
           // with the exit code — a bare empty reason hid real failures.
-          const loadResult = run(["session-load", "--session", event.sessionID, "--skill", name]);
+          const loadResult = await run(["session-load", "--session", event.sessionID, "--skill", name]);
           if (loadResult.status !== 0) {
             await log("warn", `session-load failed for skill ${name} (exit ${loadResult.status}), not recorded: ${(loadResult.stderr || loadResult.stdout || "").trim().slice(0, 200)}`);
           } else {
@@ -1505,7 +1584,7 @@ async function setup(ctx: Context): Promise<Cleanup> {
       }
 
       const categories = categoriesBySession.get(event.sessionID) ?? [];
-      const result = run(
+      const result = await run(
         [
           "gate",
           "--tool",
@@ -1516,7 +1595,14 @@ async function setup(ctx: Context): Promise<Cleanup> {
           "--loaded",
           [...loaded].join(","),
           "--session",
-          event.sessionID
+          event.sessionID,
+          // P1-1/P1-4: frozen tool list + last prompt as tier seed — the CLI
+          // must not re-read a possibly edited gate.tools from the config, and
+          // the tier must see the prompt even when categories arrive empty.
+          "--tools",
+          [...GATE_TOOLS].join(","),
+          "--prompt",
+          lastPromptBySession.get(event.sessionID) ?? ""
         ],
         (() => {
           try {
@@ -1584,10 +1670,10 @@ async function setup(ctx: Context): Promise<Cleanup> {
           const wantsWrite = trigger === "todoDone" ? MEMORY_AUTO.write.todoDone : MEMORY_AUTO.write.review;
           const payload = parseToolPayload(event.result);
           if (payload) {
-            if (wantsWrite) autoWriteFact(trigger, payload, event.sessionID);
+            if (wantsWrite) await autoWriteFact(trigger, payload, event.sessionID);
             // T3: un todo done peut terminer la tache → directive de synthese.
             if (trigger === "todoDone" && MEMORY_AUTO.write.taskEnd && typeof payload.task_id === "string") {
-              checkTaskEnd(payload.task_id, event.sessionID);
+              await checkTaskEnd(payload.task_id, event.sessionID);
             }
           }
         } else if (trigger === "spec" && MEMORY_AUTO.write.spec) {
@@ -1597,7 +1683,7 @@ async function setup(ctx: Context): Promise<Cleanup> {
             (typeof args.file_path === "string" && args.file_path) ||
             (typeof args.path === "string" && args.path) ||
             "";
-          autoWriteFact("spec", { path: raw, tool: event.tool }, event.sessionID);
+          await autoWriteFact("spec", { path: raw, tool: event.tool }, event.sessionID);
         }
       }
 
@@ -1612,7 +1698,10 @@ async function setup(ctx: Context): Promise<Cleanup> {
       const cwd = process.cwd();
       const abs = resolve(cwd, raw);
       const rel = relative(cwd, abs).replace(/\\/g, "/");
-      if (!rel || rel.startsWith("..")) return;
+      // Audit 2026-09-25 (traversal): relative() across drives returns an
+      // absolute path ("D:/..."), which slipped past the ".." prefix test —
+      // reject anything outside cwd, absolute or not.
+      if (!rel || rel.startsWith("..") || isAbsolute(rel)) return;
       if (!isMajorPath(rel)) return;
       markDirty(cwd, rel);
     } catch {

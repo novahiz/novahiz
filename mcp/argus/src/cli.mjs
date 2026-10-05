@@ -11,6 +11,7 @@
 
 import { createInterface } from "node:readline";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -19,7 +20,7 @@ import { RuleEngine } from "./analysis/ruleEngine.mjs";
 import { Scanner } from "./analysis/scanner.mjs";
 import { CONFIG } from "./config.mjs";
 
-const SERVER_INFO = { name: "argus", version: "0.1.0" };
+const SERVER_INFO = { name: "novahiz-scan", version: "0.1.0" };
 // Negotiation rule: echo the requested version when supported, else answer
 // with the newest one we speak (the host then downgrades or disconnects).
 const SUPPORTED_PROTOCOLS = [
@@ -250,7 +251,17 @@ async function dispatch(message) {
 // stdio loop
 // ---------------------------------------------------------------------------
 async function main() {
-  if (!fs.existsSync(CONFIG.tempDir)) {
+  // tempDir is cwd-relative ("./tmp/argus"): sessions opened in a protected
+  // directory (C:\Windows, Program Files, ...) cannot mkdir there and the
+  // server used to crash at startup (EPERM). Fall back to the OS temp dir,
+  // which every process can write; CONFIG is mutated so exportResultsTool
+  // resolves the same path at call time.
+  try {
+    if (!fs.existsSync(CONFIG.tempDir)) {
+      fs.mkdirSync(CONFIG.tempDir, { recursive: true });
+    }
+  } catch {
+    CONFIG.tempDir = path.join(os.tmpdir(), "novahiz-argus");
     fs.mkdirSync(CONFIG.tempDir, { recursive: true });
   }
   loadDefaultRules();

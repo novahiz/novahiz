@@ -25,7 +25,7 @@ These files live in `catalog/` and are part of the git repository:
     "enabled": true,
     "mode": "block",
     "envEscape": "NOVAHIZ_GATE",
-    "tools": ["edit", "write", "patch", "apply_patch", "bash", "shell", "cron_add_command_task", "cron_add_task", "cron_add_ai_task", "cron_add_http_task", "cron_update_command_task", "cron_update_task", "cron_run_task_now"],
+    "tools": ["edit", "write", "patch", "apply_patch", "bash", "shell", "snap_restore", "clepsydre_add_task", "clepsydre_add_shell_task", "clepsydre_add_http_task", "clepsydre_add_prompt_task", "clepsydre_update_task", "clepsydre_remove_task", "clepsydre_run_task_now", "clepsydre_enable_task"],
     "ignoreFiles": ["**/node_modules/**", "**/dist/**", ...],
     "placeholders": true,
     "trace": {
@@ -41,7 +41,7 @@ These files live in `catalog/` and are part of the git repository:
   "providers": {
     "autoRegister": true,
     "autoInstall": false,
-    "disabled": ["cron"]
+    "disabled": []
   },
   "ledger": {
     "enabled": true,
@@ -62,14 +62,14 @@ These files live in `catalog/` and are part of the git repository:
 | `gate.enabled` | `true` | Enable/disable the gate |
 | `gate.mode` | `block` | `block`, `warn`, or `audit` |
 | `gate.envEscape` | `NOVAHIZ_GATE` | Schema field only. The kill-switch name is hardcoded to `NOVAHIZ_GATE` in the CLI, MCP gate, and plugin; a config value cannot redirect it. |
-| `gate.tools` | `[edit, write, patch, apply_patch, bash, shell, cron_add_command_task, cron_add_task, cron_add_ai_task, cron_add_http_task, cron_update_command_task, cron_update_task, cron_run_task_now]` | Tools to intercept |
+| `gate.tools` | `[edit, write, patch, apply_patch, bash, shell, snap_restore, clepsydre_add_task, clepsydre_add_shell_task, clepsydre_add_http_task, clepsydre_add_prompt_task, clepsydre_update_task, clepsydre_remove_task, clepsydre_run_task_now, clepsydre_enable_task]` | Tools to intercept |
 | `gate.placeholders` | `true` | Block edits with placeholder markers |
 | `classify.minScore` | `1` | Minimum score to match a category |
 | `classify.maxCategories` | `3` | Maximum categories per prompt |
 | `classify.fallbackCategory` | `general` | Fallback when no category matches |
 | `providers.autoRegister` | `true` | Auto-register MCP providers |
 | `providers.autoInstall` | `false` | Auto-install provider dependencies |
-| `providers.disabled` | `["cron"]` | Providers to skip (`cron` needs a local scheduler clone first) |
+| `providers.disabled` | `[]` | Providers to skip (empty by default: every bundled server runs locally) |
 | `ledger.enabled` | `true` | Enable the task ledger |
 | `ledger.review.edits` | `3` | Force review after N edits |
 | `ledger.review.todos` | `2` | Force review after N completed todos |
@@ -88,7 +88,7 @@ These files live in `catalog/` and are part of the git repository:
 
 The installer generates `opencode.jsonc` with:
 
-- MCP server registrations (novahiz-docs, narsil, cron, playwright, security, dart, novahiz)
+- MCP server registrations (novahiz-docs, lodestone, clepsydre, playwright, security, dart, novahiz)
 - Skill paths
 - Plugin list
 - Compaction settings

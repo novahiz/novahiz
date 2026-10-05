@@ -1,6 +1,6 @@
 {
   "version": "0.3.8",
-  "installedAt": "2026-10-03T15:40:10.771Z",
+  "installedAt": "2026-10-05T02:02:14.106Z",
   "harness": "opencode",
   "harnesses": [
     "opencode"
@@ -21,7 +21,7 @@
     "C:\\Users\\hiz\\.config\\novahiz\\adapters\\opencode\\commands\\novahiz-plan.md",
     "C:\\Users\\hiz\\.config\\novahiz\\adapters\\opencode\\commands\\novahiz-status.md",
     "C:\\Users\\hiz\\.config\\novahiz\\adapters\\opencode\\instructions.md",
-    "C:\\Users\\hiz\\.config\\novahiz\\adapters\\opencode\\novahiz.ts",
+    "C:\\Users\\hiz\\.config\\novahiz\\adapters\\opencode\\novahiz-plugin.ts",
     "C:\\Users\\hiz\\.config\\novahiz\\bin\\novahiz.cmd",
     "C:\\Users\\hiz\\.config\\novahiz\\bin\\novahiz.mjs",
     "C:\\Users\\hiz\\.config\\novahiz\\catalog\\categories.json",
@@ -166,7 +166,7 @@
     "C:\\Users\\hiz\\.config\\opencode\\commands\\novahiz-init.md",
     "C:\\Users\\hiz\\.config\\opencode\\commands\\novahiz-plan.md",
     "C:\\Users\\hiz\\.config\\opencode\\commands\\novahiz-status.md",
-    "C:\\Users\\hiz\\.config\\opencode\\plugins\\novahiz.ts",
+    "C:\\Users\\hiz\\.config\\opencode\\plugins\\novahiz-plugin.ts",
     "C:\\Users\\hiz\\.config\\opencode\\skills\\apple-ui-audit\\SKILL.md",
     "C:\\Users\\hiz\\.config\\opencode\\skills\\apple-ui-audit\\references\\screen-walkthrough.md",
     "C:\\Users\\hiz\\.config\\opencode\\skills\\browser-session\\SKILL.md",
@@ -208,6 +208,7 @@
     "C:\\Users\\hiz\\.config\\opencode\\skills\\novahiz-planner\\SKILL.md",
     "C:\\Users\\hiz\\.config\\opencode\\skills\\novahiz-postgres\\SKILL.md",
     "C:\\Users\\hiz\\.config\\opencode\\skills\\novahiz-release\\SKILL.md",
+    "C:\\Users\\hiz\\.config\\opencode\\skills\\novahiz-second-memory\\SKILL.md",
     "C:\\Users\\hiz\\.config\\opencode\\skills\\novahiz-security\\SKILL.md",
     "C:\\Users\\hiz\\.config\\opencode\\skills\\novahiz-supabase\\SKILL.md",
     "C:\\Users\\hiz\\.config\\opencode\\skills\\novahiz-task\\SKILL.md",
@@ -263,8 +264,8 @@
       "backup": "C:\\Users\\hiz\\.config\\novahiz\\adapters\\opencode\\instructions.md.novahiz-bak"
     },
     {
-      "path": "C:\\Users\\hiz\\.config\\novahiz\\adapters\\opencode\\novahiz.ts",
-      "backup": "C:\\Users\\hiz\\.config\\novahiz\\adapters\\opencode\\novahiz.ts.novahiz-bak"
+      "path": "C:\\Users\\hiz\\.config\\novahiz\\adapters\\opencode\\novahiz-plugin.ts",
+      "backup": "C:\\Users\\hiz\\.config\\novahiz\\adapters\\opencode\\novahiz-plugin.ts.novahiz-bak"
     },
     {
       "path": "C:\\Users\\hiz\\.config\\novahiz\\bin\\novahiz.mjs",
@@ -495,8 +496,8 @@
       "backup": "C:\\Users\\hiz\\.config\\opencode\\agent\\novahiz.md.novahiz-bak"
     },
     {
-      "path": "C:\\Users\\hiz\\.config\\opencode\\plugins\\novahiz.ts",
-      "backup": "C:\\Users\\hiz\\.config\\opencode\\plugins\\novahiz.ts.novahiz-bak"
+      "path": "C:\\Users\\hiz\\.config\\opencode\\plugins\\novahiz-plugin.ts",
+      "backup": "C:\\Users\\hiz\\.config\\opencode\\plugins\\novahiz-plugin.ts.novahiz-bak"
     },
     {
       "path": "C:\\Users\\hiz\\.config\\opencode\\skills\\gate\\SKILL.md",
@@ -513,6 +514,10 @@
     {
       "path": "C:\\Users\\hiz\\.config\\opencode\\skills\\novahiz-audit\\SKILL.md",
       "backup": "C:\\Users\\hiz\\.config\\opencode\\skills\\novahiz-audit\\SKILL.md.novahiz-bak"
+    },
+    {
+      "path": "C:\\Users\\hiz\\.config\\opencode\\skills\\novahiz-browser\\SKILL.md",
+      "backup": "C:\\Users\\hiz\\.config\\opencode\\skills\\novahiz-browser\\SKILL.md.novahiz-bak"
     },
     {
       "path": "C:\\Users\\hiz\\.config\\opencode\\skills\\novahiz-code-review\\SKILL.md",
@@ -545,6 +550,10 @@
     {
       "path": "C:\\Users\\hiz\\.config\\opencode\\skills\\novahiz-planner\\SKILL.md",
       "backup": "C:\\Users\\hiz\\.config\\opencode\\skills\\novahiz-planner\\SKILL.md.novahiz-bak"
+    },
+    {
+      "path": "C:\\Users\\hiz\\.config\\opencode\\skills\\novahiz-second-memory\\SKILL.md",
+      "backup": "C:\\Users\\hiz\\.config\\opencode\\skills\\novahiz-second-memory\\SKILL.md.novahiz-bak"
     },
     {
       "path": "C:\\Users\\hiz\\.config\\opencode\\skills\\novahiz-task\\SKILL.md",

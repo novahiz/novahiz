@@ -235,7 +235,7 @@ Subcommands accept any unambiguous prefix (`fi` → `find`); an ambiguous one is
 
 ### `novahiz memory <subcommand>`
 
-Project memory hygiene (`project-memory/`: `index.json` + `slots/`). `clean` and `prune` are **dry-run by default** — they report the planned actions and write nothing until `--apply`. Nothing here ever deletes content: GC means *archive, never destroy*.
+Project memory hygiene (`project-memory/`: `index.json` + `slots/`). `clean`, `prune` and `check-docs` are **dry-run by default** — they report the planned actions and write nothing until `--apply`. Nothing here ever deletes content: GC means *archive, never destroy*.
 
 ```bash
 novahiz memory status              # read-only report (no heal, no write)
@@ -245,6 +245,8 @@ novahiz memory prune --days 7      # list actives not used (read or written) for
 novahiz memory prune --decay 90    # list never-read slots stale for 90 days
 novahiz memory prune --retention 90  # list pre-compact copies older than 90 days
 novahiz memory prune --apply       # archive/move them (files stay on disk)
+novahiz memory check-docs          # verify novahiz-docs citations in slots (dry-run)
+novahiz memory check-docs --apply  # append the ⚠ re-verify marker to flagged slots
 ```
 
 | Subcommand | Effect |
@@ -252,8 +254,9 @@ novahiz memory prune --apply       # archive/move them (files stay on disk)
 | `status` | Root/layout, index state, slot counts, orphans/ghosts/unreadable files, stale `.lock`, `.pending` queue — strictly read-only (no auto-heal) |
 | `clean [--apply]` | Dry-run plan: remove a stale `.lock` (dead pid or malformed), drop `.pending/failed-*.json`, drop `.tmp-*` fragments of interrupted atomic writes (root and `slots/`), rebuild `index.json` (adopts orphan slots, drops ghosts), archive duplicate slots (Resume + Détails byte-identical: the oldest is kept, the newest archived, file kept). Junk non-`.md` files and unreadable slots are reported, never deleted |
 | `prune [--days n] [--decay n] [--retention n] [--apply]` | Dry-run lists. `--days` (default 30): active slots whose last use — last read (`last_read`, traced by `memory_get`) or last write — is older than `n`; a recent read extends a slot's life. `--decay` (default 90): active slots **never read** (`last_read` absent) and stale since creation/update. `--retention` (default 90): pre-compact copies in `slots/archive/` older than `n` days, moved to `slots/archive/retention/` (byte-identical). `--apply` archives the slots (`archiveSlot`: status flip, file kept) and moves the copies — nothing is ever deleted |
+| `check-docs [--days n] [--slot id] [--apply]` | Checks every `novahiz-docs/<library>[@version]` citation in active slots against the catalogue and the local docs index: flags `absent` (left the bouquet), `unindexed` (catalogued but never ingested), `version-drift` (cited vs indexed version, only when the index knows its own), `refetched` (docs refreshed after the note was written). Also lists libraries consulted through `read_docs` in the last `--days` (default 7) with no persisted decision (nudge → `memory_write`). Dry-run by default; `--apply` **appends** a `⚠ docs à revérifier (check-docs <date>)` marker (idempotent, never deletes); `--slot` checks a single slot |
 
-`--root <path>` targets another project root or memory dir (an explicit path is the workspace reference, so it is honored as-is); default is cwd. Every subcommand accepts `--json`. `prune` exits `1` on a corrupt index and points you at `clean --apply`.
+`--root <path>` targets another project root or memory dir (an explicit path is the workspace reference, so it is honored as-is); default is cwd. Every subcommand accepts `--json`. `prune` and `check-docs` exit `1` on a corrupt index and point you at `clean --apply`.
 
 ## Exit codes
 

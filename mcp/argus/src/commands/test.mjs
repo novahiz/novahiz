@@ -109,8 +109,8 @@ async function main() {
     server.send(INIT);
     const init = await server.request();
     check(
-      "initialize returns serverInfo.name=argus",
-      init.result?.serverInfo?.name === "argus"
+      "initialize returns serverInfo.name=novahiz-scan",
+      init.result?.serverInfo?.name === "novahiz-scan"
     );
     check(
       "initialize echoes a supported protocolVersion",

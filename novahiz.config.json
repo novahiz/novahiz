@@ -15,13 +15,15 @@
       "apply_patch",
       "bash",
       "shell",
-      "cron_add_command_task",
-      "cron_add_task",
-      "cron_add_ai_task",
-      "cron_add_http_task",
-      "cron_update_command_task",
-      "cron_update_task",
-      "cron_run_task_now"
+      "snap_restore",
+      "clepsydre_add_task",
+      "clepsydre_add_shell_task",
+      "clepsydre_add_http_task",
+      "clepsydre_add_prompt_task",
+      "clepsydre_update_task",
+      "clepsydre_remove_task",
+      "clepsydre_run_task_now",
+      "clepsydre_enable_task"
     ]
   },
   "classify": {

@@ -71,6 +71,23 @@ Any action that destroys data, breaks compatibility, or cannot be undone goes th
 
 Do not write an API, function, or import whose existence you have not verified. Two real sources: the code itself, and the installed version's documentation via `novahiz-docs`. A presumed symbol turns into debt on the spot.
 
+## Docs and memory: persist the decision, never the text
+
+novahiz-docs holds what a library says; novahiz memory holds what this project
+decided and why. Keep the two apart and bridge them with a citation:
+
+- **Write.** When a `read_docs` passage changes an implementation decision,
+  call `memory_write` in the same turn: a few lines, never the doc excerpt.
+  Cite it as `novahiz-docs/<library>@<version>` with the version the passage
+  carries, so the note can be verified later.
+- **Read.** Before acting on a memory that concerns a library, re-read the
+  passage with `read_docs`. The docs make faith; the memory only points, and
+  a stale memory is worse than none.
+- **Sweep.** At convergence run `novahiz memory check-docs`: it flags doc
+  citations whose library left the catalogue, was re-ingested after the note,
+  or drifted in version, and lists libraries consulted without a persisted
+  decision.
+
 ## When proof is red
 
 Fix it, or block the step with `novahiz_task action="block"` and a reason. Do not mask a test by disabling it, and do not slip past a failure with a silent error block.

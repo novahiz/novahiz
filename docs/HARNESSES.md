@@ -9,7 +9,7 @@ Novahiz keeps its decisions in the CLI. A harness integration is a thin adapter 
 - MCP: the plugin registers the Novahiz server through the plugin `config` hook, so `opencode.jsonc` is not edited.
 - Gate: the plugin calls `novahiz gate` on `edit`, `write`, `patch`, `apply_patch`, `bash`, and `shell`.
 
-The plugin exists twice. `adapters/opencode/novahiz.ts` in the repository is the source; `~/.config/opencode/plugins/novahiz.ts` is what opencode runs. Editing the source changes nothing until the installer recopies it, and a stale copy keeps the old behaviour without an error. After an update, run the installer and restart opencode. `novahiz doctor` reports this as the `adapter` check.
+The plugin exists twice. `adapters/opencode/novahiz-plugin.ts` in the repository is the source; `~/.config/opencode/plugins/novahiz-plugin.ts` is what opencode runs. Editing the source changes nothing until the installer recopies it, and a stale copy keeps the old behaviour without an error. After an update, run the installer and restart opencode. `novahiz doctor` reports this as the `adapter` check.
 
 The agent exists twice as well: `adapters/opencode/agent/novahiz.md` is the source and `~/.config/opencode/agent/novahiz.md` is what opencode loads. Both are compared by the `agent` check.
 
@@ -34,7 +34,7 @@ The installer can register the Dart MCP (`dart mcp-server`) and, with `--flutter
 
 ## Other clients
 
-Any harness with a stdio MCP client can use the same server, `mcp/novahiz-tools/index.mjs`, for `classify`, `catalog`, `roadmap`, `providers`, `deps`, `step`, `list_skills`, `gate`, `task`, and `dispatch`. Register it with that client's own MCP command. Novahiz writes no configuration outside opencode.
+Any harness with a stdio MCP client can use the same server, `mcp/novahiz-tools/index.mjs`, for `classify`, `catalog`, `roadmap`, `providers`, `deps`, `step`, `list_skills`, `task`, and `dispatch`, plus the dedicated gate server `mcp/novahiz-gate/index.mjs` for `novahiz_gate`. Register each with that client's own MCP command. Novahiz writes no configuration outside opencode.
 
 ## What the installer does
 

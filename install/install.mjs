@@ -86,7 +86,7 @@ async function main() {
     process.stdout.write(`  Home:            ${home}\n`);
     process.stdout.write(`  opencode config: ${configDir}\n`);
     process.stdout.write(`  Skills:          ${skillsDir}\n`);
-    process.stdout.write(`  Plugin:          ${join(pluginsDir, "novahiz.ts")}\n`);
+    process.stdout.write(`  Plugin:          ${join(pluginsDir, "novahiz-plugin.ts")}\n`);
     process.stdout.write(`  Agent:           ${join(configDir, "agent", "novahiz.md")}\n`);
     process.stdout.write("\nProviders (optional, installed on your machine, never copied into the repo):\n");
     for (const provider of providers) {
@@ -235,8 +235,8 @@ async function main() {
     }
   }
 
-  const pluginSource = join(home, "adapters", "opencode", "novahiz.ts");
-  const pluginTarget = join(pluginsDir, "novahiz.ts");
+  const pluginSource = join(home, "adapters", "opencode", "novahiz-plugin.ts");
+  const pluginTarget = join(pluginsDir, "novahiz-plugin.ts");
   if (configured.includes("opencode") && existsSync(pluginSource)) {
     note(`Installing opencode plugin in ${pluginTarget}`);
     if (!dryRun) {
@@ -343,18 +343,23 @@ async function main() {
     }
   }
 
-  // Install MCP servers globally
-  const mcpServers = [
-    { pkg: "narsil-mcp", bin: "narsil-mcp", name: "narsil" },
-    { pkg: "security-mcp", bin: "security-mcp", name: "security" },
-  ];
+  // Install MCP servers globally.
+  // 2026-10-05: intentionally empty — security-mcp was removed on purpose and
+  // the mcp-cron shim before it; reinstating either would resurrect a removed
+  // server against the user's explicit decision (never reinstall, ever). Keep
+  // this list empty unless a new MCP server is explicitly wanted. The purge
+  // below enforces the removal on every run, and providers.disabled in
+  // novahiz.config.json keeps security out of the registry.
+  const mcpServers = [];
   // `novahiz-docs` is a local file run through `node` (no package, no shim:
   // the config points straight at <home>/mcp/novahiz-docs/index.mjs).
-  // `cron` has no npm package and ships disabled (local scheduler clone only);
-  // enable it after the local setup documented in docs/PROVIDERS.md.
+  // `lodestone` is a local file run through `node` too (house clean-room
+  // server, zero npm dependency): no package, no shim.
+  // `clepsydre` is a local file run through `node` (house scheduler, zero npm
+  // dependency): no package, no shim.
 
   if (!dryRun) {
-    note("\nInstalling MCP servers...");
+    note("\nMCP servers: none to install — removed servers stay removed.");
     for (const server of mcpServers) {
       const check = spawnSync(process.platform === "win32" ? "where" : "which", [server.bin], {
         encoding: "utf8",
@@ -374,6 +379,21 @@ async function main() {
         note(`  ${server.name} already installed`);
       }
     }
+
+    // Removed on purpose: purge any trace of the removed servers on every run
+    // so a stray reinstall cannot survive (security-mcp, former mcp-cron).
+    for (const pkg of ["security-mcp", "mcp-cron"]) {
+      const probe = spawnSync(process.platform === "win32" ? "where" : "which", [pkg], {
+        encoding: "utf8",
+        stdio: "pipe"
+      });
+      if (probe.status === 0) {
+        note(`  ${pkg} found but removed on purpose — uninstalling (never reinstall)...`);
+        const removal = spawnHost("npm", ["uninstall", "-g", pkg], { stdio: "inherit" });
+        note(removal.status === 0 ? `  ${pkg} uninstalled` : `  WARNING: could not uninstall ${pkg} — run: npm uninstall -g ${pkg}`);
+      }
+    }
+
     // Official Dart/Flutter MCP ships with the Dart SDK (dart mcp-server), not npm.
     const dartCheck = spawnSync(process.platform === "win32" ? "where" : "which", ["dart"], {
       encoding: "utf8",
@@ -449,14 +469,20 @@ async function main() {
             "command": ["node", join(home, "mcp", "novahiz-docs", "index.mjs")],
             "enabled": true
           },
-          "narsil": {
+          "novahiz-search": {
             "type": "local",
-            "command": ["narsil-mcp", "--repos", ".", "--git", "--persist"],
+            "command": ["node", join(home, "mcp", "lodestone", "index.mjs")],
             "timeout": 120000,
             "enabled": true
           },
-          // `cron` ships disabled by default: no template entry here, enable it
-          // after the local scheduler clone setup (docs/PROVIDERS.md).
+          // `novahiz-scheduler` is the local scheduler (mcp/clepsydre, zero npm
+          // dependency): it ships ready to run, no setup step.
+          "novahiz-scheduler": {
+            "type": "local",
+            "command": ["node", join(home, "mcp", "clepsydre", "index.mjs")],
+            "timeout": 120000,
+            "enabled": true
+          },
           "playwright": {
             "type": "local",
             // See playwrightBrowserFlag() in lib.mjs for the platform rule.
@@ -473,7 +499,7 @@ async function main() {
           "paths": [skillsDir]
         },
         "plugin": [
-          join(home, "adapters", "opencode", "novahiz.ts")
+          join(home, "adapters", "opencode", "novahiz-plugin.ts")
         ],
         "compaction": {
           "auto": true,

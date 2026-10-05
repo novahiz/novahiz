@@ -218,7 +218,16 @@ export function classify(spec: Spec, prompt: string, options: ClassifyOptions = 
   const primaryCategory = primary ? spec.categories.find((entry) => entry.id === primary) : undefined;
   // C1: enforcedSkills must respect tier gating — trivial prompts should not
   // expose enforced skills, otherwise downstream consumers load skills unnecessarily.
-  const enforcedSkills = (tier !== "trivial" && primaryCategory) ? enforcedOfCategory(primaryCategory) : [];
+  // Audit 2026-09-25 (finding 10): lite must mirror the gate's lite filter too,
+  // or the enforcement block advertises skills the gate never blocks on.
+  const enforcedSkills =
+    tier !== "trivial" && primaryCategory
+      ? tier === "lite"
+        ? enforcedOfCategory(primaryCategory).filter(
+            (skill) => skill === "novahiz-implement" || skill === "novahiz-converge"
+          )
+        : enforcedOfCategory(primaryCategory)
+      : [];
 
   const providers = providersForCategories(
     spec,

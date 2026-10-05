@@ -5,7 +5,7 @@
 // (timeout opencode au demarrage).
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, test } from "node:test";
@@ -14,6 +14,21 @@ import { splitMarkdown } from "../mcp/novahiz-docs/src/chunk.ts";
 import { indexPage, openStore } from "../mcp/novahiz-docs/src/store.ts";
 
 type Json = Record<string, unknown>;
+
+// Isole le journal d'usage novahiz-docs : les lectures tracees ecrivent dans
+// un repertoire temporaire, jamais dans mcp/novahiz-docs/data/. L'enfant
+// spawné herite de process.env (spread de connect()), les appels in-process
+// lisent la variable au moment de l'ecriture.
+const USAGE_DIR = mkdtempSync(join(tmpdir(), "novahiz-docs-usage-"));
+const USAGE_FILE = join(USAGE_DIR, "usage.jsonl");
+process.env.NOVAHIZ_DOCS_USAGE = USAGE_FILE;
+process.on("exit", () => {
+  try {
+    rmSync(USAGE_DIR, { recursive: true, force: true });
+  } catch {
+    // Deja nettoye ou volume verrouille : le temporaire du systeme s'en charge.
+  }
+});
 
 const SERVER = join(process.cwd(), "mcp", "novahiz-docs", "index.mjs");
 const START_BUDGET_MS = 5000;
@@ -316,5 +331,80 @@ describe("novahiz-docs — couche protocole (unitaire)", () => {
   test("notification avant methode inconnue : on repond -32601, jamais en silence", () => {
     const response = handle({ jsonrpc: "2.0", id: 3, method: "prompts/list" });
     assert.equal((response?.error as Json).code, -32601);
+  });
+});
+
+describe("novahiz-docs — journal d'usage read_docs", () => {
+  function seedReactDb(): { dbPath: string; workdir: string } {
+    const workdir = mkdtempSync(join(tmpdir(), "novahiz-docs-usage-e2e-"));
+    const dbPath = join(workdir, "index.sqlite");
+    const store = openStore(dbPath);
+    indexPage(
+      store,
+      { library: "react", version: "19.1.0", sourceUrl: "https://example.test/react-state", license: "CC-BY-4.0" },
+      splitMarkdown(readFileSync(join(process.cwd(), "mcp", "novahiz-docs", "tests", "fixtures", "react-state.md"), "utf8"))
+    );
+    store.close();
+    return { dbPath, workdir };
+  }
+
+  const readLines = (): Json[] =>
+    existsSync(USAGE_FILE)
+      ? readFileSync(USAGE_FILE, "utf8")
+          .split("\n")
+          .filter((line) => line.trim().length > 0)
+          .map((line) => JSON.parse(line) as Json)
+      : [];
+
+  test("read_docs journalise {ts, library, query, count} — les autres non", async () => {
+    const { dbPath, workdir } = seedReactDb();
+    const before = readLines().length;
+    const conn = connect(dbPath);
+    try {
+      await legacyHandshake(conn, "2025-11-25");
+      const call = await conn.request("tools/call", {
+        name: "read_docs",
+        arguments: { library: "react", query: "useState" }
+      });
+      assert.equal(toolPayload(call.result as Json).ok, true);
+
+      // Arguments invalides : erreur d'outil, pas de lecture => pas de journal.
+      const invalid = await conn.request("tools/call", { name: "read_docs", arguments: { library: "react" } });
+      assert.equal((invalid.result as Json).isError, true);
+      // find_library ne consulte pas de passage : pas de journal.
+      await conn.request("tools/call", { name: "find_library", arguments: { library: "react" } });
+    } finally {
+      await conn.close();
+      rmSync(workdir, { recursive: true, force: true });
+    }
+
+    const lines = readLines();
+    assert.equal(lines.length, before + 1, "une seule ligne ajoutee : la lecture validee");
+    const last = lines[lines.length - 1];
+    assert.equal(last.library, "react");
+    assert.equal(last.query, "useState");
+    assert.ok(typeof last.count === "number" && last.count >= 1, "nombre de passages rendus");
+    assert.match(String(last.ts), /^\d{4}-\d{2}-\d{2}T/, "horodatage ISO");
+  });
+
+  test("rotation au-dela de 512 Ko : generation .1 puis reprise propre", async () => {
+    writeFileSync(USAGE_FILE, `${"x".repeat(512 * 1024 + 1)}\n`, "utf8");
+    const { dbPath, workdir } = seedReactDb();
+    const conn = connect(dbPath);
+    try {
+      await legacyHandshake(conn, "2025-11-25");
+      await conn.request("tools/call", { name: "read_docs", arguments: { library: "react", query: "useState" } });
+    } finally {
+      await conn.close();
+      rmSync(workdir, { recursive: true, force: true });
+    }
+
+    assert.ok(existsSync(`${USAGE_FILE}.1`), "l'ancien journal est conserve en generation .1");
+    const lines = readLines();
+    assert.equal(lines.length, 1, "le nouveau journal ne contient que l'ecriture de ce test");
+    assert.equal(lines[0].library, "react");
+    // Nettoyage : rend le fichier partage aux tests suivants.
+    rmSync(USAGE_FILE, { force: true });
+    rmSync(`${USAGE_FILE}.1`, { force: true });
   });
 });

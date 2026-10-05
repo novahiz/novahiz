@@ -39,14 +39,19 @@ MCP servers, with provenance from `catalog/providers.json`:
 | Id | Package | Upstream | License | Categories |
 | --- | --- | --- | --- | --- |
 | `playwright` | `@playwright/mcp` | [microsoft/playwright-mcp](https://github.com/microsoft/playwright-mcp) | Apache-2.0 | browser, design-ui |
-| `security` | `security-mcp` | [AbrahamOO/security-mcp](https://github.com/AbrahamOO/security-mcp) | MIT | audit |
-| `narsil` | `narsil-mcp` | [postrv/narsil-mcp](https://github.com/postrv/narsil-mcp) | MIT OR Apache-2.0 | code, review |
+| `novahiz-search` | local `mcp/lodestone` | [novahiz/novahiz](https://github.com/novahiz/novahiz) | Apache-2.0 | code, review |
 | `novahiz-docs` | local `mcp/novahiz-docs` | [novahiz/novahiz](https://github.com/novahiz/novahiz) | Apache-2.0 | code |
-| `cron` | `scheduler-mcp` (local venv) | [PhialsBasement/scheduler-mcp](https://github.com/PhialsBasement/scheduler-mcp) | MIT | devops |
-| `novahiz` | local (`mcp/novahiz-tools`) | [novahiz/novahiz](https://github.com/novahiz/novahiz) | Apache-2.0 | code, planning |
+| `novahiz-scheduler` | local `mcp/clepsydre` | [novahiz/novahiz](https://github.com/novahiz/novahiz) | Apache-2.0 | devops |
+| `novahiz-core` | local (`mcp/novahiz-tools`) | [novahiz/novahiz](https://github.com/novahiz/novahiz) | Apache-2.0 | code, planning |
+| `novahiz-gate` | local (`mcp/novahiz-gate`) | [novahiz/novahiz](https://github.com/novahiz/novahiz) | Apache-2.0 | code, planning |
+| `novahiz-scan` | local `mcp/argus` | [novahiz/novahiz](https://github.com/novahiz/novahiz) | MIT | audit |
 | `dart` | `dart mcp-server` (Dart SDK) | [dart-lang/ai · dart_mcp_server](https://github.com/dart-lang/ai/tree/main/pkgs/dart_mcp_server) | BSD-3-Clause | code, debug, design-ui, flutter |
 
-`cron` runs `scheduler-mcp` (MIT) from a local clone with its own virtualenv. It replaced the former AGPL `mcp-cron` npm package; there is no npm install step for it. It ships disabled because the `command` has to point at your own clone: install the upstream requirements into a venv, set `command` to that venv's python plus your clone's `main.py`, then remove `cron` from `providers.disabled`.
+> Server ids follow the `novahiz-<function>` convention — `novahiz-search` (workspace index, folder `mcp/lodestone`), `novahiz-scheduler` (folder `mcp/clepsydre`), `novahiz-scan` (folder `mcp/argus`), `novahiz-core` (folder `mcp/novahiz-tools`), `novahiz-gate`, `novahiz-docs`. Folders keep their historical names; tool names are unchanged.
+
+`novahiz-scheduler` is the local scheduler (own cron parser, atomic JSON store, stdio MCP server) written in this repository under `mcp/clepsydre`. It has zero npm dependency and no install step: the `command` points straight at `index.mjs`. It replaced the former AGPL `mcp-cron` package and the `scheduler-mcp` venv clone — no third-party scheduler code is used or vendored.
+
+`security` (`security-mcp`) has been removed and must never be reinstalled — explicit user decision, 2026-10-05 ("jamais réinstallés"). The entry is gone from `catalog/providers.json`; `install.mjs` and `bootstrap.mjs` keep their MCP install list empty and purge any trace of `security-mcp` or `mcp-cron` (shim and global package) on every run; `providers.disabled` in `novahiz.config.json` keeps the id out of the registry. The `audit` category is served by `novahiz-scan` (house, clean-room).
 
 `dart` requires the Dart SDK on `PATH` (`requires: ["dart"]`). Without it the MCP entry still registers, but the server fails to start; disable it or install the SDK.
 
@@ -88,14 +93,14 @@ Control it in `novahiz.config.json`:
   "providers": {
     "autoRegister": true,
     "autoInstall": false,
-    "disabled": ["cron"]
+    "disabled": []
   }
 }
 ```
 
 - `autoRegister`: register missing MCP servers on startup.
 - `autoInstall`: run the official install commands during `node install/install.mjs`.
-- `disabled`: provider ids to skip. `cron` ships disabled by default; enable it after the local scheduler setup described above.
+- `disabled`: provider ids to skip. Empty by default — every bundled server (`novahiz-scheduler` included) runs locally with no setup.
 
 Run the install commands on demand:
 
@@ -104,7 +109,7 @@ node src/cli.ts providers --install --yes
 node install/install.mjs --install-providers
 ```
 
-Installation is opt-in on purpose. The commands download third-party packages, including a large Rust binary for `narsil`, so `autoInstall` defaults to `false`. Enabling it means you trust each upstream listed in `source`.
+Installation is opt-in on purpose. The commands download third-party packages, so `autoInstall` defaults to `false`. Enabling it means you trust each upstream listed in `source`. `novahiz-search` itself downloads nothing: it is a local file run through `node` with zero npm dependencies.
 
 `providers --install` and `deps --install` print the plan and execute nothing until `--yes` is passed. Whatever runs then goes through a binary allowlist (`node`, `npm`, `npx`, `uv`, `uvx`, `python`, `py`) — the same one bootstrap uses — so a tampered `providers.json` cannot execute an arbitrary program.
 
@@ -119,23 +124,22 @@ Each provider declares its prerequisites in `requires` (the executable it needs)
 
 ## Troubleshooting
 
-Check the `narsil` binary before wiring it into a harness:
+Check the `novahiz-search` server before wiring it into a harness:
 
 ```
-narsil-mcp --version
-narsil-mcp tools list
+echo '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' | node <home>/mcp/lodestone/index.mjs
 ```
 
-Run `tools list` instead of the bare command. Without a subcommand `narsil-mcp` starts a stdio MCP server and blocks the shell, which looks like a hang.
+Run it over stdio (one JSON-RPC message per line). Without input the server waits on stdin, which looks like a hang.
 
 Common fixes:
 
-- Stale index: rerun with `--reindex`, or clear the default index directory at `~/.cache/narsil-mcp` and reindex. On Windows that directory sits under your user profile.
-- Wrong tree: pass `--repos <path>` or set `NARSIL_REPOS`, and use `--discover <dir>` when you do not know the path.
-- Cache noise while debugging: `--no-cache` skips the cache, and `--cache-ttl <seconds>` moves the default 1800 second window.
-- Slow startup: `--preset minimal` trims the tool surface. The default preset exposes the full set.
+- No results: the index may be stale — call `lodestone_reindex`, or check with `lodestone_status` (it reports added/changed/removed files and never writes).
+- Stale index storage: the FTS5 database lives in `.search/<sha12(root)>/` under the workspace; delete that folder and reindex to start clean.
+- Wrong tree: pass `root` on each tool call (an existing directory), or omit it to use the server's working directory.
+- Empty `tools/list`: the entry in `opencode.jsonc` is read at import — restart the harness after editing it.
 
-Confirm the tool count with `narsil-mcp tools list` afterwards, then rerun `Novahiz deps` to recheck the prerequisite.
+Confirm the tool count (8 `lodestone_*` tools) with the `tools/list` call above, then rerun `Novahiz deps` to recheck the prerequisite.
 
 ## Tools
 

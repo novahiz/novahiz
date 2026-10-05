@@ -12,6 +12,7 @@
 // ni ecriture, ni heal cache (le heal appartient aux appels memory_*).
 import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, statSync, unlinkSync } from "node:fs";
 import { join } from "node:path";
+import { DatabaseSync } from "node:sqlite";
 
 import { emit, flagOn, type Parsed } from "./context.ts";
 import {
@@ -23,8 +24,10 @@ import {
   resolveMemoryDir,
   SLOTS_DIR,
   slotsDir,
+  updateSlot,
   type SlotMeta
 } from "../memory.ts";
+import { NovahizHome } from "../spec.ts";
 
 const DAY_MS = 86_400_000;
 const PENDING_DIR = ".pending";
@@ -530,6 +533,267 @@ function memoryPrune(parsed: Parsed): void {
   });
 }
 
+// --- check-docs: coherence memoire x novahiz-docs ---------------------------
+// Regle novahiz-implement : un slot peut citer la documentation avec
+// `novahiz-docs/<lib>@<version>`. check-docs compare chaque citation a l'etat
+// reel du corpus (catalogue + index SQLite ouvert en lecture seule) et remonte
+// ce qui a bouge depuis la note : sortie du bouquet, index vide, version
+// divergente, docs rafraichis apres l'ecriture. Dry-run par defaut ; --apply
+// AJOUTE un marqueur ⚠ au slot (append via updateSlot — GC : jamais de
+// suppression). --slot <id> ne verifie qu'un seul slot (relecture ciblee).
+// Les lib consultees par read_docs sans citation persistee remontent en nudge
+// depuis le journal d'usage du serveur (data/usage.jsonl).
+type DocsVerdict = "absent" | "unindexed" | "version-drift" | "refetched" | "ok";
+type DocsRow = { slot: string; lib: string; cited: string | null; verdict: DocsVerdict; detail: string };
+type DocsCitation = { slot: string; lib: string; cited: string | null };
+type DocsCatalog = { ids: Set<string> } | null;
+type DocsIndexState = {
+  path: string;
+  libs: Map<string, { versions: Set<string>; fetchedAt: string; chunks: number }>;
+};
+
+// La citation est un motif greppeable dans le corps des slots ; le marqueur
+// ⚠ reference les libs SANS le prefixe novahiz-docs/ pour ne jamais se
+// re-detecter lui-meme au passage suivant. Les lookarounds excluent les
+// chemins de fichiers (mcp/novahiz-docs/data/..., .../novahiz-docs/COMPARE.md)
+// : seul un token delimite compte comme citation.
+const CITATION_RE = /(?<![A-Za-z0-9_./\\-])novahiz-docs\/([a-z0-9-]+)(?:@([0-9A-Za-z._+-]+))?(?![A-Za-z0-9_./\\-])/gi;
+const STALE_MARKER_RE = /⚠ docs à revérifier \(check-docs/;
+
+function loadDocsCatalog(root: string): DocsCatalog {
+  const file = join(root, "mcp", "novahiz-docs", "data", "catalog.json");
+  if (!existsSync(file)) return null;
+  try {
+    const raw = JSON.parse(readFileSync(file, "utf8")) as { libraries?: Array<{ id?: unknown }> };
+    return { ids: new Set((raw.libraries ?? []).map((entry) => String(entry.id))) };
+  } catch {
+    return null;
+  }
+}
+
+function loadDocsIndex(root: string): { index: DocsIndexState | null; observation: string | null } {
+  const path = process.env.NOVAHIZ_DOCS_DB ?? join(root, "mcp", "novahiz-docs", "data", "index.sqlite");
+  if (!existsSync(path)) {
+    return { index: null, observation: `index novahiz-docs absent (${path}) — signaux de fraicheur indisponibles` };
+  }
+  let db: DatabaseSync | undefined;
+  try {
+    db = new DatabaseSync(path, { readOnly: true });
+    const rows = db
+      .prepare(
+        "SELECT library, MAX(fetched_at) AS fetchedAt, GROUP_CONCAT(DISTINCT version) AS versions, COUNT(*) AS chunks " +
+          "FROM chunks GROUP BY library"
+      )
+      .all() as Array<{ library: string; fetchedAt: string; versions: string | null; chunks: number }>;
+    const libs = new Map<string, { versions: Set<string>; fetchedAt: string; chunks: number }>();
+    for (const row of rows) {
+      libs.set(row.library, {
+        versions: new Set((row.versions ?? "").split(",").filter((value) => value.length > 0)),
+        fetchedAt: row.fetchedAt,
+        chunks: row.chunks
+      });
+    }
+    return { index: { path, libs }, observation: null };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return { index: null, observation: `index novahiz-docs illisible (${message.slice(0, 120)})` };
+  } finally {
+    db?.close();
+  }
+}
+
+function citationsIn(slotId: string, text: string): DocsCitation[] {
+  const found: DocsCitation[] = [];
+  CITATION_RE.lastIndex = 0;
+  let match: RegExpExecArray | null;
+  while ((match = CITATION_RE.exec(text)) !== null) {
+    found.push({ slot: slotId, lib: match[1].toLowerCase(), cited: match[2] ?? null });
+  }
+  return found;
+}
+
+function verdictFor(
+  citation: DocsCitation,
+  slotUpdated: string,
+  catalog: DocsCatalog,
+  index: DocsIndexState | null
+): { verdict: DocsVerdict; detail: string } {
+  if (catalog !== null && !catalog.ids.has(citation.lib)) {
+    return { verdict: "absent", detail: "hors du bouquet novahiz-docs" };
+  }
+  if (index === null) return { verdict: "ok", detail: "index indisponible — fraicheur non verifiee" };
+  const state = index.libs.get(citation.lib);
+  if (state === undefined) {
+    return { verdict: "unindexed", detail: "au catalogue mais index vide (ingest jamais tourne)" };
+  }
+  // L'ingest llms.txt ne determine pas toujours la version (chaine vide dans
+  // l'index) : sans version indexee, aucun drift ne peut etre juge — c'est
+  // l'incertitude qui est honnete, pas un verdict a tort.
+  const versionKnown = state.versions.size > 0;
+  if (citation.cited !== null && versionKnown && !state.versions.has(citation.cited)) {
+    const indexed = [...state.versions].map((value) => `@${value}`).join(", ");
+    return { verdict: "version-drift", detail: `citee @${citation.cited}, indexee ${indexed}` };
+  }
+  const fetched = Date.parse(state.fetchedAt);
+  const noted = Date.parse(slotUpdated);
+  if (Number.isFinite(fetched) && Number.isFinite(noted) && fetched > noted) {
+    return {
+      verdict: "refetched",
+      detail: `docs rafraichis le ${state.fetchedAt.slice(0, 10)} apres la note du ${slotUpdated.slice(0, 10)}`
+    };
+  }
+  return { verdict: "ok", detail: versionKnown ? "a jour" : "a jour (version non stockee a l'indexation)" };
+}
+
+function loadUsage(root: string, days: number): { path: string; consulted: Map<string, number> } {
+  const path = process.env.NOVAHIZ_DOCS_USAGE ?? join(root, "mcp", "novahiz-docs", "data", "usage.jsonl");
+  const consulted = new Map<string, number>();
+  if (!existsSync(path)) return { path, consulted };
+  const cutoff = Date.now() - days * DAY_MS;
+  for (const line of readFileSync(path, "utf8").split("\n")) {
+    if (line.trim().length === 0) continue;
+    try {
+      const entry = JSON.parse(line) as { ts?: unknown; library?: unknown };
+      const ts = typeof entry.ts === "string" ? Date.parse(entry.ts) : NaN;
+      if (!Number.isFinite(ts) || ts < cutoff) continue;
+      const lib = typeof entry.library === "string" ? entry.library : "";
+      if (lib.length === 0) continue;
+      consulted.set(lib, (consulted.get(lib) ?? 0) + 1);
+    } catch {
+      // Ligne parasite du journal : ignoree, jamais fatale.
+    }
+  }
+  return { path, consulted };
+}
+
+function memoryCheckDocs(parsed: Parsed): void {
+  const { dir } = resolveRoot(parsed);
+  const apply = flagOn(parsed, "apply");
+  const slotFilter = typeof parsed.flags.slot === "string" && parsed.flags.slot.length > 0 ? parsed.flags.slot : null;
+  const rawDays = typeof parsed.flags.days === "string" ? Number.parseInt(parsed.flags.days, 10) : NaN;
+  const days = Number.isFinite(rawDays) && rawDays >= 1 && rawDays <= 3650 ? rawDays : 7;
+
+  const probe = probeIndex(dir);
+  if (probe.state !== "sain") {
+    process.stderr.write(
+      `novahiz memory check-docs: index ${probe.state} — lancer d'abord \`novahiz memory clean --apply\`\n`
+    );
+    process.exitCode = 1;
+    return;
+  }
+  const active = probe.slots.filter((slot) => slot.status === "active");
+  if (slotFilter !== null && !active.some((slot) => slot.id === slotFilter)) {
+    process.stderr.write(`novahiz memory check-docs: slot inconnu ou non actif: ${slotFilter}\n`);
+    process.exitCode = 1;
+    return;
+  }
+
+  const root = NovahizHome();
+  const observations: string[] = [];
+  const errors: string[] = [];
+  const catalog = loadDocsCatalog(root);
+  if (catalog === null) observations.push("catalogue novahiz-docs introuvable — sortie du bouquet non verifiee");
+  const { index, observation: indexObservation } = loadDocsIndex(root);
+  if (indexObservation !== null) observations.push(indexObservation);
+
+  const rows: DocsRow[] = [];
+  const citedAll = new Set<string>();
+  const markedAlready = new Set<string>();
+  for (const slot of active) {
+    let text: string;
+    let raw: string;
+    try {
+      const file = readSlot(dir, slot);
+      text = `${slot.title}\n${file.body.summary}\n${file.body.details}`;
+      raw = file.raw;
+    } catch {
+      observations.push(`slot illisible, non verifie: ${slot.id}`);
+      continue;
+    }
+    for (const citation of citationsIn(slot.id, text)) {
+      citedAll.add(citation.lib);
+      rows.push({ ...citation, ...verdictFor(citation, slot.updated, catalog, index) });
+    }
+    if (STALE_MARKER_RE.test(raw)) markedAlready.add(slot.id);
+  }
+
+  const checked = slotFilter === null ? rows : rows.filter((row) => row.slot === slotFilter);
+  const staleBySlot = new Map<string, DocsRow[]>();
+  for (const row of checked) {
+    if (row.verdict === "ok") continue;
+    const group = staleBySlot.get(row.slot);
+    if (group) group.push(row);
+    else staleBySlot.set(row.slot, [row]);
+  }
+  const alreadyStale = [...staleBySlot.keys()].filter((id) => markedAlready.has(id));
+
+  const marked: string[] = [];
+  if (apply) {
+    const date = new Date().toISOString().slice(0, 10);
+    for (const [slotId, staleRows] of staleBySlot) {
+      if (markedAlready.has(slotId)) continue;
+      const detail = staleRows.map((row) => `${row.lib} (${row.verdict})`).join(", ");
+      try {
+        updateSlot({
+          id: slotId,
+          root: dir,
+          mode: "append",
+          content: `⚠ docs à revérifier (check-docs ${date}) : ${detail} — relire via read_docs, puis retirer ce marqueur.`
+        });
+        marked.push(slotId);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        errors.push(`${slotId}: ${message.slice(0, 160)}`);
+      }
+    }
+  }
+
+  const usage = loadUsage(root, days);
+  const consulted = [...usage.consulted.keys()];
+  const nudge = consulted
+    .filter((lib) => (catalog === null || catalog.ids.has(lib)) && !citedAll.has(lib))
+    .sort();
+
+  if (errors.length > 0) process.exitCode = 1;
+  const value = {
+    root: dir,
+    apply,
+    slot: slotFilter,
+    days,
+    corpus: { catalog: catalog !== null, index: index !== null, path: index?.path ?? null },
+    citations: checked,
+    staleSlots: [...staleBySlot.keys()],
+    marked,
+    alreadyMarked: alreadyStale,
+    usage: { path: usage.path, consulted: consulted.length, nudge },
+    observations,
+    errors
+  };
+  emit(parsed, value, () => {
+    const head = apply ? "check-docs (apply):" : "check-docs (dry-run — ajouter --apply pour marquer):";
+    const lines = [head];
+    for (const row of checked) {
+      if (row.verdict === "ok") continue;
+      lines.push(`  - ${row.slot} · ${row.lib}${row.cited !== null ? `@${row.cited}` : ""} : ${row.verdict} — ${row.detail}`);
+    }
+    if (staleBySlot.size === 0) {
+      lines.push("  aucune citation à revoir");
+    } else if (!apply) {
+      lines.push(`  ${staleBySlot.size} slot(s) à marquer (dry-run)`);
+    } else {
+      lines.push(`  ${marked.length} slot(s) marqué(s), ${alreadyStale.length} déjà marqué(s) — jamais de suppression`);
+    }
+    lines.push(
+      nudge.length > 0
+        ? `  consulté sans slot (${days} j) : ${nudge.join(", ")} — persister la décision via memory_write`
+        : `  consulté sans slot (${days} j) : aucun`
+    );
+    for (const note of observations) lines.push(`  observe: ${note}`);
+    for (const failure of errors) lines.push(`  echec: ${failure}`);
+    return lines.join("\n");
+  });
+}
+
 export function memoryCommand(argv: string[], parsed: Parsed): void {
   const sub = argv[0] ?? "status";
   switch (sub) {
@@ -542,8 +806,11 @@ export function memoryCommand(argv: string[], parsed: Parsed): void {
     case "prune":
       memoryPrune(parsed);
       return;
+    case "check-docs":
+      memoryCheckDocs(parsed);
+      return;
     default:
-      process.stderr.write(`novahiz memory: unknown subcommand "${sub}" (status | clean | prune)\n`);
+      process.stderr.write(`novahiz memory: unknown subcommand "${sub}" (status | clean | prune | check-docs)\n`);
       process.exitCode = 1;
   }
 }

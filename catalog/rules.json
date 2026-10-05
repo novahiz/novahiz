@@ -60,9 +60,11 @@
   },
   {
     "id": "R8-docs",
-    "description": "Load novahiz-docs when editing project documentation.",
+    "description": "Load novahiz-docs when editing project documentation (docs tree, README/CHANGELOG, or a docs-writing prompt).",
     "when": {
-      "pathGlobs": ["**/novahiz-docs/**/*.md"]
+      "match": "any",
+      "pathGlobs": ["**/novahiz-docs/**/*.md", "**/docs/**/*.md", "**/README.md", "**/CHANGELOG.md"],
+      "promptCategories": ["docs-writing"]
     },
     "require": ["novahiz-docs"]
   },
@@ -118,7 +120,8 @@
         "**/*.less",
         "**/*.html",
         "**/*.htm"
-      ]
+      ],
+      "minChange": 200
     },
     "require": ["novahiz-humanizer", "ui-slop-remover", "ui-craft-rules"]
   },
@@ -135,7 +138,8 @@
         "**/*.less",
         "**/*.html",
         "**/*.htm"
-      ]
+      ],
+      "minChange": 200
     },
     "require": ["impeccable"]
   }

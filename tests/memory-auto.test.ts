@@ -21,7 +21,7 @@ import plugin, {
   mergeSummaryWindow,
   pickInheritance,
   resolveMemoryAuto
-} from "../adapters/opencode/novahiz.ts";
+} from "../adapters/opencode/novahiz-plugin.ts";
 
 // L'ecriture du regex evite le marqueur literal que le gate detecte sur le
 // contenu des fichiers (le test verifie l'absence de placeholder, pas sa

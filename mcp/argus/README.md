@@ -134,8 +134,8 @@ Already registered in `catalog/providers.json`:
 
 ```json
 {
-  "id": "argus",
-  "label": "Argus MCP",
+  "id": "novahiz-scan",
+  "label": "Novahiz Scan",
   "kind": "mcp",
   "command": ["node", "~/.config/novahiz/mcp/argus/src/cli.mjs"],
   "source": "https://github.com/novahiz/novahiz",

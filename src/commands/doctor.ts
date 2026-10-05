@@ -1,7 +1,7 @@
 import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync } from "node:fs";
 import { spawn, spawnSync } from "node:child_process";
 import { homedir, tmpdir } from "node:os";
-import { join, relative } from "node:path";
+import { dirname, join, relative, resolve } from "node:path";
 import { dbPathFor, emit, flagOn, type Parsed } from "./context.ts";
 import { expandHome, loadSpec, NovahizHome, packageRoot } from "../spec.ts";
 import { openDb, SCHEMA_VERSION } from "../db.ts";
@@ -145,6 +145,30 @@ function resolveExecutable(cmd: string): string | null {
   return lines[0];
 }
 
+/** Version of an installed package copy, read from the nearest package.json
+ *  walking up from the script argument (audit R6: a stale npm hoist — e.g.
+ *  runtime@4.6.0 vs catalog 4.7.0 — must surface as a problem, not hide). */
+function readInstalledVersion(scriptPath: string, packageBase: string): string {
+  try {
+    let dir = dirname(resolve(expandHome(scriptPath)));
+    for (let depth = 0; depth < 6; depth++) {
+      const pkgPath = join(dir, "package.json");
+      if (existsSync(pkgPath)) {
+        const pkg = JSON.parse(readFileSync(pkgPath, "utf8")) as { name?: unknown; version?: unknown };
+        if (pkg.name === packageBase && typeof pkg.version === "string" && pkg.version.length > 0) {
+          return pkg.version;
+        }
+      }
+      const parent = dirname(dir);
+      if (parent === dir) break;
+      dir = parent;
+    }
+  } catch {
+    return "";
+  }
+  return "";
+}
+
 /** Pure per-server config problems (exported for tests). */
 export function mcpEntryProblems(
   name: string,
@@ -173,6 +197,13 @@ export function mcpEntryProblems(
     return { problems, notes };
   }
   if (!resolveExecutable(command[0])) problems.push(`${name}: executable not found (${command[0]})`);
+  // Audit R1: a script argument that does not exist is a dead entry —
+  // resolveExecutable only checked the interpreter (node, dart…).
+  for (const arg of command.slice(1)) {
+    if (arg.startsWith("-") || !/\.(mjs|cjs|js|ts)$/.test(arg)) continue;
+    if (!arg.includes("/") && !arg.includes("\\")) continue;
+    if (!existsSync(expandHome(arg))) problems.push(`${name}: script not found (${arg})`);
+  }
   const configPkg = command.find((arg) => /@\d/.test(arg) && !arg.startsWith("-"));
   const catalogPkg = catalogPackages.get(name);
   if (catalogPkg && configPkg && configPkg !== catalogPkg) {
@@ -180,8 +211,33 @@ export function mcpEntryProblems(
   } else if (catalogPkg && !configPkg) {
     // A bare shim can drift from the pinned catalog version — surface, don't fail.
     const catalogBase = catalogPkg.slice(0, catalogPkg.lastIndexOf("@")) || catalogPkg;
-    if (command[0] !== "npx" && command[0] !== catalogBase) {
+    // The config may run the catalog package three ways: npx (resolves the
+    // pin itself), a same-named shim, or a direct node path into an installed
+    // copy (…/node_modules/@scope/pkg/cli.js) — all three execute the same
+    // package, only the first two are version-exposed in the command.
+    const runsCatalogPkg = command.some((arg) => {
+      const norm = arg.replaceAll("\\", "/");
+      return norm.includes(`/${catalogBase}/`) || norm.endsWith(`/${catalogBase}`);
+    });
+    if (command[0] !== "npx" && command[0] !== catalogBase && !runsCatalogPkg) {
       problems.push(`${name}: runs ${command[0]}, catalog expects ${catalogBase}`);
+    } else if (runsCatalogPkg && command[0] !== "npx" && command[0] !== catalogBase) {
+      // Audit R6: read the installed copy's own version — a stale npm hoist
+      // (installed 4.6.0 vs catalog 4.7.0) must surface as a problem, not
+      // hide behind the note.
+      const scriptArg = command.find((arg) => {
+        const norm = arg.replaceAll("\\", "/");
+        return norm.includes(`/${catalogBase}/`) || norm.endsWith(`/${catalogBase}`);
+      });
+      const installed = scriptArg ? readInstalledVersion(scriptArg, catalogBase) : "";
+      const pinned = catalogPkg.startsWith(`${catalogBase}@`) ? catalogPkg.slice(catalogBase.length + 1) : "";
+      if (installed && pinned && installed !== pinned) {
+        problems.push(`${name}: installed ${installed}, catalog pins ${pinned}`);
+      } else if (installed) {
+        notes.push(`${name}: installed copy ${installed} (catalog: ${catalogPkg})`);
+      } else {
+        notes.push(`${name}: installed copy (catalog: ${catalogPkg})`);
+      }
     } else {
       notes.push(`${name}: unpinned (catalog: ${catalogPkg})`);
     }
@@ -209,9 +265,9 @@ function killTree(child: ReturnType<typeof spawn>): void {
 
 /** One live JSON-RPC `initialize` probe per server. Opt-in via --deep, up to
  *  10 s per server, all servers probed in parallel. Local entries are spawned
- *  with stdin kept OPEN: mcp-cron reads stdin asynchronously and exits cleanly
- *  (status 0, no output) if the pipe closes before it starts reading. Remote
- *  entries (type: remote) get one HTTP initialize round-trip instead. */
+ *  with stdin kept OPEN: a stdio server may read stdin asynchronously and exit
+ *  cleanly (status 0, no output) if the pipe closes before it starts reading.
+ *  Remote entries (type: remote) get one HTTP initialize round-trip instead. */
 // The initialize probe gets one fast window (10 s — enough for most servers,
 // and for a crash to surface) plus one slow window while the process is still
 // alive: JIT-compiled servers like `dart mcp-server` take 6-10 s to boot
@@ -491,10 +547,16 @@ export async function commandDoctor(parsed: Parsed): Promise<void> {
   // Two probes, one per live enforcement layer, both deterministic against the
   // current ruleset (the old single probe fed README.md with empty categories,
   // which matches no rule since the prose content rules were removed):
-  // - path probe: R13/R14 match a style file through pathGlobs alone.
+  // - path probe: R13/R14 match a style file through pathGlobs — but since
+  //   minChange:200 (audit 2026-09-25) those rules only apply to a real
+  //   change, so the probe carries a CSS payload over the threshold. An empty
+  //   payload is a trivial touch and is now correctly not gated.
   // - category probe: R6 matches a classified code prompt; tier is set
   //   explicitly because probe text is file content, not a prompt, and
-  //   determineTier would call it trivial and skip R6.
+  //   determineTier would call it trivial and skip R6. R8 joins it on
+  //   README.md (docs tree covered since the same audit).
+  // - trivial probe: the sub-threshold touch must stay allowed — that is the
+  //   contract minChange:200 introduced.
   const probeInput = {
     tool: "edit",
     content: "",
@@ -504,15 +566,21 @@ export async function commandDoctor(parsed: Parsed): Promise<void> {
     installedIndexAvailable: index.available,
     spec
   };
-  const pathProbe = evaluateGate({ ...probeInput, filePath: "src/hero.css" });
+  const cssPayload =
+    ".hero { color: #0a0a0a; background: linear-gradient(135deg, #1b1b1f, #2b2b31); " +
+    "padding: 48px 32px; border-radius: 16px; display: grid; gap: 24px; } " +
+    ".hero__cta { font-weight: 600; } .hero__cta:hover { opacity: .85; transform: translateY(-1px); }";
+  const pathProbe = evaluateGate({ ...probeInput, filePath: "src/hero.css", content: cssPayload });
   const classProbe = evaluateGate({
     ...probeInput,
     filePath: "README.md",
     categories: ["code"],
     tier: "full"
   });
+  const trivialProbe = evaluateGate({ ...probeInput, filePath: "src/hero.css", content: ".x{color:#000}" });
   const blocked = (r: typeof pathProbe) => r.allow === false && r.missingSkills.length > 0;
-  const gateOk = spec.rules.length === 0 || (blocked(pathProbe) && blocked(classProbe));
+  const gateOk =
+    spec.rules.length === 0 || (blocked(pathProbe) && blocked(classProbe) && !blocked(trivialProbe));
   const probeSkills = [...new Set([...pathProbe.missingSkills, ...classProbe.missingSkills])];
   checks.push({
     id: "gate",
@@ -552,12 +620,12 @@ export async function commandDoctor(parsed: Parsed): Promise<void> {
   }
   checks.push({ id: "schema", label: "Schema version", ok: true, detail: schemaDetail, blocking: false });
 
-  const adapterSource = join(root, "adapters", "opencode", "novahiz.ts");
+  const adapterSource = join(root, "adapters", "opencode", "novahiz-plugin.ts");
   const opencodeDir =
     process.env.OPENCODE_CONFIG_DIR && process.env.OPENCODE_CONFIG_DIR.length > 0
       ? process.env.OPENCODE_CONFIG_DIR
       : join(homedir(), ".config", "opencode");
-  const adapterInstalled = join(opencodeDir, "plugins", "novahiz.ts");
+  const adapterInstalled = join(opencodeDir, "plugins", "novahiz-plugin.ts");
   let adapterOk = true;
   let adapterDetail = "no installed copy";
   if (existsSync(adapterSource) && existsSync(adapterInstalled)) {
@@ -589,6 +657,21 @@ export async function commandDoctor(parsed: Parsed): Promise<void> {
     memoryToolsDetail = memoryToolsOk ? "8 memory_* tools registered" : `missing: ${missing.join(", ")}`;
   }
   checks.push({ id: "memory-tools", label: "MCP memory tools", ok: memoryToolsOk, detail: memoryToolsDetail, blocking: false });
+
+  // Le gate est un serveur MCP dedie depuis son extraction (novahiz-gate) :
+  // statiquement, l'outil y doit etre enregistre.
+  const gateServer = join(root, "mcp", "novahiz-gate", "index.mjs");
+  const gateSourceOk =
+    existsSync(gateServer) && readFileSync(gateServer, "utf8").includes('"novahiz_gate"');
+  checks.push({
+    id: "mcp-gate",
+    label: "MCP gate server",
+    ok: gateSourceOk,
+    detail: gateSourceOk
+      ? "mcp/novahiz-gate/index.mjs exposes novahiz_gate"
+      : "mcp/novahiz-gate/index.mjs missing or novahiz_gate not registered",
+    blocking: false
+  });
 
   const agentSource = join(root, "adapters", "opencode", "agent", "novahiz.md");
   const agentInstalled = join(opencodeDir, "agent", "novahiz.md");
@@ -642,7 +725,11 @@ export async function commandDoctor(parsed: Parsed): Promise<void> {
         if (provider.kind !== "mcp" || disabledProviders.includes(provider.id) || configured.has(provider.id)) continue;
         mcpNotes.push(`${provider.id}: not in opencode.jsonc (registered by the plugin at startup)`);
       }
-      if (!disabledProviders.includes("security") && !process.env.SECURITY_MCP_SHARED_SECRET) {
+      // Only while the provider still exists: the security MCP was removed
+      // from catalog/providers.json, and the warning must not resurrect as a
+      // phantom anomaly if providers.disabled is ever cleaned up.
+      const securityConfigured = spec.providers.some((provider) => provider.id === "security");
+      if (securityConfigured && !disabledProviders.includes("security") && !process.env.SECURITY_MCP_SHARED_SECRET) {
         mcpProblems.push("security: SECURITY_MCP_SHARED_SECRET not set — security-mcp runs unauthenticated");
       }
     } catch (error) {
@@ -690,6 +777,20 @@ export async function commandDoctor(parsed: Parsed): Promise<void> {
     // S5: meme opt-in --deep, cycle memoire reel sur racine temporaire.
     checks.push(memoryLifecycleProbe());
 
+    // Probe directe du scheduler local (mcp/clepsydre) : comme novahiz-docs,
+    // il doit repondre au docteur quel que soit l'etat d'opencode.jsonc.
+    const clepsydreServer = join(root, "mcp", "clepsydre", "index.mjs");
+    const clepsydreProbe = existsSync(clepsydreServer)
+      ? await probeMcpServer({ command: [process.execPath, clepsydreServer] })
+      : { ok: false, detail: "mcp/clepsydre/index.mjs missing" };
+    checks.push({
+      id: "mcp-clepsydre-probe",
+      label: "MCP novahiz-scheduler probe",
+      ok: clepsydreProbe.ok,
+      detail: clepsydreProbe.detail,
+      blocking: false
+    });
+
     // S5: probe live du serveur novahiz-docs, teste directement chez lui —
     // son entree n'arrive dans opencode.jsonc qu'au swap final (S6), sur
     // accord explicite ; le serveur lui-meme doit desormais repondre au docteur.
@@ -702,6 +803,19 @@ export async function commandDoctor(parsed: Parsed): Promise<void> {
       label: "MCP novahiz-docs probe",
       ok: docsProbe.ok,
       detail: docsProbe.detail,
+      blocking: false
+    });
+
+    // Probe live du serveur gate dedie (extraction depuis novahiz-tools) :
+    // il doit repondre au docteur comme les autres serveurs locaux.
+    const gateProbe = existsSync(gateServer)
+      ? await probeMcpServer({ command: [process.execPath, gateServer] })
+      : { ok: false, detail: "mcp/novahiz-gate/index.mjs missing" };
+    checks.push({
+      id: "mcp-gate-probe",
+      label: "MCP novahiz-gate probe",
+      ok: gateProbe.ok,
+      detail: gateProbe.detail,
       blocking: false
     });
   }
