@@ -5,6 +5,42 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-10-05
+
+### Added
+
+- **Token economy, plugin + skill** (`adapters/opencode/novahiz-token-economy.ts`,
+  `skills/token-economy/SKILL.md`): the plugin trims oversized tool output
+  before it reaches the model - head kept, full text written to
+  `<NOVAHIZ_HOME>/tmp/tool-output/`, footer naming the file to re-read instead
+  of re-running - and `/novahiz-tokens` posts the estimated saving for the
+  session without a model call. Strictly opt-in: nothing happens until
+  `NOVAHIZ_TOKEN_ECONOMY=1`, `read`/`edit`/`write` and skill output are never
+  trimmed, and any plugin error fails open. Budgets: `NOVAHIZ_TE_MAX_LINES`
+  (120), `NOVAHIZ_TE_MAX_BYTES` (16384), `NOVAHIZ_TE_TOOLS`,
+  `NOVAHIZ_TE_DUMP_DIR`. The skill carries the agent-side rules (read the
+  smallest thing, batch calls, delegate exploration, answer in paths).
+- The installer now copies both plugin files into `<config>/plugins/`, the
+  directory opencode actually loads plugins from.
+
+### Fixed
+
+- **Argus vulnerable fixtures are no longer collected by the test runner**:
+  `mcp/argus/src/test/` was renamed to `mcp/argus/src/fixtures/`, so
+  `node --test` (and `node scripts/ci-local.mjs`) stops picking
+  `test_xss.js` - a deliberately vulnerable sample - up as a test file and
+  failing on `require is not defined in ES module scope`. The argus end-to-end
+  suite still reports 30/30.
+- `tests/clepsydre-tools.test.ts` used a one-shot date hardcoded to
+  `2026-10-05T09:00:00Z`, which started failing once the clock passed it; the
+  test now uses a date relative to now.
+
+### Docs
+
+- `docs/TOKENS.md` rewritten around what is implemented (the plugin, the
+  skill, `novahiz tokens`); it now states that the `tokens` block of
+  `novahiz.config.example.json` is read by no code.
+
 ## [0.4.1] - 2026-10-05
 
 ### Fixed

@@ -236,14 +236,19 @@ async function main() {
     }
   }
 
-  const pluginSource = join(home, "adapters", "opencode", "novahiz-plugin.ts");
-  const pluginTarget = join(pluginsDir, "novahiz-plugin.ts");
-  if (configured.includes("opencode") && existsSync(pluginSource)) {
-    note(`Installing opencode plugin in ${pluginTarget}`);
-    if (!dryRun) {
-      const result = copyFileWithBackup(pluginSource, pluginTarget, true);
-      if (result.created) created.push(result.created);
-      if (result.backup) backups.push(result.backup);
+  // opencode charge les .ts posés dans <config>/plugins: E2E montre que le
+  // registre des plugins déclare le chemin de ce répertoire, pas celui du
+  // tableau "plugin" de la config — les deux restent en cohérence.
+  for (const pluginFile of ["novahiz-plugin.ts", "novahiz-token-economy.ts"]) {
+    const pluginSource = join(home, "adapters", "opencode", pluginFile);
+    const pluginTarget = join(pluginsDir, pluginFile);
+    if (configured.includes("opencode") && existsSync(pluginSource)) {
+      note(`Installing opencode plugin in ${pluginTarget}`);
+      if (!dryRun) {
+        const result = copyFileWithBackup(pluginSource, pluginTarget, true);
+        if (result.created) created.push(result.created);
+        if (result.backup) backups.push(result.backup);
+      }
     }
   }
 

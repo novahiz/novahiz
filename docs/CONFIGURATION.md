@@ -83,6 +83,11 @@ These files live in `catalog/` and are part of the git repository:
 | `NOVAHIZ_NODE` | Override node executable path |
 | `NOVAHIZ_DB` | Override database path |
 | `OPENCODE_CONFIG_DIR` | Override opencode config directory |
+| `NOVAHIZ_TOKEN_ECONOMY` | Set to `1` to enable the token-economy plugin (off by default; see [TOKENS.md](TOKENS.md)) |
+| `NOVAHIZ_TE_MAX_LINES` | Lines kept per trimmed tool output (default `120`) |
+| `NOVAHIZ_TE_MAX_BYTES` | Bytes kept per trimmed tool output (default `16384`) |
+| `NOVAHIZ_TE_TOOLS` | Comma-separated tools eligible for trimming (default `shell,execute,bash,webfetch,grep,glob`) |
+| `NOVAHIZ_TE_DUMP_DIR` | Where full outputs are written (default `<NOVAHIZ_HOME>/tmp/tool-output`) |
 
 ## opencode config
 

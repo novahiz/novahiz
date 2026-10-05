@@ -12,7 +12,7 @@ import assert from "node:assert/strict";
 const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.join(here, "..", "..");
 const cliPath = path.join(root, "src", "cli.mjs");
-const testDir = path.join(root, "src", "test");
+const testDir = path.join(root, "src", "fixtures");
 
 let passed = 0;
 let failed = 0;
@@ -99,7 +99,7 @@ async function main() {
   const fixtures = fs.existsSync(testDir)
     ? fs.readdirSync(testDir).filter((f) => !f.startsWith("."))
     : [];
-  check("src/test/ contains the vulnerable fixtures", fixtures.length >= 4, `found ${fixtures.length}`);
+  check("src/fixtures/ contains the vulnerable fixtures", fixtures.length >= 4, `found ${fixtures.length}`);
 
   const server = startServer();
 
@@ -159,7 +159,7 @@ async function main() {
       jsonrpc: "2.0",
       id: 3,
       method: "tools/call",
-      params: { name: "scan", arguments: { path: path.join("src", "test") } }
+      params: { name: "scan", arguments: { path: path.join("src", "fixtures") } }
     });
     const scan = await server.request();
     check("scan returns isError:false", scan.result?.isError === false);
@@ -184,7 +184,7 @@ async function main() {
       jsonrpc: "2.0",
       id: 4,
       method: "tools/call",
-      params: { name: "scan", arguments: { path: path.join("src", "test") } }
+      params: { name: "scan", arguments: { path: path.join("src", "fixtures") } }
     });
     const scan2 = await server.request();
     check(

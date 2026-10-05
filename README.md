@@ -292,9 +292,25 @@ Règles : frontmatter obligatoire (title, category, tags, sources, created, upda
 
 ---
 
+## Économie de tokens
+
+Deux pièces complémentaires : la session consomme moins sans perdre en puissance.
+
+**Skill `token-economy`** — les règles côté agent : lire le plus petit extrait qui répond (`grep`/`glob` avant `read`, `offset`/`limit`), grouper les appels indépendants, déléguer l'exploration à un sous-agent, répondre en chemins plutôt qu'en recopies. Garde-fou écrit dans la skill : on n'économise jamais sur les preuves, les tests, les messages d'erreur qu'on débogue, ni sur le code qu'on doit éditer exactement.
+
+**Plugin `novahiz-token-economy`** — le côté harness, **opt-in** : tant que `NOVAHIZ_TOKEN_ECONOMY=1` n'est pas posé, il ne fait rien.
+
+- tronque la tête des sorties d'outils de logs (`shell`, `grep`, `webfetch`, ...) au-delà de 120 lignes / 16 Ko — `NOVAHIZ_TE_MAX_LINES`, `NOVAHIZ_TE_MAX_BYTES`, `NOVAHIZ_TE_TOOLS` ;
+- écrit la sortie complète dans `<NOVAHIZ_HOME>/tmp/tool-output/` et termine par le chemin à relire, pour que le modèle greppe le fichier au lieu de relancer la commande ;
+- `read`, `edit`, `write`, `skill` et les outils de mémoire ne sont jamais touchés, et la moindre erreur du plugin laisse passer le résultat (`fail-open`).
+
+`/novahiz-tokens` affiche dans la session les octets et tokens économisés, sans appel modèle. `novahiz tokens` donne l'autre compteur (économies du gate et de la mémoire, base locale). Détail : [docs/TOKENS.md](docs/TOKENS.md).
+
+---
+
 ## Skills installées
 
-Novahiz livre 96 skills couvrant toutes les catégories :
+Novahiz livre 98 skills couvrant toutes les catégories :
 
 | Catégorie | Skills | Objectif |
 |-----------|--------|----------|

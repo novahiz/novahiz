@@ -198,7 +198,10 @@ describe("clepsydre_validate_schedule", () => {
     setup();
     const interval = ok("clepsydre_validate_schedule", { schedule: "every 30s", count: 2 });
     assert.equal(interval.kind, "interval");
-    const once = ok("clepsydre_validate_schedule", { schedule: "2026-10-05T09:00:00Z", count: 5 });
+    // Date relative: une date codée en dur devient passée à chaque rotation
+    // d'horloge et fait échouer le test (constaté le 2026-10-05 à 09:00Z).
+    const future = new Date(Date.now() + 60 * 60 * 1000).toISOString();
+    const once = ok("clepsydre_validate_schedule", { schedule: future, count: 5 });
     assert.equal(once.kind, "once");
     assert.equal((once.nextRuns as string[]).length, 1);
   });

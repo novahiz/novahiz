@@ -18,7 +18,7 @@ traceable to a file or a test run.
 | 4 MCP tools: `scan`, `list_rules`, `create_rule`, `export_results` | `src/tools/*.mjs` | working |
 | 5 built-in rules (SQLi, XSS, command injection, hardcoded secret, unsafe deserialization) | `src/cli.mjs` | working |
 | End-to-end test (spawns the real server) | `src/commands/test.mjs` | 30/30 pass |
-| Vulnerable fixtures | `src/test/` | 4 files |
+| Vulnerable fixtures | `src/fixtures/` | 4 files |
 | Novahiz registration (`kind: mcp`, category `audit`) | `catalog/providers.json` | registered |
 
 **Not implemented** (claims from an earlier draft were removed): tree-sitter

@@ -1078,6 +1078,19 @@
       "categories": [
         "database-supabase"
       ]
+    },
+    "token-economy": {
+      "power": 4,
+      "stars": null,
+      "tags": [
+        "tokens",
+        "efficiency",
+        "quality"
+      ],
+      "categories": [
+        "code",
+        "planning"
+      ]
     }
   }
 }

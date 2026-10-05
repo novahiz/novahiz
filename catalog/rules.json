@@ -142,5 +142,19 @@
       "minChange": 200
     },
     "require": ["impeccable"]
+  },
+  {
+    "id": "R15-token-economy",
+    "description": "Load token-economy when editing the token-economy feature itself, where its contract (opt-in switch, budgets, 3.2 bytes/token, full-output dump) is prerequisite knowledge.",
+    "when": {
+      "match": "any",
+      "pathGlobs": [
+        "**/novahiz-token-economy.ts",
+        "**/skills/token-economy/**",
+        "**/tests/token-economy.test.ts",
+        "**/docs/TOKENS.md"
+      ]
+    },
+    "require": ["token-economy"]
   }
 ]
