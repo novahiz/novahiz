@@ -5,6 +5,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.5.1] - 2026-10-05
+
+Fix-forward release: the `v0.5.0` tag was pushed but its CI never reached
+`npm publish`, so no `0.5.0` exists on the registry.
+
+### Fixed
+
+- `tests/memory-robust.test.ts` built the child process's import URL from a
+  hardcoded absolute path (`file:///C:/Users/...`): the two-process lock test
+  only passed on one machine and failed every CI run with "le fils ne s'est
+  jamais signale pret". The URL now derives from `import.meta.url`.
+- `tests/clepsydre-scheduler.test.ts` (lock test) observed the released lock
+  a single `setImmediate` after `release()`, racing a wake armed at delay 0
+  for a past-due schedule: depending on event-loop timing it saw either
+  `busy = []` or the task re-locked by a second execution. The test stops the
+  wake before observing the state, so the lock-release assertion is
+  deterministic. The re-arm it exposes (a past-due schedule on a busy task
+  keeps `arm()` at delay 0) is left to the scheduler, not to this release.
+
 ## [0.5.0] - 2026-10-05
 
 ### Added

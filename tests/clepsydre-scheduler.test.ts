@@ -195,9 +195,13 @@ describe("reveil et exécution", () => {
     scheduler.wake();
     assert.equal(started.length, 1);
     release?.();
+    // L'echeance forcee dans le passe reste due : arm() d'un du passe vaut
+    // delay 0, donc un reveil deja en file re-lancerait la tache ici (comportement
+    // hors sujet : ce test verifie la LIBERATION du verrou, pas le rattrapage).
+    // On arrete le reveil avant d'observer l'etat.
+    scheduler.stop();
     await flush();
     assert.deepEqual(scheduler.busyTaskIds(), []);
-    scheduler.stop();
   });
 
   test("runNow : execution manuelle, refus si introuvable ou déjà en cours", async () => {

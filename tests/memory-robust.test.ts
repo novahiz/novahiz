@@ -208,10 +208,13 @@ describe("memory.ts - S1 robustesse (atomique, auto-heal, verrou)", () => {
       const work = makeRoot(); // dossier de travail du script fils
       const script = join(work, "holder.mjs");
       const ready = join(work, "ready");
+      // URL derivee du test lui-meme: un chemin absolu local casserait sur un
+      // autre poste ou sur le runner CI (echec release v0.5.0).
+      const memoryUrl = new URL("../src/memory.ts", import.meta.url).href;
       writeFileSync(
         script,
         [
-          'import { acquireRootLock } from "file:///C:/Users/hiz/.config/novahiz/src/memory.ts";',
+          `import { acquireRootLock } from "${memoryUrl}";`,
           'import { writeFileSync } from "node:fs";',
           "const root = process.argv[2];",
           "const ready = process.argv[3];",
