@@ -4,6 +4,8 @@
 
 17 catégories, 96 skills, 11 gate rules, 7 MCP providers — tout déterministe, tout local, tout JSON.
 
+> **Version 0.4.0** — publiée sur npm (`npm install -g novahiz` installe automatiquement tout : core, plugin, agent, skills packs et Playwright MCP). `CHANGELOG.md` et `scripts/` sont dans le tarball.
+
 ```
 ┌──────────────────────────────────────────────────────────────────────────┐
 │                                                                          │
