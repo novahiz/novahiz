@@ -4,7 +4,7 @@
 
 17 catégories, 96 skills, 11 gate rules, 7 MCP providers — tout déterministe, tout local, tout JSON.
 
-> **Version 0.4.0** — publiée sur npm (`npm install -g novahiz` installe automatiquement tout : core, plugin, agent, skills packs et Playwright MCP). `CHANGELOG.md` et `scripts/` sont dans le tarball.
+> **Version 0.4.1** — publiée sur npm (`npm install -g --allow-scripts=novahiz novahiz` installe et configure tout : core, plugin, agent, skills packs et Playwright MCP). `CHANGELOG.md` et `scripts/` sont dans le tarball.
 
 ```
 ┌──────────────────────────────────────────────────────────────────────────┐
@@ -44,11 +44,26 @@
 ### Option 1 — En une ligne (recommandé)
 
 ```bash
-npm install -g novahiz
+npm install -g --allow-scripts=novahiz novahiz
+```
+
+Une commande, tout est en place : CLI, core (skills, plugin, agent, commands), skills packs et Playwright MCP.
+
+**Pourquoi ce drapeau ?** npm 11.16+ ne considère plus les scripts de lifecycle (`postinstall`) comme autorisés tant qu'ils ne figurent pas dans `allowScripts`, et une installation globale n'a pas de `package.json` où l'inscrire : npm affiche alors `npm warn allow-scripts novahiz (...)`, et selon la version il saute le script — auquel cas `novahiz-install` n'a jamais tourné et rien n'est configuré. Le drapeau autorise explicitement ce paquet. Replis :
+
+```bash
+# valeur permanente : `npm install -g novahiz` marche ensuite sans drapeau
+npm config set allow-scripts=novahiz --location=user
+
+# paquet déjà installé sans configuration : une commande suffit
 novahiz-install --yes
 ```
 
-`npm install -g novahiz` installe le CLI. Sur npm 11+, les scripts de lifecycle sont derrière une confirmation allow-scripts : la configuration est donc une seconde étape explicite. `novahiz-install` configure opencode, le seul harness supporté — skills, plugin/agent, commands, MCP servers, config ; `--yes` accepte la configuration détectée. Puis vérifiez :
+npm antérieur à 11.16 exécute les scripts par défaut : `npm install -g novahiz` suffit. Et si le blocage a eu lieu quand même, le premier `novahiz` lancé termine l'installation lui-même (désactivable avec `NOVAHIZ_AUTOINSTALL=0`).
+
+> Piège : `npm install -g --allow-scripts=novahiz` **sans** le nom du paquet installe le dossier courant et échoue avec `ENOENT: package.json`. Le nom du paquet est obligatoire : `npm install -g --allow-scripts=novahiz novahiz`.
+
+Puis vérifiez :
 
 ```bash
 novahiz doctor   # Santé : 15 checks (17 avec --deep)

@@ -5,6 +5,35 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-10-05
+
+### Fixed
+
+- **`npm install -g novahiz` works on npm 11.16+**, where install scripts no
+  longer count as approved unless they appear in `allowScripts` and a global
+  install has no `package.json` to record that approval in — npm prints
+  `npm warn allow-scripts novahiz (...)` and, depending on the version, skips
+  the postinstall so nothing gets configured. The recommended command is
+  `npm install -g --allow-scripts=novahiz novahiz`;
+  `npm config set allow-scripts=novahiz --location=user` makes it permanent so
+  plain `npm install -g novahiz` works afterwards.
+- **The published 0.4.0 tarball still carried the dry-run postinstall**
+  (`node install/install.mjs --dry-run`) — the `--yes` republish never reached
+  the registry, so even an allowed postinstall only printed the next step
+  instead of installing. 0.4.1 publishes `postinstall: node install/install.mjs
+  --yes`.
+- **`novahiz` finishes the setup itself when npm skipped the postinstall**: the
+  first run of the CLI finds no `~/.config/novahiz/.novahiz-install.json`
+  manifest and executes `install/install.mjs --yes` once before the command
+  runs. `-v`, `--version`, `--help`, `-h` and `NOVAHIZ_AUTOINSTALL=0` skip the
+  bootstrap; a repo checkout (outside `node_modules`) is never touched.
+
+### Docs
+
+- README quick start rewritten: the one-liner carries `--allow-scripts`, both
+  fallbacks are listed, and the `ENOENT: package.json` trap of running the flag
+  without a package name is called out.
+
 ## [0.4.0] - 2026-10-05
 
 ### Added
