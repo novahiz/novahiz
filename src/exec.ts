@@ -1,10 +1,14 @@
 import { spawnSync } from "node:child_process";
 
 // Allowed characters for a single argument. It excludes every character a shell
-// can reinterpret: whitespace, & | < > ^ % ! ( ) " ' ` ; $ * ? and newlines.
+// can reinterpret: whitespace, & | < > ^ % ! ( ) " ' ` ; $ ? and newlines.
 // The Windows branch below joins tokens with spaces and hands the result to
 // cmd.exe, so widening this set would re-open command injection on that path.
-const SAFE_TOKEN = /^[A-Za-z0-9@._+,/:=~-]+$/;
+// `*` is the one deliberate exception: cmd.exe does not glob (it passes the
+// character through untouched) and the POSIX branch spawns without a shell, so
+// a bare glob reaches the target program — the skill packs in
+// catalog/providers.json rely on `--skill *` to track every upstream skill.
+const SAFE_TOKEN = /^[A-Za-z0-9@._+,/:=*~-]+$/;
 
 type CommandResult = {
   ok: boolean;

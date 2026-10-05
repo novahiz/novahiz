@@ -214,7 +214,7 @@ export const DEFAULT_CONFIG: NovahizConfig = {
   },
   providers: {
     autoRegister: true,
-    autoInstall: false,
+    autoInstall: true,
     disabled: []
   },
   ledger: {

@@ -5,9 +5,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-10-05
+
 ### Added
 
-- **clepsydre** — a local scheduling MCP server (`mcp/clepsydre`) written in
+- **Zero-friction install for the community** - `providers.autoInstall` now
+  defaults to `true` (the official skill packs impeccable, flutter, dart and
+  expo install with `novahiz-install`, so gate rule R14 never blocks a fresh
+  setup); Playwright MCP installs globally using the catalog pin instead of an
+  on-demand npx download; the postinstall dry-run prints the exact next step;
+  `files` ships `CHANGELOG.md` and `scripts/` so `npm run ci:local` works from
+  the published package. Version 0.4.0 (breaking renames: plugin
+  `novahiz-plugin.ts`, MCP `novahiz-<function>` ids).
+- **clepsydre** - a local scheduling MCP server (`mcp/clepsydre`) written in
   this repository with zero npm dependency: 5-field cron expressions plus
   macros, `every Ns/Nm` intervals, one-shot ISO dates, IANA timezones, an
   atomic JSON store with a JSONL execution journal, and 14 `clepsydre_*` tools
@@ -61,6 +71,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- **Default-path skill packs installed again** - `providers.autoInstall` runs
+  `deps --install` on every fresh setup, which exposed a latent guard refusal:
+  `refused unsafe token: *` on the `--skill *` commands of flutter-skills and
+  dart-skills (expo and impeccable listed their skills explicitly and passed).
+  `SAFE_TOKEN` in `src/exec.ts` now admits `*` with the rationale on the spot:
+  cmd.exe does not glob and the POSIX branch spawns without a shell, so the
+  glob reaches the skills CLI, which expands it. Verified 4/4 `ok`.
 - **Audit 2026-09-25 follow-up — every P0→P3 finding resolved in one batch.**
   - **P0 (secret exposure)** — the Stitch API key left `opencode.jsonc`: the
     header now references `{env:NOVAHIZ_STITCH_API_KEY}` and the value lives in

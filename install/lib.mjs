@@ -192,7 +192,7 @@ export function defaultConfig() {
     },
     providers: {
       autoRegister: true,
-      autoInstall: false,
+      autoInstall: true,
       // `clepsydre` is a local server (mcp/clepsydre) with no install step:
       // nothing needs to stay disabled by default.
       disabled: []

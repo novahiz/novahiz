@@ -213,11 +213,15 @@ async function main() {
 
   // 5. Install MCP servers (global npm packages)
   log("");
-  log("MCP servers: none to install — removed servers stay removed.");
-  // 2026-10-05: intentionally empty — security-mcp was removed on purpose and
-  // the mcp-cron shim before it; never re-add them (user decision: jamais
-  // réinstallés). The purge below enforces the removal on every bootstrap.
-  const mcpServers = [];
+  log("MCP servers: playwright installed globally; removed servers stay removed.");
+  // 2026-10-05: security-mcp was removed on purpose and the mcp-cron shim
+  // before it — never re-add them (user decision: jamais réinstallés). The
+  // purge below enforces the removal on every bootstrap. Playwright MCP is
+  // the one server installed globally so no npx download happens on first
+  // use; keep the pin in sync with catalog/providers.json (0.0.82 today).
+  const mcpServers = [
+    { pkg: "@playwright/mcp@0.0.82", bin: "playwright-mcp" },
+  ];
   // `novahiz-docs` is a local file run through `node` (no package, no shim:
   // the config points straight at <home>/mcp/novahiz-docs/index.mjs).
   // `clepsydre` is a local file run through `node` (house scheduler, zero npm

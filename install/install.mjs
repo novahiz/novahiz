@@ -40,6 +40,7 @@ const CORE_ITEMS = [
   "LICENSE",
   "README.md",
   "NOTICE.md",
+  "CHANGELOG.md",
   "novahiz.config.example.json"
 ];
 
@@ -344,13 +345,28 @@ async function main() {
   }
 
   // Install MCP servers globally.
-  // 2026-10-05: intentionally empty — security-mcp was removed on purpose and
-  // the mcp-cron shim before it; reinstating either would resurrect a removed
-  // server against the user's explicit decision (never reinstall, ever). Keep
-  // this list empty unless a new MCP server is explicitly wanted. The purge
-  // below enforces the removal on every run, and providers.disabled in
-  // novahiz.config.json keeps security out of the registry.
-  const mcpServers = [];
+  // 2026-10-05: security-mcp was removed on purpose and the mcp-cron shim
+  // before it — reinstating either would resurrect a removed server against
+  // the user's explicit decision (never reinstall, ever). The purge below
+  // enforces the removal on every run, and providers.disabled in
+  // novahiz.config.json keeps security out of the registry. The only entry
+  // here is Playwright MCP: installing it up front means no npx download on
+  // first use (latency, offline failure), and the version pin comes from
+  // catalog/providers.json so the doctor R6 drift check stays aligned.
+  const playwrightPkg = (() => {
+    try {
+      const providers = readJson(join(root, "catalog", "providers.json"), []);
+      const entry = providers.find((provider) => provider.id === "playwright");
+      const command = Array.isArray(entry?.command) ? entry.command : [];
+      const pin = command.find((token) => typeof token === "string" && token.includes("@playwright/mcp"));
+      return typeof pin === "string" ? pin : "@playwright/mcp@0.0.82";
+    } catch {
+      return "@playwright/mcp@0.0.82";
+    }
+  })();
+  const mcpServers = [
+    { pkg: playwrightPkg, bin: "playwright-mcp", name: "playwright" },
+  ];
   // `novahiz-docs` is a local file run through `node` (no package, no shim:
   // the config points straight at <home>/mcp/novahiz-docs/index.mjs).
   // `lodestone` is a local file run through `node` too (house clean-room
@@ -359,7 +375,7 @@ async function main() {
   // dependency): no package, no shim.
 
   if (!dryRun) {
-    note("\nMCP servers: none to install — removed servers stay removed.");
+    note("\nMCP servers: playwright installed globally; removed servers stay removed.");
     for (const server of mcpServers) {
       const check = spawnSync(process.platform === "win32" ? "where" : "which", [server.bin], {
         encoding: "utf8",
@@ -558,6 +574,9 @@ async function main() {
     }
   } else {
     process.stdout.write("\nDry-run complete, no changes written.\n");
+    process.stdout.write(
+      "Next step: run `novahiz-install` (or `novahiz setup`) once to install everything — core skills, plugin, agent, provider skill packs (impeccable, flutter, dart, expo), and MCP servers. Then restart opencode.\n"
+    );
   }
 }
 

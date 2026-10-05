@@ -33,7 +33,7 @@
   },
   "providers": {
     "autoRegister": true,
-    "autoInstall": false,
+    "autoInstall": true,
     "disabled": ["security"]
   }
 }
