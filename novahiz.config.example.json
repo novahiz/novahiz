@@ -19,17 +19,5 @@
     "autoRegister": true,
     "autoInstall": true,
     "disabled": []
-  },
-  "tokens": {
-    "enabled": true,
-    "trimOutputs": true,
-    "maxOutputBytes": 40000,
-    "keepHeadLines": 120,
-    "keepTailLines": 40,
-    "keepErrorLines": 40,
-    "dedupeReads": true,
-    "capOutputTokens": 0,
-    "trimTools": ["read", "bash", "shell"],
-    "readTools": ["read"]
   }
 }

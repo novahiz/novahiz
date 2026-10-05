@@ -170,7 +170,7 @@ describe("reveil et exécution", () => {
     assert.equal(runs.length, 0);
   });
 
-  test("verrou : aucune seconde execution tant que la premiere dure", async () => {
+  test("verrou : aucune seconde execution tant que la premiere dure, puis rattrapage unique", async () => {
     let release: (() => void) | undefined;
     const dir = workdir();
     saveTasks([makeTask({ id: "t-1", nextRunAt: new Date(NOW - MINUTE).toISOString() })], dir);
@@ -190,18 +190,25 @@ describe("reveil et exécution", () => {
     // L'exécution démarre dans la microtache suivante (verrou déjà pris).
     await flush();
     assert.equal(started.length, 1);
-    // Echeance forcee dans le passe pendant l'execution : le verrou prime.
+    // Echeance forcee dans le passe pendant l'execution : le verrou prime, et
+    // surtout arm() ignore la tache busy — aucun timer 0 ms en file, donc pas
+    // de boucle `skip -> arm` (une lecture disque par tour) toute l'execution.
     saveTasks([makeTask({ id: "t-1", nextRunAt: new Date(NOW - MINUTE).toISOString() })], dir);
     scheduler.wake();
     assert.equal(started.length, 1);
+    assert.equal(scheduler.arm(), null);
+    // Liberation : l'echeance forcee est toujours due, le reveil de
+    // liberation la rattrape UNE fois (retard 60 s = seuil : run-once).
     release?.();
-    // L'echeance forcee dans le passe reste due : arm() d'un du passe vaut
-    // delay 0, donc un reveil deja en file re-lancerait la tache ici (comportement
-    // hors sujet : ce test verifie la LIBERATION du verrou, pas le rattrapage).
-    // On arrete le reveil avant d'observer l'etat.
-    scheduler.stop();
+    await flush();
+    assert.equal(started.length, 2);
+    assert.deepEqual(scheduler.busyTaskIds(), ["t-1"]);
+    // Second verrou libere : le calendrier a avance, plus rien a relancer.
+    release?.();
     await flush();
     assert.deepEqual(scheduler.busyTaskIds(), []);
+    assert.equal(started.length, 2);
+    scheduler.stop();
   });
 
   test("runNow : execution manuelle, refus si introuvable ou déjà en cours", async () => {

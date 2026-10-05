@@ -95,9 +95,10 @@ from the local enforcement database.
 
 ## Not implemented
 
-`novahiz.config.example.json` still carries a `tokens` block (`enabled`,
-`trimOutputs`, `keepHeadLines`, `keepTailLines`, `keepErrorLines`,
-`dedupeReads`, `capOutputTokens`, `trimTools`, `readTools`). No code reads it:
-it is a leftover of a layer that was never shipped, and neither the plugin nor
-`novahiz tokens` consumes it. Configure the plugin with the environment
-variables above instead.
+There is no `tokens` section in `novahiz.config.example.json`: no code ever
+read the one it carried (`enabled`, `trimOutputs`, `keepHeadLines`,
+`keepTailLines`, `keepErrorLines`, `dedupeReads`, `capOutputTokens`,
+`trimTools`, `readTools`) — a leftover of a layer that was never shipped, and
+neither the plugin nor `novahiz tokens` consumes it. It has been removed from
+the example rather than left to contradict this document. Token economy is
+configured with the environment variables above, and nothing else.

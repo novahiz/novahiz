@@ -5,6 +5,33 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.5.2] - 2026-10-05
+
+Maintenance release closing the three leftovers traced right after `0.5.1`:
+the installer's dead `plugin` config key, the unread `tokens` block of the
+example config, and the scheduler's 0 ms wake loop on a busy task.
+
+### Fixed
+
+- `install/install.mjs` no longer writes a `"plugin"` array of **file paths**
+  into a freshly created `opencode.jsonc`. opencode never read it (the plugins
+  are loaded from `<config>/plugins`, proved in E2E: the key pointed at the
+  repo while the loaded copies came from the plugins directory) and a file
+  entry triggered `configured plugin path must be a directory` at every
+  startup. Existing configs are left untouched.
+- `novahiz.config.example.json` no longer advertises a `tokens` block
+  (`enabled`, `trimOutputs`, `keepHeadLines`, `dedupeReads`, `capOutputTokens`,
+  `trimTools`, …) that no code ever read — a leftover of a layer that was never
+  shipped. The example now carries exactly the keys `defaultConfig()` writes,
+  and `docs/TOKENS.md` states it instead of pointing at a block that should
+  not be there.
+- `mcp/clepsydre/src/scheduler.ts`: `arm()` no longer arms a timer for a task
+  that is already running. A past-due schedule on a busy task used to feed a
+  0 ms `wake → skip → arm` loop (one task-store read per turn) for the whole
+  execution, and a manual trigger could sustain it. The lock release now goes
+  through `release()`, which re-evaluates the calendar once the task is free,
+  so a due occurrence is still caught up exactly once instead of by the spin.
+
 ## [0.5.1] - 2026-10-05
 
 Fix-forward release: the `v0.5.0` tag was pushed but its CI never reached

@@ -11,6 +11,10 @@
 // bascule toujours en traitement special : une tache n'execute jamais deux
 // fois en parallele (verrou `busy`), meme si la cadence est plus rapide que
 // la duree de l'execution.
+// Le verrou ne s'arme jamais : `arm()` ignore les taches busy, sinon une
+// echeance passee donnerait un timer 0 ms en boucle (`skip -> arm`) pendant
+// toute l'execution ; la liberation re-evalue les echeances et rattrape
+// l'occurrence due une seule fois.
 
 import { appendExecution, findTask, loadTasks, mutateTasks, newId, saveTasks, type Task } from "./store.ts";
 import { nextRun, parseSchedule, type Schedule } from "./cron.ts";
@@ -125,6 +129,11 @@ export class Scheduler {
   }
 
   /** Arme le prochain reveil sur l'echeance la plus proche.
+   *  Une tache en execution (verrou `busy`) est ignoree : son echeance passe
+   *  reste en file jusqu'a la liberation, et un reveil dessus ne ferait que
+   *  boucler (`timer 0 ms -> wake -> skip -> arm`) pendant toute
+   *  l'execution, a coup de lecture disque. Le reveil de liberation
+   *  (`release`) re-evalue les echeances quand le verrou saute.
    *  Retourne le delai retenu (null : aucune tache a armer), pour test. */
   arm(): number | null {
     this.stopTimer();
@@ -133,6 +142,7 @@ export class Scheduler {
     let earliest: number | null = null;
     for (const task of tasks) {
       if (!task.enabled || !task.schedule) continue;
+      if (this.busy.has(task.id)) continue;
       const due = this.dueMs(task);
       if (due === null) continue;
       if (earliest === null || due < earliest) earliest = due;
@@ -239,6 +249,17 @@ export class Scheduler {
     this.arm();
   }
 
+  /** Libere le verrou d'une tache puis re-evalue les echeances.
+   *  Sans ce reveil, une occurrence devenue due pendant l'execution
+   *  (`triggerNow` / `runNow` n'avancent pas le calendrier) resterait due sur
+   *  disque en panne depuis que `arm()` ignore les taches busy. Le
+   *  rattrapage reste unique : le premier reveil avance `nextRunAt`, le
+   *  suivant ne trouve plus rien a lancer. */
+  private release(id: string): void {
+    this.busy.delete(id);
+    this.wake();
+  }
+
   /** Declenchement manuel DETACHE : pre-controles synchrones (tache connue,
    *  aucune execution en cours), puis execution en arriere-plan. Le serveur
    *  stdio reste disponible pour les autres requetes ; le resultat se lit
@@ -257,7 +278,7 @@ export class Scheduler {
         // non capte qui tuerait le serveur.
       })
       .finally(() => {
-        this.busy.delete(task.id);
+        this.release(task.id);
       });
     return { ok: true };
   }
@@ -275,7 +296,7 @@ export class Scheduler {
     } catch (error) {
       return { ok: false, reason: error instanceof Error ? error.message : String(error) };
     } finally {
-      this.busy.delete(task.id);
+      this.release(task.id);
     }
   }
 
@@ -300,7 +321,7 @@ export class Scheduler {
         .then(() => runOne(index + 1));
     };
     void runOne(0).finally(() => {
-      this.busy.delete(task.id);
+      this.release(task.id);
     });
   }
 

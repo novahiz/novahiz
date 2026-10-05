@@ -236,9 +236,11 @@ async function main() {
     }
   }
 
-  // opencode charge les .ts posés dans <config>/plugins: E2E montre que le
-  // registre des plugins déclare le chemin de ce répertoire, pas celui du
-  // tableau "plugin" de la config — les deux restent en cohérence.
+  // opencode charge automatiquement les .ts de <config>/plugins. Preuve E2E:
+  // le tableau "plugin" de la config pointait vers ce depôt alors que les
+  // plugins charges venaient de <config>/plugins — le tableau est donc retire
+  // du modele de config, une entree fichier y declenchait l'avertissement
+  // "configured plugin path must be a directory" a chaque demarrage.
   for (const pluginFile of ["novahiz-plugin.ts", "novahiz-token-economy.ts"]) {
     const pluginSource = join(home, "adapters", "opencode", pluginFile);
     const pluginTarget = join(pluginsDir, pluginFile);
@@ -519,9 +521,6 @@ async function main() {
         "skills": {
           "paths": [skillsDir]
         },
-        "plugin": [
-          join(home, "adapters", "opencode", "novahiz-plugin.ts")
-        ],
         "compaction": {
           "auto": true,
           "prune": true,
