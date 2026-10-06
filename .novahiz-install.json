@@ -1,6 +1,6 @@
 {
-  "version": "0.5.2",
-  "installedAt": "2026-10-05T20:15:23.453Z",
+  "version": "0.6.0",
+  "installedAt": "2026-10-06T16:55:54.457Z",
   "harness": "opencode",
   "harnesses": [
     "opencode"
@@ -210,6 +210,12 @@
     "C:\\Users\\hiz\\.config\\opencode\\skills\\novahiz-release\\SKILL.md",
     "C:\\Users\\hiz\\.config\\opencode\\skills\\novahiz-second-memory\\SKILL.md",
     "C:\\Users\\hiz\\.config\\opencode\\skills\\novahiz-security\\SKILL.md",
+    "C:\\Users\\hiz\\.config\\opencode\\skills\\novahiz-stitch-fidelity\\SKILL.md",
+    "C:\\Users\\hiz\\.config\\opencode\\skills\\novahiz-stitch-fidelity\\defaults\\verify.config.defaults.json",
+    "C:\\Users\\hiz\\.config\\opencode\\skills\\novahiz-stitch-fidelity\\references\\capture-recipes.md",
+    "C:\\Users\\hiz\\.config\\opencode\\skills\\novahiz-stitch-fidelity\\references\\judgment-grid.md",
+    "C:\\Users\\hiz\\.config\\opencode\\skills\\novahiz-stitch-fidelity\\scripts\\stitch_capture.mjs",
+    "C:\\Users\\hiz\\.config\\opencode\\skills\\novahiz-stitch-fidelity\\scripts\\stitch_composite.mjs",
     "C:\\Users\\hiz\\.config\\opencode\\skills\\novahiz-supabase\\SKILL.md",
     "C:\\Users\\hiz\\.config\\opencode\\skills\\novahiz-task\\SKILL.md",
     "C:\\Users\\hiz\\.config\\opencode\\skills\\novahiz-wcag-audit\\SKILL.md",
