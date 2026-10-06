@@ -32,5 +32,7 @@ node_modules/
 /dist/
 # agent session memory — machine data, regenerated as the session runs.
 /project-memory/
-# local pre-migration copy of the opencode plugin — not part of the source.
+# local pre-migration copy of the opencode plugin - not part of the source.
 *.pre-v2
+# novahiz tool-output spool - truncated call outputs, regenerated every session.
+/tmp/

@@ -1,0 +1,29 @@
+{
+  // Global defaults for the novahiz-stitch-fidelity skill.
+  // Shipped with Novahiz: every project inherits these, a project's own
+  // stitch/verify.config.json only overrides what is really project specific
+  // (its screens, routes, references and deep link template).
+  "adb": {
+    "serial": "auto",
+    "autoStart": true,
+    "density": null,
+    "bootTimeoutMs": 180000
+  },
+  "launch": {
+    "deepLink": null,
+    "waitForIdleMs": 6000,
+    "maxWaitMs": 30000,
+    "pollMs": 800,
+    "tapSettleMs": 900,
+    "batch": 3,
+    "coldStart": false,
+    "resetScroll": true,
+    "scrollSettleMs": 900
+  },
+  "ready": {
+    "minTexts": 3,
+    "minNodes": 12
+  },
+  "out": "stitch/_cmp",
+  "serve": { "root": "stitch", "port": 8123 }
+}

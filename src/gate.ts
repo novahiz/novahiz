@@ -1,5 +1,6 @@
 import type { Rule, Spec } from "./spec.ts";
-import { isAbsolute, relative, resolve } from "node:path";
+import { dirname, isAbsolute, join, relative, resolve } from "node:path";
+import { existsSync, readdirSync, statSync } from "node:fs";
 import { hasPlaceholder, hasProse, hasStyle, isTrivial } from "./content.ts";
 import { determineTier, type ComplexityTier } from "./complexity.ts";
 // Shared ledger enforcement (audit P1-D/M1): the CLI command and the MCP
@@ -212,6 +213,71 @@ export function contentSatisfies(content: string, patterns: string[]): boolean {
   });
 }
 
+// R16: "only in projects that carry X" cannot be expressed per file — the gate
+// sees the edited path, not the repository. `when.projectGlobs` closes that gap:
+// the globs are resolved from the project root (the nearest ancestor of the
+// edited file holding .git, package.json or pubspec.yaml) and scanned from the
+// glob's literal prefix, so a rule never walks node_modules.
+const PROJECT_ROOT_MARKERS = [".git", "package.json", "pubspec.yaml"];
+const PROJECT_SKIP_DIRS = new Set([".git", "node_modules"]);
+
+export function projectRootOf(filePath: string): string | null {
+  let dir = dirname(resolve(filePath || "."));
+  for (;;) {
+    if (PROJECT_ROOT_MARKERS.some((marker) => existsSync(join(dir, marker)))) return dir;
+    const parent = dirname(dir);
+    if (parent === dir) return null;
+    dir = parent;
+  }
+}
+
+function listFilesUnder(dir: string, out: string[]): void {
+  let entries;
+  try {
+    entries = readdirSync(dir, { withFileTypes: true });
+  } catch {
+    return; // unreadable directory: contributes nothing rather than throwing
+  }
+  for (const entry of entries) {
+    const full = join(dir, entry.name);
+    if (entry.isDirectory()) {
+      if (!PROJECT_SKIP_DIRS.has(entry.name)) listFilesUnder(full, out);
+    } else if (entry.isFile()) {
+      out.push(full);
+    }
+  }
+}
+
+export function projectGlobsMatch(root: string | null, globs: string[]): boolean {
+  if (!root) {
+    console.error("[Novahiz] projectGlobs: project root could not be resolved — the rule will not apply");
+    return false;
+  }
+  for (const glob of globs) {
+    const normalized = glob.replace(/\\/g, "/");
+    // Scanning starts at the literal prefix: "stitch/**" only reads stitch/.
+    // A glob whose prefix is pure wildcards cannot be scoped — fail closed on
+    // that pattern (never matches) instead of walking the whole project.
+    const literalPrefix = normalized.split(/[?*[\]]/, 1)[0].replace(/\/+$/, "");
+    if (literalPrefix.length === 0) {
+      console.error(`[Novahiz] projectGlobs "${glob}" must start with a literal segment — skipped`);
+      continue;
+    }
+    const base = join(root, literalPrefix);
+    const stats = statSync(base, { throwIfNoEntry: false });
+    if (!stats) continue;
+    const candidates: string[] = [];
+    if (stats.isFile()) candidates.push(base);
+    else listFilesUnder(base, candidates);
+    const pattern = globToRegExp(normalized);
+    for (const file of candidates) {
+      const rel = relative(root, file).split("\\").join("/");
+      if (pattern.test(rel)) return true;
+    }
+  }
+  return false;
+}
+
 function selectorMatches(rule: Rule, classification: FileClass, path: string, categories: string[], pathless = false): boolean {
   const when = rule.when;
   const checks: boolean[] = [];
@@ -324,9 +390,19 @@ export function evaluateGate(input: GateInput): GateResult {
 
     const requiredSkills: string[] = [];
     const matchedRules: string[] = [];
+    // Resolved lazily: only a rule carrying projectGlobs pays for the walk up to
+    // the project root (and the result is reused by every following rule).
+    let projectRoot: string | null | undefined;
 
     for (const rule of input.spec.rules) {
       if (!selectorMatches(rule, classification, path, categories, pathless)) continue;
+      if (rule.when.projectGlobs && rule.when.projectGlobs.length > 0) {
+        // Pathless probes carry no file: there is no repository to inspect, so
+        // an unprovable project condition never grants the rule (fail closed).
+        if (pathless) continue;
+        if (projectRoot === undefined) projectRoot = projectRootOf(path);
+        if (!projectGlobsMatch(projectRoot, rule.when.projectGlobs)) continue;
+      }
       // Tier gating for R6-Novahiz: trivial = skip entirely, lite = only implement+converge
       if (rule.id === "R6-Novahiz") {
         if (tier === "trivial") continue;

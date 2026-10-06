@@ -199,6 +199,13 @@
           "requireSkills": ["dart-add-unit-test"]
         },
         {
+          "id": "stitch-verify",
+          "label": "Verify screens against Stitch references (projects carrying stitch/**)",
+          "kind": "verify",
+          "requireSkills": ["novahiz-stitch-fidelity"],
+          "optional": true
+        },
+        {
           "id": "impeccable-critique",
           "label": "Impeccable critique (UI work)",
           "kind": "skill",
@@ -306,6 +313,13 @@
           "label": "Implement incrementally",
           "kind": "edit",
           "requireSkills": ["novahiz-implement"]
+        },
+        {
+          "id": "stitch-verify",
+          "label": "Verify screens against Stitch references (projects carrying stitch/**)",
+          "kind": "verify",
+          "requireSkills": ["novahiz-stitch-fidelity"],
+          "optional": true
         },
         {
           "id": "converge",

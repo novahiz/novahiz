@@ -156,5 +156,24 @@
       ]
     },
     "require": ["token-economy"]
+  },
+  {
+    "id": "R16-stitch-fidelity",
+    "description": "Load novahiz-stitch-fidelity before editing the UI of a project that carries Stitch references (stitch/**): capture, composite and fidelity verdict must be part of that loop.",
+    "when": {
+      "match": "all",
+      "pathGlobs": [
+        "**/*.tsx",
+        "**/*.jsx",
+        "**/*.vue",
+        "**/*.svelte",
+        "**/*.dart",
+        "**/*.css",
+        "**/*.scss",
+        "**/*.html"
+      ],
+      "projectGlobs": ["stitch/**"]
+    },
+    "require": ["novahiz-stitch-fidelity"]
   }
 ]

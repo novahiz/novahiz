@@ -109,6 +109,31 @@
     "purpose": "Local stdio static-analysis server (zero npm dependency): scans files and directories with local security rules (SQL injection, XSS, command injection, hardcoded secrets, insecure deserialization), creates custom rules behind a ReDoS gate, exports json/sarif/csv/html. Original clean-room implementation for the audit category."
   },
   {
+    "id": "stitch-fidelity",
+    "label": "Stitch fidelity capture (adb + Android emulator)",
+    "kind": "commands",
+    "requires": ["adb"],
+    "bootstrap": {
+      "win32": [
+        "winget install --id Google.PlatformTools",
+        "winget install --id Google.AndroidStudio"
+      ],
+      "darwin": [
+        "brew install --cask android-platform-tools",
+        "brew install --cask android-commandlinetools"
+      ],
+      "linux": [
+        "sudo apt-get install -y adb",
+        "sudo apt-get install -y android-sdk"
+      ],
+      "default": ["install Android platform-tools (adb) and the Android emulator on PATH"]
+    },
+    "source": "https://github.com/novahiz/novahiz",
+    "license": "Apache-2.0",
+    "categories": ["design-ui", "expo", "flutter"],
+    "purpose": "Prerequisite for skill novahiz-stitch-fidelity: `adb` drives the capture (uiautomator dump, screencap, input). `emulator` is only needed to auto-start a device when nothing is online (adb.autoStart); `stitch_capture.mjs --check` reports all seven readiness items."
+  },
+  {
     "id": "novahiz-gate",
     "label": "novahiz-gate",
     "kind": "mcp",

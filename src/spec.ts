@@ -34,6 +34,12 @@ type RuleWhen = {
   match?: "any" | "all";
   fileClasses?: string[];
   pathGlobs?: string[];
+  /** Project-scoped selector: the rule applies only when at least one file under
+   * the project root (nearest ancestor of the edited file holding .git,
+   * package.json or pubspec.yaml) matches one of these globs, written from that
+   * root — e.g. "stitch/**". Expresses "only in projects that carry X", which no
+   * per-file selector can. */
+  projectGlobs?: string[];
   promptCategories?: string[];
   contentMatches?: string[];
   contentExcludes?: string[];
