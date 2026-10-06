@@ -2,9 +2,9 @@
 
 > **Couche d'application sans dépendance pour les agents de code IA** — classe les prompts, attribue des roadmaps d'exécution, bloque les éditions non sûres tant que les bonnes skills ne sont pas chargées, et persiste les décisions d'une session à l'autre — tout cela de façon déterministe, sans appel de modèle.
 
-17 catégories, 96 skills, 11 gate rules, 7 MCP providers — tout déterministe, tout local, tout JSON.
+17 catégories, 99 skills, 13 gate rules, 8 MCP providers — tout déterministe, tout local, tout JSON.
 
-> **Version 0.4.1** — publiée sur npm (`npm install -g --allow-scripts=novahiz novahiz` installe et configure tout : core, plugin, agent, skills packs et Playwright MCP). `CHANGELOG.md` et `scripts/` sont dans le tarball.
+> **Version 0.6.0** — publiée sur npm (`npm install -g --allow-scripts=novahiz novahiz` installe et configure tout : core, plugin, agent, skills packs et Playwright MCP). `CHANGELOG.md` et `scripts/` sont dans le tarball.
 
 ```
 ┌──────────────────────────────────────────────────────────────────────────┐
@@ -35,7 +35,7 @@
                  └─ tier, skills ──────│         └─ block : charger les skills nommées, retry une fois
 ```
 
-**17 catégories**, **96 skills**, **11 gate rules**, **7 MCP providers** — tout déterministe, tout local, tout JSON.
+**17 catégories**, **99 skills**, **13 gate rules**, **8 MCP providers** — tout déterministe, tout local, tout JSON.
 
 ---
 
@@ -310,7 +310,7 @@ Deux pièces complémentaires : la session consomme moins sans perdre en puissan
 
 ## Skills installées
 
-Novahiz livre 98 skills couvrant toutes les catégories :
+Novahiz livre 99 skills couvrant toutes les catégories :
 
 | Catégorie | Skills | Objectif |
 |-----------|--------|----------|

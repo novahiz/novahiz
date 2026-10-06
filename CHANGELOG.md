@@ -5,6 +5,35 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-10-06
+
+Feature release: the gate learns project scope, and Stitch design projects
+get a capture → composite → fidelity-verdict loop.
+
+### Added
+
+- **`R16-stitch-fidelity` gate rule**: editing a UI file (`*.tsx`, `*.jsx`,
+  `*.vue`, `*.svelte`, `*.dart`, `*.css`, `*.scss`, `*.html`) now requires
+  the `novahiz-stitch-fidelity` skill — but only inside a project that
+  carries `stitch/**` references. This is the new `projectGlobs` selector
+  (`src/spec.ts`, `src/gate.ts`): nearest ancestor of the edited file
+  holding `.git`, `package.json` or `pubspec.yaml`, globs written from that
+  root. Projects without Stitch references are unaffected.
+- **`novahiz-stitch-fidelity` skill**: `scripts/stitch_capture.mjs` (adb:
+  uiautomator dump, screencap, input, adb.autoStart), `scripts/stitch_composite.mjs`
+  (screenshot ↔ design overlay), the fidelity judgment grid, capture
+  recipes and a `verify.config.defaults.json`.
+- **`stitch-fidelity` provider** (`kind: commands`): adb prerequisite with
+  per-OS bootstrap (winget / brew / apt), categories `design-ui`, `expo`,
+  `flutter`; `stitch_capture.mjs --check` reports the seven readiness items.
+- Optional `stitch-verify` roadmap step (`kind: verify`) in two roadmaps.
+- Tests: `tests/gate-stitch-fidelity.test.ts` — project-scoped enforcement.
+
+### Changed
+
+- README headline and counts refreshed: 99 skills, 13 gate rules, 8 MCP
+  providers, version line at 0.6.0 (was advertising 96/11/7 and 0.4.1).
+
 ## [0.5.2] - 2026-10-05
 
 Maintenance release closing the three leftovers traced right after `0.5.1`:
