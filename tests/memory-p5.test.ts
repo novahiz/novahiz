@@ -230,3 +230,53 @@ describe("P5 - MCP memory_get trace last_read (source du decay)", () => {
     assert.ok(Number.isFinite(Date.parse(slot.last_read)));
   });
 });
+
+describe("P5 - MCP autonome sans home novahiz (packageRoot walk-up)", () => {
+  const MCP = join(process.cwd(), "mcp", "novahiz-tools", "index.mjs");
+  const cwd = mkdtempSync(join(tmpdir(), "novahiz-standalone-"));
+  const home = mkdtempSync(join(tmpdir(), "novahiz-emptyhome-"));
+  // Reproduit la CI et le chemin communautaire: NOVAHIZ_HOME sans catalog.
+  // Avant la correction, packageRoot() ne montait qu'un niveau depuis
+  // mcp/<srv>/index.mjs (-> mcp/catalog/, absent) et chaque appel degraderait
+  // avec « Invalid or missing catalog file » — red CI Linux, memoire morte
+  // sur un npm-global non installe. Le walk-up doit trouver le catalog du
+  // paquet. Les deux assertions ci-dessous sont les deux echecs CI du
+  // 2026-10-08 (engine=fts, index.json absent).
+  const env = {
+    ...process.env,
+    NOVAHIZ_HOME: home,
+    NOVAHIZ_DB: join(cwd, "fts.sqlite")
+  };
+
+  after(() => {
+    rmSync(cwd, { recursive: true, force: true });
+    rmSync(home, { recursive: true, force: true });
+  });
+
+  const call = (tool: string, input: string) =>
+    spawnSync(process.execPath, [MCP, "--call", tool], { encoding: "utf8", input, cwd, env, timeout: 60_000 });
+
+  const payloadOf = (res: { status: number | null; stdout: string; stderr: string }): Record<string, unknown> => {
+    assert.equal(res.status, 0, res.stderr);
+    const envelope = JSON.parse(res.stdout.trim()) as {
+      result: { content: { type: string; text: string }[] };
+    };
+    return JSON.parse(envelope.result.content[0].text) as Record<string, unknown>;
+  };
+
+  test("memory_write/search ne degradent pas sans catalog en home", () => {
+    const written = payloadOf(
+      call("memory_write", JSON.stringify({ title: "install sans home", content: "le paquet porte son propre catalog" }))
+    );
+    assert.notEqual(written.failed, true, String(written.error));
+
+    const search = payloadOf(call("memory_search", JSON.stringify({ query: "install sans home", limit: 5 })));
+    assert.notEqual(search.failed, true, String(search.error));
+    assert.equal(search.engine, "fts", "index derive present via le catalog du paquet");
+
+    const index = JSON.parse(readFileSync(join(cwd, "project-memory", "index.json"), "utf8")) as {
+      slots: { id: string }[];
+    };
+    assert.ok(index.slots.length >= 1, "ecriture bien materialisee dans cwd");
+  });
+});

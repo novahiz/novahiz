@@ -474,14 +474,36 @@ function readCatalog<T>(path: string): T {
 // gates lifecycle scripts, and the postinstall only previews anyway), so a
 // brand-new machine has no catalog in its home yet — every command used to die
 // with ENOENT right after the documented install. The package ships its own
-// catalog/: fall back to it before failing. The entry script (bin/novahiz.mjs,
-// dist/cli.js or src/cli.ts) always sits exactly one directory below the
-// package root, so dirname(argv[1])/.. resolves in every supported shape.
+// catalog/: fall back to it before failing.
+// Audit 2026-10-08: the old one-level assumption (dirname(argv[1])/..) held for
+// bin/ and src/ but NOT for mcp/<server>/index.mjs — two levels down it pointed
+// at mcp/catalog/ (absent), so on any machine without a home catalog (CI,
+// fresh npm-global) the memory MCP degraded on every call: red CI on Linux,
+// memory_write/search dead for the community path. Walk up instead: the package
+// root is the nearest ancestor carrying a package.json, preferring name
+// "novahiz"; a stray nested manifest is kept only as a last resort.
 // Exported: doctor resolves the shipped skills/ the same way.
 export function packageRoot(): string | null {
   const entry = process.argv[1];
   if (!entry || entry.length === 0) return null;
-  return join(dirname(resolve(entry)), "..");
+  let dir = dirname(resolve(entry));
+  let loose: string | null = null;
+  for (let depth = 0; depth < 6; depth += 1) {
+    const manifest = join(dir, "package.json");
+    if (existsSync(manifest)) {
+      try {
+        const name = (JSON.parse(readFileSync(manifest, "utf8")) as { name?: string }).name;
+        if (name === "novahiz") return dir;
+        loose ??= dir;
+      } catch {
+        // manifest illisible: on remonte quand meme.
+      }
+    }
+    const parent = dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+  return loose;
 }
 
 // The home copy always wins when present, because that is what the installer
