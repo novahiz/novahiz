@@ -1,17 +1,29 @@
 # System Instructions
 
-## Obsidian Memory
+## Obsidian Memory — the `second-memory` vault
 
-Obsidian (`C:\Users\hiz\Documents\Novahiz`) is the user's second memory.
+The system's official vault is **`~/Documents/second-memory`** (`NOVAHIZ_SM_VAULT` overrides it for tests). It is created by the installer together with the plugins and skills: it is part of Novahiz itself, not an optional add-on. The old `~/Documents/Novahiz` path does not exist — never reference it.
+
+### Automatic consultation (already done for you)
+The plugin auto-consults the vault (`memory.auto.vault`, enabled by default): every `every` prompts (default 3) it runs `novahiz second-memory search <prompt head> --k=3 --min-score=0.25 --json` and injects the top hits under `[Novahiz memory] vault second-memory auto-consulted`. Treat those hits as leads, not conclusions: open the referenced note with the read tool before relying on a snippet.
+
+### When to consult the vault proactively
+Search it yourself (`novahiz second-memory search "<terms>"`, then read the note) when:
+- the user asks what was decided or learned earlier (project, strategy, preference, decision);
+- you are about to redo work that has likely already happened (design, migration, analysis, troubleshooting);
+- the topic matches a vault domain (Trading, AI, Design, DevOps, Security, Business, Learning, Wiki, Projects, Journal);
+- the user says « dans ma mémoire », « dans le vault », « comme on avait décidé », "second memory";
+- an answer must survive this session.
+Do **not** consult it for trivial edits, unrelated questions, or when the prompt already carries the needed context.
 
 ### Rules
-1. When the user asks to **save / memorize / update obsidian memory**, load the `memory` skill (alias for `novahiz-memory`) and follow its procedure without exception.
-2. Determine the target folder **only** from the `Novahiz\_meta\routing.md` table (source of truth). Never guess. When ambiguous, ask the user.
-3. Display the chosen path before writing.
-4. Never write to `index.md`, `log.md`, `hot.md`, `.manifest.json`, `_meta/`, or `.obsidian/`. No installed skill covers maintenance of those files: if the user asks for it, do it step by step in front of them, with a backup first for anything under `.obsidian/`. The `memory` skill writes only to the targeted content page.
-5. Never create a root folder on your own. Every new category requires user agreement and an update to `routing.md`.
-6. Include mandatory frontmatter: `title, category, tags, sources, created, updated, summary`. Use tags from `_meta/taxonomy.md`.
-7. Link pages with `[[wikilinks]]`. Merge rather than duplicate.
+1. When the user asks to **save / memorize / update** memory, load the `memory` skill (alias for `novahiz-memory`) and follow its procedure without exception. For vault-only writes and structure questions, load `novahiz-second-memory` instead: it owns the vault's fixed, predefined arborescence.
+2. Vault routing comes from the predefined structure (`catalog/vault-structure.json`, surfaced by the `novahiz-second-memory` skill) — never guess a location. When ambiguous, ask the user, and display the chosen path before writing.
+3. Search before you write: `novahiz second-memory search "<terms>"` — merge into an existing note rather than creating a duplicate. Link pages with `[[wikilinks]]`.
+4. Never write to `index.md`, `log.md`, `hot.md`, `.manifest.json`, `_meta/`, or `.obsidian/`. If the user asks for it, do it step by step in front of them, with a backup first for anything under `.obsidian/`.
+5. Never create a root domain on your own: every new domain requires user agreement and a structure update.
+6. Include mandatory frontmatter: `title, category, tags, sources, created, updated, summary`.
+7. Structure maintenance is CLI work: `novahiz second-memory [init|doctor|fix|sync|status]` (dry-run by default, `--apply` to write).
 
 ## Playwright Browser — Persistent Profile
 

@@ -8,9 +8,14 @@ description: |
   Writes are routed to a predefined spot, missing folders are auto-created, a domain
   activates whole on first write. `second-memory doctor` audits and repairs the vault and
   installs the 10 mandatory community plugins.
-  Use when the user asks to write to, organize, audit, repair or sync the second-memory vault.
+  Use when the user asks to write to, organize, audit, repair or sync the second-memory vault,
+  or when an answer needs past context: search the vault first
+  (`novahiz second-memory search "<terms>"`) before answering questions about earlier
+  decisions, past work, preferences, or anything the user refers to as "my memory".
   Triggers on: second-memory, vault, obsidian, second brain, write to vault,
-  organize vault, sync memory, vault structure, vault lint, doctor, second-memory CLI.
+  organize vault, sync memory, vault structure, vault lint, doctor, second-memory CLI,
+  search the vault, what did we decide, earlier notes, past context, comme on avait décidé,
+  dans ma mémoire, second memory.
 license: Apache-2.0
 compatibility: opencode
 metadata:

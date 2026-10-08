@@ -11,10 +11,18 @@ const CORE = join(process.cwd(), "mcp", "novahiz-tools", "index.mjs");
 const init = JSON.stringify({ jsonrpc: "2.0", id: 1, method: "initialize", params: { protocolVersion: "2025-06-18" } });
 const list = JSON.stringify({ jsonrpc: "2.0", id: 2, method: "tools/list", params: {} });
 
+// Hermetique : l'etat du gate de l'operateur (`novahiz gate off` pose
+// NOVAHIZ_GATE=off en env User) ne doit pas fausser la suite — un verdict
+// "disabled" court-circuite les validations attendues plus bas. Les tests
+// ciblent le comportement par defaut, gate actif.
+const childEnv = { ...process.env };
+delete childEnv.NOVAHIZ_GATE;
+
 function rpc(server: string, lines: string[]): Json[] {
   const run = spawnSync(process.execPath, [server], {
     encoding: "utf8",
     input: lines.join("\n") + "\n",
+    env: childEnv,
     timeout: 60_000
   });
   assert.equal(run.status, 0, run.stderr);
@@ -28,6 +36,7 @@ function call(server: string, tool: string, input: string) {
   return spawnSync(process.execPath, [server, "--call", tool], {
     encoding: "utf8",
     input,
+    env: childEnv,
     timeout: 60_000
   });
 }

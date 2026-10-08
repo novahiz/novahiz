@@ -25,6 +25,24 @@ import {
   writeJson
 } from "./lib.mjs";
 import { createPrompt } from "./prompt.mjs";
+import { createInstallerUI } from "./ui.mjs";
+
+// Etapes visibles par l'utilisateur, dans l'ordre reel d'execution. La barre
+// de progression se base sur cette liste : toute section ajoutee ici doit
+// appeler ui.step() une fois (les sauts conditionnels passent par
+// ui.finishStep("skip")).
+const STEPS = [
+  "Preflight & harnesses",
+  "Core files",
+  "Skills",
+  "Plugin, agent & commands",
+  "Configuration",
+  "Catalog & dependencies",
+  "MCP servers",
+  "opencode config",
+  "Obsidian vault (second-memory)",
+  "Finalize"
+];
 
 const CORE_ITEMS = [
   "src",
@@ -55,7 +73,12 @@ async function main() {
   const skillsDir = join(configDir, "skills");
   const pluginsDir = join(configDir, "plugins");
 
-  const note = (message) => process.stdout.write(`${dryRun ? "[dry-run] " : ""}${message}\n`);
+  // Banniere + journal d'etape : ui.note route l'ancien note() (prefixe
+  // dry-run gere par ui), ui.step decoupe le flux en sections affichees.
+  const ui = createInstallerUI({ steps: STEPS, dryRun });
+  ui.banner();
+
+  const note = (message) => ui.note(String(message).replace(/^\n+/, ""));
 
   note(`novahiz home: ${home}`);
   note(`opencode config: ${configDir}`);
@@ -108,6 +131,7 @@ async function main() {
   // Harness resolution: --harness flag > detection (opencode is the only
   // supported harness; --yes and non-interactive runs take the detection,
   // falling back to opencode so a fresh machine still gets a baseline).
+  ui.step("Preflight & harnesses");
   const flagHarnesses =
     typeof flags.harness === "string"
       ? flags.harness
@@ -148,7 +172,11 @@ async function main() {
       continue;
     }
     note(`${name} not detected. Global installation...`);
+    // stdio:inherit : l'enfant ecrit directement dans le terminal — la ligne
+    // vivante est suspendue pour eviter tout chevauchement.
+    ui.suspend();
     const installResult = spawnHost("npm", ["install", "-g", pkg], { stdio: "inherit" });
+    ui.resume();
     if (installResult.status !== 0) {
       note(`WARNING: Failed to install ${name} automatically (non-blocking). Run: npm install -g ${pkg}`);
     } else {
@@ -168,6 +196,7 @@ async function main() {
   let configCreated = false;
 
   const sameRoot = resolve(root) === resolve(home);
+  ui.step("Core files");
   if (!sameRoot) {
     note(`Copying core to ${home}`);
     if (!dryRun) mkdirSync(home, { recursive: true });
@@ -192,6 +221,7 @@ async function main() {
     coreCopied = true;
   }
 
+  ui.step("Skills");
   if (withSkills && !configured.includes("opencode")) {
     note("Skipping opencode skills copy (opencode not selected).");
   }
@@ -241,6 +271,7 @@ async function main() {
   // plugins charges venaient de <config>/plugins — le tableau est donc retire
   // du modele de config, une entree fichier y declenchait l'avertissement
   // "configured plugin path must be a directory" a chaque demarrage.
+  ui.step("Plugin, agent & commands");
   for (const pluginFile of ["novahiz-plugin.ts", "novahiz-token-economy.ts"]) {
     const pluginSource = join(home, "adapters", "opencode", pluginFile);
     const pluginTarget = join(pluginsDir, pluginFile);
@@ -280,6 +311,7 @@ async function main() {
     }
   }
 
+  ui.step("Configuration");
   const configPath = join(home, "novahiz.config.json");
   if (force || !existsSync(configPath)) {
     note(`Writing ${configPath}`);
@@ -314,6 +346,7 @@ async function main() {
     });
   }
 
+  ui.step("Catalog & dependencies");
   if (!dryRun) {
     const cli = join(home, "src", "cli.ts");
     if (existsSync(cli)) {
@@ -322,8 +355,8 @@ async function main() {
         encoding: "utf8",
         env: { ...process.env, NOVAHIZ_HOME: home }
       });
-      if (result.stdout) process.stdout.write(result.stdout);
-      if (result.status !== 0 && result.stderr) process.stderr.write(result.stderr);
+      if (result.stdout) ui.raw(result.stdout);
+      if (result.status !== 0 && result.stderr) ui.raw(result.stderr);
     }
   }
 
@@ -339,15 +372,35 @@ async function main() {
       encoding: "utf8",
       env: { ...process.env, NOVAHIZ_HOME: home }
     });
-    if (check.stdout) process.stdout.write(check.stdout);
+    if (check.stdout) ui.raw(check.stdout);
     if (autoInstall) {
       note("Installing dependencies and providers (MCP, skills, commands)");
       const result = spawnSync(process.execPath, [cli, "deps", "--install", "--yes"], {
         encoding: "utf8",
         env: { ...process.env, NOVAHIZ_HOME: home }
       });
-      if (result.stdout) process.stdout.write(result.stdout);
+      if (result.stdout) ui.raw(result.stdout);
       if (result.status !== 0 && result.stderr) process.stderr.write(result.stderr);
+    }
+  }
+
+  // Seed de l'index documentaire (audit 2026-10-08) : sans ce remplissage,
+  // read_docs repond « index vide » a chaque consultation — src/ingest.ts
+  // n'avait aucun point d'entree. Le bouquet core couvre les piles de la
+  // maison (web + dart/flutter/expo). Non bloquant : hors ligne, l'install
+  // reussit quand meme et `novahiz docs ingest <id>` reste disponible.
+  if (!dryRun) {
+    const docsIndex = join(home, "mcp", "novahiz-docs", "index.mjs");
+    const docsCore = ["react", "nextjs", "typescript", "nodejs", "tailwindcss", "dart", "flutter", "expo"];
+    if (existsSync(docsIndex)) {
+      note(`Filling docs index (core: ${docsCore.join(", ")})`);
+      const result = spawnSync(process.execPath, [docsIndex, "--ingest", docsCore.join(",")], {
+        encoding: "utf8",
+        env: { ...process.env, NOVAHIZ_HOME: home },
+        timeout: 240000
+      });
+      if (result.stdout) ui.raw(result.stdout);
+      if (result.status !== 0) note("docs seed incomplete — run `novahiz docs ingest <id>` when online");
     }
   }
 
@@ -360,6 +413,7 @@ async function main() {
   // here is Playwright MCP: installing it up front means no npx download on
   // first use (latency, offline failure), and the version pin comes from
   // catalog/providers.json so the doctor R6 drift check stays aligned.
+  ui.step("MCP servers");
   const playwrightPkg = (() => {
     try {
       const providers = readJson(join(root, "catalog", "providers.json"), []);
@@ -390,9 +444,11 @@ async function main() {
       });
       if (check.status !== 0) {
         note(`  Installing ${server.pkg}...`);
+        ui.suspend();
         const result = spawnHost("npm", ["install", "-g", server.pkg], {
           stdio: "inherit"
         });
+        ui.resume();
         if (result.status !== 0) {
           note(`  WARNING: Failed to install ${server.pkg} (non-blocking)`);
         } else {
@@ -412,7 +468,9 @@ async function main() {
       });
       if (probe.status === 0) {
         note(`  ${pkg} found but removed on purpose — uninstalling (never reinstall)...`);
+        ui.suspend();
         const removal = spawnHost("npm", ["uninstall", "-g", pkg], { stdio: "inherit" });
+        ui.resume();
         note(removal.status === 0 ? `  ${pkg} uninstalled` : `  WARNING: could not uninstall ${pkg} — run: npm uninstall -g ${pkg}`);
       }
     }
@@ -438,11 +496,13 @@ async function main() {
     note("\nInstalling official Flutter/Dart skill packs...");
     for (const pack of skillPacks) {
       note(`  ${pack.repo}...`);
+      ui.suspend();
       const result = spawnHost(
         "npx",
         ["-y", "skills", "add", pack.repo, "--skill", "*", "-g", "-a", "opencode", "-y"],
         { stdio: "inherit" }
       );
+      ui.resume();
       if (result.status !== 0) {
         note(`  WARNING: Failed to install ${pack.repo} (non-blocking)`);
       }
@@ -462,9 +522,11 @@ async function main() {
     note("\nInstalling opencode plugins...");
     for (const plugin of plugins) {
       note(`  Installing ${plugin}...`);
+      ui.suspend();
       const result = spawnHost("npm", ["install", "-g", plugin], {
         stdio: "inherit"
       });
+      ui.resume();
       if (result.status !== 0) {
         note(`  WARNING: Failed to install ${plugin} (non-blocking)`);
       } else {
@@ -474,6 +536,7 @@ async function main() {
   }
 
   // Generate opencode.jsonc
+  ui.step("opencode config");
   if (!configured.includes("opencode")) {
     note("Skipping opencode.jsonc (opencode not selected).");
   }
@@ -486,6 +549,18 @@ async function main() {
 
       const openCodeConfig = {
         "$schema": "https://opencode.ai/config.json",
+        // T3: sans ce champ, adapters/opencode/instructions.md n'est lu par
+        // rien (ni config, ni agent, ni plugin) — la regle Obsidian/second-memory
+        // ne parvenait jamais au modele. Chemin absolu depuis NOVAHIZ_HOME.
+        "instructions": [join(home, "adapters", "opencode", "instructions.md")],
+        // LSP : forme `true` = « activer les serveurs built-in » (doc V2) —
+        // auto-detection a la disponibilite des commandes quand le runtime
+        // arrivera (audit 2026-10-08 : v2.0.24 n'a pas encore de runtime LSP ;
+        // la cle est validee et preservee, sans effet encore). On refuse une
+        // liste explicite ici : sur une machine utilisateur les binaires
+        // (typescript-language-server, etc.) peuvent manquer — des entrees
+        // mortes = exactement le probleme qu'on veut jamais livrer.
+        "lsp": true,
         "mcp": {
           "novahiz-docs": {
             "type": "local",
@@ -515,6 +590,32 @@ async function main() {
           "dart": {
             "type": "local",
             "command": ["dart", "mcp-server"],
+            "enabled": true
+          },
+          // Trio runtime (audit 2026-10-08) : novahiz_classify (27 outils dont
+          // la classification du pipeline), novahiz_gate (la porte que le skill
+          // novahiz-gate appelle) et scan (argus). Le transform du plugin les
+          // inscrit aussi, mais un transform arrive apres la resolution MCP ne
+          // lie jamais les serveurs — en config statique la connexion est
+          // garantie des l'installation. Le plugin voit editor.get(id) deja
+          // present et les saute : aucun doublon. timeout 120s = cold start
+          // argus (audit 2026-09-25 P2).
+          "novahiz-core": {
+            "type": "local",
+            "command": ["node", join(home, "mcp", "novahiz-tools", "index.mjs")],
+            "timeout": 120000,
+            "enabled": true
+          },
+          "novahiz-gate": {
+            "type": "local",
+            "command": ["node", join(home, "mcp", "novahiz-gate", "index.mjs")],
+            "timeout": 120000,
+            "enabled": true
+          },
+          "novahiz-scan": {
+            "type": "local",
+            "command": ["node", join(home, "mcp", "argus", "src", "cli.mjs")],
+            "timeout": 120000,
             "enabled": true
           }
         },
@@ -548,13 +649,39 @@ async function main() {
     }
   }
 
-  if (!dryRun) {
-    process.stdout.write(`\nNovahiz installed in ${home}.\n`);
-    if (configured.length > 0) {
-      process.stdout.write(`Restart opencode to activate the plugin and MCP server.\n`);
+  // T7: le vault officiel second-memory est cree a l'installation, avec ses
+  // plugins Obsidian. Non bloquant : hors ligne, tout le reste de
+  // l'installation reste valide et `novahiz second-memory init` refera le
+  // vault plus tard. --no-vault pour sauter cette etape.
+  ui.step("Obsidian vault (second-memory)");
+  if (dryRun) {
+    note("Would create/verify the second-memory vault (novahiz second-memory init).");
+  } else if (flags["no-vault"] || flags["skip-vault"]) {
+    note("Skipped (--no-vault).");
+    ui.finishStep("skip");
+  } else {
+    const vaultCli = join(home, "src", "cli.ts");
+    if (existsSync(vaultCli)) {
+      note("Creating the second-memory vault (structure + Obsidian plugins, ~10 downloads)...");
+      const vault = spawnSync(process.execPath, [vaultCli, "second-memory", "init"], {
+        encoding: "utf8",
+        timeout: 180000,
+        env: { ...process.env, NOVAHIZ_HOME: home }
+      });
+      if (vault.stdout) ui.raw(vault.stdout);
+      if (vault.status !== 0) {
+        if (vault.stderr) ui.raw(vault.stderr);
+        note("WARNING: vault creation failed (non-blocking) — retry later with `novahiz second-memory init`.");
+        ui.finishStep("warn");
+      }
+    } else {
+      note("CLI not present yet, vault step skipped.");
+      ui.finishStep("skip");
     }
-    process.stdout.write("Gate can be disabled with the NOVAHIZ_GATE=off environment variable.\n");
-    
+  }
+
+  ui.step("Finalize");
+  if (!dryRun) {
     // Auto-update dependencies
     note("Checking for dependency updates...");
     const pkgPath = join(home, "package.json");
@@ -569,18 +696,23 @@ async function main() {
           cwd: home,
           env: { ...process.env, NOVAHIZ_HOME: home }
         });
-        if (npmUpdate.stdout) process.stdout.write(npmUpdate.stdout);
+        if (npmUpdate.stdout) ui.raw(npmUpdate.stdout);
         if (npmUpdate.status !== 0 && npmUpdate.stderr) process.stderr.write(npmUpdate.stderr);
         note("Dependencies updated.");
       } else {
         note("Dependencies up to date.");
       }
     }
+    const summary = [`Novahiz installed in ${home}.`];
+    if (configured.length > 0) summary.push("Restart opencode to activate the plugin and MCP server.");
+    summary.push("Gate can be disabled with the NOVAHIZ_GATE=off environment variable.");
+    summary.push("Update anytime: `novahiz upgrade` (npm) or `/novahiz-upgrade` inside OpenCode.");
+    ui.finish(summary);
   } else {
-    process.stdout.write("\nDry-run complete, no changes written.\n");
-    process.stdout.write(
-      "Next step: run `novahiz-install` (or `novahiz setup`) once to install everything — core skills, plugin, agent, provider skill packs (impeccable, flutter, dart, expo), and MCP servers. Then restart opencode.\n"
-    );
+    ui.finish([
+      "Dry-run complete, no changes written.",
+      "Next step: run `novahiz-install` (or `novahiz setup`) once to install everything — core skills, plugin, agent, provider skill packs (impeccable, flutter, dart, expo), and MCP servers. Then restart opencode."
+    ]);
   }
 }
 

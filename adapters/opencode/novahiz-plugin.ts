@@ -397,10 +397,23 @@ type MemoryAutoReadConfig = {
   // sessions precedentes + resumes de pertinence compris. Defaut 1500.
   budgetTokens: number;
 };
+// V-AUTO: consultation automatique du vault second-memory (vault Obsidian
+// officiel du systeme, cree a l'installation). every = cadence en occurrences
+// de prompt (1 = chaque prompt, defaut 3 = "de temps en temps"), budgetTokens
+// = plafond d'injection du bloc vault (~4 chars/token). Miroir de
+// MemoryAutoVaultConfig dans src/spec.ts.
+type MemoryAutoVaultConfig = {
+  enabled: boolean;
+  k: number;
+  minScore: number;
+  every: number;
+  budgetTokens: number;
+};
 type MemoryAutoConfig = {
   enabled: boolean;
   write: MemoryAutoWriteConfig;
   read: MemoryAutoReadConfig;
+  vault: MemoryAutoVaultConfig;
 };
 type NovahizConfig = { gate?: GateConfig; memory?: unknown };
 
@@ -442,7 +455,18 @@ export function resolveMemoryAuto(raw: unknown, envValue: string | undefined): M
     postCompaction: bool(readRaw.postCompaction, true),
     budgetTokens: inRange(readRaw.budgetTokens, 100, 4000) ? Math.trunc(readRaw.budgetTokens) : 1500
   };
-  return { enabled: true, write, read };
+  // V-AUTO: vault second-memory — defauts full-on aussi (actif partout par
+  // defaut, comme write/read), kill-switch partage NOVAHIZ_MEM_AUTO + reset
+  // local memory.auto.vault.enabled=false. Miroir de src/spec.ts.
+  const vaultRaw = auto.vault && typeof auto.vault === "object" ? (auto.vault as Record<string, unknown>) : {};
+  const vault: MemoryAutoVaultConfig = {
+    enabled: bool(vaultRaw.enabled, true),
+    k: inRange(vaultRaw.k, 1, 10) ? Math.trunc(vaultRaw.k) : 3,
+    minScore: inRange(vaultRaw.minScore, 0, 1) ? vaultRaw.minScore : 0.25,
+    every: inRange(vaultRaw.every, 1, 100) ? Math.trunc(vaultRaw.every) : 3,
+    budgetTokens: inRange(vaultRaw.budgetTokens, 100, 2000) ? Math.trunc(vaultRaw.budgetTokens) : 600
+  };
+  return { enabled: true, write, read, vault };
 }
 
 function readConfig(): NovahizConfig {
@@ -826,6 +850,39 @@ export function mergeSummaryWindow(
   return { ids, details };
 }
 
+// V-AUTO: vault officiel du systeme — cree par l'installateur a
+// `~/Documents/second-memory` (NOVAHIZ_SM_VAULT pour tests/overrides).
+export const VAULT_ROOT: string =
+  process.env.NOVAHIZ_SM_VAULT && process.env.NOVAHIZ_SM_VAULT.trim().length > 0
+    ? process.env.NOVAHIZ_SM_VAULT
+    : join(homedir(), "Documents", "second-memory");
+
+type VaultHitLike = { rel?: unknown; title?: unknown; score?: unknown; snippet?: unknown };
+
+// V-AUTO: formatage des hits `second-memory search --json` en lignes
+// d'injection (une ligne chemin+titre+score, une ligne extrait tronque),
+// filtres k / minScore. Exporte tel quel pour les tests (pure function).
+export function buildVaultLines(
+  hits: readonly VaultHitLike[],
+  cfg: MemoryAutoVaultConfig
+): { injectedRels: string[]; details: string[] } {
+  const injectedRels: string[] = [];
+  const details: string[] = [];
+  for (const hit of hits) {
+    if (injectedRels.length >= cfg.k) break;
+    if (!hit || typeof hit.rel !== "string" || hit.rel.length === 0) continue;
+    if (typeof hit.score === "number" && hit.score < cfg.minScore) continue;
+    const title = typeof hit.title === "string" && hit.title.length > 0 ? hit.title : hit.rel;
+    const score = typeof hit.score === "number" ? hit.score.toFixed(2) : "-";
+    injectedRels.push(hit.rel);
+    details.push(`- ${hit.rel} [${score}] — ${title}`);
+    if (typeof hit.snippet === "string" && hit.snippet.trim().length > 0) {
+      details.push(`  ${hit.snippet.replace(/\s+/g, " ").trim().slice(0, 220)}`);
+    }
+  }
+  return { injectedRels, details };
+}
+
 // --- P3: heritage inter-sessions (injection au demarrage) -----------------
 // L'index porte id/title/updated/status/tags (SlotMeta, src/memory.ts); le
 // plugin installe ne resout pas ../../src/*, donc le type est re-declare ici.
@@ -1047,6 +1104,10 @@ async function setup(ctx: Context): Promise<Cleanup> {
   // chaque prompt, chunk de resumes courant (remplacement post-compaction)
   // et cles de directive T3 deja posees.
   const autoReadBySession = new Map<string, { ids: string[]; details: string[] }>();
+  // V-AUTO: fenetre de notes vault re-injectee entre deux consultations, et
+  // compteur de prompts pour la cadence memory.auto.vault.every.
+  const vaultWindowBySession = new Map<string, { rels: string[]; details: string[] }>();
+  const vaultCountBySession = new Map<string, number>();
   const lastPromptBySession = new Map<string, string>();
   const directivesBySession = new Map<string, string[]>();
   const summaryChunkBySession = new Map<string, string[]>();
@@ -1261,21 +1322,81 @@ async function setup(ctx: Context): Promise<Cleanup> {
     }
   };
 
-  // V1 `config` hook → MCP transform. The CLI is queried first: transform
-  // callbacks must stay synchronous and free of one-time side effects.
+  // V-AUTO: consultation automatique du vault second-memory. Aller simple via
+  // la CLI (`second-memory search --json`) : le plugin installe ne peut pas
+  // importer src/*, donc le ranking reel est celui de la CLI — une seule
+  // source de verite pour l'agent et pour l'injection. Cadence every (defaut
+  // 3) : le 1er prompt consulte toujours, la fenetre est re-emise entre deux
+  // consultations pour que les notes restent dans le contexte.
+  const buildVaultRead = async (
+    sessionID: string,
+    query: string
+  ): Promise<{ lines: string[]; newCount: number }> => {
+    if (!MEMORY_AUTO || !MEMORY_AUTO.vault.enabled) return { lines: [], newCount: 0 };
+    try {
+      let state = vaultWindowBySession.get(sessionID) ?? { rels: [], details: [] };
+      let newCount = 0;
+      const n = (vaultCountBySession.get(sessionID) ?? 0) + 1;
+      vaultCountBySession.set(sessionID, n);
+      if ((n - 1) % MEMORY_AUTO.vault.every === 0) {
+        if (!existsSync(VAULT_ROOT)) {
+          if (n === 1) void log("info", `vault auto-consult skipped: ${VAULT_ROOT} absent`);
+        } else {
+          const call = await run([
+            "second-memory",
+            "search",
+            autoReadQuery(query, 24),
+            `--k=${MEMORY_AUTO.vault.k}`,
+            `--min-score=${MEMORY_AUTO.vault.minScore}`,
+            "--json"
+          ]);
+          if (call.status !== 0 || call.stdout.trim().length === 0) {
+            void log("info", `vault auto-consult failed: ${call.stderr.slice(0, 200) || `exit ${call.status}`}`);
+          } else {
+            try {
+              const parsed = JSON.parse(call.stdout) as { hits?: unknown };
+              const hits = Array.isArray(parsed.hits) ? (parsed.hits as VaultHitLike[]) : [];
+              const fresh = buildVaultLines(hits, MEMORY_AUTO.vault);
+              if (fresh.injectedRels.length > 0) {
+                newCount = fresh.injectedRels.length;
+                state = { rels: fresh.injectedRels, details: fresh.details };
+              } else {
+                void log(
+                  "info",
+                  `vault auto-consult: ${hits.length} hit(s), 0 injected (minScore ${MEMORY_AUTO.vault.minScore})`
+                );
+              }
+            } catch {
+              void log("info", "vault auto-consult: invalid JSON from second-memory search");
+            }
+          }
+        }
+      }
+      if (state.rels.length === 0) return { lines: [], newCount };
+      vaultWindowBySession.set(sessionID, state);
+      const kept = applyInjectionBudget(state.details, MEMORY_AUTO.vault.budgetTokens * 4);
+      const lines = [
+        `[Novahiz memory] vault second-memory auto-consulted (${state.rels.length}/${MEMORY_AUTO.vault.k}):`,
+        ...kept,
+        `Vault: ${VAULT_ROOT} — read a full note with the read tool on <vault>/<rel>; re-search: novahiz second-memory search "<terms>".`
+      ];
+      return { lines, newCount };
+    } catch (error) {
+      void log("info", `vault auto-consult failed: ${String(error).slice(0, 200)}`);
+      return { lines: [], newCount: 0 };
+    }
+  };
+
+  // V1 `config` hook → MCP transform. Audit 2026-10-08 : le transform partait
+  // APRES l'attente du spawn `providers --mcp-json` (~0,5-1s) et arrivait trop
+  // tard — aucun serveur lié, aucun avertissement au log. Le trio runtime part
+  // donc en premier, avant toute await ; le catalogue compose en second
+  // transform (les transforms se cumulent dans leur domaine). Les callbacks
+  // restent synchrones et sans effet de bord un seul. En pratique la config
+  // statique de l'installateur porte deja les entrees : editor.get(id) les
+  // saute, sans doublon.
   if (!DISABLED) {
     try {
-      const providers = await run(["providers", "--mcp-json"]);
-      const entries: Record<string, unknown> = {};
-      if (providers.status === 0 && providers.stdout.trim().length > 0) {
-        try {
-          Object.assign(entries, JSON.parse(providers.stdout) as Record<string, unknown>);
-        } catch {
-          await log("warn", "Providers returned invalid JSON, MCP auto-register skipped");
-        }
-      } else if (providers.status !== 0) {
-        await log("warn", `Providers command failed (exit ${providers.status}), MCP auto-register skipped`);
-      }
       await ctx.mcp.transform((editor) => {
         // A server configured by the user wins over the catalog registration.
         // Audit 2026-09-25 (P2): novahiz-scan joined the hard-coded trio — when
@@ -1290,23 +1411,38 @@ async function setup(ctx: Context): Promise<Cleanup> {
         if (!editor.get("novahiz-scan")) {
           editor.set("novahiz-scan", { type: "local", command: [NODE, join(HOME, "mcp", "argus", "src", "cli.mjs")], timeout: MCP_TIMEOUT });
         }
-        for (const [id, raw] of Object.entries(entries)) {
-          if (editor.get(id)) continue;
-          const entry = raw as { type?: unknown; command?: unknown; url?: unknown; enabled?: unknown };
-          // V2 replaced `enabled` with `disabled`: an explicit `enabled: false`
-          // is carried across instead of silently flipping the server on.
-          const disabled = entry.enabled === false ? { disabled: true as const } : {};
-          if (entry.type === "remote" && typeof entry.url === "string") {
-            editor.set(id, { type: "remote", url: entry.url, timeout: MCP_TIMEOUT, ...disabled });
-          } else if (
-            entry.type === "local" &&
-            Array.isArray(entry.command) &&
-            entry.command.every((part) => typeof part === "string")
-          ) {
-            editor.set(id, { type: "local", command: entry.command as string[], timeout: MCP_TIMEOUT, ...disabled });
-          }
-        }
       });
+      const providers = await run(["providers", "--mcp-json"]);
+      const entries: Record<string, unknown> = {};
+      if (providers.status === 0 && providers.stdout.trim().length > 0) {
+        try {
+          Object.assign(entries, JSON.parse(providers.stdout) as Record<string, unknown>);
+        } catch {
+          await log("warn", "Providers returned invalid JSON, MCP auto-register skipped");
+        }
+      } else if (providers.status !== 0) {
+        await log("warn", `Providers command failed (exit ${providers.status}), MCP auto-register skipped`);
+      }
+      if (Object.keys(entries).length > 0) {
+        await ctx.mcp.transform((editor) => {
+          for (const [id, raw] of Object.entries(entries)) {
+            if (editor.get(id)) continue;
+            const entry = raw as { type?: unknown; command?: unknown; url?: unknown; enabled?: unknown };
+            // V2 replaced `enabled` with `disabled`: an explicit `enabled: false`
+            // is carried across instead of silently flipping the server on.
+            const disabled = entry.enabled === false ? { disabled: true as const } : {};
+            if (entry.type === "remote" && typeof entry.url === "string") {
+              editor.set(id, { type: "remote", url: entry.url, timeout: MCP_TIMEOUT, ...disabled });
+            } else if (
+              entry.type === "local" &&
+              Array.isArray(entry.command) &&
+              entry.command.every((part) => typeof part === "string")
+            ) {
+              editor.set(id, { type: "local", command: entry.command as string[], timeout: MCP_TIMEOUT, ...disabled });
+            }
+          }
+        });
+      }
     } catch (error) {
       await log("warn", `MCP registration failed: ${String(error).slice(0, 200)}`);
     }
@@ -1454,7 +1590,13 @@ async function setup(ctx: Context): Promise<Cleanup> {
         // chemin lecture a tourne, y compris quand il ressort vide.
         await log("info", `memory auto-read prompt: ${auto.lines.length} line(s), ${auto.newCount} new`);
         lines.push(...auto.lines);
-        summaryChunkBySession.set(sessionID, auto.lines);
+        // V-AUTO: bloc vault second-memory — meme contrat que les resumes :
+        // reconstruit a chaque prompt, fenetre persistante entre deux
+        // consultations, log inconditionnel pour prouver la consultation.
+        const vault = await buildVaultRead(sessionID, text);
+        await log("info", `vault auto-consult prompt: ${vault.lines.length} line(s), ${vault.newCount} new`);
+        lines.push(...vault.lines);
+        summaryChunkBySession.set(sessionID, [...auto.lines, ...vault.lines]);
         const directives = directivesBySession.get(sessionID) ?? [];
         lines.push(...directives);
       }
@@ -1712,5 +1854,5 @@ async function setup(ctx: Context): Promise<Cleanup> {
   return () => events.abort();
 }
 
-const novahizPlugin: Plugin = { id: "novahiz", setup };
+const novahizPlugin: Plugin = { id: "novahiz-workflow", setup };
 export default novahizPlugin;

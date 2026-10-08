@@ -1,4 +1,7 @@
 import { join } from "node:path";
+import { spawnSync } from "node:child_process";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { homedir } from "node:os";
 import { asString, dbPathFor, parse, print, readStdin, splitList, type Parsed } from "./context.ts";
 import { loadSpec, NovahizHome } from "../spec.ts";
 import { openDb } from "../db.ts";
@@ -247,5 +250,56 @@ export function commandGate(parsed: Parsed): void {
   });
 
   if (!allow && gateConfig.mode === "block") process.exitCode = 2;
+}
+
+// --- novahiz gate on|off -----------------------------------------------------
+// Persistance du kill-switch NOVAHIZ_GATE au niveau utilisateur, pour un
+// utilisateur final qui ne touche jamais au code :
+//  - Windows : registre HKCU\Environment (lu par tout nouveau process) ;
+//  - Linux/macOS : bloc marque dans ~/.profile (OpenCode lance depuis un
+//    terminal ; un lanceur GUI doit export la variable lui-meme).
+// Le changement ne prend effet qu'apres restart complet d'OpenCode : le plugin
+// lit la variable une seule fois, a l'import.
+
+export const GATE_PROFILE_BEGIN = "# >>> novahiz-gate >>>";
+export const GATE_PROFILE_END = "# <<< novahiz-gate <<<";
+
+/** Fonction pure (testee) : ajoute/remplace ou retire le bloc marque. */
+export function upsertGateProfile(profile: string, off: boolean): string {
+  const escape = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const blockRe = new RegExp(`${escape(GATE_PROFILE_BEGIN)}[\\s\\S]*?${escape(GATE_PROFILE_END)}\\n?`);
+  const stripped = profile.replace(blockRe, "");
+  if (!off) return stripped;
+  const base = stripped.length > 0 && !stripped.endsWith("\n") ? `${stripped}\n` : stripped;
+  return `${base}${GATE_PROFILE_BEGIN}\nexport NOVAHIZ_GATE=off\n${GATE_PROFILE_END}\n`;
+}
+
+export function commandGateToggle(parsed: Parsed): void {
+  const mode = (parsed.positionals[1] ?? "").toLowerCase();
+  const off = mode === "off";
+  if (process.platform === "win32") {
+    const result = off
+      ? spawnSync("reg", ["add", "HKCU\\Environment", "/v", "NOVAHIZ_GATE", "/t", "REG_SZ", "/d", "off", "/f"], { encoding: "utf8" })
+      : spawnSync("reg", ["delete", "HKCU\\Environment", "/v", "NOVAHIZ_GATE", "/f"], { encoding: "utf8" });
+    if (result.status !== 0) {
+      // `reg delete` echoue aussi quand la valeur n'existe pas : dans ce cas
+      // "on" est deja l'etat voulu, ce n'est pas une erreur.
+      if (off) {
+        process.stderr.write(`novahiz gate: registre inaccessible (${(result.stderr ?? "").trim() || `exit ${result.status}`}).\n`);
+        process.exitCode = 1;
+        return;
+      }
+      process.stdout.write("NOVAHIZ_GATE deja absente du registre : le gate est actif.\n");
+    } else {
+      process.stdout.write(off ? "NOVAHIZ_GATE=off ecrite (HKCU\\Environment).\n" : "NOVAHIZ_GATE retiree du registre : gate actif.\n");
+    }
+  } else {
+    const profile = join(homedir(), ".profile");
+    const current = existsSync(profile) ? readFileSync(profile, "utf8") : "";
+    const next = upsertGateProfile(current, off);
+    if (next !== current) writeFileSync(profile, next, "utf8");
+    process.stdout.write(off ? `NOVAHIZ_GATE=off ecrite dans ${profile}.\n` : `Bloc NOVAHIZ_GATE retire de ${profile}.\n`);
+  }
+  process.stdout.write("Restart OpenCode completely for the change to take effect.\n");
 }
 

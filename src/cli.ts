@@ -6,7 +6,7 @@ import { parse, print, flagOn, type Parsed } from "./commands/context.ts";
 import { expandHome } from "./spec.ts";
 
 import { commandCheck, commandSync, commandClassify, commandSkills, commandCategories, commandRules, commandSessionLoad, commandSessionState, commandCatalog, commandRoadmap, commandStep, commandProviders, commandDeps, commandDispatch } from "./commands/inspect.ts";
-import { commandGate } from "./commands/gate.ts";
+import { commandGate, commandGateToggle } from "./commands/gate.ts";
 import { commandReport } from "./commands/report.ts";
 import { commandTask } from "./commands/task.ts";
 import { commandClean } from "./commands/clean.ts";
@@ -18,6 +18,9 @@ import { memoryCommand } from "./commands/memory.ts";
 import { secondMemoryCommand } from "./commands/second-memory.ts";
 import { commandInit } from "./commands/init.ts";
 import { commandAutodocs } from "./commands/autodocs.ts";
+import { commandUpgrade } from "./commands/upgrade.ts";
+import { commandStitch } from "./commands/stitch.ts";
+import { commandDocs } from "./commands/docs.ts";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -59,8 +62,11 @@ function usage(): void {
       "snap [save|list|show|diff|restore|export|verify|prune|status]  Ledger snapshots (ours, no external tool)",
       "graph [build|status|find|all|trace|api|map|fresh|help]  Code graph (ours, in-process)",
       "memory [status|clean|prune]  Project memory hygiene (dry-run by default, --apply)",
-      "second-memory [init|doctor|lint|fix|sync|status]  Obsidian vault management (dry-run by default, --apply)",
-      "upgrade                 Pull latest and rebuild catalog",
+      "second-memory [init|doctor|lint|fix|sync|status|search]  Obsidian vault management (dry-run by default, --apply)",
+      "upgrade [--apply]      Check for a newer release: npm (global installs) or git pull (source checkouts)",
+      "docs [status|ingest <id>|--all]  Local docs index: state, or fill it (network)",
+      "stitch [--key <k>]     Configure the Google Stitch MCP API key (interactive prompt if no --key)",
+      "gate on|off            Persistently disable/enable the gate (restart OpenCode to apply)",
       "version                 Show version",
       "",
       "",
@@ -111,40 +117,6 @@ function runInit(): void {
   process.stdout.write("\nDone! Restart opencode to activate Novahiz.\n");
 }
 
-function runUpgrade(parsed: Parsed): void {
-  const home = homeDir();
-  if (!existsSync(join(home, ".git"))) {
-    process.stderr.write("Not a git repository. Install from source first.\n");
-    process.exitCode = 1;
-    return;
-  }
-  // P2-C (LOW): `git pull` rewrote the running code (hooks included) with no
-  // preview. Default to a dry run; `--apply` is required to actually pull.
-  if (!flagOn(parsed, "apply")) {
-    const dry = spawnSync("git", ["pull", "--dry-run"], { cwd: home, encoding: "utf8" });
-    const preview = `${dry.stdout ?? ""}${dry.stderr ?? ""}`.trim();
-    if (preview) process.stdout.write(preview + "\n");
-    if (dry.status !== 0) {
-      process.stderr.write("Dry run failed; fix git first.\n");
-      process.exitCode = 1;
-      return;
-    }
-    process.stdout.write("Dry run only. Re-run `novahiz upgrade --apply` to pull and rebuild.\n");
-    process.exitCode = 1;
-    return;
-  }
-  process.stdout.write("Pulling latest changes...\n");
-  const pull = spawnSync("git", ["pull", "--ff-only"], { cwd: home, stdio: "inherit" });
-  if (pull.status !== 0) {
-    process.stderr.write("Pull failed; nothing rebuilt.\n");
-    process.exitCode = 1;
-    return;
-  }
-  process.stdout.write("\nRebuilding skill catalog...\n");
-  runSync();
-  process.stdout.write("\nUpgraded! Restart opencode to apply changes.\n");
-}
-
 // Async so `doctor --deep` can await its MCP probes; every other command
 // still returns void, which await handles transparently.
 async function main(argv: string[]): Promise<void> {
@@ -179,7 +151,7 @@ async function main(argv: string[]): Promise<void> {
       return commandClean(parsed);
     case "upgrade":
     case "update":
-      return runUpgrade(parsed);
+      return commandUpgrade(parsed);
     case "version":
     case "-v":
     case "--version":
@@ -190,8 +162,15 @@ async function main(argv: string[]): Promise<void> {
       return commandSync();
     case "classify":
       return commandClassify(parsed);
-    case "gate":
+    case "gate": {
+      const gateSub = (parsed.positionals[1] ?? "").toLowerCase();
+      if (gateSub === "on" || gateSub === "off") return commandGateToggle(parsed);
       return commandGate(parsed);
+    }
+    case "stitch":
+      return commandStitch(parsed);
+    case "docs":
+      return commandDocs(parsed);
     case "skills":
       return commandSkills(parsed);
     case "categories":

@@ -17,7 +17,7 @@ import { dirname, join, resolve } from "node:path";
 import { after, describe, test } from "node:test";
 import { fileURLToPath } from "node:url";
 
-import { auditStructure, isCategoryDir, matchNode, rewriteIndexCategories, routePath, updateLinksAfterRename } from "../src/commands/second-memory.ts";
+import { auditStructure, isCategoryDir, matchNode, rewriteIndexCategories, routePath, structureMarkdown, updateLinksAfterRename } from "../src/commands/second-memory.ts";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const cliPath = join(repoRoot, "src", "cli.ts");
@@ -163,7 +163,9 @@ describe("auditStructure", () => {
     for (const folder of ["Inbox", "Archive", "Templates", "Excalidraw"]) mkdirSync(join(vault, folder), { recursive: true });
     writeFileSync(join(vault, "INDEX.md"), "# Second Memory\n\n## Categories\n\n## System\n", "utf8");
     writeFileSync(join(vault, "log.md"), "# Log\n", "utf8");
-    writeFileSync(join(vault, "STRUCTURE.md"), "# Vault structure\n", "utf8");
+    // Le canonique, pas un stub : sinon le vault « conforme » signalerait
+    // structureDrift (contenu différent du catalogue) dès la première ligne.
+    writeFileSync(join(vault, "STRUCTURE.md"), structureMarkdown(), "utf8");
     return vault;
   }
 
@@ -175,8 +177,29 @@ describe("auditStructure", () => {
       foldersWithoutMoc: [],
       unlinked: [],
       partialDomains: [],
-      indexDrift: []
+      indexDrift: [],
+      structureDrift: false
     });
+  });
+
+  test("STRUCTURE.md dont le contenu dérive du catalogue → structureDrift", () => {
+    const vault = skeleton();
+    // Une édition à la main (ou un catalogue mis à jour) écarte le gravé du
+    // canonique : doctor doit le voir et le régénérer.
+    writeFileSync(join(vault, "STRUCTURE.md"), "# Vault structure\n\nAncienne carte.\n", "utf8");
+    assert.equal(auditStructure(vault).structureDrift, true);
+
+    writeFileSync(join(vault, "STRUCTURE.md"), structureMarkdown(), "utf8");
+    assert.equal(auditStructure(vault).structureDrift, false, "le canonique restauré ne dérive plus");
+  });
+
+  test("les dates du frontmatter ne comptent pas comme une dérive", () => {
+    const vault = skeleton();
+    // Même carte écrite un autre jour : seul `updated:` change, ce n'est pas
+    // une dérive de contenu.
+    const otherDay = structureMarkdown().replace(/^updated:.*$/m, "updated: 2020-01-01");
+    writeFileSync(join(vault, "STRUCTURE.md"), otherDay, "utf8");
+    assert.equal(auditStructure(vault).structureDrift, false);
   });
 
   test("dossier absent → missing", () => {
@@ -348,6 +371,34 @@ describe("second-memory doctor (bout en bout)", () => {
     const apply = run(["second-memory", "doctor", "--apply", "--no-plugins", "--json"], vault);
     assert.equal(apply.code, 0, `--apply doit converger: ${output(apply)}`);
     assert.ok(existsSync(join(vault, "log.md")), "log.md doit avoir été recréé");
+  });
+
+  test("STRUCTURE.md écarté du catalogue: doctor sort en 1, --apply le régénère", () => {
+    const vault = vaultOf("novahiz-sm-e2e-");
+    run(["second-memory", "init", "--no-plugins"], vault);
+    const file = join(vault, "STRUCTURE.md");
+    // Corruption minimale (une ligne en fin de fichier) : ni le frontmatter,
+    // ni le H1, ni les liens — seul le contenu gravé dérive du canonique.
+    writeFileSync(file, `${readFileSync(file, "utf8")}\nCarte éditée à la main.\n`, "utf8");
+
+    const dry = run(["second-memory", "doctor", "--no-plugins", "--json"], vault);
+    assert.equal(dry.code, 1, `une carte dérivée doit faire sortir en 1: ${output(dry)}`);
+    const dryReport = JSON.parse(dry.stdout) as { actions: string[] };
+    assert.ok(
+      dryReport.actions.some((action) => action.includes("would regenerate STRUCTURE.md")),
+      `le dry-run doit l'annoncer: ${JSON.stringify(dryReport.actions)}`
+    );
+
+    const apply = run(["second-memory", "doctor", "--apply", "--no-plugins", "--json"], vault);
+    assert.equal(apply.code, 0, `--apply doit converger: ${output(apply)}`);
+    const applyReport = JSON.parse(apply.stdout) as { actions: string[] };
+    assert.ok(
+      applyReport.actions.some((action) => action.includes("regenerated STRUCTURE.md")),
+      `--apply doit régénérer: ${JSON.stringify(applyReport.actions)}`
+    );
+    const regenerated = readFileSync(file, "utf8");
+    assert.match(regenerated, /^---\ntype: doc\ntitle: Vault structure/m, "le canonique est réécrit");
+    assert.equal(regenerated.includes("Carte éditée à la main."), false, "la édition manuelle a disparu");
   });
 
   test("renommage casse seule: un fichier majuscule passe en minuscules (faux positif Windows)", () => {

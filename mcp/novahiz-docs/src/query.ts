@@ -141,7 +141,7 @@ export function queryDocs(
     const total = countChunks(db, entry.id);
     note =
       total === 0
-        ? `${entry.name} se résout mais son index est vide : le remplissage n'a pas encore tourné (ingest)`
+        ? `${entry.name} se résout mais son index est vide — remplissage : novahiz docs ingest ${entry.id}`
         : `${total} passages indexés pour ${entry.name}, mais aucun ne contient « ${query} »`;
   }
   return finish({

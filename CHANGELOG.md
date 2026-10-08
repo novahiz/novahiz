@@ -5,6 +5,64 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-10-08
+
+Feature release: the Obsidian vault becomes a first-class citizen of the
+workflow, and the install ships a self-sufficient runtime — the MCP trio is
+wired statically, the docs index is seeded, and the LSP section is declared.
+
+### Added
+
+- **Vault auto-consult**: the plugin reads the `second-memory` vault during
+  session setup (`memory.auto.vault`), so decisions and next steps from the
+  vault reach the model without a manual read. `instructions.md` now states
+  the Obsidian/second-memory consultation rules (T2, T3).
+- **`novahiz docs` command** (`src/commands/docs.ts`): `status` reports the
+  local documentation index per library, `ingest <id>|--all [--dry]` fills it
+  over the network. Backed by new CLI modes on the docs MCP itself
+  (`node mcp/novahiz-docs/index.mjs --ingest … | --status`) — `src/ingest.ts`
+  finally has an entry point (D1).
+- **Docs index seed at install**: the installer fills the core bouquet
+  (react, nextjs, typescript, nodejs, tailwindcss, dart, flutter, expo) in a
+  non-blocking step; offline installs still succeed and the fill command stays
+  available. `read_docs` now names the command when a library is unindexed.
+- **`novahiz second-memory search`** (T1) and **`doctor --apply` regenerates a
+  drifted `STRUCTURE.md`** (T6, `structureDrift`).
+- **`stitchConfigured()`**: `novahiz init` recommends `novahiz stitch` only
+  when the API key is absent (T5); new `src/commands/stitch.ts`.
+- **`novahiz upgrade`** command and the `/novahiz-upgrade` in-session command
+  (`src/commands/upgrade.ts`, `adapters/opencode/commands/novahiz-upgrade.md`).
+- **Installer UI**: dedicated `install/ui.mjs` (+ `.d.mts`), plain/ASCII banner,
+  step layout — `tests/installer-ui.test.ts`.
+- **Obsidian vault step (10/10)**: the installer creates the `second-memory`
+  vault structure and its ten community plugins when missing (T7).
+
+### Fixed
+
+- **MCP trio wired statically (D2)**: `novahiz-core`, `novahiz-gate` and
+  `novahiz-scan` are written into the generated `opencode.jsonc`, and the
+  plugin transform registers them *before* the awaited `providers --mcp-json`
+  spawn — a transform landing after MCP resolution never binds servers (audit
+  2026-10-08: no connection, no warning). The trio now connects on install;
+  the plugin skips ids already present, so no duplicates.
+- **Plugin renamed `novahiz` → `novahiz-workflow`** (descriptive id in the
+  image of `novahiz-token-economy`), and the live plugin copy is resynced from
+  the source on install — the running session no longer lags the repo.
+- **Gate tests are hermetic to `NOVAHIZ_GATE`**: an operator running
+  `novahiz gate off` no longer turns two MCP gate tests red — child processes
+  get a sanitized environment.
+- **`tsconfig.build.json` restored**: `npm run prepare` referenced a file that
+  was missing from the working copy.
+
+### Changed
+
+- **LSP declared**: the live opencode config carries an `lsp` object with five
+  servers verified present on the machine (dart, typescript, bash, yaml, json);
+  the generated config writes `lsp: true` (portable — no dead entries on user
+  machines). Verified against OpenCode v2.0.24: the config is accepted and
+  preserved (`config.get` echoes it), but V2 has no LSP runtime yet — no server
+  is started until upstream ships one.
+
 ## [0.6.0] - 2026-10-06
 
 Feature release: the gate learns project scope, and Stitch design projects

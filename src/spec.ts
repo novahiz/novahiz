@@ -143,10 +143,23 @@ export type MemoryAutoReadConfig = {
   budgetTokens: number;
 };
 
+// V-AUTO: consultation automatique du vault second-memory (vault Obsidian
+// officiel du systeme, cree a l'installation). every = cadence en
+// occurrences de prompt (1 = a chaque prompt, defaut 3 = "de temps en
+// temps"), budgetTokens = plafond d'injection du bloc vault (~4 chars/token).
+export type MemoryAutoVaultConfig = {
+  enabled: boolean;
+  k: number;
+  minScore: number;
+  every: number;
+  budgetTokens: number;
+};
+
 export type MemoryAutoConfig = {
   enabled: boolean;
   write: MemoryAutoWriteConfig;
   read: MemoryAutoReadConfig;
+  vault: MemoryAutoVaultConfig;
 };
 
 export type MemoryConfig = {
@@ -252,6 +265,13 @@ export const DEFAULT_CONFIG: NovahizConfig = {
         antiRepetition: true,
         postCompaction: true,
         budgetTokens: 1500
+      },
+      vault: {
+        enabled: true,
+        k: 3,
+        minScore: 0.25,
+        every: 3,
+        budgetTokens: 600
       }
     }
   }
@@ -367,11 +387,35 @@ export function mergeConfig(raw: Partial<NovahizConfig> | null | undefined): Nov
         ? Math.trunc(readSource.budgetTokens)
         : DEFAULT_CONFIG.memory.auto.read.budgetTokens
   };
+  // V-AUTO: vault second-memory — bornes [1,10] pour k, [0,1] minScore,
+  // [1,100] cadence every, [100,2000] budgetTokens; toute valeur hors bornes
+  // retombe sur le defaut (meme regle que read).
+  const vaultSource: Partial<MemoryAutoVaultConfig> = autoSource.vault && typeof autoSource.vault === "object" ? autoSource.vault : {};
+  const autoVault: MemoryAutoVaultConfig = {
+    enabled: typeof vaultSource.enabled === "boolean" ? vaultSource.enabled : DEFAULT_CONFIG.memory.auto.vault.enabled,
+    k:
+      typeof vaultSource.k === "number" && Number.isFinite(vaultSource.k) && vaultSource.k >= 1 && vaultSource.k <= 10
+        ? Math.trunc(vaultSource.k)
+        : DEFAULT_CONFIG.memory.auto.vault.k,
+    minScore:
+      typeof vaultSource.minScore === "number" && Number.isFinite(vaultSource.minScore) && vaultSource.minScore >= 0 && vaultSource.minScore <= 1
+        ? vaultSource.minScore
+        : DEFAULT_CONFIG.memory.auto.vault.minScore,
+    every:
+      typeof vaultSource.every === "number" && Number.isFinite(vaultSource.every) && vaultSource.every >= 1 && vaultSource.every <= 100
+        ? Math.trunc(vaultSource.every)
+        : DEFAULT_CONFIG.memory.auto.vault.every,
+    budgetTokens:
+      typeof vaultSource.budgetTokens === "number" && Number.isFinite(vaultSource.budgetTokens) && vaultSource.budgetTokens >= 100 && vaultSource.budgetTokens <= 2000
+        ? Math.trunc(vaultSource.budgetTokens)
+        : DEFAULT_CONFIG.memory.auto.vault.budgetTokens
+  };
   const memory: MemoryConfig = {
     auto: {
       enabled: typeof autoSource.enabled === "boolean" ? autoSource.enabled : DEFAULT_CONFIG.memory.auto.enabled,
       write: autoWrite,
-      read: autoRead
+      read: autoRead,
+      vault: autoVault
     }
   };
 

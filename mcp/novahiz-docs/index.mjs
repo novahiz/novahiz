@@ -18,7 +18,69 @@ const isMain = (() => {
   }
 })();
 
+// --- Modes CLI (aucun transport stdio) --------------------------------------
+// node index.mjs --ingest react,typescript  |  --ingest --all  |  --ingest --dry <spec>
+// node index.mjs --status                   etat de l'index par bibliotheque
+// L'ingest est le seul morceau qui ouvre le reseau (store.ts n'ouvre aucun
+// reseau) : ce mode sert l'installateur (seed du bouquet core) et la commande
+// `novahiz docs ingest <id>`. Sans lui, src/ingest.ts n'avait AUCUN point
+// d'entree et chaque installation partait avec read_docs vide (audit
+// 2026-10-08).
+async function runCli(args) {
+  const { loadCatalog, getEntry } = await import("./src/catalog.ts");
+  const { docsDb } = await import("./src/query.ts");
+  const { countChunks } = await import("./src/store.ts");
+  // --dry peut arriver avant ou apres la liste : on l'extrait avant de
+  // decomposer (sinon il devient la spec et tout id parait inconnu).
+  const dry = args.includes("--dry");
+  const [mode, spec] = args.filter((arg) => arg !== "--dry");
+  if (mode === "--status") {
+    const db = docsDb();
+    const libraries = loadCatalog().map((entry) => ({ id: entry.id, chunks: countChunks(db, entry.id) }));
+    const indexed = libraries.filter((line) => line.chunks > 0);
+    process.stdout.write(`${JSON.stringify({ indexed: indexed.length, total: libraries.length, libraries })}\n`);
+    return 0;
+  }
+  if (mode !== "--ingest" || !spec) {
+    process.stderr.write("usage: node index.mjs --ingest <id,id,...>|--all [--dry] | --status\n");
+    return 2;
+  }
+  const ids =
+    spec === "--all"
+      ? loadCatalog().map((entry) => entry.id)
+      : spec.split(",").map((id) => id.trim()).filter((id) => id.length > 0);
+  const unknown = ids.filter((id) => !getEntry(id));
+  if (unknown.length > 0) {
+    process.stderr.write(`novahiz-docs: unknown librar(ies): ${unknown.join(", ")}\n`);
+    return 1;
+  }
+  if (dry) {
+    process.stdout.write(`${JSON.stringify({ dryRun: true, targets: ids })}\n`);
+    return 0;
+  }
+  const { createIngester } = await import("./src/ingest.ts");
+  const db = docsDb();
+  const ingester = createIngester();
+  const results = [];
+  for (const id of ids) {
+    const result = await ingester.ingest(getEntry(id), db);
+    results.push({ library: result.library, indexed: result.indexed, source: result.source, chunks: result.chunks });
+  }
+  process.stdout.write(`${JSON.stringify({ results, indexed: results.filter((line) => line.indexed).length })}\n`);
+  return results.some((line) => line.indexed) ? 0 : 1;
+}
+
 if (isMain) {
+  const args = process.argv.slice(2);
+  if (args.length > 0) {
+    // Mode CLI : la sortie porte un resultat JSON par ligne, pas du JSON-RPC.
+    runCli(args)
+      .then((code) => process.exit(code))
+      .catch((error) => {
+        process.stderr.write(`novahiz-docs: ${String(error?.stack ?? error).slice(0, 800)}\n`);
+        process.exit(1);
+      });
+  } else {
   const reader = createInterface({ input: process.stdin });
   // Parent opencode mort ou pipe ferme : exit gracieux plutot qu'exception.
   const safeWrite = (text) => {
@@ -48,6 +110,7 @@ if (isMain) {
   });
   // Fermeture de stdin = signal de fin canonique du transport.
   reader.on("close", () => process.exit(0));
+  }
 }
 
 export { handle };

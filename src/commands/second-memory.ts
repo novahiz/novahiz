@@ -17,6 +17,7 @@ import { homedir } from "node:os";
 import { emit, flagOn, type Parsed } from "./context.ts";
 import { createSlot, MAX_SUMMARY_CHARS, readIndex, readSlot, resolveMemoryDir, updateSlot, type SlotMeta } from "../memory.ts";
 import { NovahizHome, packageRoot } from "../spec.ts";
+import { stitchConfigured } from "./stitch.ts";
 
 const INBOX_DIR = "Inbox";
 const ARCHIVE_DIR = "Archive";
@@ -835,8 +836,10 @@ function renderStructureTree(): string {
 
 /** STRUCTURE.md : la carte lisible au premier ouverture du vault.
  *  Aucun wikilink dedans — lint vérifierait leurs cibles, et les domaines
- *  inactifs n'ont pas encore de MOC. */
-function structureMarkdown(): string {
+ *  inactifs n'ont pas encore de MOC.
+ *  Exportée : doctor --apply régénère le fichier quand son contenu dérive,
+ *  et les tests écrivent le canonique plutôt qu'un stub. */
+export function structureMarkdown(): string {
   const structure = loadStructure();
   const domainLines = structure.domains
     .map((domain) => {
@@ -1537,6 +1540,11 @@ async function secondMemoryInit(parsed: Parsed): Promise<void> {
     if (wanted && plugins && plugins.enabled.length > 0) {
       lines.push("  ! restricted mode: open Obsidian once and disable Settings → Community plugins → restricted mode.");
     }
+    // T5: onboarding Stitch — recommande uniquement quand la cle manque
+    // reellement (sinon le message pollue chaque init).
+    if (!stitchConfigured()) {
+      lines.push("  Google Stitch MCP not configured — run `novahiz stitch` and paste your API key to enable Stitch screens.");
+    }
     return lines.join("\n");
   });
 }
@@ -1607,6 +1615,8 @@ type StructureAudit = {
   unlinked: Array<{ rel: string; parent: string }>;
   partialDomains: string[];
   indexDrift: string[];
+  /** STRUCTURE.md existe mais son contenu ne correspond plus au catalogue. */
+  structureDrift: boolean;
 };
 
 /** Liens que `INDEX → ## Categories` doit porter : un par domaine actif. */
@@ -1717,11 +1727,19 @@ export function auditStructure(vault: string): StructureAudit {
   const index = buildVaultIndex(vault);
   const systemTop = new Set(structure.systemFolders);
   const domainNames = new Set(structure.domains.map((domain) => domain.name));
-  const audit: StructureAudit = { missing: [], rootNotes: [], unknownFolders: [], foldersWithoutMoc: [], unlinked: [], partialDomains: [], indexDrift: [] };
+  const audit: StructureAudit = { missing: [], rootNotes: [], unknownFolders: [], foldersWithoutMoc: [], unlinked: [], partialDomains: [], indexDrift: [], structureDrift: false };
 
   for (const name of structure.systemFolders) if (!existsSync(join(vault, name))) audit.missing.push(name);
   if (!existsSync(join(vault, INDEX_FILE))) audit.missing.push(INDEX_FILE);
   if (!existsSync(join(vault, structure.structureFile))) audit.missing.push(structure.structureFile);
+  else {
+    // STRUCTURE.md présent mais périmé : le gravé ne suit plus le catalogue
+    // (domaines ajoutés, règles relues). Les dates du frontmatter sont
+    // neutralisées — sinon tout serait en dérive dès le lendemain.
+    const stripDates = (text: string): string => text.replace(/^(created|updated):.*$/gm, "$1:");
+    const current = readFileSync(join(vault, structure.structureFile), "utf8");
+    audit.structureDrift = stripDates(current) !== stripDates(structureMarkdown());
+  }
   // log.md manquait de `missing` : doctor donnait exit 0 sur un vault dont il
   // avait disparu, alors que init le recrée. Le test « systemFiles ⊆ fichiers
   // créés par init » verrouille le catalogue : si un jour un fichier déclaré
@@ -1903,6 +1921,10 @@ async function doctorVault(apply: boolean, options: { plugins: boolean }): Promi
       rewriteIndexCategories(vault, `## ${structure.indexSection}`, links);
       report.actions.push(`rewrote INDEX ${structure.indexSection}: ${links.length} domain link(s)`);
     }
+    if (before.structureDrift) {
+      writeFileSync(join(vault, structure.structureFile), structureMarkdown(), "utf8");
+      report.actions.push(`regenerated ${structure.structureFile} (content drift)`);
+    }
     if (options.plugins) report.plugins = await installPlugins(vault);
   } else {
     for (const name of before.missing) report.actions.push(`would create: ${name}`);
@@ -1922,6 +1944,7 @@ async function doctorVault(apply: boolean, options: { plugins: boolean }): Promi
     if (before.indexDrift.length > 0) {
       report.actions.push(`would rewrite INDEX ${structure.indexSection} (${desiredIndexLinks(structure, vault).length} domain link(s))`);
     }
+    if (before.structureDrift) report.actions.push(`would regenerate ${structure.structureFile} (content drift)`);
     const actionable = lintBefore.filter((issue) => issue.severity !== "info");
     if (actionable.length > 0) report.actions.push(`would fix ${actionable.length} lint issue(s) (fix subcommand)`);
     if (options.plugins) {
@@ -1940,6 +1963,7 @@ async function doctorVault(apply: boolean, options: { plugins: boolean }): Promi
     ...after.foldersWithoutMoc.map((folder) => `${folder} has no MOC`),
     ...after.unlinked.map((entry) => `${entry.rel} not linked from ${entry.parent}`),
     ...after.partialDomains.map((gap) => `incomplete ${gap}`),
+    ...(after.structureDrift ? [`${structure.structureFile} out of date`] : []),
     ...after.indexDrift
   ];
   const lintErrors = lintAfter.filter((issue) => issue.severity === "error");
@@ -2033,6 +2057,131 @@ async function secondMemoryDoctor(parsed: Parsed): Promise<void> {
   if (report.remaining > 0) process.exitCode = 1;
 }
 
+// --- Recherche plein texte --------------------------------------------------
+// `second-memory search` est LA porte d'entrée de consultation du vault : la
+// CLI, l'agent et le plugin (auto-consult) passent par la même fonction.
+// Balayage en mémoire, sans index à maintenir — le vault compte quelques
+// dizaines de notes, un scan par recherche est suffisant et restera simple.
+
+export type VaultHit = {
+  rel: string;
+  title: string;
+  score: number;
+  snippet: string;
+  updated: string;
+};
+
+/** Mots vides FR/EN : fréquents, non discriminants, ils gonfleraient le score. */
+const SEARCH_STOPWORDS = new Set([
+  "le", "la", "les", "un", "une", "des", "du", "de", "et", "en", "au", "aux",
+  "pour", "par", "avec", "sur", "dans", "que", "qui", "quoi", "est", "sont",
+  "ce", "cet", "cette", "ces", "son", "sa", "ses", "the", "and", "for", "of",
+  "to", "in", "on", "is", "are", "it", "at", "as"
+]);
+
+/** Minuscules sans accents : le vault est en FR, `Étape` doit matcher `etape`. */
+function normalizeText(value: string): string {
+  return value.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+}
+
+/** Termes de requête uniques, triés par longueur (les plus précis d'abord). */
+export function tokenizeQuery(query: string): string[] {
+  const words = normalizeText(query)
+    .split(/[^a-z0-9]+/)
+    .filter((word) => word.length >= 2 && !SEARCH_STOPWORDS.has(word));
+  return [...new Set(words)].sort((a, b) => b.length - a.length);
+}
+
+/** Occurrences sur frontière de mot : "code" ne compte pas dans "decode". */
+function countTerm(text: string, term: string): number {
+  const escaped = term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const matches = text.match(new RegExp(`(^|[^a-z0-9])${escaped}([^a-z0-9]|$)`, "g"));
+  return matches ? matches.length : 0;
+}
+
+/** Titre d'une note : frontmatter, sinon premier `#`, sinon le nom de fichier. */
+function noteTitle(note: VaultNote): string {
+  const fm = note.frontmatter.title;
+  if (fm && fm.trim().length > 0) return fm.trim();
+  const heading = /^#\s+(.+)$/m.exec(note.body);
+  if (heading) return heading[1].trim();
+  return basename(note.rel).replace(/\.md$/, "");
+}
+
+/** Fenêtre de texte autour de la première occurrence d'un terme. */
+function buildSnippet(body: string, terms: string[]): string {
+  const flat = body.replace(/\s+/g, " ").trim();
+  let index = -1;
+  for (const term of terms) {
+    const hit = normalizeText(flat).indexOf(term);
+    if (hit !== -1 && (index === -1 || hit < index)) index = hit;
+  }
+  const start = index === -1 ? 0 : Math.max(0, index - 60);
+  const slice = flat.slice(start, start + 180).trim();
+  return `${start > 0 ? "…" : ""}${slice}${start + 180 < flat.length ? "…" : ""}`;
+}
+
+/**
+ * Recherche classée dans le vault. Score borné [0,1] : un terme présent dans
+ * le titre vaut 3, dans le corps jusqu'à 3, somme rapportée aux termes.
+ * Notes système, templates et MOC exclus — on cherche du contenu.
+ */
+export function searchVault(vault: string, query: string, options: { k?: number; minScore?: number } = {}): VaultHit[] {
+  const terms = tokenizeQuery(query);
+  if (terms.length === 0 || !existsSync(vault)) return [];
+  const k = Number.isFinite(options.k) && (options.k as number) > 0 ? Math.trunc(options.k as number) : 10;
+  const minScore = typeof options.minScore === "number" && options.minScore >= 0 && options.minScore <= 1 ? options.minScore : 0;
+  const hits: VaultHit[] = [];
+  for (const rel of listVaultNotes(vault)) {
+    if (isTemplateFile(rel) || isSystemFile(rel) || isMocFile(rel)) continue;
+    const note = readVaultNote(join(vault, rel), rel);
+    if (!note) continue;
+    const title = noteTitle(note);
+    const nTitle = normalizeText(title);
+    const nBody = normalizeText(note.body);
+    let total = 0;
+    let matched = 0;
+    for (const term of terms) {
+      const inTitle = nTitle.includes(term);
+      const inBody = countTerm(nBody, term);
+      if (inTitle) {
+        total += 3;
+        matched += 1;
+      }
+      if (inBody > 0) {
+        total += Math.min(inBody, 3);
+        if (!inTitle) matched += 1;
+      }
+    }
+    if (matched === 0) continue;
+    const score = Math.min(1, total / (terms.length * 4));
+    if (score < minScore) continue;
+    hits.push({ rel, title, score: Math.round(score * 1000) / 1000, snippet: buildSnippet(note.body, terms), updated: note.frontmatter.updated ?? "" });
+  }
+  hits.sort((a, b) => b.score - a.score || (b.updated < a.updated ? -1 : b.updated > a.updated ? 1 : a.rel < b.rel ? -1 : 1));
+  return hits.slice(0, k);
+}
+
+function secondMemorySearch(parsed: Parsed): void {
+  const vault = vaultPath();
+  const query = parsed.positionals.slice(2).join(" ").trim();
+  if (query.length === 0) {
+    process.stderr.write("novahiz second-memory search: missing query — usage: second-memory search <terms...> [--k=N] [--min-score=N] [--json]\n");
+    process.exitCode = 1;
+    return;
+  }
+  const k = Number.isFinite(Number(parsed.flags.k)) && Number(parsed.flags.k) > 0 ? Math.trunc(Number(parsed.flags.k)) : 10;
+  const minScore = Number.isFinite(Number(parsed.flags["min-score"])) ? Number(parsed.flags["min-score"]) : 0;
+  const hits = searchVault(vault, query, { k, minScore });
+  emit(parsed, { vault, query, count: hits.length, hits }, () => {
+    if (hits.length === 0) return `second-memory search: no hit for "${query}" in ${vault}`;
+    const lines = [`second-memory search: ${hits.length} hit(s) for "${query}"`];
+    for (const hit of hits) lines.push(`  ${hit.score.toFixed(3)}  ${hit.rel} — ${hit.title}\n        ${hit.snippet}`);
+    lines.push(`read a hit: <vault>/${hits[0].rel}`);
+    return lines.join("\n");
+  });
+}
+
 export async function secondMemoryCommand(argv: string[], parsed: Parsed): Promise<void> {
   const sub = argv[0] ?? "status";
   switch (sub) {
@@ -2054,8 +2203,11 @@ export async function secondMemoryCommand(argv: string[], parsed: Parsed): Promi
     case "status":
       secondMemoryStatus(parsed);
       return;
+    case "search":
+      secondMemorySearch(parsed);
+      return;
     default:
-      process.stderr.write(`novahiz second-memory: unknown subcommand "${sub}" (init|doctor|lint|fix|sync|status)\n`);
+      process.stderr.write(`novahiz second-memory: unknown subcommand "${sub}" (init|doctor|lint|fix|sync|status|search)\n`);
       process.exitCode = 1;
   }
 }
