@@ -18,7 +18,7 @@ The server is stateless per connection. The key is passed via the `Authorization
 1. Sign in to [stitch.withgoogle.com](https://stitch.withgoogle.com/).
 2. Go to **Settings → API Key**.
 3. Click **"Créer une clé"** (Create a key) to generate a new access token.
-4. Copy the value (format: `AQ.Ab8RN...`).
+4. Copy the value (format: `AQ.<your-token>`).
 5. Delete any old or exposed key before configuring the new one.
 6. Configure the client's `mcp` block (see example below).
 7. Restart the client and verify with the client's MCP resource listing (e.g. `opencode list_mcp_resources`).
