@@ -148,10 +148,19 @@ export function search(db: DatabaseSync, query: string, options: SearchOptions =
   if (match === null) return [];
   const limit = Math.min(Math.max(Math.trunc(options.limit ?? 5), 1), 50);
   const filterLibrary = options.library !== undefined && options.library.length > 0;
+  // CROSS JOIN et non JOIN : SQLite ne reordonne JAMAIS les operandes d'un
+  // CROSS JOIN (optoverview 7.1.2 / lang_select 2.2 — le mecanisme documente
+  // pour imposer l'ordre des boucles imbriquees). Avec un JOIN simple, le
+  // planner de SQLite 3.51.3 (node 22.23.x) sort chunks (index library) en
+  // boucle externe et re-evalue le MATCH complet pour chaque chunk : 50 x
+  // ~6 ms = ~315 ms au lieu de ~14 ms — le budget de lecture de 100 ms
+  // s'ecroule, CI rouge sur node 22. Le resultat est identique (jointure
+  // interne), seul le plan change. Bench du 2026-10-08 : 315.8 -> 13.3 ms
+  // sous 3.51.3, 14.0 -> 14.1 ms sous 3.53.3.
   const sql =
     "SELECT c.library, c.version, c.source_url, c.license, c.fetched_at, c.heading_path, c.ord, " +
     "snippet(chunks_fts, 0, '[', ']', '…', 16) AS snippet, bm25(chunks_fts) AS score " +
-    "FROM chunks_fts JOIN chunks c ON c.id = chunks_fts.rowid " +
+    "FROM chunks_fts CROSS JOIN chunks c ON c.id = chunks_fts.rowid " +
     `WHERE chunks_fts MATCH ?${filterLibrary ? " AND c.library = ?" : ""} ` +
     "ORDER BY bm25(chunks_fts) LIMIT ?";
   const params: Array<string | number> = [match];
