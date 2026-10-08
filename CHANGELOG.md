@@ -5,6 +5,33 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.7.1] - 2026-10-08
+
+Patch release: two installation-level repairs found while cutting 0.7.0 — the
+memory MCP degraded on machines without a home catalog, and the docs reading
+layer collapsed under the SQLite planner of node 22.
+
+### Fixed
+
+- **`packageRoot()` walk-up** (`src/spec.ts`): the community-path assumption
+  (entry script exactly one directory below the package root) held for `bin/`
+  and `src/` but not `mcp/<server>/index.mjs` — two levels down it resolved to
+  `mcp/catalog/` (absent), so on any machine whose home has no catalog yet
+  (CI, fresh `npm install -g novahiz` before the installer ran) every memory
+  call returned `failed: true` « Invalid or missing catalog file ». The
+  resolver now walks up to the nearest `package.json`, preferring
+  `name: "novahiz"`, pinned by a regression test that reproduces the exact CI
+  condition (`tests/memory-p5.test.ts`, `NOVAHIZ_HOME` empty) — red CI on
+  Linux since 0.7.0, dead memory tools on the documented community path.
+- **Docs search plan pinned with CROSS JOIN** (`mcp/novahiz-docs/src/store.ts`):
+  SQLite 3.51.3 (node:sqlite of node 22.23.x) reorders the plain JOIN — it
+  drives from `chunks(library)` and re-evaluates the full FTS MATCH for every
+  chunk of the library (50 × ~6 ms ≈ 315 ms instead of ~14 ms), collapsing
+  the 100 ms reading budget (742-1085 ms observed on CI runners). SQLite
+  never reorders a CROSS JOIN (`optoverview` 7.1.2, `lang_select` 2.2), so
+  the plan is now pinned on every runtime: 315.8 → 13.3 ms on 3.51.3,
+  unchanged 14.1 ms on 3.53.3 — same result set, only the plan changes.
+
 ## [0.7.0] - 2026-10-08
 
 Feature release: the Obsidian vault becomes a first-class citizen of the
