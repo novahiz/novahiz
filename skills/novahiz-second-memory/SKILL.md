@@ -1,306 +1,108 @@
 ---
 name: novahiz-second-memory
 description: |
-  novahiz-second-memory: manage a dynamic Obsidian vault at ~/Documents/second-memory.
-  The vault uses PARA + MOC (Maps of Content) for structure, with emergent categories
-  that evolve with content. The skill creates the best tree before writing, auto-corrects
-  structure and naming, and stays synchronized with novahiz project-memory.
-  Use when the user asks to write to, organize, or sync the second-memory vault.
+  novahiz-second-memory: manage the Obsidian vault at ~/Documents/second-memory against a
+  FIXED, predefined arborescence — one root INDEX.md as the single entry point, a _MOC.md
+  in every folder, 11 domains (Code, Trading, AI, Design, DevOps, Security, Business,
+  Learning, Wiki, Journal, Projects) each with predefined branches and memory/docs leaves.
+  Writes are routed to a predefined spot, missing folders are auto-created, a domain
+  activates whole on first write. `second-memory doctor` audits and repairs the vault and
+  installs the 10 mandatory community plugins.
+  Use when the user asks to write to, organize, audit, repair or sync the second-memory vault.
   Triggers on: second-memory, vault, obsidian, second brain, write to vault,
-  organize vault, sync memory, vault structure, vault lint, second-memory CLI.
+  organize vault, sync memory, vault structure, vault lint, doctor, second-memory CLI.
 license: Apache-2.0
 compatibility: opencode
 metadata:
   author: Novahiz
   organization: Novahiz
-  version: "1.1.0"
+  version: "2.0.0"
 ---
 
-# novahiz-second-memory: dynamic Obsidian vault
+# novahiz-second-memory: fixed-arborescence Obsidian vault
 
-A skill that creates and maintains a personal knowledge vault at `~/Documents/second-memory`.
-The vault is plain Markdown — readable in Obsidian, any editor, or by any AI agent.
+A personal knowledge vault at `~/Documents/second-memory`, plain Markdown — readable in
+Obsidian, any editor, or by any AI agent. Its shape is **not emergent**: the arborescence
+is predefined, and every write lands in a predefined spot.
 
-## Core principles
+## The contract (non-negotiable)
 
-1. **PARA + MOC hybrid** — top-level folders follow PARA (Projects, Areas, Resources, Archives).
-   Navigation uses MOCs (Maps of Content): each category has a `_MOC.md` that links to
-   everything related, across folder boundaries.
-2. **Links over folders** — a note can be linked from multiple MOCs. Don't over-nest.
-3. **Emergent structure** — categories appear when content demands them. Never create
-   empty "cathedral" folders. The skill proposes the best tree before writing.
-4. **Archive ≠ trash** — completed projects move to `Archive/`, never deleted.
-5. **Client language** — folder names in English, note content in the language the
-   client uses in their prompts.
-6. **Log everything** — every structural change is appended to `log.md` with a timestamp.
+1. **Fixed arborescence** — content lives only inside the tree below. Nothing is ever
+   written at the vault root, and no top-level folder is invented.
+2. **`INDEX.md` is the single entry point** — categories → index, subcategories →
+   category, subfolders → parent. It links exactly the active domains, nothing else.
+3. **Every folder owns a `_MOC.md`** — it indexes its children; children link back to it.
+4. **Auto-create** — a write never fails on a missing folder: the whole path is created
+   (folder → `_MOC.md` → parent link → `INDEX.md` link) before the note is written.
+5. **A domain activates whole** — the first write that routes to a domain materializes its
+   complete arborescence, never a partial one.
+6. **Folder names in English** — note content stays in the language the user writes in.
+7. **Archive ≠ trash** — nothing is deleted; moved or rewritten files are backed up to
+   `Archive/.backup/`.
+8. **Log everything** — structural changes are appended to `log.md`.
 
-## Vault location
+## Machine source of truth
 
-```
-~/Documents/second-memory/
-```
+`<novahiz-home>/catalog/vault-structure.json` is authoritative: domains, branches, leaves,
+keywords, system folders, plugins. The tree embedded here is the readable contract; when a
+keyword or a folder name matters, **read the JSON rather than guessing** — the CLI throws if
+the JSON drifts from its own constants.
 
-On Windows: `C:\Users\<user>\Documents\second-memory\`
+Overrides for hermetic runs and tests: `NOVAHIZ_SM_VAULT` redirects the vault root,
+`NOVAHIZ_SM_MEMORY` redirects the memory root.
 
-## Initial structure
+## The fixed tree
 
 ```
 second-memory/
-├── INDEX.md              ← Home MOC: single entry point, links to all category MOCs
-├── log.md                ← append-only operation log (never delete, only append)
-├── Inbox/                ← unsorted capture, triaged in weekly review
-├── Archive/              ← completed/inactive items, never deleted
-└── Templates/            ← note templates (project, course, resource, wiki)
+├── INDEX.md            ← single entry point (## Categories = active domains)
+├── STRUCTURE.md        ← generated map of this tree, with its rules
+├── log.md              ← append-only operation log
+├── Inbox/              ← capture with no domain signal, triaged by the user
+├── Archive/            ← completed/inactive items + .backup/ (never deleted)
+├── Templates/          ← project, course, resource, wiki
+├── Excalidraw/         ← plugin data (drawings), declared system folder — never audited, never routed
+├── Code/               ├── Mobile/ ├── Web/ └── Desktop/      each → memory/ docs/
+├── Trading/            ├── Markets/ └── Strategies/           each → memory/ docs/
+├── AI/                 ├── Models/   └── Datasets/            each → memory/ docs/
+├── Design/             ├── Systems/  └── Interface/           each → memory/ docs/
+├── DevOps/             ├── Infra/    └── Pipelines/            each → memory/ docs/
+├── Security/           ├── Audits/   └── Threats/              each → memory/ docs/
+├── Business/           ├── Offers/   └── Growth/               each → memory/ docs/
+├── Learning/           ├── Courses/  └── Study-Notes/          each → memory/ docs/
+├── Wiki/               ├── Guides/   └── Reference/            each → memory/ docs/
+├── Journal/            ├── Daily/    └── Weekly/               (notes leaves)
+└── Projects/           ├── Active/   └── Archived/             (notes leaves)
 ```
 
-Categories (Code, Trading, Wiki, Cours, Projet, etc.) are **emergent** — created when
-content first demands them. Each category folder contains a `_MOC.md`.
+Full per-domain detail (MOC titles, leaves, what belongs where): `references/arborescence.md`.
 
-## Workflow
+Leaves mean:
 
-The mechanical half of this workflow ships in the CLI
-(`novahiz second-memory <init|lint|fix|sync|status>`). Dry-run is the default on every
-mutating subcommand; `--apply` executes, `--json` prints a machine-readable report.
-Environment overrides (tests, CI, hermetic runs): `NOVAHIZ_SM_VAULT` redirects the vault
-root, `NOVAHIZ_SM_MEMORY` redirects the memory root.
+- **`memory/`** — evergreen personal notes. Split into one subfolder per project
+  (`memory/<project>/`, default `general/`); the folder's `_MOC.md` is the index that ties
+  those sub-files together, mirroring the Novahiz slot system.
+- **`docs/`** — reference documentation, same per-project split. Driven by `docsKeywords`
+  (guide, spec, api, readme, convention, architecture, faq, …).
+- **`Journal/` and `Projects/`** carry `notes` leaves — notes go straight into
+  `Daily/`, `Weekly/`, `Active/`, `Archived/`, with no memory/docs or project level.
 
-| Subcommand | Role |
-|---|---|
-| `init` | create the skeleton (INDEX.md, log.md, Inbox/, Archive/, Templates/) |
-| `lint` | report structure, naming and link issues — exit 0 means clean |
-| `fix` | plan renames, moves, canonical link rewrites, backups, Inbox triage |
-| `sync` | memory ↔ vault: LWW sync, note/slot creation |
-| `status` | note counts, categories, open issues, resolved memory root |
+## Routing: where a note goes
 
-### 1. Create (write new content)
+1. **Domain** — match the title/body/tags against the domain keywords.
+2. **Branch** — match within the domain; no match falls back to its first branch.
+3. **`memory` vs `docs`** — `docs` when a `docsKeywords` hit or the user says so, else `memory`.
+4. **Project folder** — the frontmatter `project`, slugged; `general` when absent.
+5. **No domain signal** — the note waits in `Inbox/` for triage, never a guessed folder.
 
-When the user asks to write something to the vault:
+Example: *"Revue de sécurité d'une API, checklist OWASP"* → `Security/Audits/docs/general/`.
 
-1. **Analyze** — read `INDEX.md` and existing MOCs to understand current structure.
-2. **Propose** — determine the best category/subcategory for the content. If no
-   category fits, propose a new one. Show the proposed path to the user.
-3. **Create structure** — if a new category is needed, create the folder and its
-   `_MOC.md` first. Update parent MOCs and `INDEX.md`.
-4. **Write content** — create the note with proper frontmatter, in the client's
-   language. Use the appropriate template.
-5. **Link** — add the note to the relevant `_MOC.md` and to any other MOCs that
-   reference it. Update `INDEX.md` if it's a new category.
-6. **Log** — append the operation to `log.md`.
+## Activation
 
-> `second-memory sync` performs steps 1–3 and 5 mechanically for memory slots: keyword
-> rules pick the category (Code, Trading, Cours, Wiki, Projet, …), then `ensureCategory`
-> creates the folder, its `_MOC.md`, and the `INDEX.md` link — structure always exists
-> **before** content is written. Slots with no category signal land in `Inbox/` for triage.
-
-### 2. Correct (lint and fix)
-
-When the user asks to fix, clean, or reorganize the vault:
-
-1. **Scan** — run `second-memory lint` (read-only) and check for:
-   - Files with bad names (spaces, special chars, inconsistent casing)
-   - Notes in the wrong category
-   - Orphan notes (not linked from any MOC)
-   - Broken or non-canonical `[[wikilinks]]`
-   - Folders without a `_MOC.md`
-   - Stale content in `Inbox/`
-2. **Propose fixes** — run `second-memory fix` (still dry-run) and show the user what
-   will be renamed, moved, rewritten or triaged.
-3. **Backup** — automatic: before any rename or move, the original is copied to
-   `Archive/.backup/` (slashes flattened to `__`, extension `.bak`).
-4. **Execute** — `second-memory fix --apply`: renames and moves first, then link
-   rewrites with a re-lint pass; `Inbox/` notes carrying a category signal are triaged
-   into their category and linked from its `_MOC.md`.
-5. **Log** — append all changes to `log.md`.
-
-### 3. Sync (memory ↔ vault)
-
-Bidirectional, last-writer-wins, driven by the `novahiz_synced_at` frontmatter field:
-
-1. **Dry-run first** — `novahiz second-memory sync` prints the plan (`would create note`,
-   `would rebuild`, `would pull`, `would push`) without writing anything.
-2. **create note** — an active slot without a note becomes one (emergent category,
-   frontmatter stamped with `novahiz_slot_id` and `novahiz_synced_at`).
-3. **create slot** — a note marked `novahiz_slot_sync: true` (opt-in) that has no
-   `novahiz_slot_id` becomes a memory slot; the note is then stamped with the new id.
-4. **pull / push** — pull (slot → note) when the slot changed after the last sync; push
-   (note → slot) when the note changed. Writes less than 1500 ms apart count as
-   synchronized (stability, no ping-pong).
-5. **rebuild** — a note missing `novahiz_synced_at` (written by an older version) is
-   rebuilt **from** the slot: the memory side is never written on this path.
-6. **Apply** — `sync --apply` executes the plan; a re-run must report `nothing to sync`.
-   Never `--apply` without reading the dry-run: a push overwrites the slot with the
-   note's content.
-7. **Log** — append sync results to `log.md`.
-
-### 4. Maintain (weekly review)
-
-1. **Triage Inbox** — move unsorted notes to their correct category.
-2. **Check MOCs** — ensure every category has a `_MOC.md` and it's up to date.
-3. **Archive** — move completed projects to `Archive/`.
-4. **Log** — append review summary to `log.md`.
-
-## Frontmatter convention
-
-Every note starts with YAML frontmatter:
-
-```yaml
----
-type: project | course | resource | wiki | area
-title: Note title
-created: YYYY-MM-DD
-updated: YYYY-MM-DD
-status: active | archived | draft
-tags: [tag1, tag2]
-novahiz_slot_id: slot-XXX        # optional, set by sync for linked notes
-novahiz_synced_at: ISO-8601      # optional, written by sync; drives LWW
-novahiz_slot_sync: true          # optional, opt-in: make this note a memory slot
----
-```
-
-## Canonical link forms (lint enforces these)
-
-- Home: `[[INDEX|Home]]` — never a bare `[[Home]]`.
-- MOCs: `[[Code/_MOC|Code MOC]]` — never the `[[Code MOC]]` shortcut.
-- Notes: full path `[[Code/some-note]]` or plain basename `[[some-note]]`.
-- System entries stay short: `[[Inbox]]`, `[[Archive]]`, `[[Templates]]`.
-
-`second-memory lint` flags any non-canonical form; `second-memory fix` rewrites it
-(backup first, Obsidian resolves the canonical target the same way).
-
-## MOC format
-
-Each `_MOC.md` follows this structure:
-
-```markdown
----
-type: moc
-title: Category Name MOC
----
-
-# Category Name MOC
-
-## Subcategories
-- [[Subcategory A]]
-- [[Subcategory B]]
-
-## Notes
-- [[Note 1]] — brief description
-- [[Note 2]] — brief description
-
-## Related MOCs
-- [[INDEX|Home]]
-- [[OtherCategory/_MOC|Other Category MOC]]
-```
-
-## Naming conventions
-
-- **Folders**: `PascalCase` or `kebab-case`, English. Examples: `Code/`, `Trading/`, `Inbox/`.
-- **Notes**: `kebab-case`, English or client language. Examples: `react-hooks-guide.md`, `projet-novahiz.md`.
-- **MOCs**: `_MOC.md` in each category folder.
-- **No spaces** in file or folder names. Use hyphens or underscores.
-
-## Templates
-
-### Project note
-```markdown
----
-type: project
-title: Project Name
-created: YYYY-MM-DD
-updated: YYYY-MM-DD
-status: active
-tags: [project]
----
-
-# Project Name
-
-## Goal
-What is this project trying to achieve?
-
-## Progress
-- [ ] Task 1
-- [ ] Task 2
-
-## Notes
-- [[Related Note]]
-
-## Related MOCs
-- [[Category/_MOC|Category MOC]]
-```
-
-### Course note
-```markdown
----
-type: course
-title: Course Name
-created: YYYY-MM-DD
-updated: YYYY-MM-DD
-status: active
-tags: [course]
----
-
-# Course Name
-
-## Key concepts
-- Concept 1
-- Concept 2
-
-## Resources
-- [[Related Resource]]
-
-## Related MOCs
-- [[Category/_MOC|Category MOC]]
-```
-
-### Resource note
-```markdown
----
-type: resource
-title: Resource Name
-created: YYYY-MM-DD
-updated: YYYY-MM-DD
-status: active
-tags: [resource]
----
-
-# Resource Name
-
-## Summary
-Brief description of the resource.
-
-## Key takeaways
-- Takeaway 1
-- Takeaway 2
-
-## Related MOCs
-- [[Category/_MOC|Category MOC]]
-```
-
-### Wiki note
-```markdown
----
-type: wiki
-title: Wiki Article Name
-created: YYYY-MM-DD
-updated: YYYY-MM-DD
-status: active
-tags: [wiki]
----
-
-# Wiki Article Name
-
-## Overview
-Brief overview.
-
-## Details
-Detailed content.
-
-## See also
-- [[Related Note]]
-
-## Related MOCs
-- [[Category/_MOC|Category MOC]]
-```
+`ensureTarget()` runs on every write: it activates the domain (creating its whole
+arborescence), then creates each missing segment with its `_MOC.md` and parent link, then
+links the domain from `INDEX.md → ## Categories`. The note is written only once its folder
+exists.
 
 ## INDEX.md format
 
@@ -316,10 +118,7 @@ Personal knowledge vault. Start here.
 
 ## Categories
 - [[Code/_MOC|Code MOC]]
-- [[Trading/_MOC|Trading MOC]]
-- [[Wiki/_MOC|Wiki MOC]]
-- [[Cours/_MOC|Cours MOC]]
-- [[Projet/_MOC|Projet MOC]]
+- [[Security/_MOC|Security MOC]]
 
 ## System
 - [[Inbox]]
@@ -327,29 +126,137 @@ Personal knowledge vault. Start here.
 - [[Templates]]
 ```
 
-## log.md format
+`## Categories` is machine-managed: exactly the active domains, in catalog order.
+`second-memory doctor --apply` rewrites it when it drifts (stray or missing links).
+
+## MOC format
 
 ```markdown
-# Second Memory Log
+---
+type: moc
+title: Mobile MOC
+---
 
-Append-only. Never delete entries.
+# Mobile MOC
 
-## 2026-10-04
-- 15:30 — vault initialized
-- 15:35 — created Code/ category with _MOC.md
-- 15:40 — wrote note: react-hooks-guide.md
+## Subcategories
+- [[Code/Mobile/memory/_MOC|Memory MOC]]
+- [[Code/Mobile/docs/_MOC|Docs MOC]]
+
+## Notes
+- [[Code/Mobile/memory/general/react-hooks]]
+
+## Related MOCs
+- [[INDEX|Home]]
+- [[Code/_MOC|Code MOC]]
 ```
+
+## Canonical link forms (lint enforces these)
+
+- Home: `[[INDEX|Home]]` — never a bare `[[Home]]`.
+- MOCs: full path with alias `[[Code/_MOC|Code MOC]]` — never the `[[Code MOC]]` shortcut.
+  The path form is what resolves nested MOCs.
+- Notes: full path `[[Code/Mobile/memory/general/react-hooks]]` or plain basename.
+- System entries stay short: `[[Inbox]]`, `[[Archive]]`, `[[Templates]]`, `[[Excalidraw]]`.
+
+## Naming
+
+- **Folders**: English, PascalCase for domains/branches, lowercase for leaves
+  (`memory`, `docs`, `general`). No spaces — hyphens or underscores (`Study-Notes`).
+- **Notes**: `kebab-case`, in the user's language. Example: `audit-owasp.md`.
+- **MOCs**: `_MOC.md`, one per folder.
+
+## CLI
+
+`node src/cli.ts second-memory <subcommand> [--apply] [--json] [--no-plugins]` from the
+Novahiz home. Dry-run is the default on every mutating subcommand.
+
+| Subcommand | Role |
+|---|---|
+| `init` | create the skeleton (system folders, `INDEX.md`, `log.md`, `STRUCTURE.md`, templates) **and install the 10 mandatory plugins** |
+| `doctor` | audit the whole vault against this tree; `--apply` repairs, with backups |
+| `lint` | report structure, naming and link issues — exit 0 means clean |
+| `fix` | plan renames, moves, canonical link rewrites, backups, Inbox triage |
+| `sync` | memory ↔ vault: last-writer-wins sync, note/slot creation |
+| `status` | note counts, categories, open issues, resolved memory root |
+
+`doctor` checks, in order: `vault`, `skeleton`, `arborescence`, `outside-tree folders`,
+`links`, `plugins`, `memory`. It exits **1 while issues remain** and 0 when the vault is
+clean — run it without `--apply` first, read the `planned:` block, then `--apply`.
+
+## Mandatory plugins (10)
+
+Installed by both `init` and `doctor --apply` into `.obsidian/plugins/` from their GitHub
+releases and enabled in `community-plugins.json`; `--no-plugins` skips the download.
+
+`dataview`, `templater-obsidian`, `obsidian-linter`, `omnisearch`, `recent-files-obsidian`,
+`tag-wrangler`, `periodic-notes`, `calendar`, `obsidian-excalidraw-plugin`,
+`obsidian-style-settings`.
+
+One manual step remains: open Obsidian once and turn off **Settings → Community plugins →
+restricted mode**. Core plugins are left to Obsidian's defaults (their config format is not
+written by the CLI).
+
+## Workflow
+
+### 1. Create (write new content)
+
+1. **Route** — apply the routing rules above (or let `sync` do it mechanically).
+2. **Read the target MOC** — to name the note and avoid duplicating an existing one.
+3. **Write** — with the frontmatter convention (see `references/templates.md`), in the
+   user's language. `sync`/`create-note` already created the folder chain and links.
+4. **Link** — the note is added to its `_MOC.md` under `## Notes`; a new domain is added to
+   `INDEX.md`.
+5. **Log** — append the operation to `log.md`.
+
+Never invent a folder. If no domain fits, the note goes to `Inbox/` and you tell the user.
+
+### 2. Audit and repair (`doctor`)
+
+1. `second-memory doctor` — read-only. Show the `[fail]`/`[warn]` checks and the `planned:`
+   actions to the user.
+2. `second-memory doctor --apply` — executes: recreates a missing skeleton, completes a
+   partially materialized domain, creates missing MOCs, links unlinked children, relocates
+   root notes (after routing them), rewrites `INDEX.md ## Categories`, runs the `fix`
+   repairs, installs missing plugins. Every moved file is copied to `Archive/.backup/`
+   first (`/` flattened to `__`, extension `.bak`).
+3. Re-run `doctor` to confirm `remaining issues: 0`.
+4. `outside-tree folders` is a **warning only** — doctor does not move whole folders
+   (it would break inbound links). Report them and migrate those notes by hand.
+
+### 3. Sync (memory ↔ vault)
+
+Bidirectional, last-writer-wins, driven by `novahiz_synced_at`:
+
+1. **Dry-run first** — `second-memory sync` prints the plan (`would create note`,
+   `would rebuild`, `would pull`, `would push`).
+2. **create note** — an active slot without a note becomes one, routed into the fixed tree.
+3. **create slot** — a note marked `novahiz_slot_sync: true` that has no `novahiz_slot_id`.
+4. **pull / push** — pull when the slot changed later, push when the note did. Writes less
+   than 1500 ms apart count as synchronized (no ping-pong).
+5. **rebuild** — a note missing `novahiz_synced_at` is rebuilt *from* the slot; the memory
+   side is never written on that path.
+6. **Apply** — `sync --apply`, then a re-run must report `nothing to sync`. Never `--apply`
+   without reading the dry-run: a push overwrites the slot.
+7. **Log** — append results to `log.md`.
+
+### 4. Maintain (weekly review)
+
+1. Triage `Inbox/` → route each note to its domain.
+2. Run `doctor` (it checks MOCs, links, INDEX, plugins in one pass).
+3. Move completed work to `Archive/`.
+4. Append the review summary to `log.md`.
+
+## Frontmatter, templates and log format
+
+See `references/templates.md` for the frontmatter convention, the four note templates and
+the `log.md` format.
 
 ## Integration with novahiz
 
-- **CLI**: `novahiz second-memory <init|lint|fix|sync|status> [--apply] [--json]` —
-  dry-run by default; `NOVAHIZ_SM_VAULT` / `NOVAHIZ_SM_MEMORY` redirect the roots
-  (hermetic test environments).
-- **Memory sync**: vault notes link to `project-memory` slots via `novahiz_slot_id`
-  frontmatter, with `novahiz_synced_at` driving the last-writer-wins direction. Use
-  `memory_search` to find slots, `memory_get` to read them; `sync` handles the rest
-  (including rebuild of legacy notes stamped by an older version).
-- **Docs**: vault notes can reference novahiz-docs citations using the
-  `novahiz-docs/<library>@<version>` format (see novahiz-implement skill).
-- **Ledger**: structural changes to the vault are logged in the novahiz ledger
-  (task todos) for traceability.
+- **CLI**: `novahiz second-memory <init|doctor|lint|fix|sync|status> [--apply] [--json] [--no-plugins]`.
+- **Memory sync**: vault notes link to `project-memory` slots via `novahiz_slot_id`, with
+  `novahiz_synced_at` driving LWW. Use `memory_search` to find slots, `memory_get` to read
+  them; `sync` handles the rest.
+- **Docs**: vault notes can cite novahiz-docs as `novahiz-docs/<library>@<version>`.
+- **Ledger**: structural changes to the vault are logged in the novahiz ledger (task todos).

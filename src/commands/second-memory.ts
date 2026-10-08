@@ -16,6 +16,7 @@ import { homedir } from "node:os";
 
 import { emit, flagOn, type Parsed } from "./context.ts";
 import { createSlot, MAX_SUMMARY_CHARS, readIndex, readSlot, resolveMemoryDir, updateSlot, type SlotMeta } from "../memory.ts";
+import { NovahizHome, packageRoot } from "../spec.ts";
 
 const INBOX_DIR = "Inbox";
 const ARCHIVE_DIR = "Archive";
@@ -23,10 +24,130 @@ const TEMPLATES_DIR = "Templates";
 const INDEX_FILE = "INDEX.md";
 const LOG_FILE = "log.md";
 const MOC_FILE = "_MOC.md";
+/** Chemin de lien d'un MOC : sans extension, forme canonique `[[X/_MOC|X MOC]]`. */
+const MOC_ID = MOC_FILE.slice(0, -3);
 const BACKUP_DIR = ".backup";
 // Deux écritures plus rapprochées que ça comptent comme synchronisées :
 // la mtime fraîche d'une note qu'on vient d'écrire ne doit pas repartir en push.
 const SYNC_TOLERANCE_MS = 1500;
+
+// --- Arborescence canonique -------------------------------------------------
+// L'arborescence du vault est FIXE : elle est gravée dans le skill
+// novahiz-second-memory et, côté machine, dans catalog/vault-structure.json
+// (source de vérité partagée). Une écriture n'invente jamais de chemin : elle
+// active le domaine concerné, qui recrée toute son arborescence — dossiers,
+// _MOC.md à chaque niveau, lien parent puis lien INDEX.
+type StructNode = {
+  id?: string;
+  name: string;
+  title?: string;
+  kind: "domain" | "branch" | "memory" | "docs" | "notes";
+  keywords?: string[];
+  children?: StructNode[];
+};
+
+type VaultStructure = {
+  version: number;
+  index: string;
+  log: string;
+  structureFile: string;
+  moc: string;
+  indexSection: string;
+  systemFolders: string[];
+  systemFiles: string[];
+  defaultProject: string;
+  domains: StructNode[];
+  docsKeywords: string[];
+  plugins: Array<{ id: string; repo: string; required?: boolean }>;
+};
+
+/** Un niveau du chemin canonique : dossier à créer + titre de son MOC. */
+type Segment = { rel: string; title: string };
+
+let structureCache: VaultStructure | null = null;
+
+function structureFilePath(): string | null {
+  const candidates = [join(NovahizHome(), "catalog", "vault-structure.json")];
+  const pkg = packageRoot();
+  if (pkg) candidates.push(join(pkg, "catalog", "vault-structure.json"));
+  for (const candidate of candidates) {
+    if (existsSync(candidate)) return candidate;
+  }
+  return null;
+}
+
+function loadStructure(): VaultStructure {
+  if (structureCache) return structureCache;
+  const file = structureFilePath();
+  if (!file) {
+    throw new Error("catalog/vault-structure.json not found — run `novahiz setup` from the Novahiz home");
+  }
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(readFileSync(file, "utf8"));
+  } catch (error) {
+    throw new Error(`catalog/vault-structure.json unreadable: ${(error as Error).message}`);
+  }
+  const raw = parsed as Partial<VaultStructure>;
+  if (!raw || !Array.isArray(raw.domains) || raw.domains.length === 0) {
+    throw new Error("catalog/vault-structure.json: `domains` must be a non-empty array");
+  }
+  if (!Array.isArray(raw.plugins)) throw new Error("catalog/vault-structure.json: `plugins` must be an array");
+  // Le catalogue est la source de vérité : s'il diverge des constantes du code,
+  // on échoue fort plutôt que d'écrire une moitié de structure.
+  if ((raw.index ?? INDEX_FILE) !== INDEX_FILE) throw new Error(`catalog/vault-structure.json: index must be "${INDEX_FILE}"`);
+  if ((raw.log ?? LOG_FILE) !== LOG_FILE) throw new Error(`catalog/vault-structure.json: log must be "${LOG_FILE}"`);
+  if ((raw.moc ?? MOC_FILE) !== MOC_FILE) throw new Error(`catalog/vault-structure.json: moc must be "${MOC_FILE}"`);
+  structureCache = {
+    version: raw.version ?? 1,
+    index: INDEX_FILE,
+    log: LOG_FILE,
+    structureFile: raw.structureFile || "STRUCTURE.md",
+    moc: MOC_FILE,
+    indexSection: raw.indexSection || "Categories",
+    systemFolders: Array.isArray(raw.systemFolders) && raw.systemFolders.length > 0 ? raw.systemFolders : [INBOX_DIR, ARCHIVE_DIR, TEMPLATES_DIR],
+    systemFiles: Array.isArray(raw.systemFiles) && raw.systemFiles.length > 0 ? raw.systemFiles : [INDEX_FILE, LOG_FILE],
+    defaultProject: raw.defaultProject || "general",
+    domains: raw.domains,
+    docsKeywords: Array.isArray(raw.docsKeywords) ? raw.docsKeywords : [],
+    plugins: raw.plugins
+  };
+  return structureCache;
+}
+
+function nodeTitle(node: StructNode): string {
+  return node.title ?? node.name;
+}
+
+/** Mot-clé déjà normalisé → vrai match sur frontière de mot (les mots courts
+ *  comme "ci", "ui", "app" ne doivent pas croiser à l'intérieur d'un mot). */
+function keywordHit(lowerText: string, keyword: string): boolean {
+  const kw = keyword.toLowerCase().trim();
+  if (kw.length === 0) return false;
+  const escaped = kw.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(`(^|[^a-z0-9])${escaped}([^a-z0-9]|$)`, "i").test(lowerText);
+}
+
+/** Plus de hits gagne, pas le premier trouvé : sans ça "api" (Code) écrasait
+ *  "owasp"+"sécurité" (Security) sur le seul ordre du catalogue. À égalité,
+ *  l'ordre du catalogue tranche. Aucun hit → premier nœud, matched:false
+ *  (repli sur la première branche, premier domaine). */
+export function matchNode(nodes: StructNode[], lowerText: string): { node: StructNode | null; matched: boolean; score: number } {
+  let best: StructNode | null = null;
+  let bestScore = 0;
+  for (const node of nodes) {
+    let score = 0;
+    for (const keyword of node.keywords ?? []) {
+      if (keywordHit(lowerText, keyword)) score += 1;
+    }
+    if (score > bestScore) {
+      best = node;
+      bestScore = score;
+    }
+  }
+  if (best) return { node: best, matched: true, score: bestScore };
+  return { node: nodes[0] ?? null, matched: false, score: 0 };
+}
 
 type VaultNote = {
   path: string;
@@ -41,6 +162,8 @@ type LinkTarget = { kind: "note"; rel: string } | { kind: "folder" };
 type VaultIndex = {
   notes: string[];
   byBaseName: Map<string, string>;
+  /** nom de dossier (minuscules) → rel du `_MOC.md` qu'il contient. */
+  mocByFolder: Map<string, string>;
   folders: string[];
 };
 
@@ -176,13 +299,27 @@ function listVaultNotes(dir: string, base: string = ""): string[] {
   return notes;
 }
 
-function isCategoryDir(name: string): boolean {
-  return ![INBOX_DIR, ARCHIVE_DIR, TEMPLATES_DIR].includes(name) && !name.startsWith(".");
+export function isCategoryDir(name: string): boolean {
+  if (name.startsWith(".")) return false;
+  // Les dossiers système viennent du catalogue, pas d'une liste codée en dur :
+  // un dossier système déclaré plus tard (ex. Excalidraw) doit être exclu lui aussi.
+  let system: string[];
+  try {
+    system = loadStructure().systemFolders;
+  } catch {
+    system = [INBOX_DIR, ARCHIVE_DIR, TEMPLATES_DIR];
+  }
+  return !system.includes(name);
 }
 
 function isSystemFile(rel: string): boolean {
   const name = basename(rel);
-  return name === INDEX_FILE || name === LOG_FILE || name === "README.md";
+  if (name === INDEX_FILE || name === LOG_FILE || name === "README.md") return true;
+  try {
+    return name === loadStructure().structureFile;
+  } catch {
+    return name === "STRUCTURE.md";
+  }
 }
 
 function isTemplateFile(rel: string): boolean {
@@ -214,9 +351,21 @@ function soleCategory(vault: string): string | null {
 function buildVaultIndex(vault: string): VaultIndex {
   const notes = listVaultNotes(vault);
   const byBaseName = new Map<string, string>();
+  // Tous les `_MOC.md` partagent le même basename : sans index par dossier,
+  // le raccourci `[[Mobile MOC]]` se résoudrait sur le premier venu.
+  const mocByFolder = new Map<string, string>();
   for (const rel of notes) {
     const key = basename(rel).toLowerCase();
     if (!byBaseName.has(key)) byBaseName.set(key, rel);
+    if (key === MOC_FILE) {
+      const folder = normalizeRel(dirname(rel));
+      const full = folder === "." ? "" : folder;
+      if (full.length > 0) mocByFolder.set(full.toLowerCase(), rel);
+      // Le raccourci `[[Mobile MOC]]` porte un nom de dossier sans son chemin :
+      // on indexe aussi la dernière segment, première écriture gagne.
+      const leaf = full.includes("/") ? full.slice(full.lastIndexOf("/") + 1) : full;
+      if (leaf.length > 0 && !mocByFolder.has(leaf.toLowerCase())) mocByFolder.set(leaf.toLowerCase(), rel);
+    }
   }
   const folders: string[] = [];
   const walk = (dir: string, base: string): void => {
@@ -229,7 +378,7 @@ function buildVaultIndex(vault: string): VaultIndex {
     }
   };
   walk(vault, "");
-  return { notes, byBaseName, folders };
+  return { notes, byBaseName, mocByFolder, folders };
 }
 
 /**
@@ -256,6 +405,8 @@ function resolveLink(vault: string, vi: VaultIndex, fromRel: string, rawTarget: 
   if (moc) {
     const mocRel = `${moc[1]}/${MOC_FILE}`;
     if (existsSync(join(vault, mocRel))) return { kind: "note", rel: mocRel };
+    const byFolder = vi.mocByFolder.get(moc[1].toLowerCase().replace(/\\/g, "/"));
+    if (byFolder) return { kind: "note", rel: byFolder };
   }
   const byName = vi.byBaseName.get(withMd.toLowerCase());
   if (byName) return { kind: "note", rel: byName };
@@ -268,7 +419,7 @@ function canonicalForm(link: string, resolved: LinkTarget): string | null {
   if (resolved.kind !== "note") return null;
   const target = link.trim().replace(/\\/g, "/");
   const moc = /^(.+)\s+MOC$/.exec(target);
-  if (moc && resolved.rel === `${moc[1]}/${MOC_FILE}`) {
+  if (moc && resolved.rel.endsWith(`/${MOC_FILE}`)) {
     return `[[${resolved.rel.slice(0, -3)}|${target}]]`;
   }
   if (target === "Home" && resolved.rel === INDEX_FILE) return `[[INDEX|Home]]`;
@@ -292,19 +443,26 @@ function slugify(value: string): string {
   return slug.length > 0 ? slug : "note";
 }
 
-function mocTemplate(cat: string): string {
+/** MOC d'un dossier : titre, sections de navigation, lien vers le parent.
+ *  Les sous-dossiers et les notes sont ajoutés par addLinkToSection au fil
+ *  de l'eau — un lien n'est écrit que lorsque sa cible existe (sinon lint
+ *  le signalerait comme lien mort). */
+function mocTemplate(title: string, parent: { rel: string; title: string } | null): string {
+  const related = ["[[INDEX|Home]]"];
+  if (parent) related.push(`[[${parent.rel}/${MOC_ID}|${parent.title} MOC]]`);
   return `---
 type: moc
-title: ${cat} MOC
+title: ${title} MOC
 ---
 
-# ${cat} MOC
+# ${title} MOC
 
 ## Subcategories
 
 ## Notes
 
 ## Related MOCs
+${related.map((link) => `- ${link}`).join("\n")}
 `;
 }
 
@@ -405,9 +563,18 @@ function lintVault(): LintIssue[] {
 /**
  * Ajoute `- <linkText>` après l'en-tête `section` (ou crée la section en fin
  * de fichier). Détecte la cible déjà présente sous forme relative ou alias
- * pour ne jamais dupliquer un lien.
+ * pour ne jamais dupliquer un lien. `position` = "first" place en tête de
+ * section (les plus récents d'abord), "last" en fin de section (ordre de
+ * création, donc l'ordre du catalogue).
  */
-function addLinkToSection(vault: string, rel: string, section: string, linkText: string, aliases: string[] = []): boolean {
+function addLinkToSection(
+  vault: string,
+  rel: string,
+  section: string,
+  linkText: string,
+  aliases: string[] = [],
+  position: "first" | "last" = "first"
+): boolean {
   const abs = join(vault, rel);
   if (!existsSync(abs)) return false;
   const text = readFileSync(abs, "utf8");
@@ -424,22 +591,141 @@ function addLinkToSection(vault: string, rel: string, section: string, linkText:
     writeFileSync(abs, `${text}${sep}\n${section}\n- ${linkText}\n`, "utf8");
     return true;
   }
-  lines.splice(headerIndex + 1, 0, `- ${linkText}`);
+  let insertAt = headerIndex + 1;
+  if (position === "last") {
+    while (insertAt < lines.length && lines[insertAt].trim() !== "" && !lines[insertAt].startsWith("##")) insertAt += 1;
+  }
+  lines.splice(insertAt, 0, `- ${linkText}`);
   writeFileSync(abs, lines.join("\n"), "utf8");
   return true;
 }
 
-/** Dossier + MOC + entrée INDEX pour une catégorie émergente. */
-function ensureCategory(vault: string, cat: string): void {
-  if (cat === INBOX_DIR) return;
-  ensureDir(join(vault, cat));
-  const mocRel = `${cat}/${MOC_FILE}`;
+/** Dossier + `_MOC.md` + lien dans le MOC parent (ou dans INDEX pour un domaine).
+ *  Idempotent : un dossier déjà en place n'est pas recréé, mais son lien manquant
+ *  vers le parent est ajouté (addLinkToSection ne duplique jamais). */
+function ensureFolder(vault: string, rel: string, title: string, parent: { rel: string; title: string } | null): void {
+  ensureDir(join(vault, rel));
+  const mocRel = `${rel}/${MOC_FILE}`;
   if (!existsSync(join(vault, mocRel))) {
-    writeFileSync(join(vault, mocRel), mocTemplate(cat), "utf8");
+    writeFileSync(join(vault, mocRel), mocTemplate(title, parent), "utf8");
+  }
+  const link = `[[${rel}/${MOC_ID}|${title} MOC]]`;
+  const aliases = [`${title} MOC`];
+  if (parent) {
+    const parentMoc = `${parent.rel}/${MOC_FILE}`;
+    if (existsSync(join(vault, parentMoc))) {
+      addLinkToSection(vault, parentMoc, "## Subcategories", link, aliases, "last");
+    }
+    return;
   }
   if (existsSync(join(vault, INDEX_FILE))) {
-    addLinkToSection(vault, INDEX_FILE, "## Categories", `[[${cat}/_MOC|${cat} MOC]]`, [`${cat} MOC`]);
+    addLinkToSection(vault, INDEX_FILE, `## ${loadStructure().indexSection}`, link, aliases, "last");
   }
+}
+
+/** Recrée un nœud du catalogue et toute sa descendance, en reliant chaque
+ *  niveau à son parent. Retourne le chemin du nœud. */
+function ensureNodeTree(vault: string, node: StructNode, parent: { rel: string; title: string } | null): string {
+  const rel = parent ? `${parent.rel}/${node.name}` : node.name;
+  ensureFolder(vault, rel, nodeTitle(node), parent);
+  const self = { rel, title: nodeTitle(node) };
+  for (const child of node.children ?? []) ensureNodeTree(vault, child, self);
+  return rel;
+}
+
+function findDomain(name: string): StructNode | null {
+  return loadStructure().domains.find((domain) => domain.name === name) ?? null;
+}
+
+/** Activation d'un domaine : son arborescence COMPLÈTE (toutes ses branches,
+ *  leurs memory/ et docs/) apparaît d'un coup, reliée jusqu'à INDEX. */
+function activateDomain(vault: string, domain: StructNode): void {
+  ensureNodeTree(vault, domain, null);
+}
+
+function projectFolder(name: string | undefined, fallback: string): string {
+  const raw = (name ?? "").trim();
+  if (raw.length === 0) return fallback;
+  const slug = raw.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "").slice(0, 40);
+  return slug.length > 0 ? slug : fallback;
+}
+
+function hasKeyword(lowerText: string, keywords: string[]): boolean {
+  for (const keyword of keywords) {
+    if (keywordHit(lowerText, keyword)) return true;
+  }
+  return false;
+}
+
+/**
+ * Chemin canonique d'une note, dérivé du catalogue — aucun chemin inventé :
+ * domaine → branche → memory|docs → projet. Sans signal de domaine, le tableau
+ * est vide et la note part dans Inbox pour triage (comportement historique).
+ */
+export function routePath(text: string, kind: "memory" | "docs" | "auto", projectName?: string): Segment[] {
+  const structure = loadStructure();
+  const lower = ` ${text.toLowerCase()} `;
+  const domainMatch = matchNode(structure.domains, lower);
+  let domain: StructNode | null = domainMatch.matched ? domainMatch.node : null;
+  let branchHint: StructNode | null = null;
+  if (!domain) {
+    // 2e passe : un mot-clé de BRANCHE route aussi vers son domaine, sinon
+    // "flutter" n'atterrirait nulle part alors que Code/Mobile le porte.
+    // Le domaine le mieux classé gagne, pas le premier de la liste.
+    let best = 0;
+    for (const candidate of structure.domains) {
+      const hit = matchNode(candidate.children ?? [], lower);
+      if (hit.matched && hit.node && hit.score > best) {
+        domain = candidate;
+        branchHint = hit.node;
+        best = hit.score;
+      }
+    }
+  }
+  if (!domain) return [];
+  const segments: Segment[] = [{ rel: domain.name, title: nodeTitle(domain) }];
+  const branches = domain.children ?? [];
+  if (branches.length === 0) return segments;
+  const branch = branchHint ?? matchNode(branches, lower).node ?? branches[0];
+  const branchRel = `${domain.name}/${branch.name}`;
+  segments.push({ rel: branchRel, title: nodeTitle(branch) });
+  const leaves = branch.children ?? [];
+  if (leaves.length === 0) return segments;
+  const wanted = kind === "auto" ? (hasKeyword(lower, structure.docsKeywords) ? "docs" : "memory") : kind;
+  const leaf = leaves.find((node) => node.kind === wanted) ?? leaves[0];
+  const leafRel = `${branchRel}/${leaf.name}`;
+  segments.push({ rel: leafRel, title: nodeTitle(leaf) });
+  if (leaf.kind === "memory" || leaf.kind === "docs") {
+    const project = projectFolder(projectName, structure.defaultProject);
+    const title = project.charAt(0).toUpperCase() + project.slice(1);
+    segments.push({ rel: `${leafRel}/${project}`, title });
+  }
+  return segments;
+}
+
+/** Active le domaine complet, crée les niveaux manquants, retourne le dossier cible. */
+function ensureTarget(vault: string, segments: Segment[]): string {
+  if (segments.length === 0) return INBOX_DIR;
+  const domain = findDomain(segments[0].rel);
+  if (domain) activateDomain(vault, domain);
+  let parent: { rel: string; title: string } | null = null;
+  for (const segment of segments) {
+    ensureFolder(vault, segment.rel, segment.title, parent);
+    parent = { rel: segment.rel, title: segment.title };
+  }
+  return segments[segments.length - 1].rel;
+}
+
+/** Dossier + MOC + entrée INDEX : domaine du catalogue activé intégralement,
+ *  dossier hors catalogue en repli émergent (vaults antérieurs au catalogue). */
+function ensureCategory(vault: string, cat: string): void {
+  if (cat === INBOX_DIR) return;
+  const domain = findDomain(cat);
+  if (domain) {
+    activateDomain(vault, domain);
+    return;
+  }
+  ensureFolder(vault, cat, cat, null);
 }
 
 function backupFile(vault: string, rel: string, backedUp: string[]): void {
@@ -448,21 +734,6 @@ function backupFile(vault: string, rel: string, backedUp: string[]): void {
   const flat = `${rel.replace(/[\\/]/g, "__")}.bak`;
   copyFileSync(join(vault, rel), join(backupDir, flat));
   backedUp.push(rel);
-}
-
-const CATEGORY_RULES: Array<[RegExp, string]> = [
-  [/\b(code|coding|dev|developer|flutter|react|web|api|cli|npm|typescript|javascript|python|app|application|logiciel|android|ios)\b/i, "Code"],
-  [/\b(trading|trader|finance|financial|crypto|bourse|invest|investissement|market|marche|marché)\b/i, "Trading"],
-  [/\b(cours|course|learning|tutorial|formation|apprendre|etude|étude|ecole|école|universite|université)\b/i, "Cours"],
-  [/\b(wiki|doc|docs|documentation|guide|reference|référence|manuel)\b/i, "Wiki"],
-  [/\b(projet|project|build|release|version|novahiz|roadmap|plan)\b/i, "Projet"]
-];
-
-function categoryFor(text: string): string | null {
-  for (const [pattern, cat] of CATEGORY_RULES) {
-    if (pattern.test(text)) return cat;
-  }
-  return null;
 }
 
 function parseTags(value: string | undefined): string[] {
@@ -530,10 +801,188 @@ function splitNoteBody(body: string): { summary: string; details: string } {
   return { summary, details };
 }
 
-function initVault(): { created: string[]; vault: string } {
+// --- .obsidian : arbre documenté + plugins obligatoires ----------------------
+const OBSIDIAN_DIR = ".obsidian";
+const PLUGIN_ASSETS = ["manifest.json", "main.js", "styles.css"];
+const PLUGIN_TIMEOUT_MS = 20000;
+
+type PluginReport = {
+  installed: string[];
+  enabled: string[];
+  present: string[];
+  failed: Array<{ id: string; reason: string }>;
+};
+
+/** Arbre ASCII du vault, tel que gravé dans le catalogue (STRUCTURE.md). */
+function renderStructureTree(): string {
+  const structure = loadStructure();
+  const roots: StructNode[] = [
+    ...structure.systemFolders.map((name) => ({ name, kind: "branch" as const })),
+    ...structure.domains
+  ];
+  const lines: string[] = [];
+  const walk = (nodes: StructNode[], prefix: string): void => {
+    nodes.forEach((node, index) => {
+      const last = index === nodes.length - 1;
+      const children = node.children ?? [];
+      lines.push(`${prefix}${last ? "└── " : "├── "}${node.name}${children.length > 0 ? "/" : ""}`);
+      if (children.length > 0) walk(children, `${prefix}${last ? "    " : "│   "}`);
+    });
+  };
+  walk(roots, "");
+  return lines.join("\n");
+}
+
+/** STRUCTURE.md : la carte lisible au premier ouverture du vault.
+ *  Aucun wikilink dedans — lint vérifierait leurs cibles, et les domaines
+ *  inactifs n'ont pas encore de MOC. */
+function structureMarkdown(): string {
+  const structure = loadStructure();
+  const domainLines = structure.domains
+    .map((domain) => {
+      const branches = (domain.children ?? [])
+        .map((child) => {
+          const leaves = (child.children ?? []).map((leaf) => leaf.name);
+          return `  - ${child.name}/ → ${leaves.length > 0 ? leaves.join(", ") : "notes"}`;
+        })
+        .join("\n");
+      return branches.length > 0 ? `- ${nodeTitle(domain)}/\n${branches}` : `- ${nodeTitle(domain)}/`;
+    })
+    .join("\n");
+  const fence = "```";
+  return [
+    "---",
+    "type: doc",
+    "title: Vault structure",
+    `created: ${todayIso()}`,
+    `updated: ${todayIso()}`,
+    "---",
+    "",
+    "# Vault structure",
+    "",
+    "This tree is fixed. It comes from `catalog/vault-structure.json` in the Novahiz home",
+    "and is embedded in the `novahiz-second-memory` skill. Nothing is ever written outside it.",
+    "",
+    "## Rules",
+    "",
+    "1. `INDEX.md` is the single entry point: every active domain links from `## Categories`.",
+    "2. Every folder owns a `_MOC.md` linking its children; children link back under `## Related MOCs`.",
+    "3. Routing: `<Domain>/<Branch>/memory|docs/<project>/<note>.md`.",
+    "4. A domain appears whole the first time content routes to it.",
+    "5. Notes with no domain signal wait in `Inbox/` for triage.",
+    "6. `second-memory doctor` audits this tree; `--apply` repairs it.",
+    "",
+    "## Tree",
+    "",
+    `${fence}text`,
+    renderStructureTree(),
+    `${fence}`,
+    "",
+    "## Domains",
+    "",
+    domainLines,
+    ""
+  ].join("\n");
+}
+
+async function fetchText(url: string): Promise<string | null> {
+  try {
+    const response = await fetch(url, { redirect: "follow", signal: AbortSignal.timeout(PLUGIN_TIMEOUT_MS) });
+    if (!response.ok) return null;
+    return await response.text();
+  } catch {
+    return null;
+  }
+}
+
+function readEnabledPlugins(vault: string): string[] {
+  const file = join(vault, OBSIDIAN_DIR, "community-plugins.json");
+  if (!existsSync(file)) return [];
+  try {
+    const parsed: unknown = JSON.parse(readFileSync(file, "utf8"));
+    return Array.isArray(parsed) ? parsed.filter((value): value is string => typeof value === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeEnabledPlugins(vault: string, ids: string[]): void {
+  const file = join(vault, OBSIDIAN_DIR, "community-plugins.json");
+  ensureDir(dirname(file));
+  writeFileSync(file, `${JSON.stringify(ids, null, 2)}\n`, "utf8");
+}
+
+/**
+ * Installe les plugins obligatoires depuis les releases GitHub officielles
+ * (`releases/latest/download/…`, le même mécanisme qu'Obsidian) et les active
+ * dans `community-plugins.json`. Hors ligne : échec signalé, jamais fatal.
+ * Le mode restreint d'Obsidian reste à désactiver une fois dans les réglages.
+ */
+async function installPlugins(vault: string): Promise<PluginReport> {
+  const structure = loadStructure();
+  const report: PluginReport = { installed: [], enabled: [], present: [], failed: [] };
+  const pluginsDir = join(vault, OBSIDIAN_DIR, "plugins");
+  ensureDir(pluginsDir);
+  for (const plugin of structure.plugins) {
+    const dir = join(pluginsDir, plugin.id);
+    const manifestPath = join(dir, "manifest.json");
+    const mainPath = join(dir, "main.js");
+    if (existsSync(manifestPath) && existsSync(mainPath)) {
+      report.present.push(plugin.id);
+      continue;
+    }
+    ensureDir(dir);
+    const base = `https://github.com/${plugin.repo}/releases/latest/download`;
+    let failure = "";
+    for (const asset of PLUGIN_ASSETS) {
+      const text = await fetchText(`${base}/${asset}`);
+      if (text === null) {
+        if (asset === "styles.css") break; // asset optionnel selon les dépôts
+        failure = `${asset} — offline or no release on ${plugin.repo}`;
+        break;
+      }
+      if (asset === "manifest.json") {
+        try {
+          JSON.parse(text);
+        } catch {
+          failure = `manifest.json — invalid JSON from ${plugin.repo}`;
+          break;
+        }
+      }
+      writeFileSync(join(dir, asset), text, "utf8");
+    }
+    if (failure.length > 0) {
+      report.failed.push({ id: plugin.id, reason: failure });
+      continue;
+    }
+    report.installed.push(plugin.id);
+  }
+
+  const enabled = readEnabledPlugins(vault);
+  const enabledSet = new Set(enabled);
+  const onDisk = [...report.present, ...report.installed].filter((id) => !enabledSet.has(id));
+  if (onDisk.length > 0) {
+    writeEnabledPlugins(vault, [...enabled, ...onDisk]);
+    report.enabled = onDisk;
+  }
+  return report;
+}
+
+/** Rendu commun du rapport de plugins (init et doctor partagent le format). */
+function pluginReportLines(report: PluginReport): string[] {
+  const lines: string[] = [];
+  if (report.installed.length > 0) lines.push(`  plugins installed: ${report.installed.join(", ")}`);
+  if (report.enabled.length > 0) lines.push(`  plugins enabled: ${report.enabled.join(", ")}`);
+  if (report.present.length > 0) lines.push(`  plugins already present: ${report.present.join(", ")}`);
+  for (const failure of report.failed) lines.push(`  ! plugin ${failure.id}: ${failure.reason}`);
+  return lines;
+}
+
+async function initVault(options: { plugins: boolean }): Promise<{ created: string[]; vault: string; plugins: PluginReport | null }> {
+  const structure = loadStructure();
   const vault = vaultPath();
   const created: string[] = [];
-  const dirs = [vault, join(vault, INBOX_DIR), join(vault, ARCHIVE_DIR), join(vault, TEMPLATES_DIR)];
+  const dirs = [vault, ...structure.systemFolders.map((name) => join(vault, name))];
   for (const dir of dirs) {
     if (!existsSync(dir)) {
       mkdirSync(dir, { recursive: true });
@@ -554,13 +1003,11 @@ title: Second Memory
 
 Personal knowledge vault. Start here.
 
-## Categories
-<!-- Categories appear here as they emerge. Each links to its _MOC.md. -->
+## ${structure.indexSection}
+<!-- Active domains appear here as they activate. Each links to its ${MOC_ID}. -->
 
 ## System
-- [[Inbox]]
-- [[Archive]]
-- [[Templates]]
+${structure.systemFolders.map((name) => `- [[${name}]]`).join("\n")}
 `
     );
     created.push(indexPath);
@@ -597,7 +1044,7 @@ What is this project trying to achieve?
 - [[Related Note]]
 
 ## Related MOCs
-- [[Category MOC]]
+- [[Category/_MOC|Category MOC]]
 `,
     "course.md": `---
 type: course
@@ -617,7 +1064,7 @@ tags: [course]
 - [[Related Resource]]
 
 ## Related MOCs
-- [[Category MOC]]
+- [[Category/_MOC|Category MOC]]
 `,
     "resource.md": `---
 type: resource
@@ -637,7 +1084,7 @@ Brief description.
 - Takeaway 1
 
 ## Related MOCs
-- [[Category MOC]]
+- [[Category/_MOC|Category MOC]]
 `,
     "wiki.md": `---
 type: wiki
@@ -660,7 +1107,7 @@ Detailed content.
 - [[Related Note]]
 
 ## Related MOCs
-- [[Category MOC]]
+- [[Category/_MOC|Category MOC]]
 `
   };
   for (const [name, content] of Object.entries(templates)) {
@@ -671,7 +1118,40 @@ Detailed content.
     }
   }
 
-  return { created, vault };
+  // La carte du vault : l'arborescence fixe, lisible au premier ouverture.
+  const structurePath = join(vault, structure.structureFile);
+  if (!existsSync(structurePath)) {
+    writeFileSync(structurePath, structureMarkdown(), "utf8");
+    created.push(structurePath);
+  }
+
+  // Les domaines restent inactifs jusqu'à leur premier contenu — init ne crée
+  // que le squelette système. Les plugins, eux, arrivent tout de suite.
+  const plugins = options.plugins ? await installPlugins(vault) : null;
+  return { created, vault, plugins };
+}
+
+/** Remplace les liens [[...]] pointant sur l'ancien nom d'un fichier renommé.
+ *  Sans ça, les MOC et notes gardent un lien périmé (cassé sur un FS
+ *  sensible à la casse, simple doublon sur Windows). */
+export function updateLinksAfterRename(vault: string, oldRel: string, newRel: string): string[] {
+  const oldBase = basename(oldRel).replace(/\.md$/, "");
+  const newBase = basename(newRel).replace(/\.md$/, "");
+  if (oldBase === newBase) return [];
+  const escape = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const pattern = new RegExp(`(\\[\\[[^\\]]*?)${escape(oldBase)}(?=[#\\]|])`, "g");
+  const updated: string[] = [];
+  for (const note of listVaultNotes(vault)) {
+    const file = join(vault, note);
+    if (!existsSync(file)) continue;
+    const text = readFileSync(file, "utf8");
+    const next = text.replace(pattern, `$1${newBase}`);
+    if (next !== text) {
+      writeFileSync(file, next, "utf8");
+      updated.push(note);
+    }
+  }
+  return updated;
 }
 
 function fixVault(apply: boolean): FixReport {
@@ -709,13 +1189,20 @@ function fixVault(apply: boolean): FixReport {
     const newName = name.toLowerCase().replace(/\s+/g, "-");
     if (newName === name) continue;
     const targetRel = `${dirPrefix}${newName}`;
-    if (existsSync(join(vault, targetRel))) {
+    // Un renommage qui ne change que la casse : sur un FS insensible à la casse
+    // (Windows), existsSync voit la cible comme existante alors que c'est le
+    // même fichier — faux positif, on saute le test pour laisser le rename agir.
+    const caseOnly = rel.toLowerCase() === targetRel.toLowerCase();
+    if (!caseOnly && existsSync(join(vault, targetRel))) {
       report.skipped.push(`rename ${rel} → ${targetRel}: target exists`);
       continue;
     }
     if (apply) {
       backupFile(vault, rel, report.backedUp);
       renameSync(join(vault, rel), join(vault, targetRel));
+      for (const note of updateLinksAfterRename(vault, rel, targetRel)) {
+        report.linksRewritten.push(`relinked after rename: ${note}`);
+      }
       report.renamed.push(`renamed: ${rel} → ${targetRel}`);
     } else {
       report.renamed.push(`would rename: ${rel} → ${targetRel}`);
@@ -738,18 +1225,26 @@ function fixVault(apply: boolean): FixReport {
     const rel = issue.file;
     const note = readVaultNote(join(vault, rel), rel);
     const signal = `${note?.frontmatter.title ?? ""} ${note?.body ?? ""}`;
-    const cat = categoryFor(signal) ?? soleCategory(vault);
-    if (!cat) {
-      report.skipped.push(`kept in Inbox: ${rel} (no category signal)`);
-      continue;
+    const segments = routePath(signal, "auto", note?.frontmatter.project);
+    let targetDir: string;
+    if (segments.length > 0) {
+      targetDir = segments[segments.length - 1].rel;
+    } else {
+      const cat = soleCategory(vault);
+      if (!cat) {
+        report.skipped.push(`kept in Inbox: ${rel} (no category signal)`);
+        continue;
+      }
+      targetDir = cat;
     }
-    const targetRel = `${cat}/${basename(rel)}`;
+    const targetRel = `${targetDir}/${basename(rel)}`;
     if (existsSync(join(vault, targetRel))) {
       report.skipped.push(`triage ${rel} → ${targetRel}: target exists`);
       continue;
     }
     if (apply) {
-      ensureCategory(vault, cat);
+      if (segments.length > 0) ensureTarget(vault, segments);
+      else ensureCategory(vault, targetDir);
       backupFile(vault, rel, report.backedUp);
       renameSync(join(vault, rel), join(vault, targetRel));
       report.triaged.push(`triaged: ${rel} → ${targetRel}`);
@@ -818,8 +1313,17 @@ function fixVault(apply: boolean): FixReport {
   }
 
   for (const rel of orphans) {
-    const top = rel.includes("/") ? rel.slice(0, rel.indexOf("/")) : "";
-    const mocRel = top.length > 0 && isCategoryDir(top) ? `${top}/${MOC_FILE}` : INDEX_FILE;
+    // Le MOC cible est le plus proche possible : le _MOC du dossier de la note,
+    // sinon celui du domaine, sinon INDEX.
+    const folder = normalizeRel(dirname(rel));
+    let mocRel = INDEX_FILE;
+    if (folder && folder !== ".") {
+      const nearest = `${folder}/${MOC_FILE}`;
+      const top = folder.includes("/") ? folder.slice(0, folder.indexOf("/")) : folder;
+      const topMoc = `${top}/${MOC_FILE}`;
+      if (existsSync(join(vault, nearest))) mocRel = nearest;
+      else if (isCategoryDir(top) && existsSync(join(vault, topMoc))) mocRel = topMoc;
+    }
     const canonical = rel.slice(0, -3);
     const linkText = `[[${canonical}]]`;
     if (!apply) {
@@ -894,18 +1398,20 @@ function syncWithMemory(apply: boolean): SyncReport {
 
     if (!note) {
       const signal = `${slot.title} ${slot.description} ${(slot.tags ?? []).join(" ")}`;
-      const cat = categoryFor(signal) ?? INBOX_DIR;
-      const rel = `${cat}/${slot.id}-${slugify(slot.title)}.md`;
+      const tagged = (slot.tags ?? []).map((tag) => tag.trim()).find((tag) => tag.toLowerCase().startsWith("project:"));
+      const segments = routePath(signal, "memory", tagged ? tagged.slice("project:".length).trim() : undefined);
+      const dir = segments.length > 0 ? segments[segments.length - 1].rel : INBOX_DIR;
+      const rel = `${dir}/${slot.id}-${slugify(slot.title)}.md`;
       report.actions.push(`${apply ? "create note" : "would create note"}: ${rel} ← slot ${slot.id}`);
       if (apply) {
         try {
           const body = slotBody(memory, slot);
-          if (cat !== INBOX_DIR) ensureCategory(vault, cat);
+          const target = ensureTarget(vault, segments);
           const rendered = renderSlotNote(slot, body, new Date().toISOString(), null);
-          writeNote(vault, rel, rendered.fm, rendered.body);
-          const mocRel = `${cat}/${MOC_FILE}`;
+          writeNote(vault, `${target}/${basename(rel)}`, rendered.fm, rendered.body);
+          const mocRel = `${target}/${MOC_FILE}`;
           if (existsSync(join(vault, mocRel))) {
-            addLinkToSection(vault, mocRel, "## Notes", `[[${rel.slice(0, -3)}]]`);
+            addLinkToSection(vault, mocRel, "## Notes", `[[${target}/${basename(rel, ".md")}]]`);
           }
         } catch (error) {
           report.warnings.push(`create note ${slot.id}: ${String(error).slice(0, 200)}`);
@@ -1020,12 +1526,17 @@ function syncWithMemory(apply: boolean): SyncReport {
   return report;
 }
 
-function secondMemoryInit(parsed: Parsed): void {
-  const { created, vault } = initVault();
-  emit(parsed, { vault, created }, () => {
+async function secondMemoryInit(parsed: Parsed): Promise<void> {
+  const wanted = !flagOn(parsed, "no-plugins") && !flagOn(parsed, "skip-plugins");
+  const { created, vault, plugins } = await initVault({ plugins: wanted });
+  emit(parsed, { vault, created, plugins }, () => {
     const lines = [`second-memory init: vault at ${vault}`];
     if (created.length === 0) lines.push("  already initialized");
     else for (const item of created) lines.push(`  created: ${item}`);
+    if (plugins) lines.push(...pluginReportLines(plugins));
+    if (wanted && plugins && plugins.enabled.length > 0) {
+      lines.push("  ! restricted mode: open Obsidian once and disable Settings → Community plugins → restricted mode.");
+    }
     return lines.join("\n");
   });
 }
@@ -1071,6 +1582,213 @@ function secondMemorySync(parsed: Parsed): void {
   });
 }
 
+// --- doctor -----------------------------------------------------------------
+
+type DoctorCheck = { name: string; status: "ok" | "warn" | "fail"; detail: string };
+
+type DoctorReport = {
+  vault: string;
+  exists: boolean;
+  apply: boolean;
+  checks: DoctorCheck[];
+  actions: string[];
+  warnings: string[];
+  issues: Array<{ severity: string; file: string; message: string }>;
+  backedUp: string[];
+  plugins: PluginReport | null;
+  remaining: number;
+};
+
+type StructureAudit = {
+  missing: string[];
+  rootNotes: string[];
+  unknownFolders: string[];
+  foldersWithoutMoc: string[];
+  unlinked: Array<{ rel: string; parent: string }>;
+  partialDomains: string[];
+  indexDrift: string[];
+};
+
+/** Liens que `INDEX → ## Categories` doit porter : un par domaine actif. */
+function desiredIndexLinks(structure: VaultStructure, vault: string): string[] {
+  return structure.domains
+    .filter((domain) => existsSync(join(vault, domain.name)))
+    .map((domain) => `[[${domain.name}/${MOC_ID}|${nodeTitle(domain)} MOC]]`);
+}
+
+function currentIndexLinks(vault: string, section: string): string[] {
+  const file = join(vault, INDEX_FILE);
+  if (!existsSync(file)) return [];
+  const out: string[] = [];
+  let inSection = false;
+  for (const line of readFileSync(file, "utf8").split("\n")) {
+    if (line.startsWith("## ")) {
+      inSection = line.trim() === section;
+      continue;
+    }
+    if (inSection && /^\s*-\s*\[\[/.test(line)) out.push(line.trim().replace(/^- /, ""));
+  }
+  return out;
+}
+
+/** Réécrit la section `## Categories` de l'INDEX : exactement les domaines actifs,
+ *  dans l'ordre du catalogue. Seule section machine du fichier. */
+export function rewriteIndexCategories(vault: string, section: string, links: string[]): void {
+  const file = join(vault, INDEX_FILE);
+  if (!existsSync(file)) return;
+  const lines = readFileSync(file, "utf8").split("\n");
+  const marker = `<!-- Active domains appear here as they activate. Each links to its ${MOC_ID}. -->`;
+  const start = lines.findIndex((line) => line.trim() === section);
+  if (start === -1) {
+    // Section absente (INDEX écrit à la main ou ancienne version) : on la crée
+    // avant « ## System » si possible, sinon à la fin — sinon `--apply` ne
+    // pourrait jamais converger (dérive d'INDEX non réparable).
+    const at = lines.findIndex((line) => line.trim() === "## System");
+    lines.splice(at === -1 ? lines.length : at, 0, section, marker, ...links.map((link) => `- ${link}`), "");
+    writeFileSync(file, lines.join("\n"), "utf8");
+    return;
+  }
+  let end = start + 1;
+  while (end < lines.length && !lines[end].startsWith("## ")) end += 1;
+  const head = lines.slice(0, start + 1);
+  const tail = lines.slice(end);
+  const next = [...head, marker, ...links.map((link) => `- ${link}`), "", ...tail];
+  writeFileSync(file, next.join("\n"), "utf8");
+}
+
+/** Dossiers attendus d'un domaine (les dossiers projet sont créés à la demande). */
+function expectedDomainFolders(domain: StructNode): string[] {
+  const out: string[] = [];
+  const walk = (node: StructNode, parent: string): void => {
+    const rel = parent ? `${parent}/${node.name}` : node.name;
+    out.push(rel);
+    for (const child of node.children ?? []) walk(child, rel);
+  };
+  walk(domain, "");
+  return out;
+}
+
+/** Titre d'un dossier : celui du nœud du catalogue s'il y en a un, sinon le nom. */
+function nodeTitleAt(rel: string): string {
+  const parts = rel.split("/");
+  let nodes = loadStructure().domains;
+  let matched = false;
+  let title = parts[parts.length - 1];
+  for (const part of parts) {
+    const found = nodes.find((node) => node.name === part);
+    if (!found) {
+      // Dossier hors catalogue (projet ou dossier legacy) : titre = son nom.
+      matched = false;
+      break;
+    }
+    title = nodeTitle(found);
+    nodes = found.children ?? [];
+    matched = true;
+  }
+  return matched ? title : parts[parts.length - 1];
+}
+
+/** Dossiers du vault avec leur casse d'origine — `VaultIndex.folders` est en
+ *  minuscules (usage : résolution de liens) et ne convient pas à l'audit. */
+function listVaultFolders(vault: string): string[] {
+  const out: string[] = [];
+  const walk = (dir: string, base: string): void => {
+    if (!existsSync(dir)) return;
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      if (!entry.isDirectory() || entry.name.startsWith(".")) continue;
+      const rel = base ? `${base}/${entry.name}` : entry.name;
+      out.push(rel);
+      walk(join(dir, entry.name), rel);
+    }
+  };
+  walk(vault, "");
+  return out;
+}
+
+/** `hasLink` compare à la lettre ; Obsidian, lui, ignore la casse. */
+function hasLinkI(text: string, target: string): boolean {
+  const lower = text.toLowerCase();
+  const key = target.toLowerCase();
+  return lower.includes(`[[${key}]]`) || lower.includes(`[[${key}|`);
+}
+
+export function auditStructure(vault: string): StructureAudit {
+  const structure = loadStructure();
+  const index = buildVaultIndex(vault);
+  const systemTop = new Set(structure.systemFolders);
+  const domainNames = new Set(structure.domains.map((domain) => domain.name));
+  const audit: StructureAudit = { missing: [], rootNotes: [], unknownFolders: [], foldersWithoutMoc: [], unlinked: [], partialDomains: [], indexDrift: [] };
+
+  for (const name of structure.systemFolders) if (!existsSync(join(vault, name))) audit.missing.push(name);
+  if (!existsSync(join(vault, INDEX_FILE))) audit.missing.push(INDEX_FILE);
+  if (!existsSync(join(vault, structure.structureFile))) audit.missing.push(structure.structureFile);
+  // log.md manquait de `missing` : doctor donnait exit 0 sur un vault dont il
+  // avait disparu, alors que init le recrée. Le test « systemFiles ⊆ fichiers
+  // créés par init » verrouille le catalogue : si un jour un fichier déclaré
+  // n'est plus créé, c'est ce test qui crie, pas un vault en production.
+  if (!existsSync(join(vault, LOG_FILE))) audit.missing.push(LOG_FILE);
+
+  for (const cat of listCategories(vault)) {
+    if (!domainNames.has(cat) && !systemTop.has(cat)) audit.unknownFolders.push(cat);
+  }
+
+  for (const note of index.notes) {
+    if (!note.includes("/") && !isSystemFile(note)) audit.rootNotes.push(note);
+  }
+
+  for (const folder of listVaultFolders(vault)) {
+    const top = folder.includes("/") ? folder.slice(0, folder.indexOf("/")) : folder;
+    if (systemTop.has(top)) continue; // Inbox/Archive/Templates restent hors graphe
+    if (!existsSync(join(vault, folder, MOC_FILE))) {
+      audit.foldersWithoutMoc.push(folder);
+      continue;
+    }
+    const parentRel = normalizeRel(dirname(folder));
+    if (parentRel === "." || parentRel === "") continue; // niveau racine : INDEX réconcilié à part
+    const parentText = existsSync(join(vault, parentRel, MOC_FILE)) ? readFileSync(join(vault, parentRel, MOC_FILE), "utf8") : "";
+    if (parentText.length > 0 && !hasLinkI(parentText, `${folder}/${MOC_ID}`)) {
+      audit.unlinked.push({ rel: folder, parent: parentRel });
+    }
+  }
+
+  // L'INDEX doit relier exactement les domaines actifs — plus, jamais moins.
+  const desired = desiredIndexLinks(structure, vault);
+  const current = currentIndexLinks(vault, `## ${structure.indexSection}`);
+  const desiredKeys = new Set(desired.map((link) => link.toLowerCase()));
+  const currentKeys = new Set(current.map((link) => link.toLowerCase()));
+  for (const link of desired) if (!currentKeys.has(link.toLowerCase())) audit.indexDrift.push(`INDEX missing ${link}`);
+  for (const link of current) if (!desiredKeys.has(link.toLowerCase())) audit.indexDrift.push(`INDEX stray ${link}`);
+
+  for (const domain of structure.domains) {
+    if (!existsSync(join(vault, domain.name))) continue;
+    const gaps = expectedDomainFolders(domain).filter((rel) => !existsSync(join(vault, rel)));
+    if (gaps.length > 0) audit.partialDomains.push(`${domain.name} (${gaps.length} folder(s) missing)`);
+  }
+  return audit;
+}
+
+function pluginPresence(): { missing: string[]; disabled: string[] } {
+  const structure = loadStructure();
+  const vault = vaultPath();
+  const enabled = new Set(readEnabledPlugins(vault));
+  const missing: string[] = [];
+  const disabled: string[] = [];
+  for (const plugin of structure.plugins) {
+    const dir = join(vault, OBSIDIAN_DIR, "plugins", plugin.id);
+    if (!existsSync(join(dir, "manifest.json")) || !existsSync(join(dir, "main.js"))) missing.push(plugin.id);
+    else if (!enabled.has(plugin.id)) disabled.push(plugin.id);
+  }
+  return { missing, disabled };
+}
+
+/** Chemin canonique visé par une note du vault, ou null (aucun signal de domaine). */
+function routeOf(vault: string, rel: string): Segment[] | null {
+  const note = readVaultNote(join(vault, rel), rel);
+  const signal = `${note?.frontmatter.title ?? ""} ${note?.body ?? ""}`;
+  const segments = routePath(signal, "auto", note?.frontmatter.project);
+  return segments.length > 0 ? segments : null;
+}
+
 function secondMemoryStatus(parsed: Parsed): void {
   const vault = vaultPath();
   const exists = existsSync(vault);
@@ -1090,11 +1808,236 @@ function secondMemoryStatus(parsed: Parsed): void {
   });
 }
 
-export function secondMemoryCommand(argv: string[], parsed: Parsed): void {
+/** Note sans signal de domaine : la place prédéfinie est `Inbox/`, jamais la racine. */
+function parkInInbox(vault: string, rel: string, report: DoctorReport): void {
+  const target = `${INBOX_DIR}/${basename(rel)}`;
+  if (existsSync(join(vault, target))) {
+    report.warnings.push(`kept at root: ${rel} (${target} already exists)`);
+    return;
+  }
+  backupFile(vault, rel, report.backedUp);
+  renameSync(join(vault, rel), join(vault, target));
+  report.actions.push(`parked, no domain signal: ${rel} → ${target}`);
+}
+
+async function doctorVault(apply: boolean, options: { plugins: boolean }): Promise<DoctorReport> {
+  const structure = loadStructure();
+  const vault = vaultPath();
+  const report: DoctorReport = {
+    vault,
+    exists: existsSync(vault),
+    apply,
+    checks: [],
+    actions: [],
+    warnings: [],
+    issues: [],
+    backedUp: [],
+    plugins: null,
+    remaining: 0
+  };
+  if (!report.exists) {
+    report.checks.push({ name: "vault", status: "fail", detail: "missing — run `novahiz second-memory init`" });
+    report.remaining = 1;
+    return report;
+  }
+
+  const before = auditStructure(vault);
+  const lintBefore = lintVault();
+
+  if (apply) {
+    if (before.missing.length > 0) {
+      const init = await initVault({ plugins: false });
+      report.actions.push(`recreated ${init.created.length} system item(s)`);
+    }
+    for (const domain of structure.domains) {
+      if (!existsSync(join(vault, domain.name))) continue;
+      const gaps = expectedDomainFolders(domain).filter((rel) => !existsSync(join(vault, rel)));
+      if (gaps.length === 0) continue;
+      activateDomain(vault, domain);
+      report.actions.push(`completed arborescence: ${domain.name} (${gaps.length} folder(s))`);
+    }
+    for (const folder of before.foldersWithoutMoc) {
+      const parentRel = normalizeRel(dirname(folder));
+      const parent = parentRel === "." ? null : { rel: parentRel, title: nodeTitleAt(parentRel) };
+      ensureFolder(vault, folder, nodeTitleAt(folder), parent);
+      report.actions.push(`created MOC: ${folder}/${MOC_ID}`);
+    }
+    for (const entry of before.unlinked) {
+      const link = `[[${entry.rel}/${MOC_ID}|${nodeTitleAt(entry.rel)} MOC]]`;
+      const target = `${entry.parent}/${MOC_FILE}`;
+      if (addLinkToSection(vault, target, "## Subcategories", link, [`${nodeTitleAt(entry.rel)} MOC`], "last")) {
+        report.actions.push(`linked: ${entry.rel} → ${target}`);
+      }
+    }
+    const activeBefore = new Set(structure.domains.filter((domain) => existsSync(join(vault, domain.name))).map((domain) => domain.name));
+    for (const rel of before.rootNotes) {
+      const segments = routeOf(vault, rel);
+      if (!segments) {
+        parkInInbox(vault, rel, report);
+        continue;
+      }
+      const dir = ensureTarget(vault, segments);
+      const target = `${dir}/${basename(rel)}`;
+      if (existsSync(join(vault, target))) {
+        report.warnings.push(`kept at root: ${rel} (target exists)`);
+        continue;
+      }
+      backupFile(vault, rel, report.backedUp);
+      renameSync(join(vault, rel), join(vault, target));
+      addLinkToSection(vault, `${dir}/${MOC_FILE}`, "## Notes", `[[${dir}/${basename(rel, ".md")}]]`);
+      report.actions.push(`relocated: ${rel} → ${target}`);
+    }
+    for (const domain of structure.domains) {
+      if (!activeBefore.has(domain.name) && existsSync(join(vault, domain.name))) {
+        report.actions.push(`activated domain: ${domain.name} (full arborescence)`);
+      }
+    }
+    const fixed = fixVault(true);
+    for (const group of [fixed.renamed, fixed.mocCreated, fixed.triaged, fixed.linksRewritten, fixed.orphansLinked]) {
+      for (const line of group) report.actions.push(line);
+    }
+    for (const line of fixed.skipped) report.warnings.push(line);
+    report.backedUp.push(...fixed.backedUp);
+    if (before.indexDrift.length > 0) {
+      const links = desiredIndexLinks(structure, vault);
+      rewriteIndexCategories(vault, `## ${structure.indexSection}`, links);
+      report.actions.push(`rewrote INDEX ${structure.indexSection}: ${links.length} domain link(s)`);
+    }
+    if (options.plugins) report.plugins = await installPlugins(vault);
+  } else {
+    for (const name of before.missing) report.actions.push(`would create: ${name}`);
+    for (const gap of before.partialDomains) report.actions.push(`would complete arborescence: ${gap}`);
+    for (const folder of before.foldersWithoutMoc) report.actions.push(`would create MOC: ${folder}/${MOC_ID}`);
+    for (const entry of before.unlinked) {
+      report.actions.push(`would link: ${entry.rel} → ${entry.parent}/${MOC_FILE}`);
+    }
+    for (const rel of before.rootNotes) {
+      const segments = routeOf(vault, rel);
+      if (segments) {
+        report.actions.push(`would relocate: ${rel} → ${segments[segments.length - 1].rel}/${basename(rel)}`);
+      } else {
+        report.actions.push(`would park (no domain signal): ${rel} → ${INBOX_DIR}/${basename(rel)}`);
+      }
+    }
+    if (before.indexDrift.length > 0) {
+      report.actions.push(`would rewrite INDEX ${structure.indexSection} (${desiredIndexLinks(structure, vault).length} domain link(s))`);
+    }
+    const actionable = lintBefore.filter((issue) => issue.severity !== "info");
+    if (actionable.length > 0) report.actions.push(`would fix ${actionable.length} lint issue(s) (fix subcommand)`);
+    if (options.plugins) {
+      const presence = pluginPresence();
+      const needed = [...presence.missing, ...presence.disabled];
+      if (needed.length > 0) report.actions.push(`would install/enable plugins: ${needed.join(", ")}`);
+    }
+  }
+
+  const after = apply ? auditStructure(vault) : before;
+  const lintAfter = apply ? lintVault() : lintBefore;
+  report.issues = lintAfter.slice(0, 20).map((issue) => ({ severity: issue.severity, file: issue.file, message: issue.message }));
+
+  const structureIssues = [
+    ...after.rootNotes.map((note) => `root note ${note}`),
+    ...after.foldersWithoutMoc.map((folder) => `${folder} has no MOC`),
+    ...after.unlinked.map((entry) => `${entry.rel} not linked from ${entry.parent}`),
+    ...after.partialDomains.map((gap) => `incomplete ${gap}`),
+    ...after.indexDrift
+  ];
+  const lintErrors = lintAfter.filter((issue) => issue.severity === "error");
+  const lintWarnings = lintAfter.filter((issue) => issue.severity === "warning");
+  const lintInfos = lintAfter.filter((issue) => issue.severity === "info");
+  const presence = options.plugins ? pluginPresence() : null;
+  const pluginsMissing = presence ? presence.missing.length + presence.disabled.length : 0;
+  const memoryRoot = memoryRootForSync() ?? null;
+  const drift = memoryRoot ? syncWithMemory(false).actions.length : 0;
+  const brief = (items: string[]): string => (items.length <= 3 ? items.join("; ") : `${items.slice(0, 3).join("; ")} (+${items.length - 3})`);
+
+  report.checks.push({
+    name: "vault",
+    status: "ok",
+    detail: `${listVaultNotes(vault).length} note(s), ${listCategories(vault).length} top-level folder(s)`
+  });
+  report.checks.push({
+    name: "skeleton",
+    status: after.missing.length > 0 ? "fail" : "ok",
+    detail: after.missing.length > 0 ? `missing: ${after.missing.join(", ")}` : `${INDEX_FILE}, ${structure.structureFile} and system folders present`
+  });
+  report.checks.push({
+    name: "arborescence",
+    status: structureIssues.length > 0 ? "fail" : "ok",
+    detail: structureIssues.length > 0 ? brief(structureIssues) : "every folder is inside the fixed tree, MOC'd and linked"
+  });
+  report.checks.push({
+    name: "outside-tree folders",
+    status: after.unknownFolders.length > 0 ? "warn" : "ok",
+    detail: after.unknownFolders.length > 0 ? `${after.unknownFolders.join(", ")} — not in the catalog (move their notes manually)` : "none"
+  });
+  report.checks.push({
+    name: "links",
+    status: lintErrors.length > 0 ? "fail" : lintWarnings.length > 0 ? "warn" : "ok",
+    detail: `${lintErrors.length} error(s), ${lintWarnings.length} warning(s), ${lintInfos.length} info`
+  });
+  report.checks.push({
+    name: "plugins",
+    status: options.plugins && pluginsMissing > 0 ? "fail" : "ok",
+    detail: !options.plugins
+      ? "skipped (--no-plugins)"
+      : pluginsMissing > 0
+        ? `${pluginsMissing} mandatory plugin(s) missing or disabled`
+        : `all ${structure.plugins.length} mandatory plugins installed and enabled`
+  });
+  report.checks.push({
+    name: "memory",
+    status: memoryRoot && drift > 0 ? "warn" : "ok",
+    detail: !memoryRoot ? "no project memory linked" : drift > 0 ? `${drift} change(s) pending — run \`novahiz second-memory sync --apply\`` : "in sync"
+  });
+
+  report.remaining = after.missing.length + structureIssues.length + lintErrors.length + (options.plugins ? pluginsMissing : 0);
+  return report;
+}
+
+function doctorLines(report: DoctorReport): string {
+  const head = report.apply ? "second-memory doctor (apply):" : "second-memory doctor (dry-run — add --apply to execute):";
+  if (!report.exists) return `${head}\n  [fail] vault: missing — run \`novahiz second-memory init\``;
+  const lines = [head];
+  // Recommandation conditionnelle : si Stitch n'est pas configure, le recommander.
+  // Le code verifie la presence du bloc 'stitch' dans opencode.jsonc.
+  try {
+    const opencodeConfigPath = join(process.env.HOME || process.env.USERPROFILE || "", ".config", "opencode", "opencode.jsonc");
+    if (existsSync(opencodeConfigPath)) {
+      const cfgRaw = readFileSync(opencodeConfigPath, "utf8");
+      const hasStitchServer = cfgRaw.includes('"stitch"') && (cfgRaw.includes('"servers"') || cfgRaw.includes('"sse"'));
+      if (!hasStitchServer) {
+        lines.push("  [info] Google Stitch MCP: non configure — pour generer des ecrans via /novahiz skill stitch-design-fidelity, ajoutez le bloc 'stitch' (SSE, Bearer token) a votre opencode.jsonc et redemarrez le client.");
+        lines.push("    Voir: skills/stitch-design-fidelity/references/stitch-mcp.md et le template dans mcp/stitch-template/recommandation.md");
+      }
+    }
+  } catch {
+    // Ignore si la lecture echoue : la recommandation est un plus, pas un blocage.
+  }
+  for (const check of report.checks) lines.push(`  [${check.status}] ${check.name}: ${check.detail}`);
+  if (report.actions.length > 0) {
+    lines.push(report.apply ? "  repairs:" : "  planned:");
+    for (const action of report.actions) lines.push(`    ${action}`);
+  }
+  for (const warning of report.warnings) lines.push(`  ! ${warning}`);
+  if (report.backedUp.length > 0) lines.push(`  backed up: ${report.backedUp.length} file(s)`);
+  lines.push(`  remaining issues: ${report.remaining}`);
+  return lines.join("\n");
+}
+
+async function secondMemoryDoctor(parsed: Parsed): Promise<void> {
+  const apply = flagOn(parsed, "apply");
+  const plugins = !flagOn(parsed, "no-plugins") && !flagOn(parsed, "skip-plugins");
+  const report = await doctorVault(apply, { plugins });
+  emit(parsed, report, () => doctorLines(report));
+  if (report.remaining > 0) process.exitCode = 1;
+}
+
+export async function secondMemoryCommand(argv: string[], parsed: Parsed): Promise<void> {
   const sub = argv[0] ?? "status";
   switch (sub) {
     case "init":
-      secondMemoryInit(parsed);
+      await secondMemoryInit(parsed);
       return;
     case "lint":
       secondMemoryLint(parsed);
@@ -1105,11 +2048,14 @@ export function secondMemoryCommand(argv: string[], parsed: Parsed): void {
     case "sync":
       secondMemorySync(parsed);
       return;
+    case "doctor":
+      await secondMemoryDoctor(parsed);
+      return;
     case "status":
       secondMemoryStatus(parsed);
       return;
     default:
-      process.stderr.write(`novahiz second-memory: unknown subcommand "${sub}" (init|lint|fix|sync|status)\n`);
+      process.stderr.write(`novahiz second-memory: unknown subcommand "${sub}" (init|doctor|lint|fix|sync|status)\n`);
       process.exitCode = 1;
   }
 }

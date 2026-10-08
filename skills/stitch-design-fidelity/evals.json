@@ -1,0 +1,23 @@
+{
+  "version": "1.0.0",
+  "evals": [
+    {
+      "id": "eval-1",
+      "name": "Generate mobile screen from Stitch maquette",
+      "prompt": "Generate a full mobile screen using Stitch MCP. Use design-system.md. No AI-slop patterns (see anti-ai-patterns.md). Include all 8 states.",
+      "expected": "Full source code with correct tokens, no slop, all states present."
+    },
+    {
+      "id": "eval-2",
+      "name": "Respect anti-pattern rules",
+      "prompt": "Generate a screen avoiding purple-indigo hero, identical cards, Inter-only, default gray cards, fade-up scroll, emoji icons, placeholder metrics.",
+      "expected": "PASS on all 25 anti-pattern checks; real content."
+    },
+    {
+      "id": "eval-3",
+      "name": "Fidelity verification",
+      "prompt": "After generation, compare against Stitch reference using fidelity protocol. Report PASS/DIVERGE with measurements.",
+      "expected": "PASS with measurements, or DIVERGE with specific divergence list."
+    }
+  ]
+}

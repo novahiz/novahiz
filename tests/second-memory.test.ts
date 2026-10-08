@@ -1,282 +1,449 @@
-// Tests du skill second-memory : init, lint, fix (2 phases), sync
-// bidirectionnel, status. Vault et mémoire hermétiques via NOVAHIZ_SM_VAULT /
-// NOVAHIZ_SM_MEMORY — rien n'atteint le vault réel de l'utilisateur.
+// Tests de l'arborescence fixe : routage (matchNode / routePath), audit
+// structurel (auditStructure) et contrat de bout en bout de `second-memory doctor`.
+//
+// Deux niveaux :
+//  - unitaires, en mémoire, sur le moteur exporté ;
+//  - E2E, en invoquant le CLI sur un vault jetable (NOVAHIZ_SM_VAULT), parce que
+//    le contrat réel d'un vault — arborescence produite + codes de sortie — ne
+//    se voit pas depuis l'intérieur du module.
+//
+// Aucun vault réel n'est lu ni écrit : tout part dans le répertoire temporaire.
+
 import assert from "node:assert/strict";
-import { describe, test, before, after } from "node:test";
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, utimesSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join, resolve } from "node:path";
+import { after, describe, test } from "node:test";
 import { fileURLToPath } from "node:url";
 
-import { updateSlot, writeEntry } from "../src/memory.ts";
+import { auditStructure, isCategoryDir, matchNode, rewriteIndexCategories, routePath, updateLinksAfterRename } from "../src/commands/second-memory.ts";
 
-const CLI = fileURLToPath(new URL("../src/cli.ts", import.meta.url));
+const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const cliPath = join(repoRoot, "src", "cli.ts");
 
-interface Run {
-  status: number | null;
-  stdout: string;
-  stderr: string;
+// Avant le premier appel à loadStructure() (lazy, donc l'import ci-dessus suffit).
+process.env.NOVAHIZ_HOME = repoRoot;
+
+const made: string[] = [];
+const emptyMemory = mkdtempSync(join(tmpdir(), "novahiz-sm-mem-"));
+made.push(emptyMemory);
+
+function tempDir(prefix: string): string {
+  const dir = mkdtempSync(join(tmpdir(), prefix));
+  made.push(dir);
+  return dir;
 }
 
-let root: string;
-let VAULT: string;
-let MEM: string;
+/** Un dossier vault vide, unique à ce test. */
+function vaultOf(prefix: string): string {
+  const vault = join(tempDir(prefix), "vault");
+  mkdirSync(vault, { recursive: true });
+  return vault;
+}
 
-function sm(args: string[]): Run {
-  const result = spawnSync(process.execPath, ["--experimental-strip-types", CLI, "second-memory", ...args], {
+function writeNote(vault: string, rel: string, title: string, body: string): void {
+  const file = join(vault, rel);
+  mkdirSync(dirname(file), { recursive: true });
+  writeFileSync(file, `---\ntype: resource\ntitle: ${title}\n---\n\n# ${title}\n\n${body}\n`, "utf8");
+}
+
+type Run = { code: number; stdout: string; stderr: string };
+
+function run(args: string[], vault: string): Run {
+  const r = spawnSync(process.execPath, [cliPath, ...args], {
+    cwd: repoRoot,
     encoding: "utf8",
-    cwd: process.cwd(),
-    env: { ...process.env, NOVAHIZ_SM_VAULT: VAULT, NOVAHIZ_SM_MEMORY: MEM },
-    timeout: 60_000
+    timeout: 120_000,
+    env: {
+      ...process.env,
+      NOVAHIZ_HOME: repoRoot,
+      NOVAHIZ_SM_VAULT: vault,
+      NOVAHIZ_SM_MEMORY: emptyMemory
+    }
   });
-  return { status: result.status, stdout: result.stdout ?? "", stderr: result.stderr ?? "" };
+  return { code: r.status ?? -1, stdout: String(r.stdout ?? ""), stderr: String(r.stderr ?? "") };
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const asJson = (run: Run): any => JSON.parse(run.stdout);
-
-const indexPath = (): string => join(MEM, "index.json");
-
-const loadIndex = (): any => JSON.parse(readFileSync(indexPath(), "utf8"));
-
-const age = (seconds: number): Date => new Date(Date.now() - seconds * 1000);
-
-before(() => {
-  root = mkdtempSync(join(tmpdir(), "novahiz-sm-"));
-  VAULT = join(root, "vault");
-  MEM = join(root, "memory");
-});
+const output = (r: Run): string => `${r.stdout}${r.stderr}`;
 
 after(() => {
-  rmSync(root, { recursive: true, force: true });
+  for (const dir of made) rmSync(dir, { recursive: true, force: true });
 });
 
-describe("novahiz second-memory — cycle complet", () => {
-  test("init crée la structure de base", () => {
-    const run = sm(["init", "--json"]);
-    assert.equal(run.status, 0, "init exits 0");
-    const value = asJson(run);
-    assert.ok(value.created.some((path: string) => path.endsWith("INDEX.md")), "INDEX.md créé");
-    assert.ok(existsSync(join(VAULT, "Inbox")), "Inbox créé");
-    assert.ok(existsSync(join(VAULT, "Archive")), "Archive créé");
-    assert.ok(existsSync(join(VAULT, "Templates", "project.md")), "template projet créé");
-    assert.ok(existsSync(join(VAULT, "log.md")), "log créé");
+// --- matchNode ---------------------------------------------------------------
+
+const node = (name: string, keywords: string[]): { name: string; kind: "domain"; keywords: string[] } => ({
+  name,
+  kind: "domain",
+  keywords
+});
+/** Le texte arrive normalisé et entouré d'espaces, comme le fait routePath. */
+const pad = (text: string): string => ` ${text.toLowerCase()} `;
+
+describe("matchNode", () => {
+  const domains = [node("Code", ["api", "code"]), node("Security", ["owasp", "securite", "audit"])];
+
+  test("le score l'emporte sur l'ordre du catalogue", () => {
+    const hit = matchNode(domains, pad("Audit OWASP et api"));
+    assert.equal(hit.matched, true);
+    assert.equal(hit.node?.name, "Security", "2 hits Security contre 1 hit Code");
+    assert.equal(hit.score, 2);
   });
 
-  test("lint sans problème sur un vault initialisé", () => {
-    const run = sm(["lint", "--json"]);
-    assert.equal(run.status, 0, "lint exits 0");
-    assert.equal(asJson(run).count, 0, "aucun problème après init");
+  test("aucun hit → repli sur le premier nœud, matched à false", () => {
+    const hit = matchNode(domains, pad("rien a voir"));
+    assert.equal(hit.matched, false);
+    assert.equal(hit.score, 0);
+    assert.equal(hit.node?.name, "Code");
   });
 
-  test("fix répare les liens Home/MOC et retire les liens morts", () => {
-    mkdirSync(join(VAULT, "Art"), { recursive: true });
-    writeFileSync(
-      join(VAULT, "Art", "_MOC.md"),
-      "---\ntype: moc\ntitle: Art MOC\n---\n\n# Art MOC\n\n## Notes\n- [[Art/clean-note]]\n"
+  test("égalité de score → l'ordre du catalogue tranche", () => {
+    const tie = matchNode([node("A", ["guide"]), node("B", ["api"])], pad("guide et api"));
+    assert.equal(tie.score, 1);
+    assert.equal(tie.node?.name, "A");
+  });
+
+  test("frontière de mot: 'app' ne matche pas dans 'apple'", () => {
+    const one = [node("Code", ["app"])];
+    assert.equal(matchNode(one, pad("apple pie")).matched, false);
+    assert.equal(matchNode(one, pad("une app de test")).matched, true);
+  });
+});
+
+// --- routePath ---------------------------------------------------------------
+
+describe("routePath", () => {
+  /** Chemin du segment final (les segments sont cumulatifs). */
+  const rel = (text: string, kind: "memory" | "docs" | "auto" = "auto", project?: string): string => {
+    const segments = routePath(text, kind, project);
+    return segments.length === 0 ? "" : segments[segments.length - 1].rel;
+  };
+
+  test("domaine → branche → feuille → projet", () => {
+    assert.equal(rel("Revue de securite checklist OWASP et api"), "Security/Audits/docs/general");
+  });
+
+  test("un mot-clé de branche seul route vers son domaine", () => {
+    assert.equal(rel("Flutter state management"), "Code/Mobile/memory/general");
+  });
+
+  test("sans signal de domaine → aucun chemin (la note part en Inbox)", () => {
+    assert.deepEqual(routePath("Pain, lait, fromage.", "auto"), []);
+  });
+
+  test("feuille 'notes': ni memory/docs ni niveau projet", () => {
+    assert.equal(rel("matin journal"), "Journal/Daily");
+  });
+
+  test("le kind forcé docs ignore les mots-clés", () => {
+    assert.equal(rel("Flutter state management", "docs"), "Code/Mobile/docs/general");
+  });
+
+  test("le projet frontmatter est slugifié, vide → general", () => {
+    assert.equal(rel("Flutter state management", "auto", "Mon Projet"), "Code/Mobile/memory/mon-projet");
+    assert.equal(rel("Flutter state management", "auto"), "Code/Mobile/memory/general");
+  });
+
+  test("les segments sont cumulatifs, c'est ce qu'enchaîne ensureTarget", () => {
+    const segments = routePath("Revue de securite checklist OWASP et api", "auto");
+    assert.deepEqual(
+      segments.map((segment) => segment.rel),
+      ["Security", "Security/Audits", "Security/Audits/docs", "Security/Audits/docs/general"]
     );
-    writeFileSync(join(VAULT, "Art", "clean-note.md"), "---\ntype: wiki\ntitle: Clean note\n---\n\n# Clean note\n");
-    const indexFile = join(VAULT, "INDEX.md");
-    writeFileSync(indexFile, readFileSync(indexFile, "utf8") + "\n- [[Home]]\n- [[Art MOC]]\n- [[Dead Note]]\n");
-
-    const lint = asJson(sm(["lint", "--json"]));
-    const fixes = lint.issues.map((issue: any) => issue.fix);
-    assert.ok(fixes.includes("rewrite-link"), "Home et Art MOC signalés non canoniques");
-    assert.ok(fixes.includes("remove-link"), "lien mort signalé");
-
-    const dry = asJson(sm(["fix", "--json"]));
-    assert.equal(dry.apply, false, "dry-run par défaut");
-    assert.ok(dry.linksRewritten.some((line: string) => line.includes("[[Home]]")), "dry-run annonce la réécriture");
-    assert.ok(dry.linksRemoved.some((line: string) => line.includes("[[Dead Note]]")), "dry-run annonce le retrait");
-
-    const apply = asJson(sm(["fix", "--apply", "--json"]));
-    assert.ok(apply.linksRewritten.some((line: string) => line.includes("[[INDEX|Home]]")), "Home réécrit");
-    const text = readFileSync(indexFile, "utf8");
-    assert.ok(text.includes("[[INDEX|Home]]"), "INDEX pointe vers INDEX");
-    assert.ok(text.includes("[[Art/_MOC|Art MOC]]"), "MOC en forme canonique");
-    assert.ok(!text.includes("[[Dead Note]]"), "lien mort retiré");
-    assert.ok(existsSync(join(VAULT, "Archive", ".backup", "INDEX.md.bak")), "backup avant réécriture");
-    assert.equal(asJson(sm(["lint", "--json"])).count, 0, "lint propre après réparation");
   });
+});
 
-  test("fix renomme, crée le MOC et relie l'orphelin", () => {
-    mkdirSync(join(VAULT, "Code"), { recursive: true });
-    writeFileSync(join(VAULT, "Code", "BAD NAME.md"), "---\ntype: project\ntitle: Test\n---\n\n# Test\n\nContenu de test.\n");
+// --- auditStructure ----------------------------------------------------------
 
-    const lint = asJson(sm(["lint", "--json"]));
-    const fixes = lint.issues.map((issue: any) => issue.fix);
-    assert.ok(fixes.includes("rename"), "nom incorrect signalé");
-    assert.ok(fixes.includes("create-moc"), "MOC manquant signalé");
-    assert.ok(fixes.includes("link"), "orphelin signalé");
+describe("auditStructure", () => {
+  /** Vault minimal conforme : squelette système + INDEX aux catégories vides. */
+  function skeleton(): string {
+    const vault = tempDir("novahiz-sm-audit-");
+    for (const folder of ["Inbox", "Archive", "Templates", "Excalidraw"]) mkdirSync(join(vault, folder), { recursive: true });
+    writeFileSync(join(vault, "INDEX.md"), "# Second Memory\n\n## Categories\n\n## System\n", "utf8");
+    writeFileSync(join(vault, "log.md"), "# Log\n", "utf8");
+    writeFileSync(join(vault, "STRUCTURE.md"), "# Vault structure\n", "utf8");
+    return vault;
+  }
 
-    const dry = asJson(sm(["fix", "--json"]));
-    assert.ok(dry.renamed.some((line: string) => line.startsWith("would rename: Code/BAD NAME.md")), "dry-run annonce le renommage");
-    assert.ok(dry.mocCreated.some((line: string) => line.includes("Code/_MOC.md")), "dry-run annonce le MOC");
-
-    const apply = asJson(sm(["fix", "--apply", "--json"]));
-    assert.ok(existsSync(join(VAULT, "Code", "bad-name.md")), "fichier renommé en minuscules");
-    assert.ok(!existsSync(join(VAULT, "Code", "BAD NAME.md")), "ancien nom parti");
-    assert.ok(existsSync(join(VAULT, "Code", "_MOC.md")), "MOC créé");
-    assert.ok(existsSync(join(VAULT, "Archive", ".backup", "Code__BAD NAME.md.bak")), "backup du renommage");
-    assert.ok(apply.orphansLinked.some((line: string) => line.includes("Code/bad-name.md")), "orphelin relié");
-    assert.ok(readFileSync(join(VAULT, "INDEX.md"), "utf8").includes("[[Code/_MOC|Code MOC]]"), "MOC relié depuis INDEX");
-    assert.equal(asJson(sm(["lint", "--json"])).count, 0, "lint propre après correction");
-  });
-
-  test("sync crée une note à partir d'un slot mémoire", () => {
-    const { slot } = writeEntry({
-      title: "Trading plan",
-      description: "Plan de trading",
-      content: "Détails du plan de trading.",
-      tags: ["trading"],
-      root: MEM
+  test("vault conforme → audit entièrement vide", () => {
+    assert.deepEqual(auditStructure(skeleton()), {
+      missing: [],
+      rootNotes: [],
+      unknownFolders: [],
+      foldersWithoutMoc: [],
+      unlinked: [],
+      partialDomains: [],
+      indexDrift: []
     });
-
-    const dry = asJson(sm(["sync", "--json"]));
-    assert.equal(dry.apply, false, "sync dry-run par défaut");
-    assert.ok(
-      dry.actions.some((action: string) => action.startsWith("would create note: Trading/") && action.includes(slot.id)),
-      `dry-run annonce la note: ${JSON.stringify(dry.actions)}`
-    );
-
-    const apply = asJson(sm(["sync", "--apply", "--json"]));
-    assert.ok(apply.actions.some((action: string) => action.startsWith(`create note: Trading/${slot.id}`)), "note créée");
-    const notePath = join(VAULT, "Trading", `${slot.id}-trading-plan.md`);
-    assert.ok(existsSync(notePath), "fichier de note présent");
-    const noteText = readFileSync(notePath, "utf8");
-    assert.ok(noteText.includes(`novahiz_slot_id: ${slot.id}`), "frontmatter lié au slot");
-    assert.ok(noteText.includes("novahiz_synced_at"), "horodatage de synchro présent");
-    assert.ok(noteText.includes("Détails du plan de trading."), "contenu du slot dans la note");
-    assert.ok(existsSync(join(VAULT, "Trading", "_MOC.md")), "catégorie émergente avec MOC");
-
-    const again = asJson(sm(["sync", "--apply", "--json"]));
-    assert.equal(again.actions.length, 0, `sync stable: ${JSON.stringify(again.actions)}`);
-    assert.equal(asJson(sm(["lint", "--json"])).count, 0, "vault propre après création");
   });
 
-  test("sync tire dans la note une mise à jour du slot (pull)", () => {
-    const slot = loadIndex().slots.find((entry: any) => entry.title === "Trading plan");
-    assert.ok(slot, "slot présent dans l'index");
-    const notePath = join(VAULT, "Trading", `${slot.id}-trading-plan.md`);
-    const oldStamp = age(60).toISOString();
-    const noteText = readFileSync(notePath, "utf8");
-    writeFileSync(notePath, noteText.replace(/novahiz_synced_at: .*/, `novahiz_synced_at: ${oldStamp}`));
-    utimesSync(notePath, age(60), age(60));
-    updateSlot({ id: slot.id, root: MEM, mode: "append", content: "- ligne ajoutée dans le slot" });
-
-    const dry = asJson(sm(["sync", "--json"]));
-    assert.ok(
-      dry.actions.some((action: string) => action.startsWith(`would pull: slot ${slot.id}`)),
-      `dry-run annonce le pull: ${JSON.stringify(dry.actions)}`
-    );
-
-    const apply = asJson(sm(["sync", "--apply", "--json"]));
-    assert.ok(apply.actions.some((action: string) => action.startsWith(`pull: slot ${slot.id}`)), "pull exécuté");
-    const updated = readFileSync(notePath, "utf8");
-    assert.ok(updated.includes("ligne ajoutée dans le slot"), "contenu du slot tiré dans la note");
-    assert.ok(!updated.includes(`novahiz_synced_at: ${oldStamp}`), "horodatage de synchro rafraîchi");
-
-    const again = asJson(sm(["sync", "--apply", "--json"]));
-    assert.equal(again.actions.length, 0, `stable après pull: ${JSON.stringify(again.actions)}`);
+  test("dossier absent → missing", () => {
+    const audit = auditStructure(tempDir("novahiz-sm-audit-"));
+    for (const expected of ["INDEX.md", "STRUCTURE.md", "Inbox", "Archive", "Templates"]) {
+      assert.ok(audit.missing.includes(expected), `devrait signaler ${expected}`);
+    }
   });
 
-  test("sync écrit dans le slot une note modifiée (push)", () => {
-    const index = loadIndex();
-    const slot = index.slots.find((entry: any) => entry.title === "Trading plan");
-    assert.ok(slot, "slot présent dans l'index");
-    // Le slot devient plus ancien que la note : la note prime (last-writer-wins).
-    index.slots = index.slots.map((entry: any) =>
-      entry.id === slot.id ? { ...entry, updated: age(60).toISOString() } : entry
-    );
-    writeFileSync(indexPath(), JSON.stringify(index, null, 2), "utf8");
+  test("log.md disparu → signalé dans missing (le fichier systeme compte)", () => {
+    const vault = skeleton();
+    rmSync(join(vault, "log.md"), { force: true });
 
-    const notePath = join(VAULT, "Trading", `${slot.id}-trading-plan.md`);
-    const noteText = readFileSync(notePath, "utf8");
-    const edited = noteText
-      .replace(/novahiz_synced_at: .*/, `novahiz_synced_at: ${age(60).toISOString()}`)
-      .concat("\n- note enrichie par l'utilisateur\n");
-    writeFileSync(notePath, edited, "utf8");
-
-    const dry = asJson(sm(["sync", "--json"]));
-    assert.ok(
-      dry.actions.some((action: string) => action.startsWith(`would push: Trading/${slot.id}`)),
-      `dry-run annonce le push: ${JSON.stringify(dry.actions)}`
-    );
-
-    const apply = asJson(sm(["sync", "--apply", "--json"]));
-    assert.ok(apply.actions.some((action: string) => action.startsWith(`push: Trading/${slot.id}`)), "push exécuté");
-    const slotText = readFileSync(join(MEM, slot.file), "utf8");
-    assert.ok(slotText.includes("note enrichie par l'utilisateur"), "contenu de la note poussé dans le slot");
-
-    const again = asJson(sm(["sync", "--apply", "--json"]));
-    assert.equal(again.actions.length, 0, `stable après push: ${JSON.stringify(again.actions)}`);
+    const audit = auditStructure(vault);
+    assert.ok(audit.missing.includes("log.md"), "log.md doit figurer dans missing");
+    assert.deepEqual(audit.missing, ["log.md"], "rien d'autre n'a disparu");
   });
 
-  test("sync crée un slot depuis une note marquée novahiz_slot_sync", () => {
-    const flagged = join(VAULT, "Art", "flagged-note.md");
+  test("isCategoryDir exclut les dossiers systeme du catalogue, pas seulement les 3 historiques", () => {
+    // Excalidraw est declare systemFolder dans le catalogue : il ne doit pas
+    // etre traite comme une categorie (c'est ce qui injectait son MOC dans
+    // ## Categories et bloquait doctor a exit 1).
+    assert.equal(isCategoryDir("Excalidraw"), false);
+    assert.equal(isCategoryDir("Inbox"), false);
+    assert.equal(isCategoryDir("Archive"), false);
+    assert.equal(isCategoryDir("Templates"), false);
+    assert.equal(isCategoryDir("Trading"), true, "un domaine du catalogue reste une categorie");
+    assert.equal(isCategoryDir(".obsidian"), false, "les dossiers caches sont exclus");
+  });
+
+  test("note racine, MOC manquant et INDEX qui dérive sont tous détectés", () => {
+    const vault = skeleton();
+    writeNote(vault, "loose.md", "Loose", "du contenu");
+    mkdirSync(join(vault, "Code", "Mobile"), { recursive: true });
+    writeFileSync(join(vault, "INDEX.md"), "# Second Memory\n\n## Categories\n- [[Inbox/_MOC|Inbox MOC]]\n", "utf8");
+
+    const audit = auditStructure(vault);
+    assert.deepEqual(audit.rootNotes, ["loose.md"]);
+    // Les deux niveaux sont sans MOC, les deux sont réparables : le parent
+    // manquant ne masque jamais l'enfant.
+    assert.deepEqual(audit.foldersWithoutMoc, ["Code", "Code/Mobile"]);
+    assert.ok(audit.indexDrift.includes("INDEX missing [[Code/_MOC|Code MOC]]"));
+    assert.ok(audit.indexDrift.includes("INDEX stray [[Inbox/_MOC|Inbox MOC]]"));
+  });
+
+  test("dossier hors catalogue signalé, dossiers système laissés tranquilles", () => {
+    const vault = skeleton();
+    mkdirSync(join(vault, "Cours"), { recursive: true });
+
+    const audit = auditStructure(vault);
+    assert.deepEqual(audit.unknownFolders, ["Cours"]);
+    // Hors catalogue, la seule réparation automatisable est son MOC (le
+    // déplacement reste manuel — ce champ n'entre donc pas dans `remaining`).
+    // Inbox/Archive/Templates, eux, n'entrent dans aucune des deux listes.
+    assert.deepEqual(audit.foldersWithoutMoc, ["Cours"]);
+    assert.deepEqual(audit.rootNotes, []);
+    assert.deepEqual(audit.missing, []);
+  });
+
+  test("domaine à moitié construit → partialDomains", () => {
+    const vault = skeleton();
+    mkdirSync(join(vault, "Code", "Mobile"), { recursive: true });
+    writeFileSync(join(vault, "Code", "_MOC.md"), "# Code MOC\n", "utf8");
+    writeFileSync(join(vault, "Code", "Mobile", "_MOC.md"), "# Mobile MOC\n", "utf8");
+
+    const audit = auditStructure(vault);
+    assert.equal(audit.partialDomains.length, 1);
+    assert.match(audit.partialDomains[0], /^Code \(\d+ folder\(s\) missing\)$/);
+  });
+});
+
+// --- rewriteIndexCategories (convergence de doctor --apply) --------------------
+
+describe("rewriteIndexCategories", () => {
+  test("cree la section si absente — sinon --apply ne converge jamais", () => {
+    const vault = tempDir("novahiz-sm-index-");
+    writeFileSync(join(vault, "INDEX.md"), "# Second Memory\n\n## System\n- [[Inbox]]\n", "utf8");
+
+    rewriteIndexCategories(vault, "## Categories", ["[[Trading/_MOC|Trading MOC]]"]);
+
+    const index = readFileSync(join(vault, "INDEX.md"), "utf8");
+    assert.ok(index.includes("## Categories"), "la section doit etre creee");
+    assert.ok(index.includes("- [[Trading/_MOC|Trading MOC]]"));
+    assert.ok(
+      index.indexOf("## Categories") < index.indexOf("## System"),
+      "inseree avant ## System pour respecter la place convenue"
+    );
+  });
+
+  test("reecrit la section si presente, en retirant les liens obsoletes", () => {
+    const vault = tempDir("novahiz-sm-index-");
     writeFileSync(
-      flagged,
-      "---\ntype: wiki\ntitle: Flagged note\nnovahiz_slot_sync: true\ntags: [doc]\n---\n\n# Flagged note\n\n## Summary\nResume de la note.\n\n## Details\nDetails de la note.\n"
-    );
-    const before = loadIndex().slots.length;
-
-    const dry = asJson(sm(["sync", "--json"]));
-    assert.ok(
-      dry.actions.some((action: string) => action.startsWith("would create slot: Art/flagged-note.md")),
-      `dry-run annonce le slot: ${JSON.stringify(dry.actions)}`
+      join(vault, "INDEX.md"),
+      "# Second Memory\n\n## Categories\n- [[Old/_MOC|Old MOC]]\n\n## System\n- [[Inbox]]\n",
+      "utf8"
     );
 
-    const apply = asJson(sm(["sync", "--apply", "--json"]));
-    assert.ok(apply.actions.some((action: string) => action.startsWith("create slot: Art/flagged-note.md")), "slot créé");
-    assert.equal(loadIndex().slots.length, before + 1, "un slot de plus dans l'index");
-    assert.match(readFileSync(flagged, "utf8"), /novahiz_slot_id: slot-/, "note estampillée");
+    rewriteIndexCategories(vault, "## Categories", ["[[Trading/_MOC|Trading MOC]]"]);
 
-    const again = asJson(sm(["sync", "--apply", "--json"]));
-    assert.equal(again.actions.length, 0, `stable après création de slot: ${JSON.stringify(again.actions)}`);
+    const index = readFileSync(join(vault, "INDEX.md"), "utf8");
+    assert.ok(index.includes("- [[Trading/_MOC|Trading MOC]]"));
+    assert.ok(!index.includes("[[Old/_MOC"), "le lien obsolete doit disparaitre");
+  });
+});
 
-    // La note reste orpheline : le correctif la relie dans le MOC de sa catégorie.
-    asJson(sm(["fix", "--apply", "--json"]));
-    assert.equal(asJson(sm(["lint", "--json"])).count, 0, "vault propre en fin de parcours");
+// --- updateLinksAfterRename (liens apres renommage) -------------------------
+
+describe("updateLinksAfterRename", () => {
+  test("un rename met a jour les liens qui pointaient sur l'ancien nom", () => {
+    const vault = tempDir("novahiz-sm-relink-");
+    writeNote(vault, "00-README.md", "Test", "contenu");
+    writeNote(vault, "index.md", "Index", "voir [[00-README]] et [[00-README|alias]] puis [[00-README#section]]");
+
+    const updated = updateLinksAfterRename(vault, "00-README.md", "00-readme.md");
+
+    const index = readFileSync(join(vault, "index.md"), "utf8");
+    assert.ok(index.includes("[[00-readme]]"), "le lien basename doit etre mis a jour");
+    assert.ok(index.includes("[[00-readme|alias]]"), "le lien avec alias doit etre mis a jour");
+    assert.ok(index.includes("[[00-readme#section]]"), "le lien avec ancre doit etre mis a jour");
+    assert.ok(!index.includes("[[00-README]]"), "l'ancien lien doit disparaitre");
+    assert.ok(updated.includes("index.md"), "le fichier modifie doit etre rapporte");
   });
 
-  test("sync reconstruit une note legacy sans novahiz_synced_at (sens sûr)", () => {
-    const { slot } = writeEntry({ title: "Note legacy", description: "Slot riche", content: "- detail precieux du slot", tags: ["legacy"], root: MEM });
-    // Stub sans horodatage, comme créé par une version antérieure de la sync.
-    writeFileSync(
-      join(VAULT, "Trading", `${slot.id}-note-legacy.md`),
-      `---\ntype: resource\ntitle: Note legacy\nnovahiz_slot_id: ${slot.id}\ntags: [legacy]\n---\n\n# Note legacy\n\n## Summary\nStub.\n`
-    );
+  test("un rename de chemin met a jour les liens en forme chemin complet", () => {
+    const vault = tempDir("novahiz-sm-relink-");
+    mkdirSync(join(vault, "Trading", "Strategies", "docs"), { recursive: true });
+    writeNote(vault, "Trading/Strategies/docs/00-README.md", "Test", "contenu");
+    writeNote(vault, "Trading/Strategies/docs/_MOC.md", "MOC", "- [[Trading/Strategies/docs/00-README]]");
 
-    const dry = asJson(sm(["sync", "--json"]));
-    assert.ok(
-      dry.actions.some((action: string) => action.startsWith(`would rebuild: Trading/${slot.id}-note-legacy.md`)),
-      `dry-run annonce le rebuild: ${JSON.stringify(dry.actions)}`
-    );
-    assert.ok(!dry.actions.some((action: string) => action.includes("push")), "aucune poussée destructive");
+    updateLinksAfterRename(vault, "Trading/Strategies/docs/00-README.md", "Trading/Strategies/docs/00-readme.md");
 
-    const slotBefore = readFileSync(join(MEM, slot.file), "utf8");
-    const apply = asJson(sm(["sync", "--apply", "--json"]));
-    assert.ok(apply.actions.some((action: string) => action.startsWith(`rebuild: Trading/${slot.id}-note-legacy.md`)), "rebuild exécuté");
+    const moc = readFileSync(join(vault, "Trading", "Strategies", "docs", "_MOC.md"), "utf8");
+    assert.ok(moc.includes("[[Trading/Strategies/docs/00-readme]]"), "le lien chemin complet doit etre mis a jour");
+    assert.ok(!moc.includes("00-README"), "l'ancien nom doit disparaitre");
+  });
+});
 
-    const noteText = readFileSync(join(VAULT, "Trading", `${slot.id}-note-legacy.md`), "utf8");
-    assert.ok(noteText.includes("detail precieux du slot"), "contenu du slot dans la note reconstruite");
-    assert.ok(noteText.includes("novahiz_synced_at"), "horodatage posé après rebuild");
-    assert.equal(readFileSync(join(MEM, slot.file), "utf8"), slotBefore, "mémoire inchangée (jamais écrasée)");
-    assert.equal(asJson(sm(["sync", "--apply", "--json"])).actions.length, 0, "stable après rebuild");
+// --- doctor, de bout en bout -------------------------------------------------
 
-    asJson(sm(["fix", "--apply", "--json"]));
-    assert.equal(asJson(sm(["lint", "--json"])).count, 0, "vault propre");
+describe("second-memory doctor (bout en bout)", () => {
+  test("init crée le squelette canonique et est idempotent", () => {
+    const vault = vaultOf("novahiz-sm-e2e-");
+    const first = run(["second-memory", "init", "--no-plugins"], vault);
+    assert.equal(first.code, 0, output(first));
+
+    for (const item of ["INDEX.md", "log.md", "STRUCTURE.md", "Inbox", "Archive", "Templates", "Templates/project.md"]) {
+      assert.ok(existsSync(join(vault, item)), `manquant après init: ${item}`);
+    }
+    assert.ok(!existsSync(join(vault, ".obsidian")), "--no-plugins ne doit rien télécharger");
+
+    const second = run(["second-memory", "init", "--no-plugins"], vault);
+    assert.equal(second.code, 0, output(second));
+    assert.match(output(second), /already initialized/);
   });
 
-  test("status résume le vault, les catégories et la mémoire", () => {
-    const run = sm(["status", "--json"]);
-    assert.equal(run.status, 0, "status exits 0");
-    const value = asJson(run);
-    assert.equal(value.exists, true);
-    assert.ok(value.notes > 0, "notes comptées");
-    assert.ok(value.categories.includes("Trading"), "catégorie Trading émergente");
-    assert.equal(value.issues, 0, "aucune issue résiduelle");
-    assert.equal(value.memory, MEM, "racine mémoire résolue");
+  test("log.md supprimé: doctor sort en 1, --apply le recrée et retombe à 0", () => {
+    const vault = vaultOf("novahiz-sm-e2e-");
+    run(["second-memory", "init", "--no-plugins"], vault);
+    assert.ok(existsSync(join(vault, "log.md")));
+    rmSync(join(vault, "log.md"), { force: true });
+
+    const dry = run(["second-memory", "doctor", "--no-plugins", "--json"], vault);
+    assert.equal(dry.code, 1, `un fichier systeme absent doit faire sortir en 1: ${output(dry)}`);
+    assert.ok((JSON.parse(dry.stdout) as { remaining: number }).remaining >= 1);
+    assert.match((JSON.parse(dry.stdout) as { checks: Array<{ name: string; detail: string }> }).checks
+      .find((check) => check.name === "skeleton")?.detail ?? "", /log\.md/);
+
+    // La réparation existe déjà : missing non vide → initVault (L1795-1799).
+    const apply = run(["second-memory", "doctor", "--apply", "--no-plugins", "--json"], vault);
+    assert.equal(apply.code, 0, `--apply doit converger: ${output(apply)}`);
+    assert.ok(existsSync(join(vault, "log.md")), "log.md doit avoir été recréé");
+  });
+
+  test("renommage casse seule: un fichier majuscule passe en minuscules (faux positif Windows)", () => {
+    const vault = vaultOf("novahiz-sm-e2e-");
+    run(["second-memory", "init", "--no-plugins"], vault);
+    // Le cas reel du bug : un fichier avec majuscules dans un dossier categorie.
+    writeNote(vault, "Trading/Strategies/docs/00-README.md", "Test", "contenu");
+
+    const apply = run(["second-memory", "doctor", "--apply", "--no-plugins", "--json"], vault);
+    assert.equal(apply.code, 0, output(apply));
+    assert.ok(
+      existsSync(join(vault, "Trading", "Strategies", "docs", "00-readme.md")),
+      "le fichier doit etre renomme en minuscules"
+    );
+  });
+
+  // Garde-fou : un fichier déclaré `systemFile` mais jamais créé par init rend
+  // tout diagnostic non convergent (cas README.md, corrigé le 2026-10-07).
+  test("systemFiles du catalogue ⊆ fichiers réellement créés par init", () => {
+    const catalog = JSON.parse(readFileSync(join(repoRoot, "catalog", "vault-structure.json"), "utf8")) as {
+      systemFiles: string[];
+    };
+    assert.ok(Array.isArray(catalog.systemFiles) && catalog.systemFiles.length > 0);
+
+    const vault = vaultOf("novahiz-sm-e2e-");
+    const init = run(["second-memory", "init", "--no-plugins"], vault);
+    assert.equal(init.code, 0, output(init));
+
+    for (const file of catalog.systemFiles) {
+      assert.ok(existsSync(join(vault, file)), `${file} est déclaré systemFile mais init ne le crée pas`);
+    }
+  });
+
+  test("exit 1 tant qu'une note reste à la racine, exit 0 après --apply", () => {
+    const vault = vaultOf("novahiz-sm-e2e-");
+    run(["second-memory", "init", "--no-plugins"], vault);
+    writeNote(vault, "note-vide.md", "Courses du samedi", "Pain, lait, fromage.");
+
+    const dry = run(["second-memory", "doctor", "--no-plugins", "--json"], vault);
+    assert.equal(dry.code, 1, `un doctor sur un vault non conforme doit sortir en 1: ${output(dry)}`);
+    assert.equal((JSON.parse(dry.stdout) as { remaining: number }).remaining, 1);
+
+    const apply = run(["second-memory", "doctor", "--apply", "--no-plugins", "--json"], vault);
+    assert.equal(apply.code, 0, output(apply));
+    assert.ok(existsSync(join(vault, "Inbox", "note-vide.md")), "note sans signal garee dans Inbox, pas a la racine");
+    assert.ok(!existsSync(join(vault, "note-vide.md")), "la note a bien quitte la racine");
+
+    const again = run(["second-memory", "doctor", "--no-plugins", "--json"], vault);
+    assert.equal(again.code, 0, `le vault repare doit retomber a 0: ${output(again)}`);
+    assert.equal((JSON.parse(again.stdout) as { remaining: number }).remaining, 0);
+  });
+
+  test("routage de bout en bout: chaque note a son emplacement predetermine", () => {
+    const vault = vaultOf("novahiz-sm-e2e-");
+    run(["second-memory", "init", "--no-plugins"], vault);
+
+    const expected: Record<string, string> = {
+      "a-owasp.md": "Security/Audits/docs/general/a-owasp.md",
+      "b-flutter.md": "Code/Mobile/memory/general/b-flutter.md",
+      "c-journal.md": "Journal/Daily/c-journal.md",
+      "d-sidecar.md": "DevOps/Infra/memory/general/d-sidecar.md",
+      "e-crypto.md": "Trading/Strategies/memory/general/e-crypto.md",
+      "f-figma.md": "Design/Interface/memory/general/f-figma.md"
+    };
+    const bodies: Record<string, [string, string]> = {
+      "a-owasp.md": ["Revue de securite checklist OWASP", "Audit de l'API et durcissement."],
+      "b-flutter.md": ["Flutter state management", "Comment empecher les rebuilds inutiles."],
+      "c-journal.md": ["Rappel dentiste", "Appeler le cabinet mardi matin."],
+      "d-sidecar.md": ["Pattern sidecar", "Le sidecar porte le proxy du pod, proxy kubernetes."],
+      "e-crypto.md": ["Strategie crypto", "Setup de trading sur le marche, backtest."],
+      "f-figma.md": ["Maquette Figma", "Ecran et layout du dashboard, navigation."]
+    };
+    for (const [rel, [title, body]] of Object.entries(bodies)) writeNote(vault, rel, title, body);
+
+    const apply = run(["second-memory", "doctor", "--apply", "--no-plugins", "--json"], vault);
+    assert.equal(apply.code, 0, output(apply));
+
+    for (const [note, rel] of Object.entries(expected)) {
+      assert.ok(existsSync(join(vault, rel)), `${note} aurait du atterrir en ${rel}`);
+      assert.ok(!existsSync(join(vault, note)), `${note} ne doit plus etre a la racine`);
+    }
+
+    // Un seul point d'entree: l'INDEX ne liste que les domaines actifs.
+    const index = readFileSync(join(vault, "INDEX.md"), "utf8");
+    for (const domain of ["Code", "Trading", "Design", "DevOps", "Security", "Journal"]) {
+      assert.ok(index.includes(`- [[${domain}/_MOC|${domain} MOC]]`), `INDEX doit lier ${domain}`);
+    }
+    assert.ok(!index.includes("[[Inbox/_MOC"), "les dossiers systeme n'entrent pas dans ## Categories");
+
+    // Chaque dossier cree possede son MOC et est relie a son parent.
+    for (const folder of ["Code", "Code/Mobile", "Code/Mobile/memory", "Security", "Security/Audits"]) {
+      assert.ok(existsSync(join(vault, folder, "_MOC.md")), `${folder} sans _MOC.md`);
+    }
+
+    const lint = run(["second-memory", "lint"], vault);
+    assert.equal(lint.code, 0, output(lint));
+    assert.match(output(lint), /no issues found/);
   });
 });

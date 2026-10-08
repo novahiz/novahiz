@@ -1,0 +1,366 @@
+{
+  "version": 1,
+  "index": "INDEX.md",
+  "log": "log.md",
+  "structureFile": "STRUCTURE.md",
+  "moc": "_MOC.md",
+  "indexSection": "Categories",
+  "systemFolders": ["Inbox", "Archive", "Templates", "Excalidraw"],
+  "systemFiles": ["INDEX.md", "log.md", "STRUCTURE.md"],
+  "defaultProject": "general",
+  "domains": [
+    {
+      "id": "code",
+      "name": "Code",
+      "title": "Code",
+      "kind": "domain",
+      "keywords": ["code", "coding", "dev", "developer", "programming", "software", "logiciel", "app", "application", "api", "cli", "npm", "git", "repo", "frontend", "backend", "stack", "compilation", "build"],
+      "children": [
+        {
+          "id": "mobile",
+          "name": "Mobile",
+          "title": "Mobile",
+          "kind": "branch",
+          "keywords": ["mobile", "flutter", "expo", "react native", "android", "ios", "kotlin", "swift", "xcode", "apk", "ipa", "emulator", "emu", "device", "playstore", "app store"],
+          "children": [
+            { "id": "memory", "name": "memory", "title": "Memory", "kind": "memory" },
+            { "id": "docs", "name": "docs", "title": "Docs", "kind": "docs" }
+          ]
+        },
+        {
+          "id": "web",
+          "name": "Web",
+          "title": "Web",
+          "kind": "branch",
+          "keywords": ["web", "nextjs", "next.js", "react", "vue", "angular", "spa", "ssr", "site", "website", "frontend", "html", "css", "tailwind", "browser", "responsive"],
+          "children": [
+            { "id": "memory", "name": "memory", "title": "Memory", "kind": "memory" },
+            { "id": "docs", "name": "docs", "title": "Docs", "kind": "docs" }
+          ]
+        },
+        {
+          "id": "desktop",
+          "name": "Desktop",
+          "title": "Desktop",
+          "kind": "branch",
+          "keywords": ["desktop", "windows", "linux", "mac", "macos", "ubuntu", "electron", "tauri", "winui", "winforms", "qt", "bureau", "exe", "appimage", "deb"],
+          "children": [
+            { "id": "memory", "name": "memory", "title": "Memory", "kind": "memory" },
+            { "id": "docs", "name": "docs", "title": "Docs", "kind": "docs" }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "trading",
+      "name": "Trading",
+      "title": "Trading",
+      "kind": "domain",
+      "keywords": ["trading", "trader", "finance", "financial", "crypto", "bourse", "forex", "invest", "investment", "investissement", "market", "marche", "marché", "strategy", "strategie", "stratégie", "chart", "indicator", "order", "position", "portfolio"],
+      "children": [
+        {
+          "id": "markets",
+          "name": "Markets",
+          "title": "Markets",
+          "kind": "branch",
+          "keywords": ["market", "marche", "marché", "crypto", "forex", "action", "stock", "indice", "index", "volatility", "volatilite", "tendance"],
+          "children": [
+            { "id": "memory", "name": "memory", "title": "Memory", "kind": "memory" },
+            { "id": "docs", "name": "docs", "title": "Docs", "kind": "docs" }
+          ]
+        },
+        {
+          "id": "strategies",
+          "name": "Strategies",
+          "title": "Strategies",
+          "kind": "branch",
+          "keywords": ["strategy", "strategie", "stratégie", "setup", "backtest", "signal", "risk", "risque", "money management", "entry", "sortie"],
+          "children": [
+            { "id": "memory", "name": "memory", "title": "Memory", "kind": "memory" },
+            { "id": "docs", "name": "docs", "title": "Docs", "kind": "docs" }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "ai",
+      "name": "AI",
+      "title": "AI & Data",
+      "kind": "domain",
+      "keywords": ["ai", "ia", "artificial intelligence", "intelligence artificielle", "machine learning", "llm", "gpt", "model", "modele", "modèle", "dataset", "data", "donnee", "données", "nlp", "prompt", "neural", "deep learning", "analytics", "statistique", "rag", "embedding"],
+      "children": [
+        {
+          "id": "models",
+          "name": "Models",
+          "title": "Models",
+          "kind": "branch",
+          "keywords": ["model", "modele", "modèle", "llm", "gpt", "prompt", "fine-tune", "inference", "agent", "pipeline ia", "embedding", "rag"],
+          "children": [
+            { "id": "memory", "name": "memory", "title": "Memory", "kind": "memory" },
+            { "id": "docs", "name": "docs", "title": "Docs", "kind": "docs" }
+          ]
+        },
+        {
+          "id": "datasets",
+          "name": "Datasets",
+          "title": "Datasets",
+          "kind": "branch",
+          "keywords": ["dataset", "data", "donnee", "données", "csv", "etl", "analytics", "statistique", "dashboard", "mesure", "metric"],
+          "children": [
+            { "id": "memory", "name": "memory", "title": "Memory", "kind": "memory" },
+            { "id": "docs", "name": "docs", "title": "Docs", "kind": "docs" }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "design",
+      "name": "Design",
+      "title": "Design",
+      "kind": "domain",
+      "keywords": ["design", "ui", "ux", "figma", "maquette", "mockup", "wireframe", "couleur", "color", "typographie", "typography", "token", "branding", "logo", "icon", "icône", "interface", "charte", "responsive design"],
+      "children": [
+        {
+          "id": "systems",
+          "name": "Systems",
+          "title": "Systems",
+          "kind": "branch",
+          "keywords": ["design system", "token", "palette", "typographie", "typography", "composant", "component", "guideline", "charte", "branding", "logo", "icon", "icône"],
+          "children": [
+            { "id": "memory", "name": "memory", "title": "Memory", "kind": "memory" },
+            { "id": "docs", "name": "docs", "title": "Docs", "kind": "docs" }
+          ]
+        },
+        {
+          "id": "interface",
+          "name": "Interface",
+          "title": "Interface",
+          "kind": "branch",
+          "keywords": ["maquette", "mockup", "wireframe", "figma", "ecran", "écran", "page", "screen", "layout", "navigation", "ux", "parcours"],
+          "children": [
+            { "id": "memory", "name": "memory", "title": "Memory", "kind": "memory" },
+            { "id": "docs", "name": "docs", "title": "Docs", "kind": "docs" }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "devops",
+      "name": "DevOps",
+      "title": "DevOps",
+      "kind": "domain",
+      "keywords": ["devops", "ci", "cd", "docker", "kubernetes", "k8s", "terraform", "cloud", "aws", "azure", "gcp", "deploy", "deploiement", "déploiement", "pipeline", "server", "serveur", "nginx", "vm", "container", "monitoring", "observabilite", "observabilité"],
+      "children": [
+        {
+          "id": "infra",
+          "name": "Infra",
+          "title": "Infra",
+          "kind": "branch",
+          "keywords": ["infra", "server", "serveur", "cloud", "aws", "azure", "gcp", "vm", "network", "reseau", "réseau", "dns", "storage", "backup", "kubernetes", "k8s", "docker", "container"],
+          "children": [
+            { "id": "memory", "name": "memory", "title": "Memory", "kind": "memory" },
+            { "id": "docs", "name": "docs", "title": "Docs", "kind": "docs" }
+          ]
+        },
+        {
+          "id": "pipelines",
+          "name": "Pipelines",
+          "title": "Pipelines",
+          "kind": "branch",
+          "keywords": ["ci", "cd", "pipeline", "workflow", "github actions", "gitlab", "build", "release", "deploy", "deploiement", "déploiement", "monitoring", "alerte", "log"],
+          "children": [
+            { "id": "memory", "name": "memory", "title": "Memory", "kind": "memory" },
+            { "id": "docs", "name": "docs", "title": "Docs", "kind": "docs" }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "security",
+      "name": "Security",
+      "title": "Security",
+      "kind": "domain",
+      "keywords": ["security", "securite", "sécurité", "audit", "vulnerability", "vulnérabilité", "cve", "owasp", "pentest", "ransomware", "malware", "auth", "token", "encryption", "chiffrement", "secret", "incident", "hardening"],
+      "children": [
+        {
+          "id": "audits",
+          "name": "Audits",
+          "title": "Audits",
+          "kind": "branch",
+          "keywords": ["audit", "review", "scan", "pentest", "checklist", "compliance", "conformite", "conformité", "rapport", "hardening", "review sécurité"],
+          "children": [
+            { "id": "memory", "name": "memory", "title": "Memory", "kind": "memory" },
+            { "id": "docs", "name": "docs", "title": "Docs", "kind": "docs" }
+          ]
+        },
+        {
+          "id": "threats",
+          "name": "Threats",
+          "title": "Threats",
+          "kind": "branch",
+          "keywords": ["threat", "menace", "cve", "vulnerability", "vulnérabilité", "incident", "breach", "malware", "ransomware", "phishing", "exploit"],
+          "children": [
+            { "id": "memory", "name": "memory", "title": "Memory", "kind": "memory" },
+            { "id": "docs", "name": "docs", "title": "Docs", "kind": "docs" }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "business",
+      "name": "Business",
+      "title": "Business",
+      "kind": "domain",
+      "keywords": ["business", "marketing", "startup", "offer", "offre", "sales", "vente", "client", "revenue", "revenu", "growth", "croissance", "seo", "brand", "communaute", "communauté", "pricing", "prix", "funnel", "acquisition"],
+      "children": [
+        {
+          "id": "offers",
+          "name": "Offers",
+          "title": "Offers",
+          "kind": "branch",
+          "keywords": ["offer", "offre", "produit", "product", "pricing", "prix", "positionnement", "value proposition", "client", "contrat", "deal"],
+          "children": [
+            { "id": "memory", "name": "memory", "title": "Memory", "kind": "memory" },
+            { "id": "docs", "name": "docs", "title": "Docs", "kind": "docs" }
+          ]
+        },
+        {
+          "id": "growth",
+          "name": "Growth",
+          "title": "Growth",
+          "kind": "branch",
+          "keywords": ["growth", "croissance", "marketing", "seo", "ads", "publicite", "publicité", "funnel", "acquisition", "communaute", "communauté", "audience", "conversion", "retention"],
+          "children": [
+            { "id": "memory", "name": "memory", "title": "Memory", "kind": "memory" },
+            { "id": "docs", "name": "docs", "title": "Docs", "kind": "docs" }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "learning",
+      "name": "Learning",
+      "title": "Learning",
+      "kind": "domain",
+      "keywords": ["learning", "cours", "course", "formation", "tutorial", "tutoriel", "etude", "étude", "study", "ecole", "école", "school", "universite", "université", "livre", "book", "certification", "apprendre", "revision", "révision"],
+      "children": [
+        {
+          "id": "courses",
+          "name": "Courses",
+          "title": "Courses",
+          "kind": "branch",
+          "keywords": ["cours", "course", "formation", "tutorial", "tutoriel", "mooc", "certification", "module", "lesson", "leçon", "exercice"],
+          "children": [
+            { "id": "memory", "name": "memory", "title": "Memory", "kind": "memory" },
+            { "id": "docs", "name": "docs", "title": "Docs", "kind": "docs" }
+          ]
+        },
+        {
+          "id": "notes",
+          "name": "Study-Notes",
+          "title": "Study Notes",
+          "kind": "branch",
+          "keywords": ["note", "fiche", "synthese", "synthèse", "revision", "révision", "flashcard", "ancret", "mémoire", "dissertation", "resume", "résumé"],
+          "children": [
+            { "id": "memory", "name": "memory", "title": "Memory", "kind": "memory" },
+            { "id": "docs", "name": "docs", "title": "Docs", "kind": "docs" }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "wiki",
+      "name": "Wiki",
+      "title": "Wiki",
+      "kind": "domain",
+      "keywords": ["wiki", "doc", "docs", "documentation", "guide", "reference", "référence", "manuel", "howto", "how-to", "faq", "glossary", "glossaire", "spec", "specification", "spécification", "convention", "best practice"],
+      "children": [
+        {
+          "id": "guides",
+          "name": "Guides",
+          "title": "Guides",
+          "kind": "branch",
+          "keywords": ["guide", "howto", "how-to", "tutoriel", "recipe", "recette", "procedure", "procédure", "checklist", "bonne pratique", "best practice"],
+          "children": [
+            { "id": "memory", "name": "memory", "title": "Memory", "kind": "memory" },
+            { "id": "docs", "name": "docs", "title": "Docs", "kind": "docs" }
+          ]
+        },
+        {
+          "id": "reference",
+          "name": "Reference",
+          "title": "Reference",
+          "kind": "branch",
+          "keywords": ["reference", "référence", "manuel", "faq", "glossary", "glossaire", "spec", "specification", "spécification", "convention", "definition", "définition", "api"],
+          "children": [
+            { "id": "memory", "name": "memory", "title": "Memory", "kind": "memory" },
+            { "id": "docs", "name": "docs", "title": "Docs", "kind": "docs" }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "journal",
+      "name": "Journal",
+      "title": "Journal",
+      "kind": "domain",
+      "keywords": ["journal", "daily", "quotidien", "diary", "journal intime", "note rapide", "braindump", "weekly review", "review hebdo", "retour", "reflection", "réflexion"],
+      "children": [
+        {
+          "id": "daily",
+          "name": "Daily",
+          "title": "Daily",
+          "kind": "notes",
+          "keywords": ["daily", "quotidien", "jour", "matin", "soir", "aujourd'hui", "date"],
+          "children": []
+        },
+        {
+          "id": "weekly",
+          "name": "Weekly",
+          "title": "Weekly",
+          "kind": "notes",
+          "keywords": ["weekly", "hebdo", "semaine", "review", "bilan"],
+          "children": []
+        }
+      ]
+    },
+    {
+      "id": "projects",
+      "name": "Projects",
+      "title": "Projects",
+      "kind": "domain",
+      "keywords": ["project", "projet", "roadmap", "milestone", "jalon", "sprint", "todo", "tache", "tâche", "objective", "objectif", "release", "livraison"],
+      "children": [
+        {
+          "id": "active",
+          "name": "Active",
+          "title": "Active",
+          "kind": "notes",
+          "keywords": ["active", "en cours", "encours", "wip", "sprint", "todo", "tache", "tâche"],
+          "children": []
+        },
+        {
+          "id": "archived",
+          "name": "Archived",
+          "title": "Archived",
+          "kind": "notes",
+          "keywords": ["archived", "archive", "termine", "terminé", "done", "clos", "livre", "shipped"],
+          "children": []
+        }
+      ]
+    }
+  ],
+  "docsKeywords": ["doc", "docs", "documentation", "guide", "reference", "référence", "manuel", "spec", "specification", "spécification", "readme", "api", "tutorial", "tutoriel", "howto", "how-to", "convention", "architecture", "glossaire", "glossary", "faq"],
+  "plugins": [
+    { "id": "dataview", "repo": "blacksmithgu/obsidian-dataview", "required": true },
+    { "id": "templater-obsidian", "repo": "silentvoid13/Templater", "required": true },
+    { "id": "obsidian-linter", "repo": "platers/obsidian-linter", "required": true },
+    { "id": "omnisearch", "repo": "scambier/obsidian-omnisearch", "required": true },
+    { "id": "recent-files-obsidian", "repo": "tgrosinger/recent-files-obsidian", "required": true },
+    { "id": "tag-wrangler", "repo": "pjeby/tag-wrangler", "required": true },
+    { "id": "periodic-notes", "repo": "liamcain/obsidian-periodic-notes", "required": true },
+    { "id": "calendar", "repo": "liamcain/obsidian-calendar-plugin", "required": true },
+    { "id": "obsidian-excalidraw-plugin", "repo": "zsviczian/obsidian-excalidraw-plugin", "required": true },
+    { "id": "obsidian-style-settings", "repo": "obsidian-community/obsidian-style-settings", "required": true }
+  ]
+}
