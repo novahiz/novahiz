@@ -1,21 +1,21 @@
-// `novahiz second-memory` — vault Obsidian dynamique synchronisé avec la mémoire novahiz.
-// Structure PARA + MOC, catégories émergentes, auto-correction, sync bidirectionnel.
+// `novahiz second-memory` — vault Obsidian dynamique, structure PARA + MOC,
+// catégories émergentes, auto-correction. La mémoire d'un projet reste LOCALE
+// au projet (MEMORY.md + project-memory/) : le vault ne reçoit jamais de slots.
 // Vault par défaut : ~/Documents/second-memory ; NOVAHIZ_SM_VAULT le redirige (tests hermétiques).
 // Mémoire : NOVAHIZ_SM_MEMORY, sinon ~/.config/project-memory, sinon la racine workspace.
 //
-// Sync — last-writer-wins guidé par le frontmatter `novahiz_synced_at` :
-// - push (note → slot) quand la note a changé depuis la dernière synchro ;
-// - pull (slot → note) quand le slot a changé depuis la dernière synchro ;
-// - égalité des horodatages dans SYNC_TOLERANCE_MS : rien à faire (stabilité) ;
-// - note sans `novahiz_synced_at` (créée par une version antérieure) : rebuild note ← slot ;
-// - création de note pour un slot actif sans note, création de slot pour une
-//   note marquée `novahiz_slot_sync: true` sans `novahiz_slot_id` (opt-in).
-import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, statSync, writeFileSync } from "node:fs";
+// `sync` — sortie des notes de l'ancien miroir :
+// - archive les notes portant `novahiz_slot_id` (dry-run les liste, --apply les
+//   place sous Archive/.backup) : elles étaient des copies de slots ;
+// - conserve les notes importées depuis le vault (`novahiz_slot_sync: true`) ;
+// - import inverse opt-in : note marquée `novahiz_slot_sync: true` sans
+//   `novahiz_slot_id` → création du slot en mémoire locale.
+import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 import { homedir } from "node:os";
 
 import { emit, flagOn, type Parsed } from "./context.ts";
-import { createSlot, MAX_SUMMARY_CHARS, readIndex, readSlot, resolveMemoryDir, updateSlot, type SlotMeta } from "../memory.ts";
+import { createSlot, resolveMemoryDir, updateSlot } from "../memory.ts";
 import { NovahizHome, packageRoot } from "../spec.ts";
 import { stitchConfigured } from "./stitch.ts";
 
@@ -28,9 +28,6 @@ const MOC_FILE = "_MOC.md";
 /** Chemin de lien d'un MOC : sans extension, forme canonique `[[X/_MOC|X MOC]]`. */
 const MOC_ID = MOC_FILE.slice(0, -3);
 const BACKUP_DIR = ".backup";
-// Deux écritures plus rapprochées que ça comptent comme synchronisées :
-// la mtime fraîche d'une note qu'on vient d'écrire ne doit pas repartir en push.
-const SYNC_TOLERANCE_MS = 1500;
 
 // --- Arborescence canonique -------------------------------------------------
 // L'arborescence du vault est FIXE : elle est gravée dans le skill
@@ -471,12 +468,6 @@ ${related.map((link) => `- ${link}`).join("\n")}
 `;
 }
 
-function parseIso(value: string | undefined): number {
-  if (!value) return 0;
-  const time = Date.parse(value);
-  return Number.isNaN(time) ? 0 : time;
-}
-
 function todayIso(): string {
   return new Date().toISOString().slice(0, 10);
 }
@@ -798,27 +789,6 @@ function writeNote(vault: string, rel: string, fm: Record<string, string>, body:
   let text = renderFrontmatter(fm) + normalized;
   if (!text.endsWith("\n")) text += "\n";
   writeFileSync(join(vault, rel), text, "utf8");
-}
-
-function renderSlotNote(
-  slot: SlotMeta,
-  parts: { summary: string; details: string },
-  syncedAt: string,
-  keep: VaultNote | null
-): { fm: Record<string, string>; body: string } {
-  const fm: Record<string, string> = {};
-  fm.type = keep?.frontmatter.type ?? "resource";
-  fm.title = slot.title;
-  fm.created = keep?.frontmatter.created ?? syncedAt.slice(0, 10);
-  fm.updated = syncedAt.slice(0, 10);
-  fm.status = keep?.frontmatter.status ?? "active";
-  fm.tags = `[${slot.tags.join(", ")}]`;
-  fm.novahiz_slot_id = slot.id;
-  fm.novahiz_synced_at = syncedAt;
-  let body = `# ${slot.title}`;
-  if (parts.summary.length > 0) body += `\n\n## Summary\n${parts.summary}`;
-  if (parts.details.length > 0) body += `\n\n## Details\n${parts.details}`;
-  return { fm, body };
 }
 
 function extractSection(body: string, name: string): string | null {
@@ -1395,16 +1365,17 @@ function fixVault(apply: boolean): FixReport {
   return report;
 }
 
-function slotBody(memory: string, slot: SlotMeta): { summary: string; details: string } {
-  const file = readSlot(memory, slot);
-  return { summary: file.body.summary ?? "", details: file.body.details ?? "" };
-}
-
 function stampNote(vault: string, note: VaultNote, extra: Record<string, string>): void {
   const fm: Record<string, string> = { ...note.frontmatter, ...extra, updated: todayIso() };
   writeNote(vault, note.rel, fm, note.body);
 }
 
+/** Le miroir slot <-> vault n'existe plus : la mémoire d'un projet reste
+ *  locale au projet (MEMORY.md + project-memory/), jamais écrite dans le vault.
+ *  `sync` sort donc du vault les notes produites par l'ancien miroir
+ *  (`novahiz_slot_id`, sauf les notes importées depuis le vault, marquées
+ *  `novahiz_slot_sync: true`) : dry-run les liste, --apply les archive sous
+ *  Archive/.backup. Seul autre rôle : l'import inverse note -> slot (opt-in). */
 function syncWithMemory(apply: boolean): SyncReport {
   const vault = vaultPath();
   const report: SyncReport = { apply, vault, memory: "", actions: [], warnings: [] };
@@ -1419,16 +1390,8 @@ function syncWithMemory(apply: boolean): SyncReport {
   }
   report.memory = memory;
 
-  let index;
-  try {
-    index = readIndex(memory);
-  } catch {
-    report.warnings.push("memory index unreadable");
-    return report;
-  }
-
   const vi = buildVaultIndex(vault);
-  const notesBySlot = new Map<string, VaultNote>();
+  const mirrored: VaultNote[] = [];
   const flagged: VaultNote[] = [];
   for (const rel of vi.notes) {
     if (isTemplateFile(rel) || isSystemFile(rel)) continue;
@@ -1436,116 +1399,27 @@ function syncWithMemory(apply: boolean): SyncReport {
     if (!note) continue;
     const slotId = note.frontmatter.novahiz_slot_id;
     if (slotId) {
-      notesBySlot.set(slotId, note);
+      // Import inverse (opt-in) : la note est venue du vault, elle y reste.
+      if ((note.frontmatter.novahiz_slot_sync ?? "").toLowerCase() !== "true") mirrored.push(note);
     } else if ((note.frontmatter.novahiz_slot_sync ?? "").toLowerCase() === "true") {
       flagged.push(note);
     }
   }
 
-  for (const slot of index.slots) {
-    if (slot.status !== "active") continue;
-    const note = notesBySlot.get(slot.id);
-
-    if (!note) {
-      const signal = `${slot.title} ${slot.description} ${(slot.tags ?? []).join(" ")}`;
-      const tagged = (slot.tags ?? []).map((tag) => tag.trim()).find((tag) => tag.toLowerCase().startsWith("project:"));
-      const segments = routePath(signal, "memory", tagged ? tagged.slice("project:".length).trim() : undefined);
-      const dir = segments.length > 0 ? segments[segments.length - 1].rel : INBOX_DIR;
-      const rel = `${dir}/${slot.id}-${slugify(slot.title)}.md`;
-      report.actions.push(`${apply ? "create note" : "would create note"}: ${rel} ← slot ${slot.id}`);
-      if (apply) {
-        try {
-          const body = slotBody(memory, slot);
-          const target = ensureTarget(vault, segments);
-          const rendered = renderSlotNote(slot, body, new Date().toISOString(), null);
-          writeNote(vault, `${target}/${basename(rel)}`, rendered.fm, rendered.body);
-          const mocRel = `${target}/${MOC_FILE}`;
-          if (existsSync(join(vault, mocRel))) {
-            addLinkToSection(vault, mocRel, "## Notes", `[[${target}/${basename(rel, ".md")}]]`);
-          }
-        } catch (error) {
-          report.warnings.push(`create note ${slot.id}: ${String(error).slice(0, 200)}`);
-        }
-      }
-      continue;
-    }
-
-    const stamp = note.frontmatter.novahiz_synced_at;
-    if (!stamp) {
-      // Note créée par une version antérieure, sans horodatage : jamais synchronisée.
-      // On la reconstruit depuis le slot (sens sûr, la mémoire n'est jamais écrite).
-      report.actions.push(`${apply ? "rebuild" : "would rebuild"}: ${note.rel} ← slot ${slot.id}`);
-      if (apply) {
-        try {
-          const body = slotBody(memory, slot);
-          const rendered = renderSlotNote(slot, body, new Date().toISOString(), note);
-          writeNote(vault, note.rel, rendered.fm, rendered.body);
-        } catch (error) {
-          report.warnings.push(`rebuild ${slot.id}: ${String(error).slice(0, 200)}`);
-        }
-      }
-      continue;
-    }
-    const syncedAt = parseIso(stamp);
-    const slotTime = parseIso(slot.updated);
-    let noteTime = 0;
-    try {
-      noteTime = statSync(note.path).mtimeMs;
-    } catch {
-      report.warnings.push(`note unreadable: ${note.rel}`);
-      continue;
-    }
-    const slotEdited = slotTime > syncedAt + SYNC_TOLERANCE_MS;
-    const noteEdited = noteTime > syncedAt + SYNC_TOLERANCE_MS;
-    let direction: "pull" | "push" | null = null;
-    if (slotEdited && !noteEdited) {
-      direction = "pull";
-    } else if (noteEdited && !slotEdited) {
-      direction = "push";
-    } else if (slotEdited && noteEdited) {
-      if (slotTime > noteTime + SYNC_TOLERANCE_MS) direction = "pull";
-      else if (noteTime > slotTime + SYNC_TOLERANCE_MS) direction = "push";
-    }
-    if (!direction) continue;
-
-    if (direction === "pull") {
-      report.actions.push(`${apply ? "pull" : "would pull"}: slot ${slot.id} → ${note.rel}`);
-      if (apply) {
-        try {
-          const body = slotBody(memory, slot);
-          const rendered = renderSlotNote(slot, body, new Date().toISOString(), note);
-          writeNote(vault, note.rel, rendered.fm, rendered.body);
-        } catch (error) {
-          report.warnings.push(`pull ${slot.id}: ${String(error).slice(0, 200)}`);
-        }
-      }
-      continue;
-    }
-
-    const parts = splitNoteBody(note.body);
-    report.actions.push(`${apply ? "push" : "would push"}: ${note.rel} → slot ${slot.id}`);
+  const backedUp: string[] = [];
+  for (const note of mirrored) {
+    report.actions.push(`${apply ? "archive" : "would archive"} project-memory note: ${note.rel}`);
     if (apply) {
       try {
-        if (parts.summary.length > 0) {
-          updateSlot({
-            id: slot.id,
-            root: memory,
-            mode: "summary",
-            summary: parts.summary.slice(0, MAX_SUMMARY_CHARS)
-          });
-        }
-        if (parts.details.length > 0) {
-          updateSlot({ id: slot.id, root: memory, mode: "replace", content: parts.details });
-        }
-        if (parts.summary.length === 0 && parts.details.length === 0) {
-          report.warnings.push(`push ${slot.id}: note has no content (${note.rel})`);
-        } else {
-          stampNote(vault, note, { novahiz_synced_at: new Date().toISOString() });
-        }
+        backupFile(vault, note.rel, backedUp);
+        rmSync(join(vault, note.rel), { force: true });
       } catch (error) {
-        report.warnings.push(`push ${slot.id}: ${String(error).slice(0, 200)}`);
+        report.warnings.push(`archive ${note.rel}: ${String(error).slice(0, 200)}`);
       }
     }
+  }
+  if (apply && backedUp.length > 0) {
+    report.actions.push(`backed up ${backedUp.length} file(s) under ${ARCHIVE_DIR}/${BACKUP_DIR}`);
   }
 
   for (const note of flagged) {
@@ -1631,7 +1505,7 @@ function secondMemorySync(parsed: Parsed): void {
     const lines = [head];
     if (report.memory) lines.push(`  memory: ${report.memory}`);
     for (const action of report.actions) lines.push(`  ${action}`);
-    if (report.actions.length === 0 && report.warnings.length === 0) lines.push("  nothing to sync");
+    if (report.actions.length === 0 && report.warnings.length === 0) lines.push("  no project-memory notes in the vault (memory stays local)");
     for (const warning of report.warnings) lines.push(`  ! ${warning}`);
     return lines.join("\n");
   });
@@ -2059,7 +1933,7 @@ async function doctorVault(apply: boolean, options: { plugins: boolean }): Promi
   report.checks.push({
     name: "memory",
     status: memoryRoot && drift > 0 ? "warn" : "ok",
-    detail: !memoryRoot ? "no project memory linked" : drift > 0 ? `${drift} change(s) pending — run \`novahiz second-memory sync --apply\`` : "in sync"
+    detail: !memoryRoot ? "no project memory linked" : drift > 0 ? `${drift} project-memory note(s) in the vault — run \`novahiz second-memory sync --apply\` to archive` : "no project-memory notes"
   });
 
   report.remaining = after.missing.length + structureIssues.length + lintErrors.length + (options.plugins ? pluginsMissing : 0);
