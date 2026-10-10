@@ -11,7 +11,7 @@
 
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { after, describe, test } from "node:test";
@@ -28,6 +28,9 @@ process.env.NOVAHIZ_HOME = repoRoot;
 const made: string[] = [];
 const emptyMemory = mkdtempSync(join(tmpdir(), "novahiz-sm-mem-"));
 made.push(emptyMemory);
+// Racine mémoire bornée pour tout le processus : readBinding/routePath ne doit
+// jamais lire le vault.json de la machine hôte (déterminisme + hermétisme).
+process.env.NOVAHIZ_SM_MEMORY = emptyMemory;
 
 function tempDir(prefix: string): string {
   const dir = mkdtempSync(join(tmpdir(), prefix));
@@ -115,7 +118,7 @@ describe("matchNode", () => {
 
 describe("routePath", () => {
   /** Chemin du segment final (les segments sont cumulatifs). */
-  const rel = (text: string, kind: "memory" | "docs" | "auto" = "auto", project?: string): string => {
+  const rel = (text: string, kind: "memory" | "docs" | "journal" | "decisions" | "auto" = "auto", project?: string): string => {
     const segments = routePath(text, kind, project);
     return segments.length === 0 ? "" : segments[segments.length - 1].rel;
   };
@@ -151,6 +154,44 @@ describe("routePath", () => {
       segments.map((segment) => segment.rel),
       ["Security", "Security/Audits", "Security/Audits/docs", "Security/Audits/docs/general"]
     );
+  });
+
+  test("journal keywords → feuille journal de la branche (projet compris)", () => {
+    assert.equal(rel("flutter carnet debrief"), "Code/Mobile/journal/general");
+  });
+
+  test("decisions keywords → feuille decisions (l'emporte sur journal)", () => {
+    assert.equal(rel("flutter decision arbitrage carnet"), "Code/Mobile/decisions/general");
+  });
+
+  test("le kind forcé journal/decisions ignore les mots-clés", () => {
+    assert.equal(rel("Flutter state management", "journal"), "Code/Mobile/journal/general");
+    assert.equal(rel("Flutter state management", "decisions"), "Code/Mobile/decisions/general");
+  });
+
+  test("binding projet : la branche liée l'emporte sur les mots-clés ; périmé → repli", () => {
+    const mem = tempDir("novahiz-sm-bind-");
+    const previous = process.env.NOVAHIZ_SM_MEMORY;
+    process.env.NOVAHIZ_SM_MEMORY = mem;
+    try {
+      writeFileSync(
+        join(mem, "vault.json"),
+        JSON.stringify({ "lie-projet": { domain: "Trading", branch: "Strategies" } }),
+        "utf8"
+      );
+      // Sans binding, « flutter » route vers Code/Mobile ; le binding prime.
+      assert.equal(rel("flutter state management", "auto", "Lie Projet"), "Trading/Strategies/memory/lie-projet");
+      // Binding périmé (domaine hors catalogue) : repli exact sur le routage par mots-clés.
+      writeFileSync(
+        join(mem, "vault.json"),
+        JSON.stringify({ "lie-projet": { domain: "Nope", branch: "Nope" } }),
+        "utf8"
+      );
+      assert.equal(rel("flutter state management", "auto", "Lie Projet"), "Code/Mobile/memory/lie-projet");
+    } finally {
+      if (previous === undefined) delete process.env.NOVAHIZ_SM_MEMORY;
+      else process.env.NOVAHIZ_SM_MEMORY = previous;
+    }
   });
 });
 
@@ -496,5 +537,100 @@ describe("second-memory doctor (bout en bout)", () => {
     const lint = run(["second-memory", "lint"], vault);
     assert.equal(lint.code, 0, output(lint));
     assert.match(output(lint), /no issues found/);
+  });
+});
+
+// --- project-init -------------------------------------------------------------
+
+describe("project-init", () => {
+  const branch = ["--branch", "Code/Mobile"];
+
+  test("dry-run n'écrit rien ; --apply crée docs/journal/decisions + binding ; idempotent", () => {
+    const vault = vaultOf("novahiz-sm-pinit-");
+    run(["second-memory", "init", "--no-plugins"], vault);
+
+    const dry = run(["second-memory", "project-init", "--name", "Projet Test", ...branch], vault);
+    assert.equal(dry.code, 0, output(dry));
+    assert.match(output(dry), /would create folder/);
+    assert.ok(!existsSync(join(vault, "Code", "Mobile", "docs", "projet-test")), "dry-run ne crée rien");
+
+    const apply = run(["second-memory", "project-init", "--name", "Projet Test", ...branch, "--apply"], vault);
+    assert.equal(apply.code, 0, output(apply));
+    for (const leaf of ["docs", "journal", "decisions"]) {
+      assert.ok(
+        existsSync(join(vault, "Code", "Mobile", leaf, "projet-test", "_MOC.md")),
+        `${leaf}/projet-test sans _MOC.md`
+      );
+    }
+    assert.ok(!existsSync(join(vault, "Code", "Mobile", "memory", "projet-test")), "pas de dossier memory/ pour un projet");
+
+    const binding = JSON.parse(readFileSync(join(emptyMemory, "vault.json"), "utf8")) as Record<
+      string,
+      { domain: string; branch: string }
+    >;
+    assert.equal(binding["projet-test"]?.domain, "Code");
+    assert.equal(binding["projet-test"]?.branch, "Mobile");
+
+    const again = run(["second-memory", "project-init", "--name", "Projet Test", ...branch, "--apply"], vault);
+    assert.equal(again.code, 0, output(again));
+    assert.match(output(again), /exists: Code\/Mobile\/docs\/projet-test/);
+  });
+
+  test("branche inconnue → exit 1, aucune création", () => {
+    const vault = vaultOf("novahiz-sm-pinit2-");
+    run(["second-memory", "init", "--no-plugins"], vault);
+    const bad = run(["second-memory", "project-init", "--name", "Autre", "--branch", "Code/Nope", "--apply"], vault);
+    assert.equal(bad.code, 1, output(bad));
+    assert.match(output(bad), /unknown branch/);
+    assert.ok(!existsSync(join(vault, "Code", "Nope")), "aucune création sur branche inconnue");
+  });
+
+  test("sans signal de branche → exit 1 avec le conseil --branch", () => {
+    const vault = vaultOf("novahiz-sm-pinit3-");
+    run(["second-memory", "init", "--no-plugins"], vault);
+    const r = run(["second-memory", "project-init", "--name", "ZorglubXyz"], vault);
+    assert.equal(r.code, 1, output(r));
+    assert.match(output(r), /--branch/);
+  });
+});
+
+// --- sync : la mémoire projet reste locale ------------------------------------
+
+describe("sync: archive du miroir ancien", () => {
+  test("archive les notes miroir, preserve l'import inverse, idempotent", () => {
+    const vault = vaultOf("novahiz-sm-sync2-");
+    run(["second-memory", "init", "--no-plugins"], vault);
+    const dir = join(vault, "Code", "Mobile", "memory", "general");
+    mkdirSync(dir, { recursive: true });
+    // Note miroir de l'ancien sync (novahiz_slot_id, pas d'opt-in) : à archiver.
+    writeFileSync(
+      join(dir, "slot-001-note.md"),
+      "---\ntype: resource\ntitle: miroir\nnovahiz_slot_id: slot-001\nnovahiz_synced_at: \"2026-10-08T10:00:00.000Z\"\n---\n\n# miroir\n",
+      "utf8"
+    );
+    // Note importée depuis le vault (opt-in) : elle reste, c'est une note utilisateur.
+    writeFileSync(
+      join(dir, "importee.md"),
+      "---\ntype: resource\ntitle: importee\nnovahiz_slot_id: slot-042\nnovahiz_slot_sync: true\n---\n\n# importee\n",
+      "utf8"
+    );
+
+    const dry = run(["second-memory", "sync"], vault);
+    assert.equal(dry.code, 0, output(dry));
+    assert.match(output(dry), /would archive project-memory note: Code\/Mobile\/memory\/general\/slot-001-note\.md/);
+    assert.ok(!output(dry).includes("importee"), "la note importée ne doit pas être archivée");
+
+    const apply = run(["second-memory", "sync", "--apply"], vault);
+    assert.equal(apply.code, 0, output(apply));
+    assert.ok(!existsSync(join(dir, "slot-001-note.md")), "la note miroir doit être archivée");
+    assert.ok(existsSync(join(dir, "importee.md")), "la note importée reste dans le vault");
+    assert.ok(readdirSync(join(vault, "Archive", ".backup")).length >= 1, "sauvegarde sous Archive/.backup");
+
+    const again = run(["second-memory", "sync"], vault);
+    assert.equal(again.code, 0, output(again));
+    assert.match(output(again), /no project-memory notes in the vault/);
+
+    const doctor = run(["second-memory", "doctor", "--no-plugins"], vault);
+    assert.match(output(doctor), /memory: no project-memory notes/);
   });
 });
