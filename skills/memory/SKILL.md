@@ -1,18 +1,18 @@
 ---
 name: memory
 description: |
-  memory is the alias for novahiz-memory, the dual-write context save into MEMORY.md
-  and the Obsidian vault.
+  memory is the alias for novahiz-memory, the local context save into MEMORY.md
+  and project-memory slots - never the Obsidian vault.
 license: Apache-2.0
 compatibility: opencode
 metadata:
   author: Novahiz
   organization: Novahiz
-  version: "2.0.0"
+  version: "3.0.0"
 ---
 
 # Alias
 
-The dual-write save is defined once in the `novahiz-memory` skill.
+The local save is defined once in the `novahiz-memory` skill.
 
-Load `novahiz-memory` instead of applying custom logic here. It writes the project's `MEMORY.md`, then the matching Obsidian vault page from the routing table.
+Load `novahiz-memory` instead of applying custom logic here. It writes the project's `MEMORY.md` and the matching `project-memory/` slot — both stay inside the project; the Obsidian vault is out of scope for memory.

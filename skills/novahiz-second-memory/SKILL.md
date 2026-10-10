@@ -2,20 +2,17 @@
 name: novahiz-second-memory
 description: |
   novahiz-second-memory: manage the Obsidian vault at ~/Documents/second-memory against a
-  FIXED, predefined arborescence — one root INDEX.md as the single entry point, a _MOC.md
-  in every folder, 11 domains (Code, Trading, AI, Design, DevOps, Security, Business,
-  Learning, Wiki, Journal, Projects) each with predefined branches and memory/docs leaves.
-  Writes are routed to a predefined spot, missing folders are auto-created, a domain
-  activates whole on first write. `second-memory doctor` audits and repairs the vault and
-  installs the 10 mandatory community plugins.
-  Use when the user asks to write to, organize, audit, repair or sync the second-memory vault,
-  or when an answer needs past context: search the vault first
-  (`novahiz second-memory search "<terms>"`) before answering questions about earlier
-  decisions, past work, preferences, or anything the user refers to as "my memory".
-  Triggers on: second-memory, vault, obsidian, second brain, write to vault,
+  FIXED, predefined arborescence: root INDEX.md, a _MOC.md per folder, 11 domains with
+  predefined branches and memory/docs/journal/decisions leaves. `second-memory project-init`
+  gives a new project its docs/journal/decisions folders (never memory: it stays local) and
+  binds it to a branch; other folders appear on first write, never speculatively.
+  `second-memory doctor` audits and repairs the vault, installs the 10 mandatory plugins.
+  Use when the user writes to, organizes, audits, repairs or syncs the second-memory vault,
+  or needs past context: search the vault first (`novahiz second-memory search "<terms>"`)
+  before answering about earlier decisions, work, preferences, or "my memory".
+  Triggers on: second-memory, vault, obsidian, second brain, write to vault, project folder,
   organize vault, sync memory, vault structure, vault lint, doctor, second-memory CLI,
-  search the vault, what did we decide, earlier notes, past context, comme on avait décidé,
-  dans ma mémoire, second memory.
+  past context, comme on avait décidé, dans ma mémoire, second memory.
 license: Apache-2.0
 compatibility: opencode
 metadata:
@@ -67,15 +64,15 @@ second-memory/
 ├── Archive/            ← completed/inactive items + .backup/ (never deleted)
 ├── Templates/          ← project, course, resource, wiki
 ├── Excalidraw/         ← plugin data (drawings), declared system folder — never audited, never routed
-├── Code/               ├── Mobile/ ├── Web/ └── Desktop/      each → memory/ docs/
-├── Trading/            ├── Markets/ └── Strategies/           each → memory/ docs/
-├── AI/                 ├── Models/   └── Datasets/            each → memory/ docs/
-├── Design/             ├── Systems/  └── Interface/           each → memory/ docs/
-├── DevOps/             ├── Infra/    └── Pipelines/            each → memory/ docs/
-├── Security/           ├── Audits/   └── Threats/              each → memory/ docs/
-├── Business/           ├── Offers/   └── Growth/               each → memory/ docs/
-├── Learning/           ├── Courses/  └── Study-Notes/          each → memory/ docs/
-├── Wiki/               ├── Guides/   └── Reference/            each → memory/ docs/
+├── Code/               ├── Mobile/ ├── Web/ └── Desktop/      each → memory/ docs/ journal/ decisions/
+├── Trading/            ├── Markets/ └── Strategies/           each → memory/ docs/ journal/ decisions/
+├── AI/                 ├── Models/   └── Datasets/            each → memory/ docs/ journal/ decisions/
+├── Design/             ├── Systems/  └── Interface/           each → memory/ docs/ journal/ decisions/
+├── DevOps/             ├── Infra/    └── Pipelines/            each → memory/ docs/ journal/ decisions/
+├── Security/           ├── Audits/   └── Threats/              each → memory/ docs/ journal/ decisions/
+├── Business/           ├── Offers/   └── Growth/               each → memory/ docs/ journal/ decisions/
+├── Learning/           ├── Courses/  └── Study-Notes/          each → memory/ docs/ journal/ decisions/
+├── Wiki/               ├── Guides/   └── Reference/            each → memory/ docs/ journal/ decisions/
 ├── Journal/            ├── Daily/    └── Weekly/               (notes leaves)
 └── Projects/           ├── Active/   └── Archived/             (notes leaves)
 ```
@@ -84,20 +81,29 @@ Full per-domain detail (MOC titles, leaves, what belongs where): `references/arb
 
 Leaves mean:
 
-- **`memory/`** — evergreen personal notes. Split into one subfolder per project
-  (`memory/<project>/`, default `general/`); the folder's `_MOC.md` is the index that ties
-  those sub-files together, mirroring the Novahiz slot system.
+- **`memory/`** — evergreen personal notes, split into one subfolder per project
+  (`memory/<project>/`, default `general/`). Project memory itself never comes here: it
+  stays in the project (`MEMORY.md` + `project-memory/` slots), outside the vault.
 - **`docs/`** — reference documentation, same per-project split. Driven by `docsKeywords`
   (guide, spec, api, readme, convention, architecture, faq, …).
+- **`journal/`** — running notes, debriefs, field notes; per-project split. Driven by
+  `journalKeywords` (journal, quotidien, daily, debrief, carnet, …).
+- **`decisions/`** — decisions and their rationale, ADR-style; per-project split. Driven by
+  `decisionsKeywords` (decision, choix, arbitrage, adr, option retenue, …). Decision hits
+  win over journal, which wins over docs.
 - **`Journal/` and `Projects/`** carry `notes` leaves — notes go straight into
-  `Daily/`, `Weekly/`, `Active/`, `Archived/`, with no memory/docs or project level.
+  `Daily/`, `Weekly/`, `Active/`, `Archived/`, with no sub-leaves or project level.
 
 ## Routing: where a note goes
 
 1. **Domain** — match the title/body/tags against the domain keywords.
 2. **Branch** — match within the domain; no match falls back to its first branch.
-3. **`memory` vs `docs`** — `docs` when a `docsKeywords` hit or the user says so, else `memory`.
-4. **Project folder** — the frontmatter `project`, slugged; `general` when absent.
+3. **Leaf** — `decisions` on a `decisionsKeywords` hit, else `journal` on a `journalKeywords`
+   hit, else `docs` on a `docsKeywords` hit or when the user says so, else `memory`. A kind
+   forced by the caller ignores keywords.
+4. **Project folder** — the frontmatter `project`, slugged; `general` when absent. A project
+   bound by `project-init` (`vault.json` in the memory root) supplies its domain and branch
+   first: every note that names it lands in its branch, whatever the keywords say.
 5. **No domain signal** — the note waits in `Inbox/` for triage, never a guessed folder.
 
 Example: *"Revue de sécurité d'une API, checklist OWASP"* → `Security/Audits/docs/general/`.
@@ -108,6 +114,13 @@ Example: *"Revue de sécurité d'une API, checklist OWASP"* → `Security/Audits
 arborescence), then creates each missing segment with its `_MOC.md` and parent link, then
 links the domain from `INDEX.md → ## Categories`. The note is written only once its folder
 exists.
+
+`second-memory project-init --name <project> [--branch Domain/Branch] --apply` is the
+explicit way to give a project its folders before any write: `docs/ journal/ decisions/<project>/`
+with their `_MOC.md`s, plus the branch binding — and no `memory/` folder, because project
+memory stays local. Dry-run is the default; `novahiz init` runs the same logic as its
+`Obsidian project folder` step. Nothing else creates folders speculatively: without a
+write, a folder does not exist.
 
 ## INDEX.md format
 
@@ -182,7 +195,8 @@ Novahiz home. Dry-run is the default on every mutating subcommand.
 | `doctor` | audit the whole vault against this tree; `--apply` repairs, with backups |
 | `lint` | report structure, naming and link issues — exit 0 means clean |
 | `fix` | plan renames, moves, canonical link rewrites, backups, Inbox triage |
-| `sync` | memory ↔ vault: last-writer-wins sync, note/slot creation |
+| `project-init` | give a project its folders (`docs/journal/decisions/<project>/`) and bind it to a branch — dry-run default |
+| `sync` | retire the old memory mirror: list/archive the vault notes that were slot copies (memory stays local) |
 | `status` | note counts, categories, open issues, resolved memory root |
 
 `doctor` checks, in order: `vault`, `skeleton`, `arborescence`, `outside-tree folders`,
@@ -206,10 +220,10 @@ written by the CLI).
 
 ### 1. Create (write new content)
 
-1. **Route** — apply the routing rules above (or let `sync` do it mechanically).
+1. **Route** — apply the routing rules above.
 2. **Read the target MOC** — to name the note and avoid duplicating an existing one.
 3. **Write** — with the frontmatter convention (see `references/templates.md`), in the
-   user's language. `sync`/`create-note` already created the folder chain and links.
+   user's language. The routed write creates the folder chain and links first.
 4. **Link** — the note is added to its `_MOC.md` under `## Notes`; a new domain is added to
    `INDEX.md`.
 5. **Log** — append the operation to `log.md`.
@@ -229,21 +243,21 @@ Never invent a folder. If no domain fits, the note goes to `Inbox/` and you tell
 4. `outside-tree folders` is a **warning only** — doctor does not move whole folders
    (it would break inbound links). Report them and migrate those notes by hand.
 
-### 3. Sync (memory ↔ vault)
+### 3. Retire the mirror (`sync`)
 
-Bidirectional, last-writer-wins, driven by `novahiz_synced_at`:
+Project memory stays local — `MEMORY.md` and `project-memory/` slots are never written
+into the vault. What `sync` still does is clean up what the old mirror produced, plus the
+opt-in inverse import:
 
-1. **Dry-run first** — `second-memory sync` prints the plan (`would create note`,
-   `would rebuild`, `would pull`, `would push`).
-2. **create note** — an active slot without a note becomes one, routed into the fixed tree.
-3. **create slot** — a note marked `novahiz_slot_sync: true` that has no `novahiz_slot_id`.
-4. **pull / push** — pull when the slot changed later, push when the note did. Writes less
-   than 1500 ms apart count as synchronized (no ping-pong).
-5. **rebuild** — a note missing `novahiz_synced_at` is rebuilt *from* the slot; the memory
-   side is never written on that path.
-6. **Apply** — `sync --apply`, then a re-run must report `nothing to sync`. Never `--apply`
-   without reading the dry-run: a push overwrites the slot.
-7. **Log** — append results to `log.md`.
+1. **Dry-run first** — `second-memory sync` prints `would archive project-memory note: <rel>`
+   for every note carrying `novahiz_slot_id` (those were copies of slots), and
+   `would create slot` for flagged notes.
+2. **Archive** — `sync --apply` moves each mirrored note to `Archive/.backup/` (flattened
+   `.bak`, same convention as `fix`), then `doctor --apply` drops the now-dangling links.
+3. **Kept** — notes imported from the vault (`novahiz_slot_sync: true`) are user notes and
+   stay; the inverse import (flagged note → slot in local memory) still runs.
+4. **Re-run** must report `no project-memory notes in the vault (memory stays local)`.
+5. **Log** — append the result to `log.md`.
 
 ### 4. Maintain (weekly review)
 
@@ -259,9 +273,9 @@ the `log.md` format.
 
 ## Integration with novahiz
 
-- **CLI**: `novahiz second-memory <init|doctor|lint|fix|sync|status> [--apply] [--json] [--no-plugins]`.
-- **Memory sync**: vault notes link to `project-memory` slots via `novahiz_slot_id`, with
-  `novahiz_synced_at` driving LWW. Use `memory_search` to find slots, `memory_get` to read
-  them; `sync` handles the rest.
+- **CLI**: `novahiz second-memory <init|doctor|lint|fix|sync|project-init|status|search> [--apply] [--json] [--no-plugins]`.
+- **Memory**: project memory stays local — `memory_search` / `memory_get` read the slots,
+  `memory_write` appends them; nothing is mirrored into the vault. A legacy note carrying
+  `novahiz_slot_id` is a mirror copy; `sync --apply` archives it (§3).
 - **Docs**: vault notes can cite novahiz-docs as `novahiz-docs/<library>@<version>`.
 - **Ledger**: structural changes to the vault are logged in the novahiz ledger (task todos).

@@ -8,13 +8,16 @@ Read them from the JSON before routing.
 ## Shape
 
 ```
-<Domain>/<Branch>/<leaf>/<project>/<note>.md     # leaf = memory | docs
+<Domain>/<Branch>/<leaf>/<project>/<note>.md     # leaf = memory | docs | journal | decisions
 <Domain>/<Branch>/<note>.md                      # leaf = notes (Journal, Projects)
 ```
 
 - `<project>` is the frontmatter `project` slugged, default `general`.
 - Every folder in the path owns a `_MOC.md`; the leaf's `_MOC.md` indexes its project
-  sub-folders, which is what makes `memory/` readable as several sub-files behind one index.
+  sub-folders, which is what makes each leaf readable as several sub-files behind one index.
+- `second-memory project-init` creates a project's `docs/ journal/ decisions/` sub-folders
+  and binds the project to its branch (`vault.json` in the memory root). It never creates
+  `memory/<project>/` for a project: project memory stays local to the project.
 
 ## Domains
 
@@ -36,8 +39,8 @@ Three naming traps:
 
 - the folder is `AI`, its MOC title is `AI & Data`;
 - the folder is `Study-Notes`, its MOC title is `Study Notes`;
-- every branch above carries `memory/` and `docs/` except the four `notes` leaves
-  (`Journal/Daily`, `Journal/Weekly`, `Projects/Active`, `Projects/Archived`).
+- every branch above carries `memory/`, `docs/`, `journal/` and `decisions/` except the four
+  `notes` leaves (`Journal/Daily`, `Journal/Weekly`, `Projects/Active`, `Projects/Archived`).
 
 ## System folders (outside the graph)
 
@@ -54,11 +57,14 @@ listed under `INDEX.md → ## Categories`. `Archive/.backup/` holds the pre-chan
    `flutter` is not a Code keyword. Zero hits on both passes → `Inbox/`.
 2. **Branch** — the branch hinted by pass 2, else the best-scoring branch of the chosen
    domain; no hit → the domain's **first** branch (`Code → Mobile`, `Trading → Markets`, …).
-3. **Leaf** — `docs` if a `docsKeywords` hit (guide, spec, api, readme, convention,
-   architecture, tutorial, faq, glossary, …) or the user asked for documentation, else
-   `memory`. With `kind: "memory" | "docs"` forced by the caller, keywords are ignored.
+3. **Leaf** — `decisions` if a `decisionsKeywords` hit (decision, choix, arbitrage, adr,
+   option retenue), else `journal` if a `journalKeywords` hit (journal, quotidien, daily,
+   debrief, carnet, …), else `docs` if a `docsKeywords` hit (guide, spec, api, readme,
+   convention, architecture, tutorial, faq, glossary, …) or the user asked for
+   documentation, else `memory`. With a kind forced by the caller, keywords are ignored.
 4. **Project** — frontmatter `project` slugged, default `general`. Skipped on `notes`
-   leaves.
+   leaves. When the project is bound (`project-init` → `vault.json`), steps 1–2 read the
+   binding first: the note lands in the project's branch whatever the keywords say.
 
 `ensureTarget()` then activates the domain and creates every missing segment, MOC and link
 before the note is written.
@@ -73,7 +79,7 @@ before the note is written.
 | `outside-tree folders` | warn | top-level folder not in the catalog | migrate those notes manually |
 | `links` | fail / warn | broken wikilinks, non-canonical forms, orphans (errors / warnings) | `doctor --apply` (runs `fix`) |
 | `plugins` | fail | a mandatory plugin missing or disabled | `doctor --apply` (or `--no-plugins` to skip) |
-| `memory` | warn | project memory has pending changes | `second-memory sync --apply` |
+| `memory` | warn | project-memory notes still in the vault (old mirror) | `second-memory sync --apply` (archive), then `doctor --apply` |
 
 Exit code is 1 while any `fail` remains, 0 when clean. `--apply` never deletes: it backs up
 to `Archive/.backup/` before moving or rewriting anything.
@@ -102,7 +108,9 @@ it activates exactly like the others — whole arborescence on first write. Ther
          "keywords": ["bokeh", "tripod", "ouverture", "diafragme"],
          "children": [
            { "id": "memory", "name": "memory", "title": "Memory", "kind": "memory" },
-           { "id": "docs", "name": "docs", "title": "Docs", "kind": "docs" }
+           { "id": "docs", "name": "docs", "title": "Docs", "kind": "docs" },
+           { "id": "journal", "name": "journal", "title": "Journal", "kind": "journal" },
+           { "id": "decisions", "name": "decisions", "title": "Decisions", "kind": "decisions" }
          ]
        }
      ]
@@ -112,8 +120,9 @@ it activates exactly like the others — whole arborescence on first write. Ther
 2. Rules that cannot be bent:
    - `name` is the folder name — **English, PascalCase, no spaces** (`Study-Notes` style).
    - `title` is the MOC title and may differ from `name` (`AI` → `AI & Data`).
-   - `kind` is `domain` at the root, `branch` in between; leaves are `memory` / `docs`, or
-     `notes` when the branch holds notes directly (no project level, like `Journal/Daily`).
+   - `kind` is `domain` at the root, `branch` in between; leaves are `memory` / `docs` /
+     `journal` / `decisions`, or `notes` when the branch holds notes directly (no project
+     level, like `Journal/Daily`).
    - `keywords` are the routing signal: domain keywords pick the domain, branch keywords
      pick the branch *and* serve as a fallback domain signal. Scoring is by number of hits
      with catalog order breaking ties — prefer keywords that do not collide with an

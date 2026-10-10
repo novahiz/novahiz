@@ -17,13 +17,14 @@ Search it yourself (`novahiz second-memory search "<terms>"`, then read the note
 Do **not** consult it for trivial edits, unrelated questions, or when the prompt already carries the needed context.
 
 ### Rules
-1. When the user asks to **save / memorize / update** memory, load the `memory` skill (alias for `novahiz-memory`) and follow its procedure without exception. For vault-only writes and structure questions, load `novahiz-second-memory` instead: it owns the vault's fixed, predefined arborescence.
-2. Vault routing comes from the predefined structure (`catalog/vault-structure.json`, surfaced by the `novahiz-second-memory` skill) — never guess a location. When ambiguous, ask the user, and display the chosen path before writing.
+1. When the user asks to **save / memorize / update** memory, load the `memory` skill (alias for `novahiz-memory`) and follow its procedure without exception. Project memory is local to the project (`MEMORY.md` + `project-memory/` slots) and **never goes into the vault**. For vault-only writes and structure questions, load `novahiz-second-memory` instead: it owns the vault's fixed, predefined arborescence.
+2. Vault routing comes from the predefined structure (`catalog/vault-structure.json`, surfaced by the `novahiz-second-memory` skill) — never guess a location. A note belongs to a project when its frontmatter carries `project:`; its leaf is `decisions` on a `decisionsKeywords` hit, else `journal` on a `journalKeywords` hit, else `docs`, else `memory`. When ambiguous, ask the user, and display the chosen path before writing.
 3. Search before you write: `novahiz second-memory search "<terms>"` — merge into an existing note rather than creating a duplicate. Link pages with `[[wikilinks]]`.
 4. Never write to `index.md`, `log.md`, `hot.md`, `.manifest.json`, `_meta/`, or `.obsidian/`. If the user asks for it, do it step by step in front of them, with a backup first for anything under `.obsidian/`.
 5. Never create a root domain on your own: every new domain requires user agreement and a structure update.
 6. Include mandatory frontmatter: `title, category, tags, sources, created, updated, summary`.
-7. Structure maintenance is CLI work: `novahiz second-memory [init|doctor|fix|sync|status]` (dry-run by default, `--apply` to write).
+7. Structure maintenance is CLI work: `novahiz second-memory [init|doctor|fix|sync|project-init|status]` (dry-run by default, `--apply` to write). `sync` only archives notes the old memory mirror left in the vault — it never mirrors memory into the vault.
+8. Folders are never created speculatively: a folder appears on the first write, or when `second-memory project-init` (the same logic behind the `Obsidian project folder` step of `novahiz init`) creates a project's `docs/journal/decisions` folders on request — never `memory/<project>/`.
 
 ## Playwright Browser — Persistent Profile
 

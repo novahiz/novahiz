@@ -12,10 +12,10 @@ created: YYYY-MM-DD
 updated: YYYY-MM-DD
 status: active | archived | draft
 tags: [tag1, tag2]
-project: my-project          # optional: picks the memory/docs sub-folder (default general)
-novahiz_slot_id: slot-XXX    # optional, set by sync for linked notes
-novahiz_synced_at: ISO-8601  # optional, written by sync; drives last-writer-wins
-novahiz_slot_sync: true      # optional, opt-in: make this note a memory slot
+project: my-project          # optional: picks the sub-folder (memory/docs/journal/decisions)
+novahiz_slot_id: slot-XXX    # legacy mirror marker: sync --apply archives such notes
+novahiz_synced_at: ISO-8601  # legacy mirror timestamp (informational)
+novahiz_slot_sync: true      # opt-in: import this vault note into local memory as a slot
 ---
 ```
 
