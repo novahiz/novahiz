@@ -319,3 +319,150 @@ export function nodeVersionOk(minimum = [22, 18, 0]) {
   }
   return true;
 }
+
+// --- Phase opencode differee (postinstall npm) ------------------------------
+//
+// Bug reproduit le 2026-10-10 (enquete npm, memoire slot-005) : quand
+// install.mjs tourne comme script postinstall, ses ecritures dans le dossier
+// de config opencode (skills, plugin, agent, commands, opencode.jsonc) font
+// redemarrer le serveur opencode, qui tue alors son arbre de processus —
+// npm compris, encore en pleine transaction reify. Le remplacement en place
+// est interrompu : rollback vers l'ancien paquet (version et mtimes
+// preserves a la milliseconde) ou dossiers .novahiz-* orphelins.
+//
+// Le correctif se pose sur deux piliers :
+//   1. la phase opencode part en processus detache (detached + unref) qui
+//      attend la mort du postinstall puis de npm avant la moindre ecriture —
+//      un redemarrage opencode arrive alors que la transaction est finie ;
+//   2. le passage synchronise ne touche plus qu'au NOVAHIZ_HOME, seule zone
+//      jamais observee comme declencheur lors des trois kills reproduits.
+
+const deferDefaultLog = (message) => process.stdout.write(`${message}\n`);
+const deferSleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/**
+ * La phase opencode doit-elle sortir du cycle de vie npm ?
+ *
+ * - `npm_lifecycle_event` present (postinstall) -> oui, sauf :
+ * - `--deferred-opencode` / `NOVAHIZ_DEFERRED=1` (le passage detache
+ *   lui-meme) -> non : la phase deferree ne se defererait pas a l'infini ;
+ * - `--sync` (repli d'urgence vers l'ancien comportement) -> non ;
+ * - hors npm (novahiz-install direct, bootstrap CLI) -> non : le
+ *   comportement historique entierement synchrone est conserve.
+ */
+export function deferOpencodePhase(flags = {}, env = process.env) {
+  if (flags.sync === true) return false;
+  if (flags["deferred-opencode"] === true) return false;
+  if (env.NOVAHIZ_DEFERRED === "1") return false;
+  return Boolean(env.npm_lifecycle_event);
+}
+
+/** pid utilisable : entier strictement positif, sinon null. */
+export function parsePid(value) {
+  const pid = Number.parseInt(String(value ?? ""), 10);
+  return Number.isInteger(pid) && pid > 0 ? pid : null;
+}
+
+/** Le processus existe-t-il encore ? EPERM = oui (proprietaire different). */
+export function pidAlive(pid) {
+  if (!Number.isInteger(pid) || pid <= 0) return false;
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    return Boolean(error) && error.code === "EPERM";
+  }
+}
+
+/**
+ * PID du processus npm de l'installation en cours : on remonte la chaine des
+ * ParentProcessId jusqu'au premier ancetre dont la ligne de commande
+ * reference `npm-cli.js`. Le chemin de notre propre processus contient bien
+ * `\npm\` (paquet installe globalement dans Roaming\npm), jamais
+ * `npm-cli.js` : le filtre ne peut pas se retenir lui-meme.
+ * null = pas de npm au-dessus (ou plateforme non interrogeable) — l'appelant
+ * bascule alors sur une patience fixe.
+ */
+export function findNpmAncestorPid(startPid = process.pid) {
+  if (process.platform === "win32") {
+    const script =
+      `$cur = Get-CimInstance Win32_Process -Filter "ProcessId=${startPid}"; ` +
+      "while ($cur) { " +
+      "if ($cur.CommandLine -and $cur.CommandLine -match 'npm-cli\\.js') { Write-Output $cur.ProcessId; break }; " +
+      "if (-not $cur.ParentProcessId -or $cur.ParentProcessId -eq $cur.ProcessId) { break }; " +
+      "$cur = Get-CimInstance Win32_Process -Filter \"ProcessId=$($cur.ParentProcessId)\" -ErrorAction SilentlyContinue; " +
+      "}";
+    const result = spawnSync("powershell", ["-NoProfile", "-NonInteractive", "-Command", script], { encoding: "utf8" });
+    if (result.status === 0) {
+      const pid = parsePid((result.stdout ?? "").trim());
+      if (pid !== null && pid !== startPid) return pid;
+    }
+    return null;
+  }
+  const result = spawnSync("ps", ["-o", "pid=", "-o", "ppid=", "-o", "command=", "-ax"], { encoding: "utf8" });
+  if (result.status !== 0) return null;
+  const rows = new Map();
+  for (const line of String(result.stdout ?? "").split("\n")) {
+    const match = line.trim().match(/^(\d+)\s+(\d+)\s+([\s\S]*)$/);
+    if (match) rows.set(Number.parseInt(match[1], 10), { ppid: Number.parseInt(match[2], 10), cmd: match[3] });
+  }
+  let current = startPid;
+  const seen = new Set();
+  while (current && rows.has(current) && !seen.has(current)) {
+    seen.add(current);
+    const row = rows.get(current);
+    if (current !== startPid && /npm-cli\.js/.test(row.cmd)) return current;
+    current = row.ppid;
+  }
+  return null;
+}
+
+/**
+ * Attend la mort de chaque pid (cadence pollMs, plafond timeoutMs par pid).
+ * Le plafond est inclusif : la fonction rend TOUJOURS la main — un pid
+ * rebelle ne doit jamais bloquer la phase differee indefiniment.
+ */
+export async function waitForPids(pids, opts = {}) {
+  const pollMs = opts.pollMs ?? 2000;
+  const timeoutMs = opts.timeoutMs ?? 10 * 60 * 1000;
+  const isAlive = opts.isAlive ?? pidAlive;
+  const log = opts.log ?? deferDefaultLog;
+  const wait = opts.sleep ?? deferSleep;
+  for (const pid of pids) {
+    if (!Number.isInteger(pid) || pid <= 0) continue;
+    if (!isAlive(pid)) {
+      log(`novahiz defer: pid ${pid} already exited`);
+      continue;
+    }
+    const deadline = Date.now() + timeoutMs;
+    log(`novahiz defer: waiting for pid ${pid} to exit...`);
+    while (isAlive(pid)) {
+      if (Date.now() >= deadline) {
+        log(`novahiz defer: pid ${pid} still alive after ${timeoutMs}ms - proceeding anyway`);
+        break;
+      }
+      await wait(pollMs);
+    }
+  }
+}
+
+/**
+ * Entree de la phase differee : attend que le postinstall (notre createur)
+ * ET npm soient sortis avant d'ecrire la moindre chose, puis rend la main.
+ * npm non identifie (chaine d'ancetres atypique, pnpm...) -> patience fixe :
+ * npm sort quelques secondes apres la fin du script de lifecycle.
+ */
+export async function waitForDeferredPhase(env = process.env, opts = {}) {
+  const log = opts.log ?? deferDefaultLog;
+  const wait = opts.sleep ?? deferSleep;
+  const parentPid = parsePid(env.NOVAHIZ_WAIT_PARENT_PID);
+  const npmPid = parsePid(env.NOVAHIZ_WAIT_PID);
+  log(`novahiz defer: opencode phase detached - parent ${parentPid ?? "(none)"}, npm ${npmPid ?? "(unknown)"}`);
+  await waitForPids(parentPid === null ? [] : [parentPid], opts);
+  if (npmPid !== null) {
+    await waitForPids([npmPid], opts);
+  } else {
+    await wait(opts.graceMs ?? 30000);
+  }
+  log("novahiz defer: npm exited - running the full pass (opencode config included)");
+}

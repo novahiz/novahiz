@@ -1,13 +1,16 @@
 #!/usr/bin/env node
-import { cpSync, existsSync, mkdirSync, readdirSync, statSync, writeFileSync } from "node:fs";
+import { cpSync, closeSync, existsSync, mkdirSync, openSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
 import {
   copyFileWithBackup,
   copyInto,
   defaultConfig,
+  deferOpencodePhase,
   detectedHarnesses,
+  findNpmAncestorPid,
   loadManifest,
   mergeBackups,
   mergeCreated,
@@ -21,6 +24,7 @@ import {
   saveManifest,
   skillNamesIn,
   spawnHost,
+  waitForDeferredPhase,
   which,
   writeJson
 } from "./lib.mjs";
@@ -65,6 +69,10 @@ const CORE_ITEMS = [
 async function main() {
   const flags = parseArgs(process.argv.slice(2));
   const dryRun = Boolean(flags["dry-run"]);
+  // Phase opencode rejetee hors du cycle de vie npm (voir lib.mjs) : sous
+  // postinstall, le passage synchronise n'ecrit plus que dans NOVAHIZ_HOME —
+  // jamais dans le dossier de config opencode que le serveur surveille.
+  const deferOpencode = deferOpencodePhase(flags);
   const force = Boolean(flags.force);
   const withSkills = !flags["no-skills"];
   const root = repoRoot(import.meta.url);
@@ -93,6 +101,42 @@ async function main() {
       process.stderr.write(`${message}\n`);
       process.exit(1);
     }
+  }
+
+  // Phase differee, spawn des le debut du postinstall : l'enfant attendra la
+  // mort de ce postinstall puis de npm avant d'ecrire quoi que ce soit dans
+  // la config opencode. Detache tot (detached + unref) : un redemarrage
+  // opencode qui tuerait npm ne l'atteint plus — la configuration rejoint
+  // alors la nouvelle version au lieu de rester bloquee a l'ancienne.
+  const deferLogPath = deferOpencode && !dryRun ? join(home, "install-deferred.log") : null;
+  if (deferLogPath) {
+    mkdirSync(home, { recursive: true });
+    const npmAncestor = findNpmAncestorPid();
+    const logFd = openSync(deferLogPath, "a");
+    // argv[1] du parent = ce meme script : l'enfant doit le recevoir, sinon
+    // node interprete --yes comme une option sienne ("bad option: --yes").
+    const child = spawn(process.execPath, [fileURLToPath(import.meta.url), ...process.argv.slice(2), "--deferred-opencode"], {
+      // cwd = home, NOT the inherited package dir: a process whose cwd sits
+      // inside node_modules\novahiz makes any npm retire of that directory
+      // fail with EBUSY on Windows (that is what let the nested-update
+      // rollback restore the old package). The child lives for minutes, so
+      // it must never hold the package dir. Consequence: with an explicit
+      // `--scope project`, configDir resolves against home instead of the
+      // caller's cwd (postinstall never passes --scope).
+      cwd: home,
+      detached: true,
+      stdio: ["ignore", logFd, logFd],
+      env: {
+        ...process.env,
+        NOVAHIZ_DEFERRED: "1",
+        NOVAHIZ_WAIT_PARENT_PID: String(process.pid),
+        NOVAHIZ_WAIT_PID: npmAncestor === null ? "" : String(npmAncestor),
+      },
+      windowsHide: true,
+    });
+    child.unref();
+    closeSync(logFd);
+    note(`Opencode config phase deferred (npm still running) - log: ${deferLogPath}`);
   }
 
   const harnessDirs = { opencode: configDir };
@@ -184,7 +228,7 @@ async function main() {
     }
   }
 
-  if (!dryRun) {
+  if (!dryRun && !deferOpencode) {
     for (const name of configured) {
       if (!existsSync(harnessDirs[name])) mkdirSync(harnessDirs[name], { recursive: true });
     }
@@ -222,10 +266,14 @@ async function main() {
   }
 
   ui.step("Skills");
-  if (withSkills && !configured.includes("opencode")) {
+  if (deferOpencode) {
+    note("Opencode skills copy deferred to the post-npm phase.");
+    ui.finishStep("skip", "deferred");
+  }
+  if (!deferOpencode && withSkills && !configured.includes("opencode")) {
     note("Skipping opencode skills copy (opencode not selected).");
   }
-  if (withSkills && configured.includes("opencode")) {
+  if (!deferOpencode && withSkills && configured.includes("opencode")) {
     const skillsSource = existsSync(join(home, "skills")) ? join(home, "skills") : join(root, "skills");
     if (existsSync(skillsSource)) {
       // Dedup only against roots the catalog actually scans (see
@@ -272,10 +320,14 @@ async function main() {
   // du modele de config, une entree fichier y declenchait l'avertissement
   // "configured plugin path must be a directory" a chaque demarrage.
   ui.step("Plugin, agent & commands");
+  if (deferOpencode) {
+    note("Plugin, agent & commands deferred to the post-npm phase.");
+    ui.finishStep("skip", "deferred");
+  }
   for (const pluginFile of ["novahiz-plugin.ts", "novahiz-token-economy.ts"]) {
     const pluginSource = join(home, "adapters", "opencode", pluginFile);
     const pluginTarget = join(pluginsDir, pluginFile);
-    if (configured.includes("opencode") && existsSync(pluginSource)) {
+    if (!deferOpencode && configured.includes("opencode") && existsSync(pluginSource)) {
       note(`Installing opencode plugin in ${pluginTarget}`);
       if (!dryRun) {
         const result = copyFileWithBackup(pluginSource, pluginTarget, true);
@@ -289,7 +341,7 @@ async function main() {
     ? join(home, "adapters", "opencode", "agent", "novahiz.md")
     : join(root, "adapters", "opencode", "agent", "novahiz.md");
   const agentTarget = join(configDir, "agent", "novahiz.md");
-  if (configured.includes("opencode") && existsSync(agentSource)) {
+  if (!deferOpencode && configured.includes("opencode") && existsSync(agentSource)) {
     note(`Installing Novahiz agent in ${agentTarget}`);
     if (!dryRun) {
       const result = copyFileWithBackup(agentSource, agentTarget, true);
@@ -302,7 +354,7 @@ async function main() {
     ? join(home, "adapters", "opencode", "commands")
     : join(root, "adapters", "opencode", "commands");
   const commandsTarget = join(configDir, "commands");
-  if (configured.includes("opencode") && existsSync(commandsSource)) {
+  if (!deferOpencode && configured.includes("opencode") && existsSync(commandsSource)) {
     note(`Installing Novahiz commands in ${commandsTarget}`);
     if (!dryRun) {
       const result = copyInto(commandsSource, commandsTarget, true);
@@ -373,7 +425,9 @@ async function main() {
       env: { ...process.env, NOVAHIZ_HOME: home }
     });
     if (check.stdout) ui.raw(check.stdout);
-    if (autoInstall) {
+    if (autoInstall && deferOpencode) {
+      note("Dependency/provider install deferred to the post-npm phase (skills and commands write into the opencode config).");
+    } else if (autoInstall) {
       note("Installing dependencies and providers (MCP, skills, commands)");
       const result = spawnSync(process.execPath, [cli, "deps", "--install", "--yes"], {
         encoding: "utf8",
@@ -492,7 +546,9 @@ async function main() {
     { id: "flutter-skills", repo: "flutter/agent-plugins" },
     { id: "dart-skills", repo: "dart-lang/skills" },
   ];
-  if (!dryRun && flags["flutter-skills"]) {
+  if (!dryRun && flags["flutter-skills"] && deferOpencode) {
+    note("\nFlutter/Dart skill packs deferred to the post-npm phase.");
+  } else if (!dryRun && flags["flutter-skills"]) {
     note("\nInstalling official Flutter/Dart skill packs...");
     for (const pack of skillPacks) {
       note(`  ${pack.repo}...`);
@@ -540,7 +596,10 @@ async function main() {
   if (!configured.includes("opencode")) {
     note("Skipping opencode.jsonc (opencode not selected).");
   }
-  if (!dryRun && configured.includes("opencode")) {
+  if (!dryRun && deferOpencode && configured.includes("opencode")) {
+    note("\nopencode.jsonc generation deferred to the post-npm phase.");
+  }
+  if (!dryRun && !deferOpencode && configured.includes("opencode")) {
     const configPath = join(configDir, "opencode.jsonc");
     if (!existsSync(configPath)) {
       note(`\nCreating ${configPath}`);
@@ -682,19 +741,35 @@ async function main() {
 
   ui.step("Finalize");
   if (!dryRun) {
-    // Auto-update dependencies
+    // Auto-update dependencies (scoped to novahiz home, NEVER the global prefix).
+    //
+    // npm exports its config to lifecycle scripts (npm_config_*, envExport
+    // default true), so running under `npm install -g` leaks
+    // npm_config_global=true into this process. Without the explicit override
+    // below, `npm update` here silently becomes a SECOND reify of the global
+    // prefix while npm's own transaction is still open: its retire of
+    // node_modules\novahiz gets EBUSY (this process's cwd IS the package dir),
+    // the nested npm crashes, and arborist's rollback does
+    // rm(new) + rename(.novahiz-OLD -> novahiz) — the previous install comes
+    // back byte-for-byte with its original mtimes while the outer npm reports
+    // exit 0 / "changed 1 package". That is the "in-place install does not
+    // replace" bug. Forcing npm_config_global=false keeps this refresh in
+    // home (home/package.json), which shares no directory with the outer
+    // transaction. --ignore-scripts so nothing in home can re-enter the
+    // installer (home/package.json carries the postinstall script too).
     note("Checking for dependency updates...");
     const pkgPath = join(home, "package.json");
     if (existsSync(pkgPath)) {
+      const homeEnv = { ...process.env, NOVAHIZ_HOME: home, npm_config_global: "false" };
       const npmCheck = spawnHost("npm", ["outdated", "--json"], {
         cwd: home,
-        env: { ...process.env, NOVAHIZ_HOME: home }
+        env: homeEnv
       });
       if (npmCheck.stdout && npmCheck.stdout.trim().length > 2) {
         note("Updates available, installing...");
-        const npmUpdate = spawnHost("npm", ["update"], {
+        const npmUpdate = spawnHost("npm", ["update", "--ignore-scripts"], {
           cwd: home,
-          env: { ...process.env, NOVAHIZ_HOME: home }
+          env: homeEnv
         });
         if (npmUpdate.stdout) ui.raw(npmUpdate.stdout);
         if (npmUpdate.status !== 0 && npmUpdate.stderr) process.stderr.write(npmUpdate.stderr);
@@ -704,6 +779,7 @@ async function main() {
       }
     }
     const summary = [`Novahiz installed in ${home}.`];
+    if (deferLogPath) summary.push(`opencode config phase: deferred - see ${deferLogPath} (runs once npm exits).`);
     if (configured.length > 0) summary.push("Restart opencode to activate the plugin and MCP server.");
     summary.push("Gate can be disabled with the NOVAHIZ_GATE=off environment variable.");
     summary.push("Update anytime: `novahiz upgrade` (npm) or `/novahiz-upgrade` inside OpenCode.");
@@ -714,6 +790,14 @@ async function main() {
       "Next step: run `novahiz-install` (or `novahiz setup`) once to install everything — core skills, plugin, agent, provider skill packs (impeccable, flutter, dart, expo), and MCP servers. Then restart opencode."
     ]);
   }
+}
+
+// Entree de la phase differee (NOVAHIZ_DEFERRED=1) : on attend la mort du
+// postinstall puis de npm avant le moindre passage complet — pendant ce
+// temps, npm finalise sa transaction reify sans risque d'etre tue par un
+// redemarrage opencode.
+if (process.env.NOVAHIZ_DEFERRED === "1") {
+  await waitForDeferredPhase();
 }
 
 main().catch((error) => {

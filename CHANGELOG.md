@@ -5,6 +5,46 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed
+
+- **In-place `npm install -g novahiz` now keeps the new package instead of
+  silently restoring the previous one** (`install/install.mjs`): the
+  `Finalize` step spawned `npm outdated` / `npm update` from inside npm's own
+  `postinstall` to refresh dependencies. npm exports its config to lifecycle
+  scripts (`npm_config_*`, `envExport` default true), so the inherited
+  `npm_config_global=true` from the outer `npm install -g` turned that refresh
+  into a **second reify of the same global prefix while npm's transaction was
+  still open**. Its retire of `node_modules\novahiz` fails with `EBUSY` (the
+  installer's cwd *is* the package directory), the nested npm crashes, and
+  arborist's rollback runs `rm(new)` + `rename(.novahiz-OLD → novahiz)` —
+  the previous install comes back byte-for-byte with its original mtimes
+  while the outer npm reports exit 0 / "changed 1 package". The refresh is now
+  pinned to the novahiz home (`npm_config_global=false`, `--ignore-scripts`),
+  a directory the outer transaction never touches. This was the actual cause
+  of "the in-place install does not replace": it reproduces with **no OpenCode
+  restart at all** (proved end-to-end 2026-10-10, see tests below).
+
+- **The npm postinstall no longer writes the opencode config while npm is
+  still mid-transaction** (`install/install.mjs`, `install/lib.mjs`): a second,
+  independent failure mode — running `npm install -g novahiz` from an
+  OpenCode-owned shell restarted the OpenCode server during `postinstall`, and
+  the restart killed the process tree with npm still inside its reify
+  transaction. Depending on where the kill landed, the update either left
+  orphaned `.novahiz-*` retire directories and shims behind or aborted the
+  configuration pass. The installer now splits in two: the synchronous pass
+  only touches `NOVAHIZ_HOME` (the only zone never observed as the restart
+  trigger across three reproduced kills), while everything that writes the
+  OpenCode config — skills, plugin, agent, commands, `opencode.jsonc`,
+  provider skill packs — runs in a detached process that waits for the
+  installer and npm to exit first (`--deferred-opencode`, log:
+  `<novahiz-home>/install-deferred.log`). That child is spawned with
+  `cwd=novahiz-home` so it can never hold the package directory open (a
+  process whose cwd sits in `node_modules\novahiz` is what makes any npm
+  retire of it fail with `EBUSY` on Windows). Direct runs (`novahiz-install`,
+  CLI bootstrap) keep the historical fully synchronous behaviour, and
+  `--sync` forces that behaviour back under npm as an escape hatch.
+  Regression tests: `tests/install-defer.test.ts`.
+
 ## [0.8.1] - 2026-10-10
 
 Patch: `novahiz upgrade` always reported "up to date" on the npm channel.
