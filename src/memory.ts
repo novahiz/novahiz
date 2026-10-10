@@ -295,24 +295,52 @@ function isProcessAlive(pid: number): boolean {
   }
 }
 
-function readLockInfo(root: string): { pid: number; at: number } | null {
+type LockInfo = { pid: number; at: number };
+type LockRead = { state: "ok"; info: LockInfo } | { state: "absent" } | { state: "unreadable" };
+
+function readLock(root: string): LockRead {
+  let raw: string;
   try {
-    const raw = readFileSync(lockPath(root), "utf8");
-    const [pidRaw, atRaw] = raw.split("\n");
-    const pid = Number(pidRaw);
-    const at = Number(atRaw);
-    if (!Number.isInteger(pid) || !Number.isFinite(at)) return null;
-    return { pid, at };
-  } catch {
-    // Absent ou illisible: traite comme un verrou perime.
-    return null;
+    raw = readFileSync(lockPath(root), "utf8");
+  } catch (error) {
+    // ENOENT = certitude: pas de verrou. Tout le reste (EPERM/EBUSY/EACCES:
+    // filtre antivirus sous tempete I/O sur Windows, reproduit en stress)
+    // est incertain — une lecture qui echoue ne prouve pas que le detenteur
+    // est mort, et traiter l'incertain comme un verrou perime volait le
+    // verrou d'un processus vivant: deux sections critiques, une ecriture
+    // ecrasee, un marqueur perdu sans erreur.
+    const code = (error as NodeJS.ErrnoException).code;
+    return code === "ENOENT" ? { state: "absent" } : { state: "unreadable" };
   }
+  const [pidRaw, atRaw] = raw.split("\n");
+  const pid = Number(pidRaw);
+  const at = Number(atRaw);
+  if (!Number.isInteger(pid) || !Number.isFinite(at)) return { state: "unreadable" };
+  return { state: "ok", info: { pid, at } };
 }
 
-function tryStealLock(root: string, info: { pid: number; at: number } | null): boolean {
-  const stale =
-    info === null || !isProcessAlive(info.pid) || Date.now() - info.at > LOCK_STALE_MS;
-  if (!stale) return false;
+function tryStealLock(root: string): boolean {
+  const read = readLock(root);
+  if (read.state === "absent") return true;
+  if (read.state === "unreadable") {
+    // Lecture incertaine ou contenu dechire: jamais de vol sur une lecture
+    // qui a echoue. Un fichier dechire abandonne par un crash (write non
+    // atomique) ne se detecte que par son age: mtime au-dela de
+    // LOCK_STALE_MS = detenteur disparu, on peut le retirer.
+    try {
+      if (Date.now() - statSync(lockPath(root)).mtimeMs <= LOCK_STALE_MS) return false;
+    } catch {
+      return false;
+    }
+  } else {
+    const { info } = read;
+    if (isProcessAlive(info.pid) && Date.now() - info.at <= LOCK_STALE_MS) return false;
+    // Relecture avant unlink: si le verrou a change de main entre la
+    // decision de vol et la suppression (fenetre TOCTOU), on recule.
+    const again = readLock(root);
+    if (again.state === "unreadable") return false;
+    if (again.state === "ok" && (again.info.pid !== info.pid || again.info.at !== info.at)) return false;
+  }
   try {
     unlinkSync(lockPath(root));
   } catch (error) {
@@ -342,18 +370,23 @@ export function acquireRootLock(root: string, waitMs = LOCK_WAIT_DEFAULT_MS): ()
       lockDepth.set(root, 1);
       return () => releaseRootLock(root);
     } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
+      const code = (error as NodeJS.ErrnoException).code;
+      // EEXIST = verrou pris; EPERM/EBUSY/EACCES = transitoire (filtre
+      // antivirus sous charge, EPERM reproduit en stress sur .lock): on
+      // reessaie dans la boucle au lieu de planter l'appelant. Le delai
+      // couvre un blocage durable (alors E_LOCK, bruyant, non corrupteur).
+      if (code !== "EEXIST" && code !== "EPERM" && code !== "EBUSY" && code !== "EACCES") throw error;
     }
-    const info = readLockInfo(root);
-    if (info !== null && info.pid === process.pid && Date.now() - info.at <= LOCK_STALE_MS) {
+    const read = readLock(root);
+    if (read.state === "ok" && read.info.pid === process.pid && Date.now() - read.info.at <= LOCK_STALE_MS) {
       // Notre propre verrou (section interrompue par un crash precedent au
       // meme pid): on le reprend en reentrant.
       lockDepth.set(root, 1);
       return () => releaseRootLock(root);
     }
-    if (tryStealLock(root, info)) continue;
+    if (tryStealLock(root)) continue;
     if (Date.now() >= deadline) {
-      const holder = info === null ? "illisible" : String(info.pid);
+      const holder = read.state === "ok" ? String(read.info.pid) : read.state;
       throw memError("E_LOCK", `verrou memoire occupe (pid ${holder}) sous ${root}`);
     }
     sleepSync(LOCK_RETRY_MS);
@@ -368,10 +401,11 @@ function releaseRootLock(root: string): void {
   }
   lockDepth.delete(root);
   try {
-    const info = readLockInfo(root);
-    if (info === null || info.pid === process.pid) unlinkSync(lockPath(root));
-    // Verrou repris par un autre (course apres peremption): on ne touche pas
-    // au fichier d'un tiers.
+    const read = readLock(root);
+    // Lecture incertaine ou absente: on est le detenteur, on libere quand
+    // meme. Un verrou lisible d'un autre pid n'est pas le notre (course
+    // apres peremption): on ne touche pas au fichier d'un tiers.
+    if (read.state !== "ok" || read.info.pid === process.pid) unlinkSync(lockPath(root));
   } catch {
     // Deja libere (ENOENT) ou lecture echouee: rien a faire.
   }

@@ -9,6 +9,7 @@ import {
   readdirSync,
   readFileSync,
   rmSync,
+  utimesSync,
   writeFileSync
 } from "node:fs";
 import { spawn } from "node:child_process";
@@ -194,6 +195,42 @@ describe("memory.ts - S1 robustesse (atomique, auto-heal, verrou)", () => {
       );
       assert.ok(Date.now() - started >= 150, "doit patienter avant d'echouer");
       assert.equal(existsSync(join(root, ".lock")), true, "verrou d'autrui intact");
+    });
+
+    test("verrou au contenu dechire et mtime frais: E_LOCK, jamais de vol sur lecture incertaine", () => {
+      const root = makeRoot();
+      ensureMemoryRoot(root);
+      // Lecture reussie mais contenu illisible (fichier dechire): l'incertain
+      // ne doit jamais etre confondu avec un verrou perime. C'etait la porte
+      // d'entree du vol sur verrou vivant: un EPERM de lecture (filtre
+      // antivirus sous charge Windows) retournait "perime" et le detenteur
+      // actif perdait son verrou — deux sections critiques, une ecriture
+      // ecrasee, un marqueur perdu sans erreur.
+      writeFileSync(join(root, ".lock"), "pas-un-pid\nquand-meme\n", "utf8");
+      assert.throws(
+        () => acquireRootLock(root, 150),
+        (error: unknown) => errCode(error) === "E_LOCK"
+      );
+      assert.equal(
+        readFileSync(join(root, ".lock"), "utf8"),
+        "pas-un-pid\nquand-meme\n",
+        "verrou d'autrui intact"
+      );
+    });
+
+    test("verrou dechire abandonne par un crash (mtime ancien): retire, l'ecriture reprend", () => {
+      const root = makeRoot();
+      ensureMemoryRoot(root);
+      writeFileSync(join(root, ".lock"), "dechire\n", "utf8");
+      const past = new Date(Date.now() - 60_000);
+      utimesSync(join(root, ".lock"), past, past);
+      const release = acquireRootLock(root, 500);
+      assert.ok(
+        readFileSync(join(root, ".lock"), "utf8").startsWith(String(process.pid)),
+        "le verrou nous appartient desormais"
+      );
+      release();
+      assert.equal(existsSync(join(root, ".lock")), false, "liberation effective");
     });
 
     test("rebuildIndex tourne sous verrou et le libere", () => {
