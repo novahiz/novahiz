@@ -62,7 +62,7 @@ function usage(): void {
       "snap [save|list|show|diff|restore|export|verify|prune|status]  Ledger snapshots (ours, no external tool)",
       "graph [build|status|find|all|trace|api|map|fresh|help]  Code graph (ours, in-process)",
       "memory [status|clean|prune]  Project memory hygiene (dry-run by default, --apply)",
-      "second-memory [init|doctor|lint|fix|sync|status|search]  Obsidian vault management (dry-run by default, --apply)",
+      "second-memory [init|doctor|lint|fix|sync|project-init|status|search]  Obsidian vault management (dry-run by default, --apply)",
       "upgrade [--apply]      Check for a newer release: npm (global installs) or git pull (source checkouts)",
       "docs [status|ingest <id>|--all]  Local docs index: state, or fill it (network)",
       "stitch [--key <k>]     Configure the Google Stitch MCP API key (interactive prompt if no --key)",

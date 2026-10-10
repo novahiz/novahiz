@@ -2229,6 +2229,182 @@ function secondMemorySearch(parsed: Parsed): void {
   });
 }
 
+// --- project-init -------------------------------------------------------------
+
+/** Côté projet du sidecar `vault.json` (registre machine, dans la racine
+ *  mémoire) : slug → { domain, branch }. Écrit par `project-init`, lu par
+ *  `routePath`. Idempotent : une entrée existante est actualisée, jamais
+ *  dupliquée ; un fichier illisible est une erreur, pas un écrasement. */
+function writeBinding(slug: string, domain: string, branch: string): void {
+  const root = memoryRootForSync();
+  if (!root) throw new Error("no project-memory found (run `novahiz init` in the project, or set NOVAHIZ_SM_MEMORY)");
+  const file = join(root, "vault.json");
+  let data: Record<string, unknown> = {};
+  if (existsSync(file)) {
+    try {
+      data = JSON.parse(readFileSync(file, "utf8")) as Record<string, unknown>;
+    } catch (error) {
+      throw new Error(`vault.json unreadable: ${(error as Error).message}`);
+    }
+    if (!data || typeof data !== "object" || Array.isArray(data)) throw new Error(`vault.json must hold an object: ${file}`);
+  }
+  data[slug] = { domain, branch, project: slug, updated: new Date().toISOString() };
+  writeFileSync(file, `${JSON.stringify(data, null, 2)}\n`, "utf8");
+}
+
+type ProjectInitResult = {
+  apply: boolean;
+  vault: string;
+  project: string;
+  slug: string;
+  domain: string;
+  branch: string;
+  actions: string[];
+  warnings: string[];
+};
+
+/** Dossier projet dans le vault : `<Domaine>/<Branche>/{docs,journal,decisions}/<slug>/`.
+ *  Jamais de `memory/` : la mémoire d'un projet reste locale au projet. Chaque
+ *  dossier naît avec son `_MOC.md` (contenu réel, pas un dossier vide). Activation
+ *  du domaine complet comme toute activation, relié jusqu'à INDEX. Écrit aussi le
+ *  binding projet → branche, pour que les futures notes `project:` atterrissent ici.
+ *  --branch permet de forcer la branche ; sans lui, le nom du projet route par
+ *  mots-clés (ou retrouve sa branche via un binding existant). */
+export function projectInit(name: string, branchFlag: string | undefined, apply: boolean): ProjectInitResult {
+  const vault = vaultPath();
+  const trimmed = (name ?? "").trim();
+  const slug = projectFolder(trimmed, "");
+  const result: ProjectInitResult = { apply, vault, project: trimmed, slug, domain: "", branch: "", actions: [], warnings: [] };
+  if (slug.length === 0) {
+    result.warnings.push("empty project name after slugify — pass a real --name <project>");
+    return result;
+  }
+  if (!existsSync(vault)) {
+    result.warnings.push("vault not found — run `novahiz second-memory init` first");
+    return result;
+  }
+
+  const structure = loadStructure();
+  let domainNode: StructNode | null = null;
+  let branchNode: StructNode | null = null;
+  if (branchFlag) {
+    const parts = branchFlag.split("/").map((part) => part.trim()).filter((part) => part.length > 0);
+    if (parts.length !== 2) {
+      result.warnings.push(`invalid --branch "${branchFlag}" — usage: --branch Domain/Branch (e.g. --branch Code/Mobile)`);
+      return result;
+    }
+    domainNode = findDomain(parts[0]);
+    branchNode = domainNode?.children?.find((node) => node.name === parts[1]) ?? null;
+    if (!domainNode || !branchNode) {
+      const known = structure.domains
+        .flatMap((domain) => (domain.children ?? []).map((branch) => `${domain.name}/${branch.name}`))
+        .join(", ");
+      result.warnings.push(`unknown branch "${branchFlag}" — known branches: ${known}`);
+      return result;
+    }
+  } else {
+    const segments = routePath(trimmed, "auto", slug);
+    if (segments.length >= 2) {
+      domainNode = findDomain(segments[0].rel);
+      const branchName = segments[1].rel.split("/").slice(1).join("/");
+      branchNode = domainNode?.children?.find((node) => node.name === branchName) ?? null;
+    }
+    if (!domainNode || !branchNode) {
+      result.warnings.push(`no branch signal for "${trimmed}" — pass --branch Domain/Branch`);
+      return result;
+    }
+  }
+  result.domain = domainNode.name;
+  result.branch = branchNode.name;
+
+  const leaves = (branchNode.children ?? []).filter(
+    (leaf) => leaf.kind === "docs" || leaf.kind === "journal" || leaf.kind === "decisions"
+  );
+  if (apply) {
+    try {
+      activateDomain(vault, domainNode);
+    } catch (error) {
+      result.warnings.push(`domain activation failed: ${String(error).slice(0, 200)}`);
+      return result;
+    }
+  }
+  const title = slug.charAt(0).toUpperCase() + slug.slice(1);
+  for (const leaf of leaves) {
+    const leafRel = `${domainNode.name}/${branchNode.name}/${leaf.name}`;
+    const rel = `${leafRel}/${slug}`;
+    if (existsSync(join(vault, rel))) {
+      result.actions.push(`exists: ${rel}`);
+      continue;
+    }
+    result.actions.push(`${apply ? "create folder" : "would create folder"}: ${rel}`);
+    if (apply) {
+      try {
+        ensureFolder(vault, rel, title, { rel: leafRel, title: nodeTitle(leaf) });
+      } catch (error) {
+        result.warnings.push(`create ${rel}: ${String(error).slice(0, 200)}`);
+      }
+    }
+  }
+
+  const bindingLabel = `${slug} → ${domainNode.name}/${branchNode.name}`;
+  if (!apply) {
+    result.actions.push(`would bind: ${bindingLabel}`);
+    return result;
+  }
+  try {
+    const root = memoryRootForSync();
+    if (!root) {
+      result.warnings.push("no project-memory — binding skipped, project notes fall back to keyword routing");
+      return result;
+    }
+    const file = join(root, "vault.json");
+    let existing: { domain?: unknown; branch?: unknown } | null = null;
+    if (existsSync(file)) {
+      try {
+        const parsed = JSON.parse(readFileSync(file, "utf8")) as Record<string, unknown>;
+        const entry = parsed[slug];
+        if (entry && typeof entry === "object") existing = entry as { domain?: unknown; branch?: unknown };
+      } catch {
+        existing = null;
+      }
+    }
+    const unchanged = existing?.domain === domainNode.name && existing?.branch === branchNode.name;
+    if (unchanged) {
+      result.actions.push(`binding unchanged: ${bindingLabel}`);
+      return result;
+    }
+    writeBinding(slug, domainNode.name, branchNode.name);
+    result.actions.push(`${existing ? "binding updated" : "binding created"}: ${bindingLabel}`);
+  } catch (error) {
+    result.warnings.push(`binding failed: ${String(error).slice(0, 200)}`);
+  }
+  return result;
+}
+
+function secondMemoryProjectInit(parsed: Parsed): void {
+  const apply = flagOn(parsed, "apply");
+  const name = String(parsed.flags.name ?? "").trim();
+  const branchFlag = typeof parsed.flags.branch === "string" && parsed.flags.branch.length > 0 ? parsed.flags.branch : undefined;
+  if (name.length === 0) {
+    process.stderr.write("novahiz second-memory project-init: --name <project> is required (e.g. --name mon-app)\n");
+    process.exitCode = 1;
+    return;
+  }
+  const result = projectInit(name, branchFlag, apply);
+  if (result.domain.length === 0) process.exitCode = 1;
+  emit(parsed, result, () => {
+    const head = apply
+      ? "second-memory project-init (apply):"
+      : "second-memory project-init (dry-run — add --apply to execute):";
+    const lines = [head];
+    if (result.domain.length > 0) lines.push(`  project: ${result.project} → ${result.domain}/${result.branch}/${result.slug}`);
+    for (const action of result.actions) lines.push(`  ${action}`);
+    for (const warning of result.warnings) lines.push(`  ! ${warning}`);
+    if (result.actions.length === 0 && result.warnings.length === 0) lines.push("  nothing to do");
+    return lines.join("\n");
+  });
+}
+
 export async function secondMemoryCommand(argv: string[], parsed: Parsed): Promise<void> {
   const sub = argv[0] ?? "status";
   switch (sub) {
@@ -2244,6 +2420,9 @@ export async function secondMemoryCommand(argv: string[], parsed: Parsed): Promi
     case "sync":
       secondMemorySync(parsed);
       return;
+    case "project-init":
+      secondMemoryProjectInit(parsed);
+      return;
     case "doctor":
       await secondMemoryDoctor(parsed);
       return;
@@ -2254,7 +2433,7 @@ export async function secondMemoryCommand(argv: string[], parsed: Parsed): Promi
       secondMemorySearch(parsed);
       return;
     default:
-      process.stderr.write(`novahiz second-memory: unknown subcommand "${sub}" (init|doctor|lint|fix|sync|status|search)\n`);
+      process.stderr.write(`novahiz second-memory: unknown subcommand "${sub}" (init|doctor|lint|fix|sync|project-init|status|search)\n`);
       process.exitCode = 1;
   }
 }
