@@ -5,6 +5,45 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-10-09
+
+Minor release: total Impeccable coverage on the design roadmap, a repair
+command for the optional skill packs, and an honest diagnosis of why packs go
+missing on fresh installs.
+
+### Added
+
+- **Design-ui roadmap: total Impeccable coverage** (`catalog/categories.json`):
+  23 `kind: skill` steps carry the whole official playbook — init, document,
+  shape, critique, then the targeted fixes (layout, typeset, colorize,
+  animate, adapt, bolder, quieter, clarify, delight, distill, extract,
+  onboard, optimize, overdrive, generate), then audit, harden, polish and the
+  detect → verify loop. Labels match the official descriptions published on
+  https://impeccable.style/cheatsheet. Every step is `optional: true` (a
+  checklist the agent follows, gate enforcement stays with R14);
+  `impeccable-live` is excluded on purpose (live browser session, not a
+  code path) and the deprecated `craft` alias is dropped. Rollback:
+  `categories.json.pre-impeccable-full.bak`.
+- **`/novahiz-skills-update` command**
+  (`adapters/opencode/commands/novahiz-skills-update.md`): reinstalls every
+  optional skill pack — dart, flutter, expo, impeccable — cleanly from their
+  official providers (`novahiz deps --install --yes`), refreshes the
+  Impeccable CLI/engine from npm, resyncs the skill index and verifies with
+  doctor. The one command a community member runs when packs are missing.
+
+### Changed
+
+- **`doctor` now names the git root cause** (`src/commands/doctor.ts`): a new
+  non-blocking `git (skill packs)` row — the official skills CLI behind every
+  `providers.json` `kind: skill` entry (dart-lang/skills, flutter/agent-plugins,
+  expo/skills, pbakaus/impeccable) requires git; without it those installs fail
+  silently on a fresh setup, which is exactly how a machine ends up with 33
+  pack skills missing and no explanation. Present → "installable"; missing →
+  install hint pointing at `/novahiz-skills-update`.
+- **`Referenced skills` hint** (`src/commands/doctor.ts`): the
+  "novahiz-install --dart-skills --flutter-skills" hint now points at
+  `/novahiz-skills-update, or novahiz deps --install`, the actual repair path.
+
 ## [0.7.1] - 2026-10-08
 
 Patch release: two installation-level repairs found while cutting 0.7.0 — the

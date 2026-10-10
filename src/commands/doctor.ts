@@ -469,7 +469,7 @@ export function referencedSkillsCheck(
         ? `${referenced.length} present`
         : absentShipped.length > 0
           ? `missing from index: ${absent.join(", ")}`
-          : `${referenced.length - absent.length} present, ${absentPack} pack skills not installed (novahiz-install --dart-skills --flutter-skills)`,
+          : `${referenced.length - absent.length} present, ${absentPack} pack skills not installed (run /novahiz-skills-update, or novahiz deps --install)`,
     blocking: absentShipped.length > 0
   };
 }
@@ -542,6 +542,21 @@ export async function commandDoctor(parsed: Parsed): Promise<void> {
           ? "none required (web-extract replaced defuddle)"
           : "all present",
     blocking: missingCli.length > 0
+  });
+
+  // git backs the official skills CLI behind every providers.json kind:skill
+  // entry (dart, flutter, expo, impeccable). Without git those installs fail
+  // silently on a fresh setup, leaving the pack skills missing with no
+  // explanation - surface the root cause here as a non-blocking warning.
+  const hasGit = hasCommand("git");
+  checks.push({
+    id: "git",
+    label: "git (skill packs)",
+    ok: hasGit,
+    detail: hasGit
+      ? "present - provider skill packs (dart, flutter, expo, impeccable) installable"
+      : "missing - provider skill packs cannot install; run: winget install Git.Git (or install git, then rerun /novahiz-skills-update)",
+    blocking: false
   });
 
   // Two probes, one per live enforcement layer, both deterministic against the

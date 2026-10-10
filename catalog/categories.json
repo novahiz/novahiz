@@ -833,8 +833,26 @@
           "optional": true
         },
         {
+          "id": "impeccable-init",
+          "label": "Impeccable init (give Impeccable the project context: PRODUCT.md audience and goals)",
+          "kind": "skill",
+          "requireSkills": [
+            "impeccable"
+          ],
+          "optional": true
+        },
+        {
+          "id": "impeccable-document",
+          "label": "Impeccable document (record your visual system in DESIGN.md so future work can follow it)",
+          "kind": "skill",
+          "requireSkills": [
+            "impeccable"
+          ],
+          "optional": true
+        },
+        {
           "id": "impeccable-shape",
-          "label": "Impeccable shape (UX/UI design brief before code)",
+          "label": "Impeccable shape (turn an idea into a design brief you can build from)",
           "kind": "skill",
           "requireSkills": [
             "impeccable"
@@ -851,7 +869,142 @@
         },
         {
           "id": "impeccable-critique",
-          "label": "Impeccable critique (systematic after UI work)",
+          "label": "Impeccable critique (find what holds the design back and what to improve first)",
+          "kind": "skill",
+          "requireSkills": [
+            "impeccable"
+          ],
+          "optional": true
+        },
+        {
+          "id": "impeccable-layout",
+          "label": "Impeccable layout (arrange the page so people know where to look and what belongs together)",
+          "kind": "skill",
+          "requireSkills": [
+            "impeccable"
+          ],
+          "optional": true
+        },
+        {
+          "id": "impeccable-typeset",
+          "label": "Impeccable typeset (make text easier to read, scan and recognize)",
+          "kind": "skill",
+          "requireSkills": [
+            "impeccable"
+          ],
+          "optional": true
+        },
+        {
+          "id": "impeccable-colorize",
+          "label": "Impeccable colorize (color clarifies actions, states and the design's character)",
+          "kind": "skill",
+          "requireSkills": [
+            "impeccable"
+          ],
+          "optional": true
+        },
+        {
+          "id": "impeccable-animate",
+          "label": "Impeccable animate (motion clarifies changes, relationships and feedback)",
+          "kind": "skill",
+          "requireSkills": [
+            "impeccable"
+          ],
+          "optional": true
+        },
+        {
+          "id": "impeccable-adapt",
+          "label": "Impeccable adapt (make the design work on a different screen, device or platform)",
+          "kind": "skill",
+          "requireSkills": [
+            "impeccable"
+          ],
+          "optional": true
+        },
+        {
+          "id": "impeccable-bolder",
+          "label": "Impeccable bolder (more presence, still true to the design)",
+          "kind": "skill",
+          "requireSkills": [
+            "impeccable"
+          ],
+          "optional": true
+        },
+        {
+          "id": "impeccable-quieter",
+          "label": "Impeccable quieter (reduce visual noise, keep the personality)",
+          "kind": "skill",
+          "requireSkills": [
+            "impeccable"
+          ],
+          "optional": true
+        },
+        {
+          "id": "impeccable-clarify",
+          "label": "Impeccable clarify (help people understand what happened and what to do next)",
+          "kind": "skill",
+          "requireSkills": [
+            "impeccable"
+          ],
+          "optional": true
+        },
+        {
+          "id": "impeccable-delight",
+          "label": "Impeccable delight (meaningful moments: surprising, satisfying, unmistakably yours)",
+          "kind": "skill",
+          "requireSkills": [
+            "impeccable"
+          ],
+          "optional": true
+        },
+        {
+          "id": "impeccable-distill",
+          "label": "Impeccable distill (reduce clutter so the important things are easier to find)",
+          "kind": "skill",
+          "requireSkills": [
+            "impeccable"
+          ],
+          "optional": true
+        },
+        {
+          "id": "impeccable-extract",
+          "label": "Impeccable extract (turn repeated patterns into shared components and styles)",
+          "kind": "skill",
+          "requireSkills": [
+            "impeccable"
+          ],
+          "optional": true
+        },
+        {
+          "id": "impeccable-onboard",
+          "label": "Impeccable onboard (help new users reach their first useful result)",
+          "kind": "skill",
+          "requireSkills": [
+            "impeccable"
+          ],
+          "optional": true
+        },
+        {
+          "id": "impeccable-optimize",
+          "label": "Impeccable optimize (find what slows the interface, fix it, measure the result)",
+          "kind": "skill",
+          "requireSkills": [
+            "impeccable"
+          ],
+          "optional": true
+        },
+        {
+          "id": "impeccable-overdrive",
+          "label": "Impeccable overdrive (push past the expected, make it feel extraordinary)",
+          "kind": "skill",
+          "requireSkills": [
+            "impeccable"
+          ],
+          "optional": true
+        },
+        {
+          "id": "impeccable-generate",
+          "label": "Impeccable generate (name an element, compare variations, keep the favorite)",
           "kind": "skill",
           "requireSkills": [
             "impeccable"
@@ -860,7 +1013,7 @@
         },
         {
           "id": "impeccable-audit",
-          "label": "Impeccable audit (a11y/perf/responsive, when the UI warrants it)",
+          "label": "Impeccable audit (find implementation problems and prioritize the fixes)",
           "kind": "skill",
           "requireSkills": [
             "impeccable"
@@ -869,7 +1022,7 @@
         },
         {
           "id": "impeccable-harden",
-          "label": "Impeccable harden (errors, i18n, edge cases before polish)",
+          "label": "Impeccable harden (keep the interface usable when data, connections or actions go wrong)",
           "kind": "skill",
           "requireSkills": [
             "impeccable"
@@ -878,7 +1031,7 @@
         },
         {
           "id": "impeccable-polish",
-          "label": "Impeccable polish (final pass before ship)",
+          "label": "Impeccable polish (make the page feel finished and work better)",
           "kind": "skill",
           "requireSkills": [
             "impeccable"
