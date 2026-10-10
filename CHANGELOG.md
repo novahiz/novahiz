@@ -3,7 +3,7 @@
 All notable changes to Novahiz are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [Unreleased]
+## [0.8.2] - 2026-10-10
 
 ### Fixed
 
@@ -44,6 +44,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   CLI bootstrap) keep the historical fully synchronous behaviour, and
   `--sync` forces that behaviour back under npm as an escape hatch.
   Regression tests: `tests/install-defer.test.ts`.
+
+## [Unreleased]
 
 ## [0.8.1] - 2026-10-10
 
