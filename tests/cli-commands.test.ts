@@ -12,7 +12,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, describe, test } from "node:test";
 
-import { checkText, compareVersions, detectTarget, npmInstalled } from "../src/commands/upgrade.ts";
+import { checkText, compareVersions, detectTarget, npmInstalled, runNpm } from "../src/commands/upgrade.ts";
 import { applyStitchKey, findMatchingBrace, isValidJsonc, stripJsonComments } from "../src/commands/stitch.ts";
 import { upsertGateProfile, GATE_PROFILE_BEGIN, GATE_PROFILE_END } from "../src/commands/gate.ts";
 
@@ -56,6 +56,18 @@ describe("upgrade: detection du canal", () => {
     assert.match(checkText("0.6.0", "0.7.0", "npm"), /0\.6\.0 installed, 0\.7\.0 available/);
     assert.match(checkText("0.7.0", "0.7.0", "npm"), /up to date/);
     assert.match(checkText("0.6.0", "0.7.0", "git"), /source checkout/);
+  });
+});
+
+describe("upgrade: runNpm capture stdout (regression canal npm)", () => {
+  // Bug 0.7.1/0.8.0 : npm view etait appele en stdio "ignore", spawnSync
+  // retournait stdout=null, latest etait toujours vide et le verdict toujours
+  // "up to date" — --apply devenait inatteignable. Ici on prouve que "pipe"
+  // capture bien la sortie, avec npm --version en local (aucun reseau).
+  test("stdio pipe rend un npm --version non vide", () => {
+    const result = runNpm(["--version"], "pipe");
+    assert.equal(result.status, 0);
+    assert.match(result.stdout.trim(), /^\d+\.\d+\.\d+/);
   });
 });
 

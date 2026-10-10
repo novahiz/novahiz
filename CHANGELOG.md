@@ -5,6 +5,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.8.1] - 2026-10-10
+
+Patch: `novahiz upgrade` always reported "up to date" on the npm channel.
+
+### Fixed
+
+- **`novahiz upgrade` reads the published version again**
+  (`src/commands/upgrade.ts`): the `npm view` call ran with `stdio: "ignore"`,
+  which makes `spawnSync` return `stdout: null` — `latest` was always empty,
+  `compareVersions(local, "")` always won, and the command printed
+  `up to date (npm latest: )` even when a newer release existed, so `--apply`
+  could never trigger. The call now captures stdout (`"pipe"`), with a
+  regression test spawning `npm --version` locally (no network). Inherited
+  since 0.7.1.
+
 ## [0.8.0] - 2026-10-09
 
 Minor release: total Impeccable coverage on the design roadmap, a repair

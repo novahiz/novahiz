@@ -71,8 +71,12 @@ function readLocalVersion(root: string): string {
   }
 }
 
-/** npm sous Windows est npm.cmd : spawnSync a besoin du shell, sinon ENOENT. */
-function runNpm(args: string[], stdio: "inherit" | "ignore"): { status: number; stdout: string; stderr: string } {
+/** npm sous Windows est npm.cmd : spawnSync a besoin du shell, sinon ENOENT.
+ *  `pipe` capture stdout/stderr (obligatoire pour `npm view` : `ignore`
+ *  retourne stdout=null et `latest` restait toujours vide), `inherit` pour
+ *  les sorties visibles de l'utilisateur (installation). Exporte pour le
+ *  test de regression. */
+export function runNpm(args: string[], stdio: "inherit" | "pipe"): { status: number; stdout: string; stderr: string } {
   const result = spawnSync("npm", args, {
     encoding: "utf8",
     stdio,
@@ -87,7 +91,7 @@ function runNpm(args: string[], stdio: "inherit" | "ignore"): { status: number; 
 
 function npmFlow(parsed: Parsed, root: string): void {
   const local = readLocalVersion(root);
-  const view = runNpm(["view", "novahiz", "version"], "ignore");
+  const view = runNpm(["view", "novahiz", "version"], "pipe");
   if (view.status !== 0) {
     process.stderr.write(`novahiz upgrade: npm view failed (${view.stderr.trim() || `exit ${view.status}`}).\n`);
     process.exitCode = 1;
