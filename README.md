@@ -2,9 +2,9 @@
 
 > **Couche d'application sans dépendance pour les agents de code IA** — classe les prompts, attribue des roadmaps d'exécution, bloque les éditions non sûres tant que les bonnes skills ne sont pas chargées, et persiste les décisions d'une session à l'autre — tout cela de façon déterministe, sans appel de modèle.
 
-17 catégories, 99 skills, 13 gate rules, 8 MCP providers — tout déterministe, tout local, tout JSON.
+17 catégories, 94 skills, 13 gate rules, 8 MCP providers — tout déterministe, tout local, tout JSON.
 
-> **Version 0.6.0** — publiée sur npm (`npm install -g --allow-scripts=novahiz novahiz` installe et configure tout : core, plugin, agent, skills packs et Playwright MCP). `CHANGELOG.md` et `scripts/` sont dans le tarball.
+> **Version 0.8.0** — publiée sur npm (`npm install -g --allow-scripts=novahiz novahiz` installe et configure tout : core, plugin, agent, skills packs et Playwright MCP). `CHANGELOG.md` et `scripts/` sont dans le tarball.
 
 ```
 ┌──────────────────────────────────────────────────────────────────────────┐
@@ -35,7 +35,7 @@
                  └─ tier, skills ──────│         └─ block : charger les skills nommées, retry une fois
 ```
 
-**17 catégories**, **99 skills**, **13 gate rules**, **8 MCP providers** — tout déterministe, tout local, tout JSON.
+**17 catégories**, **94 skills**, **13 gate rules**, **8 MCP providers** — tout déterministe, tout local, tout JSON.
 
 ---
 
@@ -66,7 +66,7 @@ npm antérieur à 11.16 exécute les scripts par défaut : `npm install -g novah
 Puis vérifiez :
 
 ```bash
-novahiz doctor   # Santé : 15 checks (17 avec --deep)
+novahiz doctor   # Santé : 17 checks (22 avec --deep)
 novahiz classify "fix the auth bug"
 ```
 
@@ -197,6 +197,8 @@ Huit catégories (`code`, `debug`, `browser`, `design-ui`, `database-supabase`, 
 
 Clarify renvoie le travail au plan quand une réponse change l'architecture ; converge le renvoie aux tâches quand il trouve un écart. `flutter` et `expo` gardent les six mêmes étapes et insèrent leurs skills qualité autour d'implement. Le **tier** du classifier filtre la suite : `trivial` n'exécute presque rien, `lite` garde implement et converge, `full` parcourt toute la roadmap. Référence complète : [docs/ROADMAPS.md](docs/ROADMAPS.md).
 
+La roadmap `design-ui` porte en plus la couverture totale du playbook Impeccable : 23 étapes `skill` optionnelles couvrant l'intégralité des commandes officielles (`init`, `document`, `shape`, `critique`, ciblées `layout` → `generate`, `audit`, `harden`, `polish`, boucle `detect → verify`), avec les libellés des descriptions publiées sur [impeccable.style/cheatsheet](https://impeccable.style/cheatsheet). Elles forment une checklist pour l'agent ; l'application des règles design reste portée par `R14-impeccable`. `impeccable-live` est volontairement hors roadmap (session navigateur en direct, pas un chemin de code).
+
 ```mermaid
 flowchart LR
     subgraph "Fonctionnalité (code)"
@@ -310,7 +312,7 @@ Deux pièces complémentaires : la session consomme moins sans perdre en puissan
 
 ## Skills installées
 
-Novahiz livre 99 skills couvrant toutes les catégories :
+Novahiz livre 94 skills couvrant toutes les catégories — 46 dans le cœur du dépôt, les autres dans les packs officiels installés par défaut au setup :
 
 | Catégorie | Skills | Objectif |
 |-----------|--------|----------|
@@ -344,7 +346,9 @@ Novahiz auto-enregistre les serveurs MCP externes selon la catégorie du prompt 
 | novahiz-scheduler | `mcp/clepsydre/index.mjs` (local, zéro dépendance) | Apache-2.0 | devops |
 | dart | `dart mcp-server` (Dart SDK) | BSD-3-Clause | code, debug, design-ui, flutter |
 
-Packs de skills (installés depuis les dépôts officiels, jamais vendorés) : `flutter/agent-plugins` (25 skills), `dart-lang/skills` (15 skills), `expo/skills` (19 skills, le groupe `expo-*` seulement ; les services payants `eas-*` exclus), `pbakaus/impeccable` (1 skill, la skill design upstream `impeccable`). Voir [docs/PROVIDERS.md](docs/PROVIDERS.md).
+Packs de skills (installés depuis les dépôts officiels, jamais vendorés, et livrés **par défaut** au setup via `providers.autoInstall`) : `flutter/agent-plugins` (10 skills), `dart-lang/skills` (15 skills), `expo/skills` (19 skills, le groupe `expo-*` seulement ; les services payants `eas-*` exclus), `pbakaus/impeccable` (1 skill, la skill design upstream `impeccable`).
+
+**`git` est requis** par le CLI officiel des skills : sans lui, l'installation des packs échoue silencieusement et les skills manquent au premier lancement. `novahiz doctor` le nomme (ligne `git (skill packs)`), et **`/novahiz-skills-update`** — ou `novahiz deps --install` — réinstalle proprement tous les packs depuis leurs providers officiels. Voir [docs/PROVIDERS.md](docs/PROVIDERS.md).
 
 Dépôts upstream et provenance complète des providers MCP et plugins opencode : [docs/PROVIDERS.md](docs/PROVIDERS.md), [docs/HARNESSES.md](docs/HARNESSES.md), [NOTICE.md](NOTICE.md).
 
@@ -374,7 +378,7 @@ Voir [docs/CONFIGURATION.md](docs/CONFIGURATION.md) pour toutes les options.
 | Commande | Objectif |
 |----------|----------|
 | `novahiz init` | Installation en une passe |
-| `novahiz doctor` | Diagnostic de santé 15-check (17 avec `--deep`) |
+| `novahiz doctor` | Diagnostic de santé 17-check (22 avec `--deep`) |
 | `novahiz status` | Classification + état du gate actuels |
 | `novahiz classify <text>` | Classer un prompt |
 | `novahiz gate` | Vérifier si une édition est autorisée |
