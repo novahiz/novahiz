@@ -42,7 +42,7 @@ type StructNode = {
   id?: string;
   name: string;
   title?: string;
-  kind: "domain" | "branch" | "memory" | "docs" | "notes";
+  kind: "domain" | "branch" | "memory" | "docs" | "journal" | "decisions" | "notes";
   keywords?: string[];
   children?: StructNode[];
 };
@@ -59,6 +59,8 @@ type VaultStructure = {
   defaultProject: string;
   domains: StructNode[];
   docsKeywords: string[];
+  journalKeywords: string[];
+  decisionsKeywords: string[];
   plugins: Array<{ id: string; repo: string; required?: boolean }>;
 };
 
@@ -111,6 +113,8 @@ function loadStructure(): VaultStructure {
     defaultProject: raw.defaultProject || "general",
     domains: raw.domains,
     docsKeywords: Array.isArray(raw.docsKeywords) ? raw.docsKeywords : [],
+    journalKeywords: Array.isArray(raw.journalKeywords) ? raw.journalKeywords : [],
+    decisionsKeywords: Array.isArray(raw.decisionsKeywords) ? raw.decisionsKeywords : [],
     plugins: raw.plugins
   };
   return structureCache;
@@ -658,17 +662,56 @@ function hasKeyword(lowerText: string, keywords: string[]): boolean {
   return false;
 }
 
+/** Sidecar projet → branche, écrit par `second-memory project-init` :
+ *  `<slug>` → { domain, branch }, dans le racine mémoire (registre machine).
+ *  Une note qui porte un projet lié atterrit dans SA branche même sans mot-clé
+ *  de domaine : toutes les données d'un projet restent ensemble (prompt 2).
+ *  Absent, illisible ou périmé (domaine/branche hors catalogue) → repli sur le
+ *  routage par mots-clés, strictement inchangé. */
+function readBinding(slug: string): { domain: string; branch: string } | null {
+  const root = memoryRootForSync();
+  if (!root) return null;
+  const file = join(root, "vault.json");
+  if (!existsSync(file)) return null;
+  try {
+    const parsed = JSON.parse(readFileSync(file, "utf8")) as Record<string, unknown>;
+    const entry = parsed[slug];
+    if (!entry || typeof entry !== "object") return null;
+    const { domain, branch } = entry as { domain?: unknown; branch?: unknown };
+    if (typeof domain !== "string" || typeof branch !== "string") return null;
+    if (domain.length === 0 || branch.length === 0) return null;
+    return { domain, branch };
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Chemin canonique d'une note, dérivé du catalogue — aucun chemin inventé :
- * domaine → branche → memory|docs → projet. Sans signal de domaine, le tableau
- * est vide et la note part dans Inbox pour triage (comportement historique).
+ * domaine → branche → memory|docs|journal|decisions → projet. Un projet lié par
+ * `project-init` l'emporte sur les mots-clés : ses notes restent dans sa branche.
+ * Sans signal de domaine, le tableau est vide et la note part dans Inbox pour
+ * triage (comportement historique).
  */
-export function routePath(text: string, kind: "memory" | "docs" | "auto", projectName?: string): Segment[] {
+export function routePath(text: string, kind: "memory" | "docs" | "journal" | "decisions" | "auto", projectName?: string): Segment[] {
   const structure = loadStructure();
   const lower = ` ${text.toLowerCase()} `;
-  const domainMatch = matchNode(structure.domains, lower);
-  let domain: StructNode | null = domainMatch.matched ? domainMatch.node : null;
+  let domain: StructNode | null = null;
   let branchHint: StructNode | null = null;
+  const slug = projectName === undefined ? null : projectFolder(projectName, structure.defaultProject);
+  const binding = slug ? readBinding(slug) : null;
+  if (binding) {
+    const boundDomain = findDomain(binding.domain);
+    const boundBranch = boundDomain?.children?.find((node) => node.name === binding.branch) ?? null;
+    if (boundDomain && boundBranch) {
+      domain = boundDomain;
+      branchHint = boundBranch;
+    }
+  }
+  if (!domain) {
+    const domainMatch = matchNode(structure.domains, lower);
+    if (domainMatch.matched) domain = domainMatch.node;
+  }
   if (!domain) {
     // 2e passe : un mot-clé de BRANCHE route aussi vers son domaine, sinon
     // "flutter" n'atterrirait nulle part alors que Code/Mobile le porte.
@@ -692,11 +735,15 @@ export function routePath(text: string, kind: "memory" | "docs" | "auto", projec
   segments.push({ rel: branchRel, title: nodeTitle(branch) });
   const leaves = branch.children ?? [];
   if (leaves.length === 0) return segments;
-  const wanted = kind === "auto" ? (hasKeyword(lower, structure.docsKeywords) ? "docs" : "memory") : kind;
+  const wanted = kind === "auto"
+    ? (hasKeyword(lower, structure.decisionsKeywords) ? "decisions"
+      : hasKeyword(lower, structure.journalKeywords) ? "journal"
+      : hasKeyword(lower, structure.docsKeywords) ? "docs" : "memory")
+    : kind;
   const leaf = leaves.find((node) => node.kind === wanted) ?? leaves[0];
   const leafRel = `${branchRel}/${leaf.name}`;
   segments.push({ rel: leafRel, title: nodeTitle(leaf) });
-  if (leaf.kind === "memory" || leaf.kind === "docs") {
+  if (leaf.kind === "memory" || leaf.kind === "docs" || leaf.kind === "journal" || leaf.kind === "decisions") {
     const project = projectFolder(projectName, structure.defaultProject);
     const title = project.charAt(0).toUpperCase() + project.slice(1);
     segments.push({ rel: `${leafRel}/${project}`, title });
