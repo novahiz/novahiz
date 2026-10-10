@@ -1,4 +1,4 @@
-import { mkdirSync, readdirSync, readFileSync, realpathSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, statSync, writeFileSync } from "node:fs";
 import { basename, isAbsolute, join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { expandHome, type Spec } from "./spec.ts";
@@ -68,6 +68,11 @@ export function parseFrontmatter(content: string): Record<string, string> {
 }
 
 function walkForSkillFiles(root: string, found: string[], visited: Set<string>, errors: string[]): void {
+  // A declared skill root that does not exist yet is normal on a fresh machine:
+  // the default skillRoots include ~/.agents/skills, which most profiles do not
+  // have. It contributes nothing and must not surface as a scan error in every
+  // first sync (the installer prints that JSON).
+  if (!existsSync(root)) return;
   let real: string;
   try {
     real = realpathSync(root);

@@ -3,6 +3,24 @@
 All notable changes to Novahiz are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.9.1] - 2026-10-10
+
+### Fixed
+
+- **Fresh-install scan stops reporting missing skill roots** — the default
+  `skillRoots` include `~/.agents/skills`, which most profiles do not have.
+  The first `sync` (run by the installer) used to surface it as a scan error
+  on every new machine; a declared root that does not exist yet now simply
+  contributes nothing (`scanErrors: []`).
+- **README install banner aligned with the shipped version** (0.8.0 → 0.9.0).
+
+### Notes
+
+- The npm installer path is verified end-to-end on npm 12.2: install with the
+  `postinstall` blocked by `allowScripts`, first `novahiz` run finishes the
+  setup itself (auto-install, `NOVAHIZ_AUTOINSTALL=0` to opt out), second run
+  clean. `novahiz doctor` exits 0 on the fresh sandbox.
+
 ## [0.9.0] - 2026-10-10
 
 ### Added
