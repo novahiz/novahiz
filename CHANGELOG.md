@@ -3,6 +3,31 @@
 All notable changes to Novahiz are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.9.2] - 2026-10-11
+
+### Fixed
+
+- **Memory root lock: no more silent marker loss under contention** — a
+  transient `EPERM`/`EBUSY` when reading `.lock` (Windows filter driver
+  under I/O load) was indistinguishable from "absent", so a waiter could
+  delete the lock of a **live** holder: two critical sections, one
+  read-modify-write clobbered, one marker lost while both writers exited 0.
+  `readLock` is now tri-state (`ok` / `absent` / `unreadable`); a steal
+  requires a confirmed stale lock (dead pid or age) plus an immediate
+  re-read (closes the TOCTOU window); a torn file left by a crash is
+  detected via `mtime > LOCK_STALE_MS` and only then removed.
+- **`acquireRootLock` no longer crashes on transient create errors** — the
+  same `EPERM` on the `wx` create (reproduced: 2 crashes in 40 rounds
+  under 6 CPU burners) now retries with the existing deadline and ends in
+  a loud `E_LOCK` instead of killing the caller.
+
+### Notes
+
+- Proven under load: 60/60 stress rounds clean after the fix (2/40 rounds
+  crashed before). Two new deterministic tests (torn + fresh mtime →
+  `E_LOCK` with the foreign lock intact; torn + old mtime → stolen).
+  Suite 613 tests / 612 pass / 0 fail; CI green on Windows and Linux.
+
 ## [0.9.1] - 2026-10-10
 
 ### Fixed
