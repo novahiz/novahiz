@@ -6,6 +6,7 @@ import { loadInstalledSkills } from "../catalog.ts";
 import { findContextFile } from "../impeccable.ts";
 import { ensureMemoryRoot, memoryRoot, writeEntry } from "../memory.ts";
 import { ensureProjectAutoDocsConfig } from "./autodocs.ts";
+import { projectInit } from "./second-memory.ts";
 import * as ui from "../render.ts";
 
 type StepStatus = "created" | "skipped" | "dry-run" | "failed";
@@ -275,6 +276,50 @@ function impeccableContext(home: string, cwd: string, dryRun: boolean): InitStep
   };
 }
 
+/** Étape Obsidian : quand un vault existe et que le projet est détecté, le
+ *  dossier projet apparaît dans le vault (docs/journal/decisions + binding) —
+ *  c'est le prompt 2 : initialiser un projet crée sa place dans Obsidian.
+ *  Sans vault ou sans signal de branche, l'étape saute avec un conseil : init
+ *  ne doit jamais échouer pour ça, et aucun dossier n'est inventé (prompt 5). */
+function obsidianProject(dryRun: boolean, project: ProjectInfo): InitStep {
+  const label = "Obsidian project folder";
+  const name = project.name.trim();
+  if (name.length === 0) {
+    return { id: "obsidian", label, status: "skipped", detail: "no project name detected (package.json)" };
+  }
+  let result;
+  try {
+    result = projectInit(name, undefined, !dryRun);
+  } catch (error) {
+    return { id: "obsidian", label, status: "failed", detail: String(error).slice(0, 160) };
+  }
+  if (result.domain.length === 0) {
+    const reason = result.warnings[0] ?? "no branch signal";
+    return {
+      id: "obsidian",
+      label,
+      status: "skipped",
+      detail: reason,
+      advice: `Link it: novahiz second-memory project-init --name <project> --branch Domain/Branch --apply`
+    };
+  }
+  const created = result.actions.filter((action) => action.startsWith("create folder")).length;
+  const existing = result.actions.filter((action) => action.startsWith("exists")).length;
+  const where = `${result.domain}/${result.branch}/${result.slug}`;
+  if (dryRun) {
+    return { id: "obsidian", label, status: "dry-run", detail: `${where}: ${created} folder(s) would be created, ${existing} already there` };
+  }
+  if (result.warnings.length > 0) {
+    return { id: "obsidian", label, status: created > 0 ? "created" : "failed", detail: `${where}: ${result.warnings.join("; ").slice(0, 160)}` };
+  }
+  return {
+    id: "obsidian",
+    label,
+    status: created > 0 ? "created" : "skipped",
+    detail: created > 0 ? `${where}: ${created} folder(s) + binding` : `${where}: already initialized`
+  };
+}
+
 export function commandInit(parsed: Parsed): void {
   const cwd = process.cwd();
   const home = NovahizHome();
@@ -317,6 +362,7 @@ export function commandInit(parsed: Parsed): void {
       });
     }
     steps.push(impeccableContext(home, cwd, dryRun));
+    steps.push(obsidianProject(dryRun, project));
   }
 
   let cleanup: CleanupCandidate[] = [];
