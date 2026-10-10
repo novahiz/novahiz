@@ -3,6 +3,51 @@
 All notable changes to Novahiz are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.9.0] - 2026-10-10
+
+### Added
+
+- **`second-memory project-init`** — gives a new project its vault folders
+  (`docs/journal/decisions/<project>/`, each with a real `_MOC.md`, never
+  `memory/`) and binds the project to its branch. Dry-run by default,
+  `--branch Domain/Branch` validates against the catalog, idempotent, and
+  `--apply` writes the `vault.json` binding (slug → domain/branch) in the
+  memory root.
+- **`novahiz init` Obsidian step** — when a vault exists and the project has
+  a name, init creates the project's folders through the same logic; no
+  vault, no name or no branch signal means the step skips with an advice and
+  never invents a folder. Honors `--dry-run`.
+- **`journal` and `decisions` leaves** in `catalog/vault-structure.json` for
+  every `memory|docs` branch (19 branches, 38 leaves), with root
+  `journalKeywords` / `decisionsKeywords`. `routePath` resolves the leaf
+  `decisions` > `journal` > `docs` > `memory`, and the project level extends
+  to the new leaves.
+- **Project binding in `routePath`** — a note carrying a `project:` bound by
+  `project-init` lands in the project's branch whatever the keywords say;
+  stale or missing bindings fall back to the historic keyword routing.
+
+### Changed
+
+- **`second-memory sync` is archive-only** — project memory stays local
+  (`MEMORY.md` + `project-memory/` slots); the bidirectional slot ↔ vault
+  mirror (pull / push / rebuild, last-writer-wins) is retired. `sync` now
+  lists (dry-run) and archives (`--apply`, backed up under `Archive/.backup`)
+  the notes the old mirror generated (`novahiz_slot_id`), while keeping the
+  opt-in inverse import (`novahiz_slot_sync: true` → slot in local memory).
+  `status` / `doctor` report the leftovers as `project-memory note(s) in the
+  vault`.
+- **Skills and instructions follow** — `novahiz-memory` / `memory` are
+  local-only (no vault write, no routing table); `novahiz-second-memory`
+  documents the new leaves, `project-init`, the binding and the archive-only
+  sync; `instructions.md` adds the local-memory rule and the
+  no-speculative-folders rule.
+
+### Removed
+
+- Mirror helpers and constants of the retired sync (`renderSlotNote`,
+  `slotBody`, `parseIso`, `SYNC_TOLERANCE_MS`, and the `readIndex` usage in
+  sync).
+
 ## [0.8.2] - 2026-10-10
 
 ### Fixed
