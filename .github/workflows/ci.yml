@@ -7,11 +7,21 @@ on:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
+        # Ubuntu porte la grille node (22 / 22.18 LTS / 24). Windows et
+        # macOS passent en inclusion simple: le but est la detection
+        # platforme (chemins, spawn, verrous, line endings), pas la grille
+        # complete sur trois OS. CI = 5 jobs.
+        os: [ubuntu-latest]
         node-version: ["22", "22.18.0", "24"]
+        include:
+          - os: windows-latest
+            node-version: "24"
+          - os: macos-latest
+            node-version: "24"
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
