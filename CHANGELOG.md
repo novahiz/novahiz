@@ -3,6 +3,36 @@
 All notable changes to Novahiz are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.9.3] - 2026-10-11
+
+### Changed
+
+- **CI verifies the suite and the installer dry-run on Windows and macOS**
+  — the matrix keeps the Ubuntu node grid (22 / 22.18.0 / 24) and adds one
+  node-24 job each on `windows-latest` and `macos-latest` (5 jobs).
+  Previously only Ubuntu ran in CI; Windows rested on local runs and macOS
+  on nothing at all.
+
+### Fixed
+
+- **`install.sh` is executable in the package** — mode moved from 100644
+  to 100755, so `./install/install.sh` no longer fails with permission
+  denied on Linux/macOS.
+- **macOS memory CLI test compares canonical paths** — `$TMPDIR` on macOS
+  is a symlink (`/var` → `/private/var`); the first-ever macOS CI run
+  caught `tests/memory-cli.test.ts` asserting the CLI's resolved root
+  against a raw string. Both sides now go through `realpathSync`.
+
+### Notes
+
+- Cross-platform claims re-checked against primary sources: GitHub docs
+  (matrix `include` adds non-mergeable combinations → 5 jobs, confirmed by
+  the runs), npm docs (`--allow-scripts=novahiz` is the documented way to
+  approve a global install; a package cannot self-authorize), Playwright
+  docs (WebKit runs on all three OSes; Linux needs its system libraries).
+  The README now carries the Linux remedy: `npx playwright install-deps
+  webkit`.
+
 ## [0.9.2] - 2026-10-11
 
 ### Fixed
