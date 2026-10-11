@@ -7,7 +7,7 @@
 import assert from "node:assert/strict";
 import { after, before, describe, test } from "node:test";
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -80,7 +80,9 @@ describe("novahiz memory status", () => {
     const run = memory(["status", "--json"]);
     assert.equal(run.status, 0);
     const value = asJson(run);
-    assert.equal(value.root, mem);
+    // macOS: $TMPDIR est un symlink (/var -> /private/var). Le CLI canonise
+    // le root, le test compare les deux cotes resolus plutot que les chaines.
+    assert.equal(realpathSync(value.root), realpathSync(mem));
     assert.equal(value.exists, true);
     assert.equal(value.index.state, "sain");
     assert.equal(value.disk.files, 2, "deux .md sur disque");
