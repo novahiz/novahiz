@@ -63,6 +63,8 @@ npm antérieur à 11.16 exécute les scripts par défaut : `npm install -g novah
 
 > Piège : `npm install -g --allow-scripts=novahiz` **sans** le nom du paquet installe le dossier courant et échoue avec `ENOENT: package.json`. Le nom du paquet est obligatoire : `npm install -g --allow-scripts=novahiz novahiz`.
 
+> Linux : le serveur Playwright MCP s'exécute sous WebKit (règle maison : Chromium interdit). WebKit exige ses dépendances système : si le navigateur ne démarre pas, `npx playwright install-deps webkit` (sudo requis sur Debian/Ubuntu).
+
 Puis vérifiez :
 
 ```bash
