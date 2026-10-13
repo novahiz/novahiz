@@ -38,7 +38,6 @@ modes:
 options:
   --evals FILE            evals.json (defaut: evals.json)
   --id ID                 id de l'evaluation concernee (defaut: 1)
-  --skill DIR             dossier du skill evalue (optionnel)
   --record                archive sous evals/runs/<ISO>/<id>.md + run.json
   --out DIR               racine d'archive (defaut: evals/runs)
   --json                  sort les metriques en JSON
@@ -187,7 +186,6 @@ def main(argv):
     parser.add_argument("--transcript")
     parser.add_argument("--evals", default="evals.json")
     parser.add_argument("--id", default="1")
-    parser.add_argument("--skill")
     parser.add_argument("--record", action="store_true")
     parser.add_argument("--out", default=os.path.join("evals", "runs"))
     parser.add_argument("--json", action="store_true")

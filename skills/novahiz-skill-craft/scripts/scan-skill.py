@@ -7,6 +7,7 @@ manque, ce qui depasse, et ce qui contredit les regles du contrat
 
 Sortie : rapport texte + code de sortie 1 si un probleme est signale.
 """
+import json
 import os
 import re
 import sys
@@ -23,6 +24,7 @@ options:
 
 verifie:
   - presence de SKILL.md, et coherence name <-> nom du dossier
+  - presence d'evals.json (obligatoire selon la Phase 2) et son JSON
   - corps du SKILL.md <= 500 lignes (au-dela: deplacer dans references/)
   - fences ``` equilibrees
   - references/ lues au niveau 1 (# titre), reliques par pointeur
@@ -108,6 +110,26 @@ def scan(skill_dir):
         if missing not in dirs:
             report["warnings"].append(f"dossier {missing}/ absent")
 
+    # La Phase 2 du SKILL.md declare evals.json obligatoire : le scan doit
+    # le dire, sinon il valide une structure que le contrat refuse.
+    if "evals.json" not in files:
+        report["problems"].append(
+            "evals.json absent : declare obligatoire par la Phase 2 "
+            "(references/evals-spec.md)"
+        )
+    else:
+        evals_text = read_text(os.path.join(skill_dir, "evals.json")) or ""
+        try:
+            payload = json.loads(evals_text)
+            count = len(payload.get("evals", [])) if isinstance(payload, dict) else 0
+            report["info"]["evals"] = count
+            if count < 3:
+                report["warnings"].append(
+                    f"evals.json contient {count} evaluation(s) : 3 minimum recommandes"
+                )
+        except json.JSONDecodeError as exc:
+            report["problems"].append(f"evals.json : JSON invalide ({exc})")
+
     for name in files:
         if name.endswith(BACKUP_SUFFIXES):
             report["problems"].append(f"fichier de sauvegarde embarque: {name}")
@@ -179,7 +201,6 @@ def main(argv):
     as_json = "--json" in argv
     report = scan(args[0] if args else ".")
     if as_json:
-        import json
         print(json.dumps(report, indent=2, ensure_ascii=False))
     else:
         render(report)

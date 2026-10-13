@@ -48,11 +48,13 @@ TRIGGER_MARKERS = [
 ]
 DIFFERENTIATOR_MARKERS = [
     "unlike", "not the same as", "rather than", "instead of", "differs from",
-    "do not use", "dont use", "different from",
-    "different de", "ne pas confondre", "pas le meme", "plutot que",
-    "a ne pas confondre", "contrairement", "se distingue", "different不同于",
-    "different de", "pas pour", "ne couvre pas",
+    "do not use", "dont use", "different from", "different de",
+    "ne pas confondre", "a ne pas confondre", "pas le meme", "plutot que",
+    "contrairement", "se distingue", "pas pour", "ne couvre pas",
 ]
+# Les marqueurs sont compares en minuscules : aucun doublon, aucune entree
+# n'a de raison d'exister deux fois. Un mot absent de words() (minuscules)
+# ne peut jamais apparaitre dans FILLER utile : pas de variantes de casse.
 FILLER = {
     "the", "and", "for", "with", "that", "this", "from", "are", "was", "were",
     "you", "your", "when", "use", "using", "used", "can", "will", "has", "have",
@@ -60,7 +62,7 @@ FILLER = {
     "pour", "avec", "qui", "que", "quoi", "plus", "tout", "tous", "toute",
     "aux", "par", "son", "sa", "ses", "comme", "mais", "donc", "ou", "et",
     "de", "la", "le", "un", "du", "au", "ce", "cette", "il", "elle", "ils",
-    "elleS", "on", "se", "ne", "pas", "il", "y", "a", "l", "d", "n", "s",
+    "on", "se", "ne", "pas", "y", "une", "les", "des",
 }
 RED_FLAGS = [
     (re.compile(r"(?i)\betc\.?\b"), "usage de 'etc.' : la portee devient floue"),
@@ -103,7 +105,18 @@ def corpus_terms(skill_dir):
     return counts, total
 
 
-def extract(path):
+def extract(path, skill_dir=None):
+    """Analyse la description. skill_dir est le corpus pour la specificite.
+
+    L'analyse des arguments est faite par main() : ce module ne relit JAMAIS
+    sys.argv ici, sinon un appel en import ou un --dir sans positionnel
+    ferait passer le dossier cible pour le fichier a lire.
+    """
+    # Windows leve PermissionError sur un dossier, POSIX IsADirectoryError :
+    # deux exceptions sœurs, donc on interroge le systeme AVANT l'ouverture.
+    if os.path.isdir(path):
+        print(f"FAIL: {path} est un dossier, pas un fichier SKILL.md")
+        return 2
     try:
         with open(path, "r", encoding="utf-8") as handle:
             content = handle.read()
@@ -148,12 +161,6 @@ def extract(path):
     if not found_diff:
         warnings.append("aucun differenciateur: rien ne la distingue des skills voisins")
 
-    args = sys.argv[1:]
-    skill_dir = None
-    if "--dir" in args:
-        idx = args.index("--dir")
-        if idx + 1 < len(args):
-            skill_dir = args[idx + 1]
     counts, total = corpus_terms(skill_dir)
     terms = [w for w in words(description) if w not in FILLER]
     if counts and total:
@@ -184,12 +191,52 @@ def extract(path):
     return 0
 
 
+def parse_args(argv):
+    """Separe le fichier cible de --dir. Retourne (path, skill_dir, erreur).
+
+    La valeur de --dir ne doit JAMAIS tomber dans les positionnels : sans
+    cette separation, "extract-description.py --dir ../skills" prend
+    "../skills" pour le fichier a lire, et echoue sur Permission denied.
+    """
+    positional, skill_dir = [], None
+    i = 0
+    while i < len(argv):
+        arg = argv[i]
+        if arg == "--dir":
+            if i + 1 >= len(argv):
+                return None, None, "--dir exige un dossier (valeur manquante)"
+            skill_dir = argv[i + 1]
+            i += 2
+            continue
+        if arg.startswith("--dir="):
+            skill_dir = arg.split("=", 1)[1]
+            i += 1
+            continue
+        if arg.startswith("--"):
+            return None, None, f"option inconnue: {arg}"
+        positional.append(arg)
+        i += 1
+
+    if len(positional) > 1:
+        return None, None, f"un seul fichier attendu, {len(positional)} donnes"
+    path = positional[0] if positional else "SKILL.md"
+    if skill_dir and os.path.isdir(path):
+        # --dir donne, mais le fichier pointe un dossier : message clair
+        # plutot qu'un Permission denied sur Windows.
+        return None, None, f"{path} est un dossier, passez le chemin de SKILL.md"
+    return path, skill_dir, None
+
+
 def main(argv):
     if "--help" in argv or "-h" in argv:
         print(USAGE)
         return 0
-    positional = [a for a in argv if not a.startswith("--")]
-    return extract(positional[0] if positional else "SKILL.md")
+    path, skill_dir, error = parse_args(argv)
+    if error:
+        print(f"FAIL: {error}")
+        print("  aide: python extract-description.py --help")
+        return 2
+    return extract(path, skill_dir)
 
 
 if __name__ == "__main__":

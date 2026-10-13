@@ -184,7 +184,7 @@ Le principe de manque de surprise : le contenu du skill doit correspondre à son
 Tous les scripts produisent un résultat structuré et ont une aide intégrée (`--help`) :
 
 - `scripts/validate-frontmatter.py` : validation du YAML frontmatter (nom, description, secrets, chemins absolus, balises XML)
-- `scripts/scan-skill.py` : structure du dossier de skill (SKILL.md, corps ≤500 lignes, fences équilibrées, références de niveau 1, scripts avec `--help`)
+- `scripts/scan-skill.py` : structure du dossier de skill (SKILL.md, `evals.json` présent et valide, corps ≤500 lignes, fences équilibrées, références de niveau 1, scripts avec `--help`)
 - `scripts/extract-description.py` : analyse de la description comme routeur (longueur, déclencheurs, différenciateurs, spécificité lexicale)
 - `scripts/run-eval.py` : **n'invoque aucun modèle**. Valide la forme de `evals.json`, mesure un transcript que **vous** produisez, l'archive sous `evals/runs/`
 - `scripts/generate-grading.py` : note un transcript contre les attentes de `evals.json` (produit `grading.json`, code 1 si une attente échoue)

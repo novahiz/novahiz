@@ -97,11 +97,20 @@ def load_catalog(path):
         return None
 
     libraries = {}
-    entries = data if isinstance(data, list) else data.get("libraries", data.get("entries", []))
-    if isinstance(entries, dict):
-        entries = [{"name": k, **(v if isinstance(v, dict) else {})}
-                   for k, v in entries.items()]
-    for item in entries if isinstance(entries, list) else []:
+    if isinstance(data, list):
+        entries = data
+    elif isinstance(data, dict):
+        entries = data.get("libraries", data.get("entries", []))
+        if isinstance(entries, dict):
+            entries = [{"name": k, **(v if isinstance(v, dict) else {})}
+                       for k, v in entries.items()]
+    else:
+        # JSON valide mais de la mauvaise forme (chaine, nombre, bool) :
+        # on refuse plutot que de planter sur .get() d'un scalaire.
+        return None
+    if not isinstance(entries, list):
+        return None
+    for item in entries:
         if not isinstance(item, dict):
             continue
         name = item.get("name") or item.get("library") or item.get("id")
@@ -145,7 +154,12 @@ def check(root, catalog_path, max_age):
             report["problems"].append(f"{rel}: note vide")
             continue
 
+        # Compteur PAR note. L'ancienne version testait un compteur global :
+        # des qu'une note cite, plus aucune note suivante n'est signalee,
+        # ce qui rendait l'avertissement dependant de l'ordre de lecture.
+        note_citations = 0
         for match in CITATION.finditer(content):
+            note_citations += 1
             citations += 1
             lib, version = match.group(1), match.group(2)
             entry = {"note": rel, "library": lib, "version": version}
@@ -163,7 +177,7 @@ def check(root, catalog_path, max_age):
                     entry["version_drift"] = True
             report["citations"].append(entry)
 
-        if citations == 0 and len(content) > 400:
+        if note_citations == 0 and len(content) > 400:
             report["warnings"].append(
                 f"{rel}: note substantielle sans aucune citation novahiz-docs/<lib>@<version>"
             )

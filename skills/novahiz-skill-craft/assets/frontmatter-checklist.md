@@ -1,6 +1,6 @@
 # Checklist de livraison d'un skill
 
-Dix points, dans l'ordre ou les defauts coutent le plus cher. Un point
+Onze points, dans l'ordre ou les defauts coutent le plus cher. Un point
 coche sans verification reelle est un point faux : chaque ligne indique
 la commande qui le prouve.
 
@@ -32,22 +32,27 @@ la commande qui le prouve.
    titre de niveau 1, et n'est pas un stub de quelques lignes
    `python scripts/scan-skill.py .`
 
+8. [ ] `evals.json` present et JSON valide, 3 evaluations minimum
+   (obligatoire selon la Phase 2)
+   `python scripts/scan-skill.py .`
+   `python scripts/run-eval.py --validate --evals evals.json`
+
 ## Scripts
 
-8. [ ] Chaque script de `scripts/` a un `--help` qui documente son
+9. [ ] Chaque script de `scripts/` a un `--help` qui documente son
    contrat et ses codes de sortie
    `python scripts/scan-skill.py .`
    puis `python scripts/<script>.py --help` pour relire le contrat
 
-9. [ ] Aucun script n'imprime un succes inconditionnel. Un script qui
-   dit toujours `PASS` ne verifie rien : il faut soit implementer la
-   verification, soit declarer dans l'aide qu'elle n'est pas faite.
-   Relire `scripts/` — c'est le seul point qui ne se verifie pas par
-   commande, il faut ouvrir les fichiers.
+10. [ ] Aucun script n'imprime un succes inconditionnel. Un script qui
+    dit toujours `PASS` ne verifie rien : il faut soit implementer la
+    verification, soit declarer dans l'aide qu'elle n'est pas faite.
+    Relire `scripts/` — c'est le seul point qui ne se verifie pas par
+    commande, il faut ouvrir les fichiers.
 
 ## Memoire (si le skill s'appuie sur la memoire projet)
 
-10. [ ] Les decisions citees portent une reference
+11. [ ] Les decisions citees portent une reference
     `novahiz-docs/<lib>@<version>` verifiable
     `python scripts/check-memory.py --root <projet> --catalog <catalogue>`
 
