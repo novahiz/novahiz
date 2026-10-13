@@ -1,8 +1,7 @@
 ---
 name: novahiz-skill-craft
 description: |
-  Créer, modifier, évaluer et améliorer tout skill dans l'écosystème Novahiz.
-  Déclenché obligatoirement avant toute création ou modification de SKILL.md.
+  Créer, modifier, évaluer et améliorer tout skill dans l'écosystème Novahiz, avec le contrat strict du registre Novahiz. Déclenché obligatoirement avant toute création ou modification de SKILL.md, de evals.json de skill, ou de script de skills/. À ne pas confondre avec skill-authoring (contrat générique d'un SKILL.md) ni skill-eval-loop (mesure de l'aide apportée à l'agent) : celui-ci porte le pipeline Novahiz, le gate R18 et les scripts de vérification. Ne pas utiliser pour modifier une skill tierce non Novahiz sans son contrat.
 license: Apache-2.0
 compatibility: opencode
 metadata:
@@ -71,12 +70,13 @@ Quand : le skill existe et doit être testé.
 
 Workflow d'évaluation :
 
-1. Définir les evals (`evals.json`) : prompt, résultat attendu, fichiers d'entrée optionnels, attentes vérifiables.
-2. Exécuter (`scripts/run-eval.py`) : lancer chaque prompt contre le skill ; enregistrer le transcript complet.
-3. Noter (`scripts/generate-grading.py`) : PASS / FAIL / PARTIAL avec preuves (citation du transcript).
-4. Analyser la variance (`scripts/generate-comparison.py`) : comparer A/B de manière aveugle ; la meilleure version devient `current_best` dans `history.json`.
+1. Définir les evals (`evals.json`) : prompt, résultat attendu, attentes vérifiables (`contains:`, `regex:`, `file_exists:`...).
+2. **Produire les transcripts** : c'est vous qui lancez chaque prompt dans votre session d'agent. **Aucun script de ce skill n'invoque un modèle** — voir `scripts/run-eval.py`.
+3. Mesurer et archiver (`scripts/run-eval.py --transcript F --record`) : métriques du transcript, copie sous `evals/runs/`. Ce script ne juge **pas** la réussite.
+4. Noter (`scripts/generate-grading.py`) : chaque attente PASS/FAIL avec l'épreuve testée, puis un taux. Sort `1` si une attente échoue.
+5. Comparer (`scripts/generate-comparison.py`) : verdict A/B sur deux `grading.json`. La mise à jour de `history.json` est **manuelle**, et à faire seulement après un verdict.
 
-Le format `evals.json` (voir `references/schemas.md`) est obligatoire. Chaque itération est tracée dans `history.json` (version, parent, taux de réussite, résultat `baseline`/`won`/`lost`/`tie`, `is_current_best`).
+Le format `evals.json` est obligatoire (voir `references/evals-spec.md`, schémas dans `references/schemas.md`). `history.json` n'est requis qu'à partir de la première comparaison ; une seule entée porte `current_best: true`, et elle doit être précédée d'un verdict.
 
 ---
 
@@ -87,13 +87,13 @@ Quand : le skill a échoué à un ou plusieurs tests d'évaluation.
 Cycle itératif (chaque boucle) :
 
 ```
-Écrire la correction → Valider le gate → Exécuter les evals → Noter le résultat → Décider
+Écrire la correction → Valider le gate → Produire les transcripts → Noter → Comparer au current_best
 ```
 
 À chaque itération :
-- Si le taux de réussite augmente et dépasse le `current_best` → la nouvelle version devient `current_best`.
+- Si le taux dépasse le `current_best` → la nouvelle version devient `current_best` dans `history.json` (écrit à la main, après verdict).
 - Si égal → `tie` (choix de l'utilisateur).
-- Si diminue → `lost` (revenir au `current_best` ou continuer).
+- Si diminue → `lost` (revenir au `current_best` ou continuer en connaissance de cause).
 
 Ne pas réécrire tout le skill. Identifier la source du problème :
 - Description qui ne déclenche pas → corriger le frontmatter.
@@ -154,7 +154,7 @@ Le pipeline 6 étapes est intégré :
 
 ### Les 17 catégories
 
-Le skill applique le bon pipeline selon la catégorie du projet : `code`, `flutter`, `expo`, `debug`, `browser`, `design-ui`, `database-supabase`, `devops`, `data`, `test`, `review`, `audit`, `test`, `research`, `general`. Chaque catégorie a ses exigences spécifiques.
+Le skill applique le bon pipeline selon la catégorie du projet : `code`, `flutter`, `expo`, `debug`, `review`, `audit`, `test`, `research`, `browser`, `design-ui`, `database-supabase`, `docs-writing`, `planning`, `devops`, `data`, `assessment`, `general`. Chaque catégorie a ses exigences spécifiques.
 
 ### Le ledger (`novahiz_task`)
 
@@ -184,12 +184,12 @@ Le principe de manque de surprise : le contenu du skill doit correspondre à son
 Tous les scripts produisent un résultat structuré et ont une aide intégrée (`--help`) :
 
 - `scripts/validate-frontmatter.py` : validation du YAML frontmatter (nom, description, secrets, chemins absolus, balises XML)
-- `scripts/scan-skill.py` : analyse de la structure du dossier de skill (fichiers manquants, tailles, références)
-- `scripts/extract-description.py` : extraction et analyse de la description (longueur, déclencheurs, différenciateurs, spécificité)
-- `scripts/run-eval.py` : exécution d'un prompt contre un skill (produit transcript + métriques)
-- `scripts/generate-grading.py` : comparaison d'un transcript avec des attentes (produit `grading.json`)
-- `scripts/generate-comparison.py` : comparaison aveugle A/B (produit `comparison.json`)
-- `scripts/check-memory.py` : cohérence de la mémoire avec le code actuel (vérifie citations et versions)
+- `scripts/scan-skill.py` : structure du dossier de skill (SKILL.md, corps ≤500 lignes, fences équilibrées, références de niveau 1, scripts avec `--help`)
+- `scripts/extract-description.py` : analyse de la description comme routeur (longueur, déclencheurs, différenciateurs, spécificité lexicale)
+- `scripts/run-eval.py` : **n'invoque aucun modèle**. Valide la forme de `evals.json`, mesure un transcript que **vous** produisez, l'archive sous `evals/runs/`
+- `scripts/generate-grading.py` : note un transcript contre les attentes de `evals.json` (produit `grading.json`, code 1 si une attente échoue)
+- `scripts/generate-comparison.py` : comparaison aveugle A/B de deux `grading.json` (produit `comparison.json`, code 0 même sur un exaequo)
+- `scripts/check-memory.py` : cohérence mémoire/code (citations `novahiz-docs/<lib>@<version>`, chemins absolus, secrets, notes vides ou anciennes)
 
 ---
 
@@ -210,4 +210,4 @@ Templates prêts à l'emploi :
 
 - `assets/skill-template.md` : modèle du SKILL.md avec toutes les sections obligatoires
 - `assets/evals-template.json` : modèle des évaluations avec un exemple complet
-- `assets/frontmatter-checklist.md` : checklist rapide du frontmatter (10 points)
+- `assets/frontmatter-checklist.md` : checklist de livraison en 10 points, chaque point accompagné de la commande qui le prouve

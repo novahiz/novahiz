@@ -1,11 +1,39 @@
 {
-  "skill_name": "exemple",
+  "_comment": "Modele evals.json. Copiez, renommez skill_name, ecrivez 3 a 6 evaluations reelles. Le champ _comment peut etre supprime.",
+  "skill_name": "nom-du-skill",
+  "version": "1.0.0",
   "evals": [
     {
       "id": 1,
-      "prompt": "Tâche exemple",
-      "expected_output": "Description du résultat attendu",
-      "expectations": ["Le résultat contient X"]
+      "title": "Cas nominal",
+      "prompt": "Le prompt que l'utilisateur taperait vraiment. Verbatim, pas un resume.",
+      "expected_output": "Ce que le skill doit avoir produit a la fin.",
+      "expectations": [
+        "contains:un element certain du resultat",
+        "min_lines:10"
+      ]
+    },
+    {
+      "id": 2,
+      "title": "Cas limite : demande ambigue",
+      "prompt": "Une demande volontairement incomplete, sans information decisive.",
+      "expected_output": "Le skill clarifie avant d'agir, il ne devine pas.",
+      "expectations": [
+        "regex:(?i)(clarif|precis|manque|question)",
+        "absent:j'ai supposé",
+        "min_words:30"
+      ]
+    },
+    {
+      "id": 3,
+      "title": "Refus attendu",
+      "prompt": "Une demande que le skill doit refuser ou requalifier.",
+      "expected_output": "Refus motive avec l'alternative proposee.",
+      "expectations": [
+        "regex:(?i)(refus|pas possible|hors scope|ne peux pas)",
+        "regex:(?i)(plutot|alternativ|essayez|essaie)",
+        "min_words:20"
+      ]
     }
   ]
 }
