@@ -8,13 +8,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Added
 
 - **Wireframe-first design pipeline** - new `novahiz_wireframe` MCP tool and
-  `src/wireframe.ts` module (`init/screen/section/index/attach/mark/status`).
+  `src/wireframe.ts` module
+  (`init/screen/section/sections/plan/review/index/attach/mark/status`).
   Each screen gets a subfolder of ordered, annotated sections plus a
   regenerated `INDEX.md`; `attach` returns the whole wireframe as the
-  attachment block fed to `impeccable shape`. Gate rule `R17-wireframe` and
-  the `wireframe` roadmap step (before `impeccable-shape`) make the sequence
-  mandatory on `design-ui` work and on screen/page/component paths.
-  New skill `novahiz-wireframe`, tested by `tests/wireframe.test.ts`.
+  attachment block fed to `impeccable shape`. `sections` creates a whole
+  batch in one call (one `INDEX` rebuild instead of one per section, existing
+  names skipped); `plan` classifies the screen and says whether it needs
+  several sections and why; `review` reports the sections that were
+  forgotten and gates approval (`mark` refuses while `verdict != pass`).
+  Sections are renumbered from the highest existing index instead of
+  `length + 1`. Gate rule `R17-wireframe` and the `wireframe` roadmap step
+  (before `impeccable-shape`) make the sequence mandatory on `design-ui`
+  work and on screen/page/component paths. New skill `novahiz-wireframe`,
+  tested by `tests/wireframe.test.ts`.
 - **`novahiz deps` reports real dependency health** - the single provider
   check is replaced by a four-part `dependencyReport`: toolchain probing
   (node, npm, npx, uv, python), local MCP entrypoint `existsSync`, npm home
@@ -40,6 +47,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
+- **`novahiz sync` is now listed in `--help`** - the command existed
+  (`case "sync"` → `commandSync()`), and both `gate.ts:498` and
+  `gate-repair.ts:87` pointed users at it, but it was missing from the help
+  output.
+- **The installer no longer backs up the published package inside its own
+  home** - the home is a copy of what npm already holds, so preserving its
+  previous version only accumulated `*.novahiz-bak` (235 of the 320 found by
+  the audit). Backups are kept only where they carry something that exists
+  nowhere else: `catalog/` (user-edited configuration) and the files written
+  into the opencode config dir, which are exactly what `novahiz uninstall`
+  restores (`uninstall.mjs:53`).
+- **`scripts` is part of `CORE_ITEMS`** - `package.json` copied into the home
+  declares `ci:local = node scripts/ci-local.mjs`, but the directory was
+  never copied, so `npm run ci:local` failed there.
 - **Windows PATH staleness is no longer reported as a missing dependency** -
   the parent process may predate the install (opencode started before uv or
   Python landed), so its inherited PATH hides binaries that ARE on disk.
