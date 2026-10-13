@@ -48,14 +48,15 @@ export function commandGate(parsed: Parsed): void {
       for (const row of rows) merged.add(row.skill);
       loaded = [...merged];
     } catch (error) {
-      // This read only WIDENS the in-memory `loaded` set with skills recorded
-      // by earlier sessions; it never removes one. Opened here and again on the
-      // main path, both fail together (openDb materialises the schema), so this
-      // never lets an edit through that the DB-open check below would refuse:
-      // measured 2026-10-14 against HEAD, both paths return allow:false and
-      // exit 2 on an unusable ledger. Falling through keeps the accurate
-      // "DB open failed" reason instead of blaming the session, and skips a
-      // second openDb for a set the main path rebuilds anyway.
+      // A-DB-SOFT (2026-09-13): this read only WIDENS the in-memory `loaded` set
+      // with skills recorded by earlier sessions; it never removes one. Opened
+      // here and again on the main path, both fail together (openDb
+      // materialises the schema), so this never lets an edit through that the
+      // DB-open check below would refuse: measured 2026-10-14 against HEAD, both
+      // paths return allow:false and exit 2 on an unusable ledger. Falling
+      // through keeps the accurate "DB open failed" reason instead of blaming
+      // the session, and skips a second openDb for a set the main path
+      // rebuilds anyway.
       process.stderr.write(`novahiz: session DB read skipped: ${String(error).slice(0, 200)}\n`);
     } finally {
       db?.close();
