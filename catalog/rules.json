@@ -175,5 +175,38 @@
       "projectGlobs": ["stitch/**"]
     },
     "require": ["novahiz-stitch-fidelity"]
+  },
+  {
+    "id": "R17-wireframe",
+    "description": "Load novahiz-wireframe on any design-ui task or on any screen/view/component file: the wireframe-first sequence (screen sketch + per-section annotated wireframes feeding impeccable shape) is mandatory before constructing a screen or section.",
+    "when": {
+      "match": "any",
+      "promptCategories": ["design-ui"],
+      "pathGlobs": [
+        "**/wireframes/**",
+        "**/screens/**",
+        "**/pages/**",
+        "**/views/**",
+        "**/routes/**",
+        "**/app/**",
+        "**/components/**"
+      ]
+    },
+    "require": ["novahiz-wireframe"]
+  },
+  {
+    "id": "R18-skill-craft",
+    "description": "Load novahiz-skill-craft before creating or modifying any skill: the frontmatter contract, the progressive disclosure, the lifecycle (create/evaluate/improve/audit) and the gate rules it must satisfy apply to every SKILL.md edit.",
+    "when": {
+      "match": "any",
+      "pathGlobs": [
+        "**/skills/**/SKILL.md",
+        "**/skills/**/*.md",
+        "**/skills/**/*.py",
+        "**/skills/**/*.mjs",
+        "**/skills/**/*.json"
+      ]
+    },
+    "require": ["novahiz-skill-craft"]
   }
 ]

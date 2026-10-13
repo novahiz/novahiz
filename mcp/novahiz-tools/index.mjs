@@ -11,7 +11,8 @@ import { openDb } from "../../src/db.ts";
 import { capture, diffSnapshots, listSnapshots, loadManifest, matchingIds, restoreSnapshot, snapStatus } from "../../src/snap.ts";
 import { graphFileApi, graphFind, graphFindAll, graphFreshness, graphRepoMap, graphTrace } from "../../src/graph/query.ts";
 import { enabledProviders } from "../../src/providers.ts";
-import { checkDependencies } from "../../src/deps.ts";
+import { dependencyReport } from "../../src/deps.ts";
+import { attachScreen, createScreen, createSection, initWireframes, listScreens, markStatus, rebuildIndex as rebuildWireframeIndex } from "../../src/wireframe.ts";
 import { activeTask, addTodos, amendTodo, blockTodo, buildWorkPackets, completeTodo, createTask, dropTask, dropTodo, getTask, getTodo, insertTodo, ledgerSummary, listTodos, parseReviewDiff, recordTodoDone, reorderTodos, resume, reviewDue, reviewTask, revisionSignals, startTodo } from "../../src/ledger.ts";
 import { DEFAULT_LIMIT_CHARS, DEFAULT_LIMIT_LINES, archiveSlot, ensureMemoryRoot, getSlot, listSlots, parseSlotInput, rebuildFts, rebuildIndex, resolveMemoryDir, searchSlots, touchSlotRead, updateSlot, writeEntry } from "../../src/memory.ts";
 
@@ -194,7 +195,7 @@ const TOOLS = [
   },
   {
     name: "novahiz_deps",
-    description: "Check that every provider prerequisite (npx, uv) is available on the machine.",
+    description: "Report dependency health: toolchain (node, npm, npx, uv, python), provider prerequisites, local MCP entrypoints and npm home health.",
     inputSchema: { type: "object", properties: {} }
   },
   {
@@ -472,13 +473,35 @@ const TOOLS = [
   },
   {
     name: "graph_freshness",
-    description: "Drift check: does the stored graph match the workspace? Stat-only by default — reports added/changed/removed files and never writes. Pass rebuild:true to run the incremental reindex first, then report. Replaces graft_check_freshness.",
+    description: "Drift check: does the stored graph match the workspace? Stat-only by default - reports added/changed/removed files and never writes. Pass rebuild:true to run the incremental reindex first, then report. Replaces graft_check_freshness.",
     inputSchema: {
       type: "object",
       properties: {
         rebuild: { type: "boolean", description: "Reindex incrementally before reporting (default false)." },
         root: { type: "string", description: "Workspace root (default: process cwd)." }
       }
+    }
+  },
+  {
+    name: "novahiz_wireframe",
+    description: "Wireframe-first design pipeline. Creates and maintains the project's wireframes/ folder: one subfolder per screen (screen.md + sections/NN-name.md annotated intent/behavior/constraints), a regenerated INDEX.md at the root, and an 'attach' action returning the full wireframe content as the attachment block to paste into the impeccable shape prompt.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        action: {
+          type: "string",
+          enum: ["init", "screen", "section", "index", "attach", "mark", "status"],
+          description: "init: create wireframes/ + INDEX.md (idempotent). screen: create a screen subfolder with its ordered sections. section: append one section to an existing screen. index: rebuild INDEX.md from disk. attach: return the full wireframe (screen + all sections) as the prompt attachment block for impeccable shape. mark: set lifecycle status (draft/approved/stale) on a screen or section. status: list screens and their sections."
+        },
+        project: { type: "string", description: "Project root where wireframes/ lives (default: process cwd)." },
+        name: { type: "string", description: "screen/section display name (action screen, section)." },
+        objective: { type: "string", description: "Screen objective (action screen, optional)." },
+        sections: { type: "array", items: { type: "string" }, description: "Ordered section names (action screen)." },
+        screen: { type: "string", description: "Screen slug (actions section, attach, mark, status)." },
+        section: { type: "string", description: "Section id, e.g. 01-hero (action mark, optional: marks the screen)." },
+        status: { type: "string", enum: ["draft", "approved", "stale"], description: "New lifecycle status (action mark)." }
+      },
+      required: ["action"]
     }
   }
 ];
@@ -627,7 +650,7 @@ function callTool(name, args) {
     });
   }
   if (name === "novahiz_deps") {
-    return toolResult({ node: process.version, platform: process.platform, dependencies: checkDependencies(spec) });
+    return toolResult({ node: process.version, platform: process.platform, ...dependencyReport(spec, spec.root) });
   }
   if (name === "novahiz_step") {
     const session = String(args?.session ?? "default");
@@ -1100,6 +1123,49 @@ function callTool(name, args) {
       return toolResult(graphFreshness(root, { rebuild: args?.rebuild === true }));
     }
     throw new Error(`Unknown tool: ${name}`);
+  }
+  if (name === "novahiz_wireframe") {
+    const project = typeof args?.project === "string" && args.project.length > 0 ? args.project : process.cwd();
+    const action = String(args?.action ?? "");
+    const str = (value) => (typeof value === "string" && value.length > 0 ? value : undefined);
+    if (action === "init") return toolResult(initWireframes(project));
+    if (action === "screen") {
+      const screenName = str(args?.name);
+      if (!screenName) throw new Error("novahiz_wireframe screen: 'name' requis");
+      const sections = Array.isArray(args?.sections) ? args.sections.map(String) : [];
+      // createScreen reconstruit deja l'index en interne.
+      return toolResult(createScreen(project, { name: screenName, objective: str(args?.objective), sections }));
+    }
+    if (action === "section") {
+      const screen = str(args?.screen);
+      const sectionName = str(args?.name);
+      if (!screen || !sectionName) throw new Error("novahiz_wireframe section: 'screen' et 'name' requis");
+      return toolResult(createSection(project, screen, sectionName));
+    }
+    if (action === "index") return toolResult({ index: rebuildWireframeIndex(project) });
+    if (action === "attach") {
+      const screen = str(args?.screen);
+      if (!screen) throw new Error("novahiz_wireframe attach: 'screen' requis");
+      const attached = attachScreen(project, screen);
+      // promptBlock en premier: c'est lui qui est colle dans le prompt de shape.
+      return toolResult({
+        screen: attached.screen,
+        promptBlock: attached.promptBlock,
+        files: attached.files.map((file) => file.path)
+      });
+    }
+    if (action === "mark") {
+      const screen = str(args?.screen);
+      const status = str(args?.status);
+      if (!screen || !status) throw new Error("novahiz_wireframe mark: 'screen' et 'status' requis");
+      return toolResult(markStatus(project, screen, status, str(args?.section)));
+    }
+    if (action === "status") {
+      const screens = listScreens(project);
+      const single = str(args?.screen);
+      return toolResult(single ? (screens.find((entry) => entry.slug === single) ?? { screen: single, found: false }) : { screens });
+    }
+    throw new Error(`novahiz_wireframe: action inconnue '${action}' (init|screen|section|index|attach|mark|status)`);
   }
   throw new Error(`Unknown tool: ${name}`);
 }

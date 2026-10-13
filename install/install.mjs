@@ -168,7 +168,7 @@ async function main() {
       process.stdout.write("Aborted. Nothing was written.\n");
       return;
     }
-    providersChoice = await prompt.confirm("Install provider packages and their prerequisites now?", false);
+    providersChoice = await prompt.confirm("Install provider packages and their prerequisites now?", true);
     prompt.close();
   }
 
@@ -415,21 +415,34 @@ async function main() {
   if (!dryRun) {
     const cli = join(home, "src", "cli.ts");
     const config = readJson(join(home, "novahiz.config.json"), {});
+    // Installation automatique des dependances par defaut (2026-10-12):
+    // - providers.acceptes (ou config autoInstall, defaut true) -> tout part
+    //   (toolchain + npm + providers + skills);
+    // - providers refuses -> le toolchain systeme (python, uv) et la sante npm
+    //   partent quand meme: ce sont des dependances du SYSTEME novahiz, pas des
+    //   providers optionnels;
+    // - --no-deps-install coupe les deux canaux.
+    const depsEnabled = !flags["no-deps-install"];
     const autoInstall =
       providersChoice !== null
         ? providersChoice
-        : Boolean(flags["install-providers"]) || config?.providers?.autoInstall === true;
+        : Boolean(flags["install-providers"]) || config?.providers?.autoInstall !== false;
     note("Checking dependencies");
     const check = spawnSync(process.execPath, [cli, "deps"], {
       encoding: "utf8",
       env: { ...process.env, NOVAHIZ_HOME: home }
     });
     if (check.stdout) ui.raw(check.stdout);
-    if (autoInstall && deferOpencode) {
+    if (!depsEnabled) {
+      note("Automatic dependency installation skipped (--no-deps-install).");
+    } else if (deferOpencode) {
       note("Dependency/provider install deferred to the post-npm phase (skills and commands write into the opencode config).");
-    } else if (autoInstall) {
-      note("Installing dependencies and providers (MCP, skills, commands)");
-      const result = spawnSync(process.execPath, [cli, "deps", "--install", "--yes"], {
+    } else {
+      const args = autoInstall ? ["deps", "--install", "--yes"] : ["deps", "--install", "--yes", "--core-only"];
+      note(autoInstall
+        ? "Installing dependencies and providers (toolchain, MCP, skills, commands)"
+        : "Installing core system dependencies (toolchain: python, uv — npm health)");
+      const result = spawnSync(process.execPath, [cli, ...args], {
         encoding: "utf8",
         env: { ...process.env, NOVAHIZ_HOME: home }
       });

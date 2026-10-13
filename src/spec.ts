@@ -76,6 +76,10 @@ export type Provider = {
   install?: string[];
   requires?: string[];
   bootstrap?: Record<string, string[]>;
+  // Skill ids whose combined presence marks this pack already installed
+  // (idempotent `deps --install`): when ALL of them exist in a skill root the
+  // install command is skipped. Absent = always run.
+  installedWhen?: string[];
   purpose?: string;
   categories?: string[];
   source?: string;

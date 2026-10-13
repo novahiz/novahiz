@@ -1,5 +1,7 @@
 import { spawnSync } from "node:child_process";
-import type { Provider, Spec } from "./spec.ts";
+import { existsSync, readFileSync } from "node:fs";
+import { join } from "node:path";
+import { expandHome, type Provider, type Spec } from "./spec.ts";
 
 export function commandExists(command: string): boolean {
   const probe = process.platform === "win32" ? "where" : "which";
@@ -33,4 +35,150 @@ export function missingPrerequisites(spec: Spec): { provider: Provider; missing:
   return spec.providers
     .map((provider) => ({ provider, missing: (provider.requires ?? []).filter((command) => !commandExists(command)) }))
     .filter((entry) => entry.missing.length > 0);
+}
+
+// --- Detection etendue (2026-10-12) ----------------------------------------
+// Trois familles que le controle `requires` historique ne couvrait pas: le
+// toolchain sur lequel tout novahiz finit par sheller, les entrypoints MCP
+// locaux (un fichier disparu repondait "ok" avant), et la sante npm du home.
+
+export type ToolchainEntry = { id: string; ok: boolean; detail: string };
+
+// `where python` ment sous Windows: l'alias d'execution de
+// %LocalAppData%\Microsoft\WindowsApps repond sur une machine sans aucun
+// Python (il imprime "Python was not found" et sort en 1). Seul un
+// interpreteur reel compte.
+function pythonStatus(): ToolchainEntry {
+  try {
+    const result = spawnSync("python", ["--version"], { encoding: "utf8", shell: false, windowsHide: true });
+    const output = `${result.stdout ?? ""}${result.stderr ?? ""}`.trim();
+    const ok = result.status === 0 && /^Python \d+\./.test(output);
+    return { id: "python", ok, detail: ok ? output.replace(/^Python\s*/, "") : "absent (alias WindowsApps uniquement)" };
+  } catch (error) {
+    return { id: "python", ok: false, detail: String(error) };
+  }
+}
+
+export function toolchainStatus(): ToolchainEntry[] {
+  const probe = (): ToolchainEntry[] => {
+    const entries: ToolchainEntry[] = ["node", "npm", "npx", "uv"].map((id) => ({
+      id,
+      ok: commandExists(id),
+      detail: id === "node" ? process.version : ""
+    }));
+    entries.push(pythonStatus());
+    return entries;
+  };
+  let status = probe();
+  // The parent process may predate the install (opencode started before uv or
+  // Python landed): its inherited PATH then hides binaries that ARE on disk.
+  // One registry reload on win32, then re-probe — a stale PATH must never be
+  // reported as a missing dependency.
+  if (process.platform === "win32" && status.some((entry) => !entry.ok)) {
+    reloadPathFromRegistry();
+    status = probe();
+  }
+  return status;
+}
+
+// Reload process PATH from the registry (Machine + User). Installed tools
+// update the registry, not the environment of processes already running.
+export function reloadPathFromRegistry(): void {
+  if (process.platform !== "win32") return;
+  const probe = spawnSync(
+    "powershell",
+    ["-NoProfile", "-Command", "[Environment]::GetEnvironmentVariable('Path','Machine')+';'+[Environment]::GetEnvironmentVariable('Path','User')"],
+    { encoding: "utf8", windowsHide: true }
+  );
+  if (probe.status === 0 && probe.stdout?.trim()) process.env.Path = probe.stdout.trim();
+}
+
+// Les serveurs MCP locaux lancent `node <fichier>`: la liste des providers
+// repondait ok tant que `node` existait, meme quand l'entrypoint avait
+// disparu (copie partielle, home supprime). Un existsync par serveur local.
+export function entrypointStatus(spec: Spec): { id: string; path: string; ok: boolean }[] {
+  const disabled = new Set(spec.config.providers.disabled);
+  const entries: { id: string; path: string; ok: boolean }[] = [];
+  for (const provider of spec.providers) {
+    if (provider.kind !== "mcp" || disabled.has(provider.id)) continue;
+    const argv = provider.command ?? [];
+    if (argv[0] !== "node" || !argv[1]) continue;
+    const path = expandHome(argv[1]);
+    entries.push({ id: provider.id, path, ok: existsSync(path) });
+  }
+  return entries;
+}
+
+export type NpmHealth = { ok: boolean; missing: string[]; note: string };
+
+// Controle statique, sans spawn `npm ls`: chaque dependance declaree doit
+// resoudre vers un package.json dans node_modules, et le lockfile doit exister.
+// C'est ce que `deps --install` lit pour decider d'executer `npm install`.
+export function npmHealth(home: string): NpmHealth {
+  const pkgPath = join(home, "package.json");
+  if (!existsSync(pkgPath)) return { ok: true, missing: [], note: "no package.json (rien a installer)" };
+  let pkg: { dependencies?: Record<string, string>; devDependencies?: Record<string, string> };
+  try {
+    pkg = JSON.parse(readFileSync(pkgPath, "utf8"));
+  } catch {
+    return { ok: false, missing: [], note: "package.json illisible" };
+  }
+  const declared = { ...(pkg.dependencies ?? {}), ...(pkg.devDependencies ?? {}) };
+  const missing = Object.keys(declared).filter(
+    (name) => !existsSync(join(home, "node_modules", name, "package.json"))
+  );
+  const lockMissing = !existsSync(join(home, "package-lock.json"));
+  return { ok: missing.length === 0 && !lockMissing, missing, note: lockMissing ? "package-lock.json absent" : "" };
+}
+
+export type DependencyReport = {
+  toolchain: ToolchainEntry[];
+  dependencies: DependencyStatus[];
+  entrypoints: { id: string; path: string; ok: boolean }[];
+  npm: NpmHealth;
+};
+
+export function dependencyReport(spec: Spec, home: string): DependencyReport {
+  return {
+    toolchain: toolchainStatus(),
+    dependencies: checkDependencies(spec),
+    entrypoints: entrypointStatus(spec),
+    npm: npmHealth(home)
+  };
+}
+
+// Bootstrap du toolchain core. L'argv vit ICI, dans le source — pas dans
+// catalog/providers.json, et volontairement: runScript refuse les shells et
+// les package managers pour que des donnees de catalogue ne puissent jamais
+// elargir cette liste blanche (exec.ts). Un argv appartenu au source au meme
+// niveau de confiance que tout le code de ce depot, donc il est execute via
+// un spawn simple par `deps --install --core-only` et par l'installateur.
+// Chaque entree porte l'id de toolchainStatus() correspondant: seule une
+// dependance manquante part en execution.
+export function coreBootstrap(platform: string = process.platform): { id: string; argv: string[] }[] {
+  if (platform === "win32") {
+    return [
+      {
+        id: "uv",
+        argv: ["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", "irm https://astral.sh/uv/install.ps1 | iex"]
+      },
+      {
+        id: "python",
+        argv: [
+          "winget", "install", "--id", "Python.Python.3.13", "-e", "--scope", "user",
+          "--accept-package-agreements", "--accept-source-agreements"
+        ]
+      }
+    ];
+  }
+  if (platform === "darwin") {
+    return [
+      { id: "uv", argv: ["brew", "install", "uv"] },
+      { id: "python", argv: ["brew", "install", "python3"] }
+    ];
+  }
+  return [
+    { id: "uv", argv: ["sh", "-c", "curl -LsSf https://astral.sh/uv/install.sh | sh"] },
+    { id: "python", argv: ["sudo", "apt-get", "install", "-y", "python3"] }
+  ];
 }

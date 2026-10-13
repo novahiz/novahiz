@@ -50,13 +50,31 @@ type InstallCommand = {
   source: string;
 };
 
+function toInstallCommand(provider: Provider): InstallCommand {
+  return {
+    id: provider.id,
+    kind: provider.kind,
+    command: provider.install as string[],
+    source: provider.source ?? ""
+  };
+}
+
 export function installCommands(spec: Spec): InstallCommand[] {
   return enabledProviders(spec)
     .filter((provider) => Array.isArray(provider.install) && provider.install.length > 0)
-    .map((provider) => ({
-      id: provider.id,
-      kind: provider.kind,
-      command: provider.install as string[],
-      source: provider.source ?? ""
-    }));
+    .map(toInstallCommand);
+}
+
+// Idempotence (2026-10-12): a pack whose `installedWhen` skills are ALL
+// already on disk is skipped, so a second `deps --install --yes` runs
+// nothing. Providers without installedWhen keep the historical always-run
+// behaviour (updates from upstream on every explicit install).
+export function pendingInstallCommands(spec: Spec, installedSkillIds: ReadonlySet<string>): InstallCommand[] {
+  return enabledProviders(spec)
+    .filter((provider) => Array.isArray(provider.install) && provider.install.length > 0)
+    .filter((provider) => {
+      const when = provider.installedWhen ?? [];
+      return when.length === 0 || !when.every((id) => installedSkillIds.has(id));
+    })
+    .map(toInstallCommand);
 }

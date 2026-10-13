@@ -851,6 +851,14 @@
           "optional": true
         },
         {
+          "id": "wireframe",
+          "label": "Wireframe-first (draft the screen and every section, then attach the wireframe to impeccable shape)",
+          "kind": "skill",
+          "requireSkills": [
+            "novahiz-wireframe"
+          ]
+        },
+        {
           "id": "impeccable-shape",
           "label": "Impeccable shape (turn an idea into a design brief you can build from)",
           "kind": "skill",

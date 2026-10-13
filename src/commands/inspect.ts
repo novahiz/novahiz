@@ -4,8 +4,9 @@ import { loadSpec, NovahizHome } from "../spec.ts";
 import { getMeta, openDb, setMeta } from "../db.ts";
 import { loadCatalog, loadInstalledSkills, persistCatalog, scanSkills, writeCatalog, writeSkillIndex } from "../catalog.ts";
 import { rankSkills } from "../relevance.ts";
-import { buildMcpEntries, enabledProviders, installCommands } from "../providers.ts";
-import { bootstrapFor, checkDependencies, missingPrerequisites } from "../deps.ts";
+import { buildMcpEntries, enabledProviders, installCommands, pendingInstallCommands } from "../providers.ts";
+import { spawnSync } from "node:child_process";
+import { bootstrapFor, coreBootstrap, dependencyReport, missingPrerequisites, reloadPathFromRegistry, toolchainStatus } from "../deps.ts";
 import { classify } from "../classify.ts";
 import { runScript } from "../exec.ts";
 import { activeTask, buildWorkPackets, getTask } from "../ledger.ts";
@@ -294,61 +295,117 @@ export function commandProviders(parsed: Parsed): void {
 }
 
 export function commandDeps(parsed: Parsed): void {
+  const root = NovahizHome();
   const spec = loadSpec();
-  const status = checkDependencies(spec);
+  const report = dependencyReport(spec, root);
   if (!parsed.flags.install) {
-    print({ node: process.version, platform: process.platform, dependencies: status });
+    print({ node: process.version, platform: process.platform, ...report });
     return;
   }
+
+  // --core-only: the installer's path when the user declined providers —
+  // system dependencies (toolchain + npm health) still install automatically.
+  const coreOnly = flagOn(parsed, "core-only");
+  const corePlan = coreBootstrap().filter(
+    (entry) => report.toolchain.find((tool) => tool.id === entry.id)?.ok === false
+  );
+  const npmPlan = report.npm.ok ? [] : [{ step: "npm", missing: report.npm.missing, note: report.npm.note }];
+  const bootstrapPlan = missingPrerequisites(spec).map((entry) => {
+    const bootstrap = bootstrapFor(entry.provider);
+    return bootstrap && bootstrap.length > 0
+      ? { provider: entry.provider.id, step: "bootstrap", command: bootstrap.join(" ") }
+      : { provider: entry.provider.id, step: "bootstrap", note: `missing ${entry.missing.join(", ")}` };
+  });
+  const installed = new Set(scanSkills(spec, []).map((skill) => skill.id));
+  const pending = pendingInstallCommands(spec, installed);
+  const installPlan = pending.map((entry) => ({
+    provider: entry.id,
+    step: "install",
+    command: entry.command.join(" ")
+  }));
 
   if (!flagOn(parsed, "yes")) {
-    // Dry run by default: show what would run (bootstrap + install) without
-    // touching the machine; --yes opts into execution explicitly.
-    const plan: Record<string, unknown>[] = [];
-    for (const entry of missingPrerequisites(spec)) {
-      const bootstrap = bootstrapFor(entry.provider);
-      plan.push(
-        bootstrap && bootstrap.length > 0
-          ? { provider: entry.provider.id, step: "bootstrap", command: bootstrap.join(" ") }
-          : { provider: entry.provider.id, step: "bootstrap", note: `missing ${entry.missing.join(", ")}` }
-      );
-    }
-    for (const entry of installCommands(spec)) {
-      plan.push({ provider: entry.id, step: "install", command: entry.command.join(" ") });
-    }
-    print({ plan, note: "dry run: pass --yes to execute" });
+    // Dry run by default: show what would run without touching the machine;
+    // --yes opts into execution explicitly.
+    print({ core: corePlan, npm: npmPlan, bootstrap: bootstrapPlan, install: installPlan, note: "dry run: pass --yes to execute" });
     return;
   }
 
-  const run = (argv: string[], label: string): boolean => {
-    // runScript applies the binary allowlist and the code-runner guard:
-    // catalog argv may only start a known packager/interpreter.
-    const result = runScript(argv);
-    process.stdout.write(`${result.ok ? "ok  " : "fail"} ${label}\n`);
-    if (!result.ok && result.stderr) process.stderr.write(result.stderr);
-    if (result.error) process.stderr.write(`${result.error}\n`);
-    return result.ok;
-  };
-
-  const runBootstrap = (argv: string[], label: string): boolean => {
-    const result = runScript(argv);
-    process.stdout.write(`${result.ok ? "ok  " : "fail"} ${label}\n`);
-    if (!result.ok && result.stderr) process.stderr.write(result.stderr);
-    if (result.error) process.stderr.write(`${result.error}\n`);
-    return result.ok;
-  };
-
   const results: Record<string, unknown>[] = [];
+
+  // 1. Core toolchain — argv source-owned (deps.ts coreBootstrap), executed
+  // through a plain spawn: runScript's catalog allowlist deliberately refuses
+  // shells and package managers, and this argv never comes from the catalog.
+  for (const entry of corePlan) {
+    const result = spawnSync(entry.argv[0], entry.argv.slice(1), { encoding: "utf8", windowsHide: true });
+    const ok = result.status === 0;
+    process.stdout.write(`${ok ? "ok  " : "fail"} core ${entry.id}\n`);
+    if (!ok && result.stderr) process.stderr.write(result.stderr);
+    results.push({ step: "core", tool: entry.id, command: entry.argv.join(" "), ok });
+  }
+
+  // A fresh install lands outside the current PATH (uv in ~/.local/bin, the
+  // Python installer under %LocalAppData%): reload the PATH from the registry
+  // before re-probing, or the verification reports a false "still missing"
+  // for something that just installed fine.
+  if (process.platform === "win32" && corePlan.length > 0) {
+    reloadPathFromRegistry();
+    const still = toolchainStatus().filter((tool) => !tool.ok).map((tool) => tool.id);
+    const ok = still.length === 0;
+    process.stdout.write(`${ok ? "ok  " : "warn"} core verify: ${ok ? "all present" : `still missing ${still.join(", ")}`}\n`);
+    results.push({ step: "core", verify: ok ? "all present" : `still missing: ${still.join(", ")}`, ok });
+  }
+
+  if (coreOnly) {
+    print(results);
+    return;
+  }
+
+  // 2. npm health: a declared package without its node_modules folder, or a
+  // missing lockfile -> npm install, scoped to the home (never the global
+  // prefix) and --ignore-scripts so nothing in home re-enters the installer.
+  if (!report.npm.ok) {
+    const result = spawnSync("npm", ["install", "--ignore-scripts"], {
+      cwd: root,
+      encoding: "utf8",
+      windowsHide: true,
+      env: { ...process.env, npm_config_global: "false" }
+    });
+    const ok = result.status === 0;
+    process.stdout.write(`${ok ? "ok  " : "fail"} npm install (${report.npm.missing.length} missing)\n`);
+    if (!ok && result.stderr) process.stderr.write(result.stderr);
+    results.push({ step: "npm", ok, missing: report.npm.missing, note: report.npm.note });
+  }
+
+  // 3. Catalog bootstrap (provider requires) — runScript applies the binary
+  // allowlist and the code-runner guard: catalog argv may only start a known
+  // packager/interpreter.
   for (const entry of missingPrerequisites(spec)) {
     const bootstrap = bootstrapFor(entry.provider);
     if (!bootstrap || bootstrap.length === 0) {
       results.push({ provider: entry.provider.id, step: "bootstrap", ok: false, note: `missing ${entry.missing.join(", ")}` });
       continue;
     }
-    results.push({ provider: entry.provider.id, step: "bootstrap", command: bootstrap.join(" "), ok: runBootstrap(bootstrap, `bootstrap ${entry.provider.id}`) });
+    const result = runScript(bootstrap);
+    process.stdout.write(`${result.ok ? "ok  " : "fail"} bootstrap ${entry.provider.id}\n`);
+    if (!result.ok && result.stderr) process.stderr.write(result.stderr);
+    if (result.error) process.stderr.write(`${result.error}\n`);
+    results.push({ provider: entry.provider.id, step: "bootstrap", command: bootstrap.join(" "), ok: result.ok });
   }
-  for (const entry of installCommands(spec)) {
-    results.push({ provider: entry.id, step: "install", command: entry.command.join(" "), ok: run(entry.command, `install ${entry.id}`) });
+
+  // 4. Provider installs — pendingInstallCommands already dropped the packs
+  // whose installedWhen skills are all on disk: a re-run installs nothing.
+  const pendingIds = new Set(pending.map((entry) => entry.id));
+  const skipped = installCommands(spec).filter((entry) => !pendingIds.has(entry.id)).map((entry) => entry.id);
+  if (skipped.length > 0) {
+    results.push({ step: "install", skipped, note: "already installed (installedWhen satisfied)" });
+  }
+  for (const entry of pending) {
+    const result = runScript(entry.command);
+    process.stdout.write(`${result.ok ? "ok  " : "fail"} install ${entry.id}\n`);
+    if (!result.ok && result.stderr) process.stderr.write(result.stderr);
+    if (result.error) process.stderr.write(`${result.error}\n`);
+    results.push({ provider: entry.id, step: "install", command: entry.command.join(" "), ok: result.ok });
   }
   print(results);
 }

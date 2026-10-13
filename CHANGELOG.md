@@ -3,6 +3,67 @@
 All notable changes to Novahiz are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+### Added
+
+- **Wireframe-first design pipeline** - new `novahiz_wireframe` MCP tool and
+  `src/wireframe.ts` module (`init/screen/section/index/attach/mark/status`).
+  Each screen gets a subfolder of ordered, annotated sections plus a
+  regenerated `INDEX.md`; `attach` returns the whole wireframe as the
+  attachment block fed to `impeccable shape`. Gate rule `R17-wireframe` and
+  the `wireframe` roadmap step (before `impeccable-shape`) make the sequence
+  mandatory on `design-ui` work and on screen/page/component paths.
+  New skill `novahiz-wireframe`, tested by `tests/wireframe.test.ts`.
+- **`novahiz deps` reports real dependency health** - the single provider
+  check is replaced by a four-part `dependencyReport`: toolchain probing
+  (node, npm, npx, uv, python), local MCP entrypoint `existsSync`, npm home
+  health (declared deps resolved + lockfile present), and provider
+  prerequisites. `novahiz_deps` returns the same shape.
+- **Core toolchain bootstrap** - `deps --install` can now install `uv` and
+  Python on win32 / darwin / linux. The argv lives in `src/deps.ts`
+  (`coreBootstrap`), not in the catalog, and runs through a plain spawn:
+  `runScript`'s allowlist deliberately refuses shells and package managers,
+  so catalog data can never widen it. `--core-only` installs only toolchain
+  and npm health; the installer uses it when providers are declined.
+- **Idempotent provider installs** - a new `installedWhen` field on a
+  provider lists skill ids whose combined presence marks the pack already
+  installed; when all of them are on disk the install command is skipped, so
+  a second `deps --install --yes` runs nothing. Providers without the field
+  keep the historical always-run behaviour.
+- **Gate rule `R18-skill-craft`** - `novahiz-skill-craft` is now actually
+  required on any `SKILL.md` edit, matching what its own description
+  already promised.
+- **Skills `novahiz-prd` and `novahiz-skill-craft`** ship in the package.
+- **Commands `novahiz-obsidian` and `novahiz-obsidian-audit`**, plus
+  `bin/veille-mensuelle.ps1`.
+
+### Changed
+
+- **Windows PATH staleness is no longer reported as a missing dependency** -
+  the parent process may predate the install (opencode started before uv or
+  Python landed), so its inherited PATH hides binaries that ARE on disk.
+  `toolchainStatus` reloads PATH from the registry (Machine + User) once and
+  re-probes. `python` is probed with `--version` rather than `where python`,
+  because the `WindowsApps` execution alias answers on machines without any
+  Python.
+- **The installer asks about providers by default** (`true` instead of
+  `false`) and adds a `--no-deps-install` flag. Automatic dependency
+  installation now defaults to on (`autoInstall !== false`); when providers
+  are declined the toolchain and npm health still install, being system
+  dependencies rather than optional providers.
+- **`npm install` runs with `--ignore-scripts`** and `npm_config_global=false`,
+  scoped to the Novahiz home, so nothing in the home re-enters the
+  installer.
+
+### Notes
+
+- `novahiz deps` and the `novahiz_deps` tool change their JSON contract:
+  `{node, platform, dependencies}` becomes
+  `{node, platform, toolchain, dependencies, entrypoints, npm}`, and the
+  dry-run `plan` becomes `{core, npm, bootstrap, install}`. Anything parsing
+  the old shape must be updated.
+
 ## [0.9.3] - 2026-10-11
 
 ### Changed

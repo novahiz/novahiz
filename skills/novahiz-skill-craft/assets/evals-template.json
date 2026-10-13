@@ -1,0 +1,11 @@
+{
+  "skill_name": "exemple",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Tâche exemple",
+      "expected_output": "Description du résultat attendu",
+      "expectations": ["Le résultat contient X"]
+    }
+  ]
+}
