@@ -1705,9 +1705,20 @@ async function setup(ctx: Context): Promise<Cleanup> {
           // the installed index — an unverified name never counts as loaded.
           // H3 stays: failures are surfaced in the log instead of vanishing,
           // with the exit code — a bare empty reason hid real failures.
-          const loadResult = await run(["session-load", "--session", event.sessionID, "--skill", name]);
+          // A transient failure (observed SQLite contention) once left a
+          // genuinely loaded skill unrecorded, so the very next identical edit
+          // hit the same block again: retry once before declaring it
+          // "not recorded". Recorded state only records what the agent already
+          // holds in memory, and the write is idempotent
+          // (INSERT ... ON CONFLICT DO NOTHING), so a second attempt cannot
+          // loosen anything; when both attempts fail, behaviour is unchanged -
+          // the warning is logged and `loaded` is left alone.
+          let loadResult = await run(["session-load", "--session", event.sessionID, "--skill", name]);
           if (loadResult.status !== 0) {
-            await log("warn", `session-load failed for skill ${name} (exit ${loadResult.status}), not recorded: ${(loadResult.stderr || loadResult.stdout || "").trim().slice(0, 200)}`);
+            loadResult = await run(["session-load", "--session", event.sessionID, "--skill", name]);
+          }
+          if (loadResult.status !== 0) {
+            await log("warn", `session-load failed for skill ${name} (exit ${loadResult.status}) after retry, not recorded: ${(loadResult.stderr || loadResult.stdout || "").trim().slice(0, 200)}`);
           } else {
             loaded.add(name);
           }
