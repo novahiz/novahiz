@@ -31,20 +31,32 @@ authentique, qu'on marque `stale` puis qu'on met à jour).
 
 ```
 1. novahiz_wireframe init          (une fois par projet)
-2. novahiz_wireframe screen        (structure globale de l'écran)
-3. novahiz_wireframe section × N   (un wireframe détaillé par section)
-4. compléter chaque section        (annotations, états, réutilisation)
-5. novahiz_wireframe attach        (pièce jointe -> prompt impeccable shape)
-6. impeccable shape (brief pré-rempli par le wireframe)
-7. décomposer en tâches: 1 sous-tâche = 1 section
-8. construire section par section  (composants réutilisables)
-9. novahiz_wireframe mark          (draft -> approved; stale si divergence)
+2. novahiz_wireframe plan          (l'écran est-il mono ou multi-sections ?)
+3. novahiz_wireframe screen        (structure globale de l'écran)
+4. novahiz_wireframe sections      (toutes les sections en un seul appel)
+5. compléter chaque section        (annotations, états, réutilisation)
+6. novahiz_wireframe review        (sections importantes oubliées ?)
+7. novahiz_wireframe attach        (pièce jointe -> prompt impeccable shape)
+8. impeccable shape (brief pré-rempli par le wireframe)
+9. décomposer en tâches: 1 sous-tâche = 1 section
+10. construire section par section (composants réutilisables)
+11. novahiz_wireframe mark         (draft -> approved; stale si divergence)
 ```
 
 Sauter une étape fait sortir un écran qui diverge du brief et qui se paie en
 retouches. Le gate `R17-wireframe` (et l'étape `wireframe` de la roadmap
 design-ui) exige cette skill chargée sur toute tâche design-ui ou tout fichier
 d'écran.
+
+Trois garde-fous portés par le code, pas par votre mémoire:
+
+- `screen` renvoie `needsSections: true` accompagné d'un `plan` quand l'écran est
+  créé sans sections. Un écran vide n'est jamais un succès silencieux.
+- `sections` crée **toutes** les sections en un seul appel (une seule
+  reconstruction d'index, contre une par section avec `section`). C'est la
+  raison du rendu lent quand on créait les sections une à une.
+- `mark approved` **refuse** tant que `review` trouve un manque. C'est le seul
+  point de la séquence qui ne peut pas être sauté, et il est vérifié par le code.
 
 ## Étape 1 — init (une fois par projet)
 
@@ -54,7 +66,29 @@ novahiz_wireframe { action: "init" }
 
 Crée `wireframes/` à la racine du projet avec `INDEX.md`. Idempotent.
 
-## Étape 2 — l'écran entier
+## Étape 2 — plan: mono ou multi-sections ?
+
+```
+novahiz_wireframe { action: "plan", name: "Catalogue formations",
+  objective: "Permettre à l'apprenant de comparer et de s'inscrire." }
+```
+
+Renvoie `screenClass` (`list` / `form` / `detail` / `settings` / `default`),
+`needsMultiple`, les `sections` candidates, et surtout `reasons` — pourquoi
+chaque décision a été prise. Exemple: un formulaire vaut trois sections parce
+qu'il a trois responsabilités distinctes (saisir, valider, confirmer) qui
+deviennent illisibles fusionnées.
+
+**Le verdict est heuristique** (`heuristic: true`): une règle statique ne peut
+pas juger l'intention de design. C'est une proposition argumentée, pas une
+autorité — confirmez-la ou corrigez-la, puis passez les sections retenues à
+`screen`. La classe `default` signifie explicitement « je ne sais pas »: la
+question reste ouverte, elle n'est pas résolue.
+
+Si `screen` a déjà été créé sans sections, `needsSections: true` arrive avec un
+`plan` joint: servez-vous-en directement.
+
+## Étape 3 — l'écran entier
 
 ```
 novahiz_wireframe { action: "screen", name: "Catalogue formations",
@@ -66,13 +100,32 @@ Produit `wireframes/<slug>/screen.md` (objectif, flux, layout ordonné des
 sections, états globaux, breakpoints) et un skeleton `sections/NN-<slug>.md`
 par section. L'ordre des `sections` est l'ordre de lecture de l'écran.
 
+Si vous omettez `sections`, l'écran est créé quand même, mais avec
+`needsSections: true` et un `plan` joint. Ce n'est pas un état valide: alimentez-le
+immédiatement. Rappeler `screen` avec les sections **ne remplit rien** — le
+wireframe existant fait foi et n'est jamais écrasé.
+
 Le wireframe de l'écran est le croquis de synthèse: il montre l'ossature et
 l'enchaînement des zones, pas le détail de chaque contrôle (c'est le rôle des
 sections).
 
-## Étape 3-4 — le wireframe détaillé de chaque section
+## Étape 4-5 — les sections: création en lot, puis détail
 
-Chaque section reçoit son fichier. Complétez-le intégralement avant shape:
+```
+novahiz_wireframe { action: "sections", screen: "catalogue-formations",
+  sections: ["En-tête et filtres", "Grille de formations", "Pagination"] }
+```
+
+Crée toutes les sections en **un seul appel**. Une seule reconstruction d'index
+contre une par appel avec `action: "section"`, qui reste réservé à l'ajout d'une
+section unique en cours de route. Les noms déjà présents sont signalés dans
+`existing`, jamais réécrits.
+
+La réponse contient `review`: le verdict immédiat de « ai-je maintenant tout ce
+qu'il faut ? ».
+
+Ensuite, chaque section reçoit son contenu. Complétez-la intégralement avant
+shape:
 
 - **Rôle dans l'écran**: pourquoi cette section existe.
 - **Éléments**: tableau id / élément / type (texte, bouton, champ, liste…).
@@ -88,7 +141,30 @@ Le format complet, avec les règles d'annotation et les pièges à éviter, est 
 [references/format.md](references/format.md). Lisez-le avant la première
 section d'un projet.
 
-## Étape 5-6 — la pièce jointe à impeccable shape
+## Étape 6 — review: la vérification des sections oubliées
+
+```
+novahiz_wireframe { action: "review", screen: "catalogue-formations" }
+```
+
+Renvoie `verdict` (`pass` / `gaps`), `gaps` — chaque manque avec son `severity`
+et son `why` — et `questions`.
+
+**Deux choses distinctes cohabitent ici, et il faut savoir laquelle vous regardez:**
+
+1. `gaps` est **déterministe**. Une règle classe l'écran et compare ses sections
+   attendues à celles qui existent. Elle détecte l'objectivement manquant: un
+   écran sans structure, un listing sans état vide, un formulaire sans
+   section d'erreur. Elle ne peut pas inventer un besoin de design.
+2. `questions` est **obligatoire et non résoluble par le code**. Six questions —
+   depuis quand vient l'utilisateur, que voit-on si la liste est vide, que fait
+   375px à chaque section — que seul vous pouvez répondre, section par section.
+
+Le script ne pense pas à votre place: il empêche l'étape d'être sautée. C'est
+pourquoi `mark approved` appelle la revue lui-même et refuse tant que `verdict`
+n'est pas `pass`.
+
+## Étape 7-8 — la pièce jointe à impeccable shape
 
 ```
 novahiz_wireframe { action: "attach", screen: "<slug>" }
@@ -106,7 +182,7 @@ outcome) et alimente les sections 5 (States and ranges) et 6 (Interaction and
 layout) du brief. Shape en sort avec la structure verrouillée; il ne reste que
 le monde visuel et le concept à choisir.
 
-## Étape 7 — décomposition en tâches
+## Étape 9 — décomposition en tâches
 
 Un écran N sections se découpe en **N sous-tâches sections**, plus quelques
 sous-tâches transverses. Template (via `novahiz_task`):
@@ -132,7 +208,7 @@ Règles de découpe:
 - Chaque `build section` référence les composants `reuse` listés dans son
   wireframe. Un composant nouveau non extrait est un dette.
 
-## Étape 8 — construction modulaire
+## Étape 10 — construction modulaire
 
 Le wireframe section est la carte de réutilisation. En construisant:
 
@@ -149,7 +225,7 @@ passe au crible les `new-component` et crée ceux qui justifient un fichier
 propre. C'est le point où l'approche modulaire devient un livrable, pas une
 intention.
 
-## Étape 9 — cycle de vie et mise à jour
+## Étape 11 — cycle de vie et mise à jour
 
 ```
 draft ──(brief confirmé, code conforme)──> approved
@@ -158,7 +234,10 @@ stale ──(wireframe mis à jour)──> draft
 ```
 
 - `novahiz_wireframe { action: "mark", screen, status: "approved" }` à la
-  convergence de l'écran.
+  convergence de l'écran. **La revue s'exécute à ce moment-là**: tant que
+  `verdict != pass`, l'approbation est refusée avec la liste des manques et la
+  commande de rattrapage. C'est le contrôle qui ne dépend pas de votre
+  discipline.
 - Si le code diverge du wireframe (découverte en cours de route, exigence qui
   change), `mark stale` sur l'écran ou la section concernée, puis éditez le
   wireframe pour qu'il rejoigne la réalité, puis repassez en `draft`.
@@ -171,6 +250,19 @@ stale ──(wireframe mis à jour)──> draft
 
 - **Coder la section avant son wireframe.** Le gate refuse; moralement c'est
   pire: le brief part sur une structure inventée après coup.
+- **Créer un écran sans sections et passer à la suite.** `needsSections: true`
+  n'est pas un avertissement à ignorer. L'état existe pour être réparé, en un
+  seul appel `sections`.
+- **Créer les sections une par une.** Chaque appel reconstruit tout l'index du
+  projet. `sections` fait le travail en un appel et rend le verdict de revue en
+  même temps.
+- **Traiter `plan` comme une décision.** `heuristic: true` veut dire « proposition
+  argumentée ». Une règle statique ne connaît pas votre intention de design; elle
+  ne peut que vous proposer et vous dire pourquoi. Une classe `default` est une
+  question ouverte, pas une réponse.
+- **Approuver sans avoir lu `questions`.** Le blocage porte sur `gaps`
+  (déterministe); les six questions vous reviennent. Vous passerez la revue en
+  n'y répondant pas — c'est exactement ce qu'elles cherchent à empêcher.
 - **Wireframer tout l'écran en détail d'un bloc.** Le croquis de synthèse
   (screen.md) montre l'ossature; le détail vit section par section. Deux
   niveaux, pas un.

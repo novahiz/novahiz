@@ -51,6 +51,7 @@ function usage(): void {
     commands: [
       "init                    Initialize Novahiz in the current project",
       "setup                   Install Novahiz (config, skills, catalog)",
+      "sync                    Rescan skills and rebuild build/installed-skills.json + build/catalog.json",
       "autodocs [--flush]      Sync docs and memory after major project changes",
       "doctor [--deep]        Check that everything works (--deep also probes each MCP server live)",
       "status                  Show current classification and gate state",

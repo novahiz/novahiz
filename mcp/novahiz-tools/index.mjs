@@ -12,7 +12,7 @@ import { capture, diffSnapshots, listSnapshots, loadManifest, matchingIds, resto
 import { graphFileApi, graphFind, graphFindAll, graphFreshness, graphRepoMap, graphTrace } from "../../src/graph/query.ts";
 import { enabledProviders } from "../../src/providers.ts";
 import { dependencyReport } from "../../src/deps.ts";
-import { attachScreen, createScreen, createSection, initWireframes, listScreens, markStatus, rebuildIndex as rebuildWireframeIndex } from "../../src/wireframe.ts";
+import { attachScreen, createScreen, createSection, createSections, initWireframes, listScreens, markStatus, planSections, rebuildIndex as rebuildWireframeIndex, reviewScreen } from "../../src/wireframe.ts";
 import { activeTask, addTodos, amendTodo, blockTodo, buildWorkPackets, completeTodo, createTask, dropTask, dropTodo, getTask, getTodo, insertTodo, ledgerSummary, listTodos, parseReviewDiff, recordTodoDone, reorderTodos, resume, reviewDue, reviewTask, revisionSignals, startTodo } from "../../src/ledger.ts";
 import { DEFAULT_LIMIT_CHARS, DEFAULT_LIMIT_LINES, archiveSlot, ensureMemoryRoot, getSlot, listSlots, parseSlotInput, rebuildFts, rebuildIndex, resolveMemoryDir, searchSlots, touchSlotRead, updateSlot, writeEntry } from "../../src/memory.ts";
 
@@ -484,20 +484,20 @@ const TOOLS = [
   },
   {
     name: "novahiz_wireframe",
-    description: "Wireframe-first design pipeline. Creates and maintains the project's wireframes/ folder: one subfolder per screen (screen.md + sections/NN-name.md annotated intent/behavior/constraints), a regenerated INDEX.md at the root, and an 'attach' action returning the full wireframe content as the attachment block to paste into the impeccable shape prompt.",
+    description: "Wireframe-first design pipeline. Creates and maintains the project's wireframes/ folder: one subfolder per screen (screen.md + sections/NN-name.md annotated intent/behavior/constraints), a regenerated INDEX.md at the root, and an 'attach' action returning the full wireframe content as the attachment block to paste into the impeccable shape prompt. 'plan' tells whether a screen needs several sections and why; 'sections' creates them in bulk (one index rebuild for the whole batch); 'review' reports important sections that were forgotten and is enforced by 'mark' approval.",
     inputSchema: {
       type: "object",
       properties: {
         action: {
           type: "string",
-          enum: ["init", "screen", "section", "index", "attach", "mark", "status"],
-          description: "init: create wireframes/ + INDEX.md (idempotent). screen: create a screen subfolder with its ordered sections. section: append one section to an existing screen. index: rebuild INDEX.md from disk. attach: return the full wireframe (screen + all sections) as the prompt attachment block for impeccable shape. mark: set lifecycle status (draft/approved/stale) on a screen or section. status: list screens and their sections."
+          enum: ["init", "screen", "sections", "section", "plan", "review", "index", "attach", "mark", "status"],
+          description: "init: create wireframes/ + INDEX.md (idempotent). screen: create a screen subfolder; the result carries needsSections=true and a plan when it was created without sections. sections: create MANY sections for an existing screen in a single call (fast: one INDEX rebuild instead of one per section, and existing names are skipped, never overwritten). section: append one section. plan: classify the screen (list/form/detail/settings/default) and return whether it needs several sections, which ones, and the reasons. review: report important sections that are missing from a screen, plus the questions that must be answered before approval. index: rebuild INDEX.md from disk. attach: return the full wireframe (screen + all sections) as the prompt attachment block for impeccable shape. mark: set lifecycle status (draft/approved/stale); approval of a screen is REFUSED while review reports gaps. status: list screens and their sections."
         },
         project: { type: "string", description: "Project root where wireframes/ lives (default: process cwd)." },
-        name: { type: "string", description: "screen/section display name (action screen, section)." },
-        objective: { type: "string", description: "Screen objective (action screen, optional)." },
-        sections: { type: "array", items: { type: "string" }, description: "Ordered section names (action screen)." },
-        screen: { type: "string", description: "Screen slug (actions section, attach, mark, status)." },
+        name: { type: "string", description: "screen/section display name (actions screen, section, plan)." },
+        objective: { type: "string", description: "Screen objective (actions screen, plan; optional)." },
+        sections: { type: "array", items: { type: "string" }, description: "Ordered section names (action screen), or the batch of section names to create (action sections)." },
+        screen: { type: "string", description: "Screen slug (actions sections, section, attach, mark, review, status)." },
         section: { type: "string", description: "Section id, e.g. 01-hero (action mark, optional: marks the screen)." },
         status: { type: "string", enum: ["draft", "approved", "stale"], description: "New lifecycle status (action mark)." }
       },
@@ -1142,6 +1142,28 @@ function callTool(name, args) {
       if (!screen || !sectionName) throw new Error("novahiz_wireframe section: 'screen' et 'name' requis");
       return toolResult(createSection(project, screen, sectionName));
     }
+    if (action === "sections") {
+      // Creation en lot: un seul appel, une seule reconstruction d'index.
+      const screen = str(args?.screen);
+      const names = Array.isArray(args?.sections) ? args.sections.map(String) : [];
+      if (!screen) throw new Error("novahiz_wireframe sections: 'screen' requis");
+      if (names.length === 0) throw new Error("novahiz_wireframe sections: 'sections' doit contenir au moins un nom");
+      const created = createSections(project, screen, names);
+      // On rend aussi le verdict de revue: c'est la reponse immediate a
+      // "est-ce que j'ai maintenant tout ce qu'il faut ?".
+      return toolResult({ ...created, review: reviewScreen(project, screen) });
+    }
+    if (action === "plan") {
+      // Decision mono/multi: rien n'est ecrit, l'agent confirme ensuite.
+      const screenName = str(args?.name);
+      if (!screenName) throw new Error("novahiz_wireframe plan: 'name' requis");
+      return toolResult(planSections(screenName, str(args?.objective)));
+    }
+    if (action === "review") {
+      const screen = str(args?.screen);
+      if (!screen) throw new Error("novahiz_wireframe review: 'screen' requis");
+      return toolResult(reviewScreen(project, screen));
+    }
     if (action === "index") return toolResult({ index: rebuildWireframeIndex(project) });
     if (action === "attach") {
       const screen = str(args?.screen);
@@ -1165,7 +1187,7 @@ function callTool(name, args) {
       const single = str(args?.screen);
       return toolResult(single ? (screens.find((entry) => entry.slug === single) ?? { screen: single, found: false }) : { screens });
     }
-    throw new Error(`novahiz_wireframe: action inconnue '${action}' (init|screen|section|index|attach|mark|status)`);
+    throw new Error(`novahiz_wireframe: action inconnue '${action}' (init|screen|sections|section|plan|review|index|attach|mark|status)`);
   }
   throw new Error(`Unknown tool: ${name}`);
 }

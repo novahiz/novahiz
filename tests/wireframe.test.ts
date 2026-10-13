@@ -13,11 +13,14 @@ import {
   attachScreen,
   createScreen,
   createSection,
+  createSections,
   initWireframes,
   listScreens,
   markStatus,
   parseFrontmatter,
+  planSections,
   rebuildIndex,
+  reviewScreen,
   slugify,
   wireframeDir
 } from "../src/wireframe.ts";
@@ -110,6 +113,107 @@ describe("wireframe: createScreen / createSection", () => {
   });
 });
 
+describe("wireframe: sections oubliees et decision mono/multi", () => {
+  test("un ecran cree sans sections porte le signal et un plan, jamais un succes silencieux", () => {
+    const project = tempDir();
+    initWireframes(project);
+    const bare = createScreen(project, { name: "Tableau de bord" });
+    assert.equal(bare.created, true);
+    assert.equal(bare.needsSections, true, "l'ecran sans sections doit le dire");
+    assert.equal(bare.sectionFiles.length, 0);
+    assert.equal(bare.plan.screenClass, "list");
+    assert.equal(bare.plan.needsMultiple, true, "un tableau de bord est multi-sections");
+
+    // La recuperation en un seul appel: on part du plan propose.
+    const filled = createSections(project, bare.slug, bare.plan.sections);
+    assert.ok(filled.created.length >= 3, "le plan doit proposer au moins 3 sections");
+    assert.equal(filled.indexRebuilds, 1, "une seule reconstruction d'index pour tout le lot");
+
+    const after = createScreen(project, { name: "Tableau de bord" });
+    assert.equal(after.needsSections, false, "l'ecran est maintenant complet");
+    assert.equal(after.created, false);
+    assert.ok(after.sectionFiles.length >= 3, "le retour anticipe doit refeter l'etat reel du disque");
+    assert.equal(reviewScreen(project, "tableau-de-bord").verdict, "pass");
+  });
+
+  test("un trou dans la numerotation ne reutilise plus un index deja pris", () => {
+    const project = tempDir();
+    initWireframes(project);
+    createScreen(project, { name: "Profil", sections: ["Identite", "Preferences", "Securite"] });
+    rmSync(join(project, "wireframes", "profil", "sections", "02-preferences.md"));
+    const added = createSection(project, "profil", "Notifications");
+    assert.equal(added.created, true);
+    // 01 et 03 sont pris: le suivant est 04, pas le compte (3) deja utilise.
+    assert.match(added.file, /04-notifications\.md$/);
+  });
+
+  test("createSections est idempotente et n'ecrase jamais", () => {
+    const project = tempDir();
+    initWireframes(project);
+    createScreen(project, { name: "Recherche", sections: ["Barre"] });
+    const first = createSections(project, "recherche", ["Barre", "Resultats"]);
+    assert.deepEqual(first.created, ["Resultats"], "Barre existe deja");
+    assert.equal(first.existing.length, 1);
+    const again = createSections(project, "recherche", ["Resultats"]);
+    assert.equal(again.created.length, 0);
+    assert.equal(listScreens(project)[0].sections.length, 2, "aucune section dupliquee");
+  });
+
+  test("planSections classe et justifie, sans pretendre avoir raison", () => {
+    const form = planSections("Paiement", "Regler une commande en trois etapes.");
+    assert.equal(form.screenClass, "form");
+    assert.equal(form.needsMultiple, true);
+    assert.equal(form.minimum, 3);
+    assert.ok(form.reasons.length >= 3, "chaque decision porte sa justification");
+    assert.match(form.reasons.join(" "), /classe « form »/);
+    assert.equal(form.heuristic, true, "le caractere heuristique est declare");
+
+    const unknown = planSections("Zzzq");
+    assert.equal(unknown.screenClass, "default");
+    assert.equal(unknown.needsMultiple, false);
+    assert.match(unknown.reasons.join(" "), /aucun element de classe reconnu/);
+  });
+});
+
+describe("wireframe: reviewScreen (revue critique)", () => {
+  test("un ecran sans sections est signale, pas ignore", () => {
+    const project = tempDir();
+    initWireframes(project);
+    createScreen(project, { name: "Catalogue" });
+    const review = reviewScreen(project, "catalogue");
+    assert.equal(review.verdict, "gaps");
+    assert.equal(review.gaps[0].id, "no-section");
+    assert.ok(review.questions.length >= 5, "la revue impose ses questions critiques");
+    assert.equal(review.heuristic, true);
+  });
+
+  test("la revue nomme chaque section manquante et dit pourquoi", () => {
+    const project = tempDir();
+    initWireframes(project);
+    createScreen(project, { name: "Liste de courses", sections: ["Contexte et filtres"] });
+    const review = reviewScreen(project, "liste-de-courses");
+    assert.equal(review.verdict, "gaps");
+    const labels = review.gaps.map((gap) => gap.label);
+    assert.ok(labels.includes("Contenu principal"), "le contenu principal doit etre nomme");
+    assert.ok(labels.includes("Etats vides et pagination"), "l'etat vide doit etre nomme");
+    assert.ok(review.gaps.every((gap) => gap.why.length > 0), "aucun manque sans justification");
+  });
+
+  test("un ecran complet passe la revue", () => {
+    const project = tempDir();
+    initWireframes(project);
+    createScreen(project, {
+      name: "Paiement",
+      sections: ["Champs et saisie", "Validation et erreurs", "Confirmation"]
+    });
+    const review = reviewScreen(project, "paiement");
+    assert.equal(review.verdict, "pass");
+    assert.equal(review.gaps.length, 0);
+    assert.equal(review.sectionCount, 3);
+    assert.equal(review.screenClass, "form");
+  });
+});
+
 describe("wireframe: rebuildIndex depuis le disque", () => {
   test("l'index reflete les ecrans et sections reels", () => {
     const project = tempDir();
@@ -148,15 +252,37 @@ describe("wireframe: markStatus (cycle de vie)", () => {
   test("le statut et la date de mise a jour bougent, les autres non", () => {
     const project = tempDir();
     initWireframes(project);
-    const { screenFile, sectionFiles } = createScreen(project, { name: "Paiement", sections: ["Formulaire"] });
+    const { screenFile, sectionFiles } = createScreen(project, {
+      name: "Paiement",
+      sections: ["Champs et saisie", "Validation et erreurs", "Confirmation"]
+    });
     const marked = markStatus(project, "paiement", "approved");
     assert.equal(marked.status, "approved");
     assert.match(readFileSync(screenFile, "utf8"), /status: approved/);
     // Le statut de l'ecran ne touche pas a celui de la section.
     assert.match(readFileSync(sectionFiles[0], "utf8"), /status: draft/);
-    const stale = markStatus(project, "paiement", "stale", "01-formulaire");
+    const stale = markStatus(project, "paiement", "stale", "01-champs-et-saisie");
     assert.equal(stale.status, "stale");
     assert.match(readFileSync(sectionFiles[0], "utf8"), /status: stale/);
+  });
+
+  test("approved est refuse tant qu'une section importante manque", () => {
+    const project = tempDir();
+    initWireframes(project);
+    createScreen(project, { name: "Paiement", sections: ["Formulaire"] });
+    assert.throws(
+      () => markStatus(project, "paiement", "approved"),
+      (error: Error) => {
+        assert.match(error.message, /approbation refusee/);
+        assert.match(error.message, /Validation et erreurs/);
+        assert.match(error.message, /action="sections"/);
+        return true;
+      },
+      "le blocage doit nommer la section manquante et la commande pour la creer"
+    );
+    // Un ecran complet, lui, passe: le blocage n'est pas decoratif.
+    createSections(project, "paiement", ["Validation et erreurs", "Confirmation"]);
+    assert.equal(markStatus(project, "paiement", "approved").status, "approved");
   });
 
   test("un statut hors cycle de vie est refuse", () => {

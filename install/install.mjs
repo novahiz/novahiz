@@ -57,6 +57,7 @@ const CORE_ITEMS = [
   "adapters",
   "skills",
   "docs",
+  "scripts",
   "package.json",
   "tsconfig.json",
   "LICENSE",
@@ -252,12 +253,22 @@ async function main() {
         continue;
       }
       const target = join(home, item);
+      // Audit 2026-10-13: le home du novahiz est une COPIE du paquet npm.
+      // Sauvegarder les anciens fichiers du paquet ne peut rien sauver (npm en
+      // possede l'original) et ne fait qu'accumuler du litter: 235 des 320
+      // *.novahiz-bak de l'installation venaient de la. Seul catalog/ garde sa
+      // sauvegarde: c'est de la configuration editee par l'utilisateur
+      // (categories, rules, providers, overrides, vault-structure) qui n'est
+      // recuperable nulle part ailleurs. Les copies vers le configDir opencode
+      // (skills, plugin, agent, commands) gardent, elles, leurs sauvegardes:
+      // ce sont elles que `novahiz uninstall` restaure.
+      const itemBackup = item === "catalog";
       if (statSync(source).isDirectory()) {
-        const result = copyInto(source, target, true);
+        const result = copyInto(source, target, itemBackup);
         created.push(...result.created);
         backups.push(...result.backups);
       } else {
-        const result = copyFileWithBackup(source, target, true);
+        const result = copyFileWithBackup(source, target, itemBackup);
         if (result.created) created.push(result.created);
         if (result.backup) backups.push(result.backup);
       }
