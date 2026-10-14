@@ -16,7 +16,7 @@ Global skill for using Playwright MCP in OpenCode. It forces the development ser
 ## Hard rules
 
 1. **NEVER use Chrome or Chromium.** Use only Microsoft Edge via the Playwright MCP server (`--browser=msedge`). Never launch `chrome.exe`, `chromium`, or any Chromium-based process manually or programmatically. All browser automation goes through the MCP tools (`playwright_browser_*`). If Edge is not installed, fall back to another non-Chromium browser (Firefox, WebKit) via the Playwright MCP server.
-2. **Persistent profile only.** Profile folder: `C:\Users\hiz\.opencode\playwright-profile`. Never disable `--user-data-dir`. Never launch an ephemeral context for tasks requiring persistence. Never purge the folder without explicit user consent.
+2. **Persistent profile only.** Profile folder: `~/.opencode/playwright-profile`. Never disable `--user-data-dir`. Never launch an ephemeral context for tasks requiring persistence. Never purge the folder without explicit user consent.
 3. **Dev server first.** Start the application server in an external terminal before navigating to `localhost`. Do not assume it is already running. Confirm it responds before the first navigation.
 4. **MCP tools only.** Navigation, clicks, typing, screenshots, and snapshots go through `playwright_browser_*`. No manual browser launch, no direct CDP attach outside the MCP server.
 

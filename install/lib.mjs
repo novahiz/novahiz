@@ -60,7 +60,9 @@ export function opencodeConfigDir(env = process.env) {
 
 export function NovahizHome(flags = {}, env = process.env) {
   if (typeof flags.home === "string") return resolve(expandHome(flags.home));
-  if (env.NOVAHIZ_HOME) return resolve(env.NOVAHIZ_HOME);
+  // H16: `if (env.NOVAHIZ_HOME) ...` was written twice - a copy-paste leftover
+  // from an earlier variable name. Anyone who exported that older name silently
+  // fell through to the default home while believing they had redirected it.
   if (env.NOVAHIZ_HOME) return resolve(env.NOVAHIZ_HOME);
   return join(homedir(), ".config", "novahiz");
 }

@@ -81,8 +81,11 @@ const CLASS_BY_EXTENSION: Record<string, FileClass> = {
   scala: "code"
 };
 
-export function fileClass(filePath: string): FileClass {
-  const normalized = filePath.replace(/\\/g, "/");
+export function fileClass(filePath: string | undefined): FileClass {
+  // Pathless calls (M1/l.135) carry no target path. Deriving a class from
+  // undefined must not throw before evaluateGate reaches its pathless branch:
+  // "" already yielded "other", so the guard preserves every existing verdict.
+  const normalized = (filePath ?? "").replace(/\\/g, "/");
   const base = normalized.slice(normalized.lastIndexOf("/") + 1);
   if (base.length === 0) return "other";
 
@@ -309,8 +312,17 @@ function selectorMatches(rule: Rule, classification: FileClass, path: string, ca
 // build/ but must never be treated as ignored build output.
 const PROTECTED_INDEX_SUFFIXES = ["/build/installed-skills.json", "/build/catalog.json"];
 
-function isProtectedIndexPath(path: string): boolean {
-  return PROTECTED_INDEX_SUFFIXES.some((suffix) => path === suffix.slice(1) || path.endsWith(suffix));
+export function isProtectedIndexPath(path: string): boolean {
+  // C3 must hold on Windows too. Gate receives paths carrying the platform
+  // separator (`...\build\catalog.json`), and a suffix spelled with "/" never
+  // matched there, so the guard silently never fired on the platform most of
+  // the community installs on - exactly the files that define what the gate
+  // requires. Compare on a forward-slash normalised copy instead of guessing
+  // which separator the caller used.
+  const normalised = path.replace(/\\/g, "/");
+  return PROTECTED_INDEX_SUFFIXES.some(
+    (suffix) => normalised === suffix.slice(1) || normalised.endsWith(suffix)
+  );
 }
 type GateInput = {
   tool: string;
@@ -350,7 +362,9 @@ export type GateResult = {
 export function evaluateGate(input: GateInput): GateResult {
   const classification = fileClass(input.filePath);
   const categories = input.categories ?? [];
-  const path = input.filePath.replace(/\\/g, "/");
+  // Pathless calls may carry no filePath at all; normalizing undefined to ""
+  // reproduces exactly what src/commands/gate.ts:173 passes explicitly.
+  const path = (input.filePath ?? "").replace(/\\/g, "/");
   const content = input.content ?? "";
   // MAJEUR l.135: a pathless call (bash/shell/cron without a target) evaluates
   // prompt-scoped rules only and never consults path-based ignore globs.
@@ -395,6 +409,21 @@ export function evaluateGate(input: GateInput): GateResult {
     let projectRoot: string | null | undefined;
 
     for (const rule of input.spec.rules) {
+      // Cheap-first (audit 2026-10-14): an O(1) guard runs before the glob
+      // selectors and the content regexes. Every guard here is an AND-only
+      // `continue`, so their relative order is not observable in the verdict —
+      // the only effect is that a rule dropped at this line never pays for a
+      // path walk or a content evaluation.
+      if (rule.when.tiers && rule.when.tiers.length > 0 && !rule.when.tiers.includes(tier)) continue;
+      // An absent tool means "unknown", not "none". Skipping on undefined would
+      // silently disarm the rule for every caller that omits it (a fail-open).
+      // Keeping it armed can only cost tokens, never enforcement.
+      if (
+        rule.when.tools &&
+        rule.when.tools.length > 0 &&
+        input.tool !== undefined &&
+        !rule.when.tools.includes(input.tool)
+      ) continue;
       if (!selectorMatches(rule, classification, path, categories, pathless)) continue;
       if (rule.when.projectGlobs && rule.when.projectGlobs.length > 0) {
         // Pathless probes carry no file: there is no repository to inspect, so
@@ -491,7 +520,32 @@ export function evaluateGate(input: GateInput): GateResult {
     const placeholder = placeholderEligible && hasPlaceholder(content);
 
     const reasons: string[] = [];
-    for (const skill of missingSkills) reasons.push(`missing skill: ${skill}`);
+    // P8 (2026-10-14): `rule.description` was declared in spec.ts and read by
+    // nobody — metadata that never reached the model, so a block only ever said
+    // WHAT to load, never why. On a block the owning rule's text is now surfaced
+    // as an instruction behind each missing skill. Two cost rules hold the line:
+    // the block is built only when something is actually missing (an allow path
+    // constructs none of it), and one rule owning several skills is spelled out
+    // once — later skills carry its id alone.
+    if (missingSkills.length > 0) {
+      const spelledOut = new Set<string>();
+      for (const skill of missingSkills) {
+        const owners = input.spec.rules.filter((rule) => rule.require.includes(skill));
+        const why =
+          owners.length === 0
+            ? "required by the active category roadmap"
+            : owners
+                .map((rule) => {
+                  if (spelledOut.has(rule.id)) return rule.id;
+                  spelledOut.add(rule.id);
+                  return `${rule.id}: ${rule.description}`;
+                })
+                .join("; ");
+        reasons.push(
+          `missing skill: ${skill} — load it with skill({id: "${skill}"}). ${why}`
+        );
+      }
+    }
     // C3: an index gap must be visible, not silent. The skill is not enforced
     // (kept out of requiredSkills) — say so loudly so a sync gets triggered.
     for (const skill of unmatchedRequired) {

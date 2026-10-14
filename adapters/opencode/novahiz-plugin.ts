@@ -615,6 +615,123 @@ async function run(args: string[], input?: string): Promise<RunResult> {
   return spawnNode([CLI, ...args], input);
 }
 
+// GATE-DAEMON client -----------------------------------------------------------------
+// Measured 2026-10-14: one `run(["gate", ...])` cost 299.1 ms, of which only
+// 0.74 ms is gate computation (loadSpec + evaluateGate) — ~99.6% was process
+// startup, paid on every gated tool call. The daemon keeps one warm process and
+// answers over newline-delimited JSON, cutting that to a pipe write.
+//
+// Fail-closed contract: every failure below is returned as `spawnError`, the
+// exact shape spawnNode uses, so the caller's existing handling (deny with
+// "gate unavailable") applies untouched. There is no path here that returns
+// allow, and the daemon itself caches nothing — it re-runs commandGate, which
+// re-reads rules.json/categories.json/the skill index from disk on each request.
+const DAEMON = join(HOME, "src", "gate-daemon.ts");
+const GATE_TIMEOUT_MS = 20_000;
+
+type DaemonChild = ReturnType<typeof spawn>;
+let gateChild: DaemonChild | null = null;
+let gateBuffer = "";
+let gateNextId = 1;
+const gatePending = new Map<number, { resolve: (result: RunResult) => void; timer: ReturnType<typeof setTimeout> }>();
+
+function gateFail(reason: string): RunResult {
+  return { status: 1, stdout: "", stderr: reason, spawnError: reason };
+}
+
+function releaseGatePending(reason: string): void {
+  for (const pending of gatePending.values()) {
+    clearTimeout(pending.timer);
+    pending.resolve(gateFail(reason));
+  }
+  gatePending.clear();
+}
+
+function ensureGateChild(): DaemonChild | null {
+  if (gateChild && gateChild.exitCode === null && gateChild.stdin) return gateChild;
+  // A dead child must not leave requests hanging: fail them, then respawn.
+  releaseGatePending("gate daemon exited before answering");
+  gateBuffer = "";
+  let child: DaemonChild;
+  try {
+    child = spawn(NODE, ["--experimental-strip-types", DAEMON], { stdio: ["pipe", "pipe", "pipe"], windowsHide: true });
+  } catch (error) {
+    gateChild = null;
+    return null;
+  }
+  child.on("error", (error) => {
+    releaseGatePending(`gate daemon error: ${String(error).slice(0, 200)}`);
+  });
+  child.on("exit", () => {
+    if (gateChild === child) gateChild = null;
+    releaseGatePending("gate daemon exited before answering");
+  });
+  if (child.stdin) {
+    // A broken pipe is surfaced through the pending request, not as a crash.
+    child.stdin.on("error", () => {});
+  }
+  if (child.stdout) {
+    child.stdout.setEncoding("utf8");
+    child.stdout.on("data", (chunk: string) => {
+      gateBuffer += chunk;
+      let newline = gateBuffer.indexOf("\n");
+      while (newline >= 0) {
+        const line = gateBuffer.slice(0, newline);
+        gateBuffer = gateBuffer.slice(newline + 1);
+        if (line.trim().length > 0) {
+          try {
+            const message = JSON.parse(line) as { id?: unknown; status?: unknown; stdout?: unknown; stderr?: unknown };
+            const id = typeof message.id === "number" ? message.id : -1;
+            const pending = gatePending.get(id);
+            if (pending) {
+              gatePending.delete(id);
+              clearTimeout(pending.timer);
+              pending.resolve({
+                status: typeof message.status === "number" ? message.status : 1,
+                stdout: typeof message.stdout === "string" ? message.stdout : "",
+                stderr: typeof message.stderr === "string" ? message.stderr : ""
+              });
+            }
+          } catch {
+            // Non-protocol line: ignore. A request that never gets a valid
+            // answer times out below and is denied.
+          }
+        }
+        newline = gateBuffer.indexOf("\n");
+      }
+    });
+  }
+  gateChild = child;
+  return child;
+}
+
+async function runGate(args: string[], input?: string): Promise<RunResult> {
+  const child = ensureGateChild();
+  if (!child || !child.stdin) return gateFail("gate daemon could not start");
+  const id = gateNextId++;
+  return new Promise<RunResult>((resolve) => {
+    const timer = setTimeout(() => {
+      gatePending.delete(id);
+      // A wedged daemon must not answer a later request out of order.
+      try {
+        child.kill();
+      } catch {
+        /* already gone */
+      }
+      if (gateChild === child) gateChild = null;
+      resolve(gateFail("gate daemon timed out"));
+    }, GATE_TIMEOUT_MS);
+    gatePending.set(id, { resolve, timer });
+    try {
+      child.stdin?.write(`${JSON.stringify({ id, argv: args, input: input ?? "" })}\n`);
+    } catch (error) {
+      gatePending.delete(id);
+      clearTimeout(timer);
+      resolve(gateFail(`gate daemon write failed: ${String(error).slice(0, 200)}`));
+    }
+  });
+}
+
 type McpCall = { ok: boolean; data: Record<string, unknown> | null; error: string | null };
 
 // S-AUTO: tour unique vers le serveur MCP (mode --call). Le plugin installe
@@ -1737,7 +1854,9 @@ async function setup(ctx: Context): Promise<Cleanup> {
       }
 
       const categories = categoriesBySession.get(event.sessionID) ?? [];
-      const result = await run(
+      // Served by the warm gate daemon; the result shape and every rule below
+      // are unchanged, so a daemon failure still lands on the fail-closed path.
+      const result = await runGate(
         [
           "gate",
           "--tool",

@@ -11,7 +11,7 @@ metadata:
 
 # browser-session
 
-All browser work goes through the Playwright MCP tools (`playwright_browser_*`). The profile is persistent at `C:\Users\hiz\.opencode\playwright-profile` so cookies and logins survive restarts.
+All browser work goes through the Playwright MCP tools (`playwright_browser_*`). The profile is persistent at `~/.opencode/playwright-profile` so cookies and logins survive restarts.
 
 ## Hard rules
 

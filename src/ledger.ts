@@ -268,14 +268,37 @@ export function addTodos(db: DatabaseSync, taskId: string, items: TodoInput[]): 
   return ids.map((id) => getTodo(db, id) as TodoRow);
 }
 
+/** True when a dependency reference names rows that are all settled.
+ *
+ *  A plan lists dependencies the way a human writes them ("T2", "P5"), while a
+ *  row is keyed by a generated id, and `normalizeTodoInput` (src/commands/task.ts)
+ *  accepts either without checking which one it got. Both consumers - startTodo
+ *  and the ready-signal sweep - resolved the reference as an id only, so every
+ *  label-declared dependency looked up null, read as "unfinished", and wedged the
+ *  dependent todo for the whole life of the task (`blocked by unfinished
+ *  dependencies: T2, T3, T4, T5, T6` with all six already done, observed
+ *  2026-10-14 on task_mv82uzkvd5pk14). The rows keep whatever the plan said, so
+ *  resolution happens on read rather than by rewriting the ledger.
+ *
+ *  Fail closed in both directions: a reference matching no row is never settled,
+ *  so a typo can never unblock a step; an ambiguous reference (two rows share the
+ *  prefix) stays unsettled until every candidate row is settled, so an ambiguous
+ *  name cannot pick the cheapest row to satisfy. */
+function depSettled(db: DatabaseSync, taskId: string, ref: string): boolean {
+  const direct = getTodo(db, ref);
+  if (direct) return direct.status === "done" || direct.status === "dropped";
+  const rows = listTodos(db, taskId).filter(
+    (row) => row.label === ref || row.label.startsWith(`${ref}:`)
+  );
+  if (rows.length === 0) return false;
+  return rows.every((row) => row.status === "done" || row.status === "dropped");
+}
+
 export function startTodo(db: DatabaseSync, id: string): TodoRow {
   const todo = getTodo(db, id);
   if (!todo) throw new Error(`unknown todo: ${id}`);
   if (todo.status === "done") throw new Error(`todo already done: ${id}`);
-  const unfinished = parseDeps(todo.depends_on).filter((dep) => {
-    const dependency = getTodo(db, dep);
-    return !dependency || (dependency.status !== "done" && dependency.status !== "dropped");
-  });
+  const unfinished = parseDeps(todo.depends_on).filter((dep) => !depSettled(db, todo.task_id, dep));
   if (unfinished.length > 0) {
     throw new Error(`todo ${id} is blocked by unfinished dependencies: ${unfinished.join(", ")}`);
   }
@@ -560,7 +583,9 @@ export function revisionSignals(db: DatabaseSync, taskId: string): RevisionSigna
   for (const todo of todos) {
     if (todo.status !== "pending") continue;
     const deps = parseDeps(todo.depends_on);
-    if (deps.length > 0 && deps.every((dep) => settled.has(dep))) {
+    // Deps resolve by label as well as by id (resolveDep), so a plan written
+    // with "T2"/"P5" labels is not reported as permanently unfinished.
+    if (deps.length > 0 && deps.every((dep) => settled.has(dep) || depSettled(db, todo.task_id, dep))) {
       signals.push({ type: "ready", todo: todo.id, detail: `${todo.label} has no unfinished dependencies.` });
     }
   }

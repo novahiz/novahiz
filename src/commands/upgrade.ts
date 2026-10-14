@@ -3,6 +3,7 @@ import { dirname, join } from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { flagOn, type Parsed } from "./context.ts";
+import { NovahizHome } from "../spec.ts";
 
 // Racine du package qui execute ce code : src/commands/ (dev) ou
 // dist/commands/ (npm) — deux niveaux dans les deux cas.
@@ -157,7 +158,13 @@ function gitFlow(parsed: Parsed, home: string): void {
 }
 
 export function commandUpgrade(parsed: Parsed): void {
-  const home = process.env.NOVAHIZ_HOME || join(process.env.HOME || process.env.USERPROFILE || "", ".config", "novahiz");
+  // H16: the old fallback read `process.env.HOME || process.env.USERPROFILE`
+  // and joined it blind. Both are absent under a service, a daemon child or a
+  // container, and `join("", ".config", "novahiz")` yields a cwd-relative path,
+  // so detectTarget() then read "no .git" on a home that does not exist and
+  // reported a channel it never inspected. NovahizHome() resolves the same
+  // default through homedir() and handles NOVAHIZ_HOME=~/x.
+  const home = NovahizHome();
   // Le canal se decide sur LE CODE EN EXECUTION (package npm vs checkout
   // source), pas sur NOVAHIZ_HOME : un membre de la communaute installe via
   // `npm i -g` n'a aucun .git dans ~/.config/novahiz.

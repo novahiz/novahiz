@@ -1947,7 +1947,12 @@ function doctorLines(report: DoctorReport): string {
   // Recommandation conditionnelle : si Stitch n'est pas configure, le recommander.
   // Le code verifie la presence du bloc 'stitch' dans opencode.jsonc.
   try {
-    const opencodeConfigPath = join(process.env.HOME || process.env.USERPROFILE || "", ".config", "opencode", "opencode.jsonc");
+    // H16: the old fallback read `process.env.HOME || process.env.USERPROFILE`
+    // and joined it blind. When both are absent the built path is cwd-relative,
+    // existsSync() answers false on a file that was never looked at, and the
+    // Stitch recommendation is silently skipped forever. homedir() is already
+    // imported here and used at L207/L213 of the same file.
+    const opencodeConfigPath = join(homedir(), ".config", "opencode", "opencode.jsonc");
     if (existsSync(opencodeConfigPath)) {
       const cfgRaw = readFileSync(opencodeConfigPath, "utf8");
       const hasStitchServer = cfgRaw.includes('"stitch"') && (cfgRaw.includes('"servers"') || cfgRaw.includes('"sse"'));

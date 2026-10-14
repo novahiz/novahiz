@@ -465,7 +465,7 @@
     "label": "Audit",
     "priority": 54,
     "keywords": [
-      "audit",
+      { "term": "audit", "weight": 2 },
       "scan",
       "static analysis",
       "quality",
@@ -779,12 +779,7 @@
     "defaultSkills": [
       "novahiz-humanizer",
       "ui-slop-remover",
-      "ui-craft-rules",
-      "flutter-build-responsive-layout",
-      "expo-native-ui",
-      "expo-design-system",
-      "expo-animation",
-      "expo-ui"
+      "ui-craft-rules"
     ],
     "roadmap": {
       "id": "design",
@@ -1085,8 +1080,8 @@
     "label": "Database / Supabase",
     "priority": 57,
     "keywords": [
-      "supabase",
-      "postgres",
+      { "term": "supabase", "weight": 3 },
+      { "term": "postgres", "weight": 2 },
       "sql",
       "rls",
       "migration",
@@ -1543,8 +1538,7 @@
       "novahiz-clarify",
       "novahiz-analyse",
       "novahiz-implement",
-      "novahiz-converge",
-      "expo-skill-feedback"
+      "novahiz-converge"
     ],
     "roadmap": {
       "id": "general",

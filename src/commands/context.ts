@@ -127,7 +127,18 @@ export function dbPathFor(root: string, spec: Spec): string {
 
 const MAX_STDIN_BYTES = 1024 * 1024; // 1 MiB: JSON payloads never need more
 
+// GATE-DAEMON: in daemon mode the process stdin is the request channel, so a
+// payload can no longer be read from fd 0 (it would consume the next request).
+// The daemon installs a provider for the duration of one request and removes it
+// right after; every other caller falls through to the original synchronous read.
+let stdinProvider: (() => string) | null = null;
+
+export function setStdinProvider(provider: (() => string) | null): void {
+  stdinProvider = provider;
+}
+
 export function readStdin(): string {
+  if (stdinProvider) return stdinProvider();
   // A single synchronous stdin read races with pipe delivery and can return null even when input was provided.
   if (process.stdin.isTTY) return "";
   try {

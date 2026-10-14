@@ -113,7 +113,7 @@ Registered in `catalog/providers.json`:
 ```
 
 Verified: `node bin/novahiz.mjs providers --mcp-json` returns
-`"novahiz-scan": {"type":"local","command":["node","C:\\Users\\hiz\\.config\\novahiz\\mcp\\argus\\src\\cli.mjs"],"enabled":true}`
+`"novahiz-scan": {"type":"local","command":["node","~/.config/novahiz/mcp/argus/src/cli.mjs"],"enabled":true}`
 — the plugin will register it at the next opencode startup (`autoRegister`
 defaults to true, `~` is expanded by `buildMcpEntries`).
 

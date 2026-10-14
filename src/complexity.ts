@@ -143,6 +143,25 @@ const SIGNALS: DimensionSignals = {
   actionIntensity: [
     // Full-tier actions (complex verbs)
     { pattern: /\b(implement|build|create|design|architect|scaffold|bootstrap)\b/i, lite: 0, full: 3 },
+    // French creation verbs. scoreDimensions() already de-accents the prompt
+    // (NFD + strip U+0300-U+036F), so these are written in ASCII and match
+    // "cree", "creation", "construis". Without this bank a French creation
+    // request scores 0 on actionIntensity and falls through to trivial/lite:
+    // a fail-open that suppresses the wireframe exactly when a screen is being
+    // built (measured 2026-10-14: "cree un ecran entier..." -> lite,
+    // "construis un formulaire d'inscription complexe" -> trivial).
+    // Deliberately NOT mirrored for repair verbs: adding French "corrige" /
+    // "ajoute" would promote small fixes from trivial to lite and demand
+    // novahiz-implement + novahiz-converge on every micro-task.
+    {
+      // Verb endings, not bare stems: "developp" + (er|e|ons|ez|ent) matches
+      // développe/développer/développons but NOT the noun "développement",
+      // which must not promote a plain mention to full tier.
+      pattern:
+        /\b(creee?s?|creer|creations?|construire|construis\w*|construit|developp(er|e|ons|ez|ent)|realis(er|e|ons|ez|ent)|maquett(er|e|ons|ez|ent|age)|generer|genere|architecturer)\b/i,
+      lite: 0,
+      full: 3
+    },
     { pattern: /\b(refactor|rewrite|restructure|reorganize|migrate|convert)\b/i, lite: 0, full: 3 },
     { pattern: /\b(audit|security\s*review|pentest|penetration\s*test)\b/i, lite: 0, full: 3 },
     { pattern: /\b(deploy|release|ship|launch|publish)\b/i, lite: 1, full: 1 },

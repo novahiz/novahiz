@@ -85,6 +85,88 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   dry-run `plan` becomes `{core, npm, bootstrap, install}`. Anything parsing
   the old shape must be updated.
 
+## [0.9.4] - 2026-10-14
+
+### Fixed
+
+- **No absolute machine path is shipped any more** - the tree handed to every
+  member of the community carried the drive letters, the folders and the
+  account name of the machine Novahiz was developed on, so the system was
+  broken on arrival for anyone else.
+  - `adapters/opencode/instructions.md` (the system prompt injected into every
+    session), `skills/novahiz-browser/SKILL.md` and
+    `skills/browser-session/SKILL.md` pointed the Playwright profile at a
+    hardcoded `C:\Users\<account>\.opencode\playwright-profile`. The profile
+    rule was unusable and the browser profile wrong for every other user. All
+    three now use `~/.opencode/playwright-profile`.
+  - `docs/TOKENS.md`, `docs/audit-2026-09-25.md`,
+    `mcp/argus/IMPLEMENTATION-SUMMARY.md` and
+    `mcp/stitch-template/recommandation.md` presented absolute paths as
+    instructions to run. They now use `~` or `<NOVAHIZ_HOME>`.
+  - The placeholders shipped to the agent were corrupted:
+    `node NNovahiz-home>/src/cli.ts classify "Nrequest>"` and
+    `skill({ name: "Nskill>" })` in `adapters/opencode/agent/novahiz.md`. They
+    are restored to `<Novahiz-home>`, `<request>` and `<skill>`, so the first
+    step of the pipeline is executable as written.
+
+- **Home resolution no longer yields a ghost home** - `src/cli.ts`,
+  `src/commands/upgrade.ts` and `src/commands/second-memory.ts` built the home
+  from `process.env.HOME || process.env.USERPROFILE || ""`. When both are
+  absent - a Windows service, the gate daemon child, a container - the joined
+  result was a path relative to the cwd, so `detectTarget`, `runSync` and the
+  Stitch recommendation all operated silently on a directory that does not
+  exist. All three now resolve through `NovahizHome()` or `homedir()`.
+
+- **The C3 index guard fires on Windows** - `src/gate.ts` compared the
+  protected `build/installed-skills.json` and `build/catalog.json` suffixes
+  spelled with `/` against a path carrying the platform separator, so the guard
+  never triggered on Windows. Those two files define what the gate requires and
+  were editable like ordinary build output on the platform most of the
+  community installs on. The path is now normalised before comparison.
+
+- **The gate daemon stops flashing a console window on Windows** -
+  `adapters/opencode/novahiz-plugin.ts` spawned it without `windowsHide: true`,
+  the only spawn site in the file missing it.
+
+- **Duplicated `NOVAHIZ_HOME` reads** in `src/spec.ts` and `install/lib.mjs`
+  collapse into one canonical read. A user who exported the older variable name
+  silently kept the default home while believing they had redirected it.
+
+- **`novahiz doctor` stops failing at home root on project context** -
+  `src/commands/doctor.ts` resolved `PRODUCT.md` and `DESIGN.md` against the
+  novahiz home, producing two permanent rows no command could close. The rows
+  are scoped to a project directory and remain unchanged inside one.
+
+- **A plan that declares its dependencies by label no longer wedges** -
+  `src/ledger.ts` resolved each dependency by todo id only, while
+  `novahiz task plan` accepts labels ("T2", "P5"). Every label-declared
+  dependency read as unfinished and blocked its dependent step for the whole
+  life of the task. Resolution now accepts both, and fails closed on an
+  unknown or ambiguous reference.
+
+### Added
+
+- **A persistent gate daemon** (`src/gate-daemon.ts`, wired in
+  `adapters/opencode/novahiz-plugin.ts`) replaces one Node process spawn per
+  gate call. Every request re-executes `commandGate`, which re-reads
+  `rules.json`, `categories.json` and the skill index from disk, so no verdict
+  can go stale; any daemon failure returns as `spawnError` and the existing
+  deny path applies unchanged. Measured on this machine: one-shot median 331 ms
+  against 8.1 ms warm.
+
+### Changed
+
+- **Portability is enforced by a test** - `tests/portability-paths.test.ts`
+  fails the build on an absolute machine path, a machine account name, an MCP
+  command the catalog cannot resolve to an absolute path, or a regression of
+  the C3 guard. It ships a negative proof: an injected path makes it fail by
+  file and line.
+
+- **`.novahiz-install.json` and `novahiz.config.json` are no longer tracked** -
+  the install manifest embedded the absolute paths and the account name of the
+  machine that ran the installer, and was published with them. Both are
+  machine-local state regenerated on demand, and are now ignored.
+
 ## [0.9.3] - 2026-10-11
 
 ### Changed

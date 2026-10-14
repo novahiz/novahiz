@@ -36,3 +36,12 @@ node_modules/
 *.pre-v2
 # novahiz tool-output spool - truncated call outputs, regenerated every session.
 /tmp/
+
+# Install manifest and live user config - machine-local state, never source.
+# The manifest embeds the absolute paths and the account name of the machine
+# that ran the installer (it carried a former account name and drive letters
+# until 0.9.4). Both are regenerated on demand: readUserConfig falls back to
+# novahiz.config.example.json then to defaults, and install/lib.mjs reads the
+# manifest with a { created: [], backups: [] } default.
+.novahiz-install.json
+novahiz.config.json

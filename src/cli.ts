@@ -3,7 +3,7 @@ import { join, dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
 import { parse, print, flagOn, type Parsed } from "./commands/context.ts";
-import { expandHome } from "./spec.ts";
+import { expandHome, NovahizHome } from "./spec.ts";
 
 import { commandCheck, commandSync, commandClassify, commandSkills, commandCategories, commandRules, commandSessionLoad, commandSessionState, commandCatalog, commandRoadmap, commandStep, commandProviders, commandDeps, commandDispatch } from "./commands/inspect.ts";
 import { commandGate, commandGateToggle } from "./commands/gate.ts";
@@ -26,11 +26,13 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 
 // M6: HOME was a module-level const, so `--home` (which sets the env var in
 // main()) was silently ignored by the current execution. Read it lazily.
+// M7/H16: the old fallback read `process.env.HOME || process.env.USERPROFILE`
+// and joined it blind. Both are absent for a service, a daemon child or a
+// container, and `join("", ".config", "novahiz")` yields a path relative to the
+// cwd - a silent ghost home. `NovahizHome()` resolves the same default through
+// homedir() and survives NOVAHIZ_HOME=~/x, so the two callers cannot drift.
 function homeDir(): string {
-  return (
-    process.env.NOVAHIZ_HOME ||
-    join(process.env.HOME || process.env.USERPROFILE || "", ".config", "novahiz")
-  );
+  return NovahizHome();
 }
 
 function runSync(): void {

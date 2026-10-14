@@ -1,6 +1,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { dirname, join, resolve, sep } from "node:path";
+import type { ComplexityTier } from "./complexity.ts";
 
 type Keyword = { term: string; weight?: number };
 export type CategoryKeyword = string | Keyword;
@@ -44,6 +45,16 @@ type RuleWhen = {
   contentMatches?: string[];
   contentExcludes?: string[];
   minChange?: number;
+  /** Complexity guard: the rule is skipped unless the classification is one of
+   * these tiers. Omitted = no constraint (behaves exactly as before), so this
+   * is purely a narrowing mechanism, never a new obligation.
+   * Distinguished from promptCategories: that is a *scope* (what domain the work
+   * belongs to), this is a *threshold* (how heavy the work is). */
+  tiers?: ComplexityTier[];
+  /** Tool guard: the rule is skipped unless the triggering tool is listed.
+   * Omitted = any tool. Note the values are gate tools ("edit" | "write" |
+   * "patch" | "apply_patch"), not editor commands. */
+  tools?: string[];
 };
 
 export type Rule = {
@@ -285,7 +296,11 @@ export function NovahizHome(): string {
   // M7: resolve ~/ and relative segments — the installer variant already did,
   // the TS variant returned the raw string (broken on NOVAHIZ_HOME=~/x).
   // Default stays .config/novahiz: the canonical home directory.
-  const fromEnv = process.env.NOVAHIZ_HOME || process.env.NOVAHIZ_HOME;
+  // H16: this line read `process.env.NOVAHIZ_HOME || process.env.NOVAHIZ_HOME`
+  // - the same variable twice, a copy-paste leftover from an earlier name. A
+  // user who exported that earlier name silently got the default home while
+  // believing they had redirected it. One canonical read, one fallback.
+  const fromEnv = process.env.NOVAHIZ_HOME;
   if (fromEnv && fromEnv.length > 0) return resolve(expandHome(fromEnv));
   return join(homedir(), ".config", "novahiz");
 }

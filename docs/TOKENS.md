@@ -54,7 +54,7 @@ or changing an environment variable.
 
 ```
 ... first 120 lines of the command output ...
-[Novahiz token-economy] truncated shell: kept 120 of 843 lines (16.0 KB of 214.3 KB, ~62000 tokens saved). Full output: C:\Users\me\.config\novahiz\tmp\tool-output\shell-call42.txt - grep that file instead of re-running the command.
+[Novahiz token-economy] truncated shell: kept 120 of 843 lines (16.0 KB of 214.3 KB, ~62000 tokens saved). Full output: <NOVAHIZ_HOME>/tmp/tool-output/shell-call42.txt - grep that file instead of re-running the command.
 ```
 
 ## Reading the savings

@@ -178,7 +178,7 @@
   },
   {
     "id": "R17-wireframe",
-    "description": "Load novahiz-wireframe on any design-ui task or on any screen/view/component file: the wireframe-first sequence (screen sketch + per-section annotated wireframes feeding impeccable shape) is mandatory before constructing a screen or section.",
+    "description": "Load novahiz-wireframe on any design-ui task or on any screen/view/component file: the wireframe-first sequence (screen sketch + per-section annotated wireframes feeding impeccable shape) is mandatory before constructing a screen or section. It is skipped only for micro-changes - the rule applies from 800 characters of change, at lite or full complexity, so touching an existing screen never demands a wireframe.",
     "when": {
       "match": "any",
       "promptCategories": ["design-ui"],
@@ -190,7 +190,9 @@
         "**/routes/**",
         "**/app/**",
         "**/components/**"
-      ]
+      ],
+      "tiers": ["lite", "full"],
+      "minChange": 800
     },
     "require": ["novahiz-wireframe"]
   },

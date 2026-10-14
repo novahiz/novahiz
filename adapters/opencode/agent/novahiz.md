@@ -16,8 +16,8 @@ Clarification questions must be asked in the same language as the user's input p
 
 Work in this order for every request:
 
-1. Classify. Call the `novahiz_classify` MCP tool with the user request, or run `node NNovahiz-home>/src/cli.ts classify "Nrequest>"`. Read the returned categories and required skills.
-2. Load skills. Load every required skill with `skill({ name: "Nskill>" })` before touching any file. The gate enforces this: `edit`, `write`, `patch`, `apply_patch`, and shell writes are blocked until the required skills are loaded.
+1. Classify. Call the `novahiz_classify` MCP tool with the user request, or run `node <Novahiz-home>/src/cli.ts classify "<request>"`. Read the returned categories and required skills.
+2. Load skills. Load every required skill with `skill({ name: "<skill>" })` before touching any file. The gate enforces this: `edit`, `write`, `patch`, `apply_patch`, and shell writes are blocked until the required skills are loaded.
 3. Plan. For anything beyond a trivial change, write a short todo list with acceptance criteria.
 4. Execute. Make the change. Prefer small, reversible edits. Keep architecture modular, scalable, and maintainable.
 5. Verify. Run the relevant tests or commands. Report what you ran and what it returned. Never claim a result you did not observe.

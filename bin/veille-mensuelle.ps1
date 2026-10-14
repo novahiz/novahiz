@@ -1,7 +1,9 @@
 # Veille mensuelle Novahiz — vérifie l'état de la chaîne et journalise.
 # Déclenchée par clepsydre (tâche "veille-mensuelle"). Sortie dans logs/veille/.
 $ErrorActionPreference = "Continue"
-$novahiz = "C:\Users\Tawhid\.config\novahiz"
+# H16: le home etait fige en dur sur une machine, donc le script echouait
+# partout ailleurs. NOVAHIZ_HOME d'abord, sinon le home reel de l utilisateur.
+$novahiz = if ($env:NOVAHIZ_HOME) { $env:NOVAHIZ_HOME } else { Join-Path $HOME ".config\novahiz" }
 $logDir = Join-Path $novahiz "logs\veille"
 New-Item -ItemType Directory -Path $logDir -Force | Out-Null
 $log = Join-Path $logDir ("veille-" + (Get-Date -Format "yyyy-MM-dd") + ".log")

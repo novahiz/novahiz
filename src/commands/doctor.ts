@@ -478,9 +478,20 @@ export function referencedSkillsCheck(
  *  (root -> .agents/context -> docs/). Rows appear only when the impeccable
  *  skill is installed (opt-in) and are never blocking: a missing record is a
  *  command to run
- *  (`/impeccable init`, `/impeccable document`), not an anomaly. Exported for tests. */
-export function impeccableChecks(cwd: string, installed: boolean): DoctorCheck[] {
+ *  (`/impeccable init`, `/impeccable document`), not an anomaly.
+ *  Scope: PRODUCT.md and DESIGN.md describe the directory the user designs in,
+ *  so the rows only mean something in a project. The novahiz home is where this
+ *  check runs from, not the product it inspects. Pass `home` to skip the rows
+ *  there - resolving them against home produced two permanent rows that no
+ *  command could ever close (observed on the 2026-10-14 doctor run at home
+ *  root). Exported for tests. */
+export function impeccableChecks(
+  cwd: string,
+  installed: boolean,
+  options: { home?: string } = {}
+): DoctorCheck[] {
   if (!installed) return [];
+  if (options.home && resolve(cwd) === resolve(options.home)) return [];
   const rel = (path: string): string => relative(cwd, path).split("\\").join("/");
   const product = findContextFile(cwd, "PRODUCT.md");
   const design = findContextFile(cwd, "DESIGN.md");
@@ -707,7 +718,9 @@ export async function commandDoctor(parsed: Parsed): Promise<void> {
 
   // Impeccable rows appear only when the skill is installed (opt-in) and only
   // reflect this project's context files.
-  checks.push(...impeccableChecks(process.cwd(), index.available && index.skills.has("impeccable")));
+  checks.push(
+    ...impeccableChecks(process.cwd(), index.available && index.skills.has("impeccable"), { home: root })
+  );
 
   const opencodeConfigPath = join(opencodeDir, "opencode.jsonc");
   const catalogPackages = new Map<string, string>();
