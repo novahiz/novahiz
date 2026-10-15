@@ -5,6 +5,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.9.8] - 2026-10-15
+
 ### Removed
 
 - **The 7 `eas-*` skills from the catalogue** - `test` and `devops` listed them
