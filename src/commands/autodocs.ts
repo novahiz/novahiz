@@ -7,12 +7,14 @@ import {
   isMajorPath,
   markDirty,
   readProjectConfig,
+  readProjectName,
   readState,
   upsertChangesSection,
   writeProjectConfig
 } from "../autodocs.ts";
 import { emit, flagOn, type Parsed } from "./context.ts";
 import { memoryRoot, writeEntry } from "../memory.ts";
+import { syncProjectDocsToVault } from "./second-memory.ts";
 import * as ui from "../render.ts";
 
 const MAX_DOC_PATHS = 12;
@@ -26,6 +28,9 @@ export type FlushOutcome = {
   docsPath: string | null;
   docsUpdated: boolean;
   memorySlot: string | null;
+  /** Rel de la copie vault du projet, ou null quand rien n'a été répercuté :
+   *  aucun binding, dossier cible absent, ou aucun fichier à recopier. */
+  vaultDocs: string | null;
   paths: string[];
   pending: number;
   lastSync: string | null;
@@ -50,6 +55,7 @@ function skipResult(reason: string, paths: string[] = []): FlushOutcome {
     docsPath: null,
     docsUpdated: false,
     memorySlot: null,
+    vaultDocs: null,
     paths,
     pending: state.pending.length,
     lastSync: state.lastSync
@@ -98,6 +104,19 @@ export function flushAutoDocs(cwd: string): FlushOutcome {
     const paths = state.pending;
     const docs = flushDocs(cwd, paths);
     const memorySlot = flushMemory(cwd, paths);
+    // Volet « miroir » : la doc fraîchement écrite est répercutée dans
+    // <Domaine>/<Branche>/docs/<slug>/. Volontairement encapsulé plutôt que
+    // laissé dans le try du flush : docs et slot sont déjà écrits à ce point,
+    // et faire échouer le flush ici laisserait un état sale et un slot
+    // dupliqué à la prochaine exécution. Le vault est un miroir dérivé, la
+    // source de vérité reste le projet — il n'a pas le droit de le casser.
+    let vaultTarget: string | null = null;
+    try {
+      const vault = syncProjectDocsToVault(readProjectName(cwd), join(cwd, "novahiz-docs"), true);
+      vaultTarget = vault.target.length > 0 && vault.copied.length > 0 ? vault.target : null;
+    } catch {
+      vaultTarget = null;
+    }
     const next = clearDirty(cwd);
     return {
       status: "flushed",
@@ -105,6 +124,7 @@ export function flushAutoDocs(cwd: string): FlushOutcome {
       docsPath: docs.path,
       docsUpdated: docs.updated,
       memorySlot,
+      vaultDocs: vaultTarget,
       paths,
       pending: next.pending.length,
       lastSync: next.lastSync
@@ -116,6 +136,7 @@ export function flushAutoDocs(cwd: string): FlushOutcome {
       docsPath: null,
       docsUpdated: false,
       memorySlot: null,
+      vaultDocs: null,
       paths: state.pending,
       pending: state.pending.length,
       lastSync: state.lastSync
@@ -139,6 +160,7 @@ function markFromArgs(cwd: string, mark: string | boolean, positionals: string[]
       docsPath: null,
       docsUpdated: false,
       memorySlot: null,
+      vaultDocs: null,
       paths: [],
       pending: readState(cwd).pending.length,
       lastSync: readState(cwd).lastSync
@@ -162,6 +184,7 @@ function markFromArgs(cwd: string, mark: string | boolean, positionals: string[]
       docsPath: null,
       docsUpdated: false,
       memorySlot: null,
+      vaultDocs: null,
       paths: rejected,
       pending: state.pending.length,
       lastSync: state.lastSync
@@ -176,6 +199,7 @@ function markFromArgs(cwd: string, mark: string | boolean, positionals: string[]
     docsPath: null,
     docsUpdated: false,
     memorySlot: null,
+    vaultDocs: null,
     paths: accepted,
     pending: state.pending.length,
     lastSync: state.lastSync
@@ -233,7 +257,8 @@ export function commandAutodocs(parsed: Parsed): void {
           ["Action", outcome.status],
           ["Reason", outcome.reason],
           ["Docs", outcome.docsPath ? `${outcome.docsPath}${outcome.docsUpdated ? " updated" : " unchanged"}` : "n/a"],
-          ["Memory", outcome.memorySlot ?? "n/a"]
+          ["Memory", outcome.memorySlot ?? "n/a"],
+          ["Vault", outcome.vaultDocs ?? "n/a"]
         ])
       );
       lines.push(

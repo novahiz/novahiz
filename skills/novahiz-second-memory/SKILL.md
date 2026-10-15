@@ -5,7 +5,9 @@ description: |
   FIXED, predefined arborescence: root INDEX.md, a _MOC.md per folder, 11 domains with
   predefined branches and memory/docs/journal/decisions leaves. `second-memory project-init`
   gives a new project its docs/journal/decisions folders (never memory: it stays local) and
-  binds it to a branch; other folders appear on first write, never speculatively.
+  binds it to a branch; `novahiz init` seeds that docs folder and `autodocs --flush`
+  re-mirrors the project's four novahiz-docs files into it. Other folders appear on first
+  write, never speculatively.
   `second-memory doctor` audits and repairs the vault, installs the 10 mandatory plugins.
   Use when the user writes to, organizes, audits, repairs or syncs the second-memory vault,
   or needs past context: search the vault first (`novahiz second-memory search "<terms>"`)
@@ -131,6 +133,19 @@ with their `_MOC.md`s, plus the branch binding — and no `memory/` folder, beca
 memory stays local. Dry-run is the default; `novahiz init` runs the same logic as its
 `Obsidian project folder` step. Nothing else creates folders speculatively: without a
 write, a folder does not exist.
+
+`docs/<project>/` is not left empty: `novahiz init` fills it in an `Obsidian project docs`
+step, and `novahiz autodocs --flush` re-mirrors on every flush. Copied verbatim from the
+project's `novahiz-docs/`: `ARCHITECTURE.md`, `CONVENTIONS.md`, `DECISIONS.md`,
+`STANDARDS.md`. Those notes are **a mirror, never the source** — each one reflects a file
+that still lives in the project, which is why the flush overwrites in place and takes no
+backup: the content is regenerated, not preserved. Two consequences worth stating. A hand
+edit to a mirrored note is lost on the next flush — edit the project file, not the copy.
+And the seed refuses to guess: no `vault.json` binding, a binding whose branch has left
+the catalogue, a branch carrying no `docs` leaf, or a folder `project-init` never created
+each skip with its advice printed, and a document missing from the project is reported
+absent rather than manufactured. Every real write appends one `- HH:MM -` line to
+`log.md` under the day's heading; a dry-run leaves no trace at all.
 
 ## INDEX.md format
 
@@ -289,5 +304,8 @@ the `log.md` format.
 - **Memory**: project memory stays local — `memory_search` / `memory_get` read the slots,
   `memory_write` appends them; nothing is mirrored into the vault. A legacy note carrying
   `novahiz_slot_id` is a mirror copy; `sync --apply` archives it (§3).
-- **Docs**: vault notes can cite novahiz-docs as `novahiz-docs/<library>@<version>`.
+- **Docs**: unlike memory, project *documentation* is mirrored — `novahiz init` seeds
+  `<Domain>/<Branch>/docs/<slug>/` from the project's `novahiz-docs/`, and
+  `novahiz autodocs --flush` refreshes it (a `Vault` row reports the target). Vault notes
+  can also cite novahiz-docs as `novahiz-docs/<library>@<version>`.
 - **Ledger**: structural changes to the vault are logged in the novahiz ledger (task todos).

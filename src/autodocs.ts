@@ -74,6 +74,21 @@ export function statePath(cwd: string): string {
   return join(projectDir(cwd), STATE_NAME);
 }
 
+/** Nom du projet côté module pur, sans dépendre de `commands/init.ts` (qui
+ *  importe déjà ce fichier : importer `detectProject` créerait un cycle).
+ *  package.json `name`, sinon le dernier segment du cwd — la même chute que
+ *  `detectProject`, volontairement unique : l'init et le flush doivent produire
+ *  le même slug, sans quoi la copie vault partirait dans un autre dossier. */
+export function readProjectName(cwd: string): string {
+  try {
+    const pkg = JSON.parse(readFileSync(join(cwd, "package.json"), "utf8")) as { name?: unknown };
+    if (typeof pkg.name === "string" && pkg.name.trim().length > 0) return pkg.name;
+  } catch {
+    // name falls back to the folder below, exactly as detectProject does
+  }
+  return cwd.split(/[\\/]/).filter(Boolean).pop() ?? "project";
+}
+
 function ensureDir(path: string): void {
   if (!existsSync(path)) mkdirSync(path, { recursive: true });
 }

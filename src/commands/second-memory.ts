@@ -2260,6 +2260,141 @@ export function projectInit(name: string, branchFlag: string | undefined, apply:
   return result;
 }
 
+// --- project docs sync ---------------------------------------------------------
+
+/** Les quatre fichiers que `novahiz init` pose dans `<projet>/novahiz-docs/` et
+ *  que la copie vault reflète. Liste fermée, même ordre canonique que le
+ *  template : on ne recopie pas n'importe quel fichier trouvé dans le dossier. */
+export const PROJECT_DOC_FILES = ["ARCHITECTURE.md", "CONVENTIONS.md", "DECISIONS.md", "STANDARDS.md"] as const;
+
+export type DocsSyncResult = {
+  apply: boolean;
+  project: string;
+  slug: string;
+  /** Rel `<Domaine>/<Branche>/docs/<slug>` ; chaîne vide tant que la cible
+   *  n'est pas confirmée sur le disque. */
+  target: string;
+  /** Confiés uniquement quand la cible est établie : un domaine dont la branche
+   *  manque n'est pas un chemin valide, et son nom reste dans `warnings`. */
+  domain: string;
+  branch: string;
+  copied: string[];
+  absent: string[];
+  warnings: string[];
+};
+
+/** Append-only, une entrée par jour : `- HH:MM - message` sous `## YYYY-MM-DD`.
+ *  Même forme que l'entrée posée à l'initialisation du vault (L1036), pour que
+ *  le journal reste lisible comme un seul flux. Une entrée est posée uniquement
+ *  en mode apply : la trace d'un dry-run est un non-événement. */
+function appendLogLine(vault: string, message: string): void {
+  const now = new Date();
+  const date = now.toISOString().slice(0, 10);
+  const time = now.toTimeString().slice(0, 5);
+  const entry = `- ${time} - ${message}`;
+  const path = join(vault, LOG_FILE);
+  if (!existsSync(path)) {
+    writeFileSync(path, `# Second Memory Log\n\nAppend-only. Never delete entries.\n\n## ${date}\n${entry}\n`, "utf8");
+    return;
+  }
+  const body = readFileSync(path, "utf8").replace(/\s*$/, "");
+  // log.md est chronologique : la section du jour, si elle existe, est la dernière.
+  const marker = "## " + date;
+  const lastHeading = body.slice(body.lastIndexOf("\n## ") + 1);
+  const todayIsLast = lastHeading.startsWith(marker);
+  const head = todayIsLast ? body + "\n" : body + "\n\n" + marker + "\n";
+  writeFileSync(path, head + entry + "\n", "utf8");
+}
+
+/** Copie la documentation d'un projet vers `<Domaine>/<Branche>/docs/<slug>/`.
+ *
+ *  Volet « écriture automatique dans le vault » de `novahiz init` et de
+ *  `autodocs flush`. La copie est **un miroir, jamais la source** : chaque note
+ *  reflète un fichier qui existe toujours dans `<projet>/novahiz-docs/`, donc un
+ *  écrasement ne détruit rien qu'on ne puisse régénérer — c'est ce qui rend
+ *  l'absence de backup défendable ici, contrairement à une note écrite à la main.
+ *
+ *  Garde-fous, tous explicites et non silencieux :
+ *  - aucun binding → on ne devine pas de branche, on renvoie le conseil ;
+ *  - branche absente du catalogue → le vault a bougé, on ne crée rien ;
+ *  - dossier cible absent → `project-init` crée la chaîne, on ne l'invente pas
+ *    (contrainte 1) ;
+ *  - fichier absent du projet → reporté dans `absent`, pas d'étublage.
+ *
+ *  En dry-run (`apply: false`), rien n'est écrit — ni note, ni entrée de log ;
+ *  `copied` liste alors ce qui *serait* copié. */
+export function syncProjectDocsToVault(name: string, docsDir: string, apply: boolean): DocsSyncResult {
+  const trimmed = (name ?? "").trim();
+  const slug = projectFolder(trimmed, "");
+  const result: DocsSyncResult = { apply, project: trimmed, slug, domain: "", branch: "", target: "", copied: [], absent: [], warnings: [] };
+  if (slug.length === 0) {
+    result.warnings.push("empty project name after slugify — pass a real project name");
+    return result;
+  }
+  const vault = vaultPath();
+  if (!existsSync(vault)) {
+    result.warnings.push("vault not found — run `novahiz second-memory init` first");
+    return result;
+  }
+  if (!existsSync(docsDir)) {
+    result.warnings.push(`no project docs at ${docsDir} — run \`novahiz init\` to create them`);
+    return result;
+  }
+  const binding = readBinding(slug);
+  if (!binding) {
+    result.warnings.push(`no vault binding for "${slug}" — run \`novahiz second-memory project-init --name ${slug} --branch Domain/Branch\``);
+    return result;
+  }
+  const domainNode = findDomain(binding.domain);
+  const branchNode = domainNode?.children?.find((node) => node.name === binding.branch) ?? null;
+  if (!domainNode || !branchNode) {
+    result.warnings.push(`binding points to an unknown branch ${binding.domain}/${binding.branch} — re-run project-init`);
+    return result;
+  }
+  result.domain = domainNode.name;
+  result.branch = branchNode.name;
+  const leaf = (branchNode.children ?? []).find((node) => node.kind === "docs");
+  if (!leaf) {
+    result.warnings.push(`branch ${domainNode.name}/${branchNode.name} carries no docs leaf`);
+    return result;
+  }
+  const target = `${domainNode.name}/${branchNode.name}/${leaf.name}/${slug}`;
+  if (!existsSync(join(vault, target))) {
+    result.warnings.push(`target folder missing: ${target} — run \`novahiz second-memory project-init --name ${slug}\``);
+    return result;
+  }
+  result.target = target;
+
+  for (const file of PROJECT_DOC_FILES) {
+    const source = join(docsDir, file);
+    let content: string;
+    try {
+      content = readFileSync(source, "utf8");
+    } catch {
+      result.absent.push(file);
+      continue;
+    }
+    if (!apply) {
+      result.copied.push(file);
+      continue;
+    }
+    try {
+      writeFileSync(join(vault, target, file), content, "utf8");
+      result.copied.push(file);
+    } catch (error) {
+      result.warnings.push(`${file}: ${String(error).slice(0, 200)}`);
+    }
+  }
+  if (apply && result.copied.length > 0) {
+    try {
+      appendLogLine(vault, `project docs synced: ${target} (${result.copied.length} file(s))`);
+    } catch (error) {
+      result.warnings.push(`log: ${String(error).slice(0, 160)}`);
+    }
+  }
+  return result;
+}
+
 function secondMemoryProjectInit(parsed: Parsed): void {
   const apply = flagOn(parsed, "apply");
   const name = String(parsed.flags.name ?? "").trim();

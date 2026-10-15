@@ -5,6 +5,29 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+
+- **Project docs mirrored into the vault** - `novahiz init` now fills the
+  `<Domain>/<Branch>/docs/<slug>/` folder it creates instead of leaving it
+  empty: a new `Obsidian project docs` step copies `ARCHITECTURE.md`,
+  `CONVENTIONS.md`, `DECISIONS.md` and `STANDARDS.md` verbatim from
+  `novahiz-docs/`, and `novahiz autodocs --flush` re-mirrors them on every
+  flush, reported as a `Vault` row. The folder previously appeared holding only
+  a `_MOC.md` - the `docs` leaf of the catalogue existed and nothing ever wrote
+  into it. The copy is a **mirror, never the source**: every note reflects a
+  file that still lives in the project, which is what makes an overwriting flush
+  safe instead of a second history to maintain. Guards, none silent: no
+  `vault.json` binding, a binding outside the catalogue, or a target folder
+  `project-init` never created all skip with advice and invent nothing (contract
+  1); a doc file absent from the project is reported as `absent`, never
+  manufactured; a dry-run writes neither note nor log entry. Each real write
+  appends one `- HH:MM -` line under the day's heading of `log.md` through
+  `appendLogLine` - contract 8's "log the operation" was an instruction for the
+  agent and not code, so it only happened when someone remembered it. The
+  project name now resolves through a single `readProjectName` helper shared by
+  `init` and `flush`, so the seed and the refresh cannot slugify to different
+  folders.
+
 ## [0.9.6] - 2026-10-15
 
 ### Added

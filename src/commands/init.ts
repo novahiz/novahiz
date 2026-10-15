@@ -5,8 +5,9 @@ import { loadSpec, NovahizHome } from "../spec.ts";
 import { loadInstalledSkills } from "../catalog.ts";
 import { findContextFile } from "../impeccable.ts";
 import { ensureMemoryRoot, memoryRoot, writeEntry } from "../memory.ts";
+import { readProjectName } from "../autodocs.ts";
 import { ensureProjectAutoDocsConfig } from "./autodocs.ts";
-import { projectInit } from "./second-memory.ts";
+import { projectInit, syncProjectDocsToVault } from "./second-memory.ts";
 import * as ui from "../render.ts";
 
 type StepStatus = "created" | "skipped" | "dry-run" | "failed";
@@ -78,7 +79,7 @@ function detectProject(cwd: string): ProjectInfo {
   if (existsSync(join(cwd, "README.md"))) markers.push("README.md");
 
   if (!name) {
-    name = cwd.split(/[\\/]/).filter(Boolean).pop() ?? "project";
+    name = readProjectName(cwd);
   }
   return { kind, name, version, markers };
 }
@@ -320,6 +321,53 @@ function obsidianProject(dryRun: boolean, project: ProjectInfo): InitStep {
   };
 }
 
+/** Étape de suite : la place existe-t-elle, on la remplit.
+ *  Recopie `<projet>/novahiz-docs/` dans le `<docs>/<slug>/` du vault. Elle
+ *  hérite du verdict d'`obsidianProject` au lieu d'en dériver un second : si le
+ *  dossier projet n'a pas pu être posé, il n'y a aucune cible légitime et cette
+ *  étape se tait plutôt que d'en tenter une. Sans vault, sans binding ou sans
+ *  dossier cible, elle saute avec le conseil exact ; aucun dossier n'est
+ *  inventé (contrainte 1) et aucune copie ne part dans le vide. */
+function obsidianDocs(cwd: string, dryRun: boolean, project: ProjectInfo, folder: InitStep): InitStep {
+  const label = "Obsidian project docs";
+  if (folder.status !== "created" && folder.status !== "skipped") {
+    return { id: "obsidian-docs", label, status: "skipped", detail: `project folder not ready — see "${folder.label}"` };
+  }
+  const name = project.name.trim();
+  if (name.length === 0) {
+    return { id: "obsidian-docs", label, status: "skipped", detail: "no project name detected (package.json)" };
+  }
+  let result;
+  try {
+    result = syncProjectDocsToVault(name, join(cwd, "novahiz-docs"), !dryRun);
+  } catch (error) {
+    return { id: "obsidian-docs", label, status: "failed", detail: String(error).slice(0, 160) };
+  }
+  const where = result.target.length > 0 ? result.target : `${result.domain}/${result.branch}/${result.slug}`;
+  if (result.warnings.length > 0 && result.copied.length === 0) {
+    return {
+      id: "obsidian-docs",
+      label,
+      status: "skipped",
+      detail: `${where}: ${result.warnings.join("; ").slice(0, 160)}`,
+      advice: result.target.length > 0 ? undefined : `Link it: novahiz second-memory project-init --name <project> --branch Domain/Branch --apply`
+    };
+  }
+  const counts = `${result.copied.length} file(s)${result.absent.length > 0 ? `, ${result.absent.length} absent` : ""}`;
+  if (dryRun) {
+    return { id: "obsidian-docs", label, status: "dry-run", detail: `${where}: ${counts} would be copied` };
+  }
+  if (result.warnings.length > 0) {
+    return { id: "obsidian-docs", label, status: "failed", detail: `${where}: ${result.warnings.join("; ").slice(0, 160)}` };
+  }
+  return {
+    id: "obsidian-docs",
+    label,
+    status: result.copied.length > 0 ? "created" : "skipped",
+    detail: result.copied.length > 0 ? `${where}: ${counts} mirrored` : `${where}: nothing to copy`
+  };
+}
+
 export function commandInit(parsed: Parsed): void {
   const cwd = process.cwd();
   const home = NovahizHome();
@@ -362,7 +410,9 @@ export function commandInit(parsed: Parsed): void {
       });
     }
     steps.push(impeccableContext(home, cwd, dryRun));
-    steps.push(obsidianProject(dryRun, project));
+    const folder = obsidianProject(dryRun, project);
+    steps.push(folder);
+    steps.push(obsidianDocs(cwd, dryRun, project, folder));
   }
 
   let cleanup: CleanupCandidate[] = [];
