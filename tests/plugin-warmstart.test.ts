@@ -11,7 +11,7 @@
 // Seuls les enfants de CE processus sont comptes : les orphelins d'opencode
 // ont un autre parent et ne peuvent pas fausser la mesure.
 import assert from "node:assert/strict";
-import { execSync } from "node:child_process";
+import { execSync, spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -36,6 +36,16 @@ import type { Context } from "@opencode/plugin/promise/plugin";
 const REPO_ROOT = fileURLToPath(new URL("../", import.meta.url));
 process.env.NOVAHIZ_HOME = REPO_ROOT;
 const { default: novahizPlugin } = await import("../adapters/opencode/novahiz-plugin.ts");
+
+// Meme resolution que le plugin (novahiz-plugin.ts L378-379), pour la sonde.
+const NODE =
+  process.env.NOVAHIZ_NODE && process.env.NOVAHIZ_NODE.length > 0 ? process.env.NOVAHIZ_NODE : "node";
+
+// 15 s suffisaient en local et sous ubuntu/windows, pas sur macos-latest ou le
+// daemon n'etait pas observe avant l'expiration. 60 s garde la contrainte
+// (le daemon doit etre la bien avant le premier appel gate, qui coute ~300 ms
+// sans lui) sans punir un runner sature par 677 tests paralleles.
+const SPAWN_TIMEOUT_MS = 60_000;
 
 function childGateDaemons(): number[] {
   try {
@@ -75,6 +85,41 @@ async function waitFor(probe: () => boolean, timeoutMs: number): Promise<boolean
     if (Date.now() >= deadline) return false;
     await new Promise((resolve) => setTimeout(resolve, 250));
   }
+}
+
+// Diagnostic, appele uniquement quand le daemon n'a pas ete observe: tente le
+// meme spawn que le plugin et rend son stderr. Sans cela, un timeout ne dit
+// pas si le daemon n'a pas demarre ou s'il n'a pas ete vu — les deux se
+// resolvent par "assertion fausse" et la difference compte (observe en CI
+// macos-latest: providers reussit, le daemon n'apparait pas en 15 s).
+function probeDaemon(): Promise<string> {
+  const daemon = join(REPO_ROOT, "src", "gate-daemon.ts");
+  const probe = spawn(NODE, ["--experimental-strip-types", daemon], {
+    stdio: ["ignore", "pipe", "pipe"],
+    windowsHide: true
+  });
+  return new Promise<string>((resolve) => {
+    let stderr = "";
+    let exited = false;
+    probe.stderr?.on("data", (chunk: Buffer) => {
+      stderr += chunk.toString();
+    });
+    probe.on("exit", (code) => {
+      exited = true;
+      resolve(`daemon sorti de lui-meme (code ${code}), stderr: ${stderr.slice(0, 400)}`);
+    });
+    setTimeout(() => {
+      if (!exited) {
+        probe.kill();
+        resolve("daemon vivant 8 s apres demarrage direct: le spawn reussit, le plugin ne l'a pas lance");
+      }
+    }, 8_000);
+  });
+}
+
+async function spawnVerdict(timeoutMs: number): Promise<string | undefined> {
+  if (await waitFor(() => childGateDaemons().length >= 1, timeoutMs)) return undefined;
+  return `aucun daemon observe en ${timeoutMs} ms; sonde directe: ${await probeDaemon()}`;
 }
 
 // Context minimal : setup() n'appelle que ces quatre surface (adapters/
@@ -117,8 +162,12 @@ test("warm-start: setup() spawn le daemon avant tout appel runGate", async () =>
   );
   const cleanup = await novahizPlugin.setup(stubContext());
   try {
-    const spawned = await waitFor(() => childGateDaemons().length >= 1, 15_000);
-    assert.ok(spawned, "daemon vivant juste apres setup(), sans aucun appel gate");
+    const verdict = await spawnVerdict(SPAWN_TIMEOUT_MS);
+    assert.equal(
+      verdict,
+      undefined,
+      verdict ?? "daemon vivant juste apres setup(), sans aucun appel gate"
+    );
   } finally {
     if (typeof cleanup === "function") await cleanup();
   }
@@ -130,8 +179,12 @@ test("reload: les cycles setup/cleanup ne laissent aucun daemon", async () => {
   for (let cycle = 1; cycle <= 2; cycle += 1) {
     const cleanup = await novahizPlugin.setup(stubContext());
     try {
-      const spawned = await waitFor(() => childGateDaemons().length >= 1, 15_000);
-      assert.ok(spawned, `cycle ${cycle}: daemon spawn au chargement`);
+      const verdict = await spawnVerdict(SPAWN_TIMEOUT_MS);
+      assert.equal(
+        verdict,
+        undefined,
+        verdict ?? `cycle ${cycle}: daemon spawn au chargement`
+      );
     } finally {
       if (typeof cleanup === "function") await cleanup();
     }
