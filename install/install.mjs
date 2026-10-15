@@ -459,6 +459,14 @@ async function main() {
       });
       if (result.stdout) ui.raw(result.stdout);
       if (result.status !== 0 && result.stderr) process.stderr.write(result.stderr);
+      // Arbitrage assumé: installation et mise à jour restent deux commandes.
+      // `deps --install` est idempotent — un pack déjà présent n'est jamais
+      // rafraîchi ici, sinon une réinstallation écraserait les retouches
+      // locales. C'est documenté dans docs/PROVIDERS.md; on le dit aussi à
+      // l'écran plutôt que de laisser le paquet sembler à jour sans l'être.
+      if (autoInstall && result.status === 0) {
+        note("Installs only: skill packs already present are left untouched. Refresh them with /novahiz-skills-update (deps --install --update).");
+      }
     }
   }
 

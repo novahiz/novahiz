@@ -7,6 +7,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **`PRODUCT.md` and `DESIGN.md`** - the product context and the visual-system
+  record `impeccable` asks for, both written from sources in the repository
+  (`README.md`, `docs/CONSTITUTION.md`, `src/render.ts`) with anything they do
+  not settle marked "not determined" instead of guessed. `novahiz doctor` runs
+  from a project now finds both instead of two `fail` rows; when doctor runs
+  from the Novahiz home both rows are skipped by design
+  (`impeccableChecks` returns early when `cwd === home`).
+
 - **`when.pathExcludes`** - a rule-level *negative* selector, the counterpart of
   `pathGlobs`. A rule carrying it never applies to a matching path, whatever the
   other selectors say. With `match: "any"` a prompt category alone fired on any
@@ -18,6 +26,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   `**/*.test.*` and `**/*.spec.*`. R9-code-review and R10-security are
   untouched — a test is still code — and R15-token-economy keeps its own
   `**/tests/token-economy.test.ts` target.
+
+### Changed
+
+- **The installer states its own limit** - `install.mjs` now prints that
+  `deps --install` is an install-only pass: packs already present are left
+  untouched, and `/novahiz-skills-update` (`deps --install --update`) is what
+  refreshes them. Installation and update stay separate commands by choice — a
+  reinstall must not overwrite local skill edits — but the choice was previously
+  only written down in `docs/PROVIDERS.md`, not shown to the person installing.
 
 ## [0.9.5] - 2026-10-15
 
