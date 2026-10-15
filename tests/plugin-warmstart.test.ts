@@ -64,14 +64,22 @@ function childGateDaemons(): number[] {
         .filter((line) => /^\d+$/.test(line))
         .map(Number);
     }
-    const out = execSync(`ps -o pid=,args= --ppid ${process.pid}`, {
+    // ps -axo pid=,ppid=,args= et pas `ps --ppid`: --ppid est une extension
+    // procps Linux, absente du ps BSD de macOS, qui leve "illegal option".
+    // Ce catch retournait alors [] en silence et masquait le daemon: le test
+    // echouait sur macos-latest alors que le daemon demarrait bien (prouve par
+    // la sonde, code de sortie 0). Le format pid/ppid conserve le contrat
+    // ci-dessus: seuls les enfants DE CE processus comptent.
+    const out = execSync(`ps -axo pid=,ppid=,args=`, {
       encoding: "utf8",
       timeout: 15_000
     });
     return out
       .split("\n")
-      .filter((line) => line.includes("gate-daemon"))
-      .map((line) => Number.parseInt(line.trim().split(/\s+/)[0], 10))
+      .map((line) => line.trim().split(/\s+/))
+      .filter((parts) => parts.includes("gate-daemon"))
+      .filter((parts) => Number.parseInt(parts[1], 10) === process.pid)
+      .map((parts) => Number.parseInt(parts[0], 10))
       .filter((pid) => Number.isFinite(pid));
   } catch {
     return [];
