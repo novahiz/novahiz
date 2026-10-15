@@ -59,14 +59,18 @@ Known limitation (single instance): `dart mcp-server` serves one running instanc
 
 Skill and command packs:
 
-| Id | Install command | Upstream | License | Categories |
-| --- | --- | --- | --- | --- |
-| `flutter-skills` | `npx skills add flutter/agent-plugins --skill '*' -g -a opencode -y` | [flutter/agent-plugins](https://github.com/flutter/agent-plugins) | BSD-3-Clause | code, design-ui, flutter |
-| `dart-skills` | `npx skills add dart-lang/skills --skill '*' -g -a opencode -y` | [dart-lang/skills](https://github.com/dart-lang/skills) | BSD-3-Clause | code, debug, flutter |
-| `expo-skills` | `npx skills add expo/skills --skill expo-overview ... -g -a opencode -y` | [expo/skills](https://github.com/expo/skills) | MIT | code, expo |
-| `impeccable` | `npx skills add pbakaus/impeccable --skill impeccable -g -a opencode -y` | [pbakaus/impeccable](https://github.com/pbakaus/impeccable) | Apache-2.0 | design-ui |
+| Id | Install command | Update command | Upstream | License | Categories |
+| --- | --- | --- | --- | --- | --- |
+| `flutter-skills` | `npx skills add flutter/skills --skill '*' -g -a opencode -y` | `npx skills update -g -y` | [flutter/skills](https://github.com/flutter/skills) | BSD-3-Clause | code, design-ui, flutter |
+| `dart-skills` | `npx skills add dart-lang/skills --skill '*' -g -a opencode -y` | `npx skills update -g -y` | [dart-lang/skills](https://github.com/dart-lang/skills) | BSD-3-Clause | code, debug, flutter |
+| `expo-skills` | `npx skills add expo/skills --skill expo-overview ... -g -a opencode -y` | `npx skills update -g -y` | [expo/skills](https://github.com/expo/skills) | MIT | code, expo |
+| `impeccable` | `npx skills add pbakaus/impeccable --skill impeccable -g -a opencode -y` | `npx skills update -g -y` | [pbakaus/impeccable](https://github.com/pbakaus/impeccable) | Apache-2.0 | design-ui |
 
-Installed skills land under `~/.agents/skills` for OpenCode. They are referenced by install command, never vendored in this repository. `dart-lang/skills` is a subset of `flutter/agent-plugins` (same 15 Dart skills); both are listed for provenance.
+Installed skills land under `~/.agents/skills` for OpenCode. They are referenced by install command, never vendored in this repository. `dart-lang/skills` is a subset of `flutter/skills` (same 15 Dart skills); both are listed for provenance.
+
+The Flutter upstream is named `flutter/skills`, as announced in the Flutter blog post *Introducing Skills for Dart and Flutter*. The older `flutter/agent-plugins` reference resolves to the same repository — identical `main` HEAD (`0ef3972`) and identical branch list — so it is a naming alias, not a fork. Novahiz records the official name.
+
+The three flags deviate from the plain upstream command on purpose: `-g` installs at user level instead of project level, `-a opencode` targets the OpenCode agent rather than every detected agent, and `-y` makes the run non-interactive so it can be automated. Everything else follows upstream, including the CLI version pin (`skills@1.7.0`, which already ships the `update` subcommand).
 
 `expo-skills` names the 19 `expo-*` skills explicitly; the 7 `eas-*` skills (paid EAS services) are excluded. When `npx skills add` cannot reach the repo (git clone failures), fetch the tarball from `codeload.github.com` and copy the skill folders into `~/.agents/skills`, then run `Novahiz sync` — that fallback was used on this machine.
 
@@ -112,6 +116,21 @@ node install/install.mjs --install-providers
 Installation is opt-in on purpose. The commands download third-party packages, so `autoInstall` defaults to `false`. Enabling it means you trust each upstream listed in `source`. `novahiz-search` itself downloads nothing: it is a local file run through `node` with zero npm dependencies.
 
 `providers --install` and `deps --install` print the plan and execute nothing until `--yes` is passed. Whatever runs then goes through a binary allowlist (`node`, `npm`, `npx`, `uv`, `uvx`, `python`, `py`) — the same one bootstrap uses — so a tampered `providers.json` cannot execute an arbitrary program.
+
+### Install is idempotent, so it cannot refresh
+
+`deps --install` computes its plan from `pendingInstallCommands`, which drops every pack whose `installedWhen` skills are all already on disk. A second run therefore installs nothing — that is the point, since re-running `npx skills add` for 45 present skills would be pure cost.
+
+The same rule means `deps --install` can never bring an installed pack up to date: upstream additions and edits are simply invisible to it. `/novahiz-skills-update` used to call exactly that command, so it refreshed nothing in practice.
+
+`deps --install --update` is the refresh path. It builds its plan from `updateCommands` instead, which reads the provider's `update` command and — unlike install — applies no `installedWhen` gate, because refreshing an up-to-date pack is precisely what was asked. Providers without an `update` fall back to re-running their install command, which re-syncs from upstream anyway.
+
+```
+node src/cli.ts deps --install           # fills gaps only
+node src/cli.ts deps --install --update  # refreshes every pack
+```
+
+One global `skills update -g -y` genuinely refreshes all four sources in a single pass, so `updateCommands` deduplicates an identical argv across providers and records the ones it covers under `covers` in the plan and in the result. A plan line reading `step: "install"` with no `covers` is the old behaviour, not a refresh.
 
 ## Dependencies
 

@@ -314,7 +314,7 @@ Deux pièces complémentaires : la session consomme moins sans perdre en puissan
 
 ## Skills installées
 
-Novahiz livre 94 skills couvrant toutes les catégories — 46 dans le cœur du dépôt, les autres dans les packs officiels installés par défaut au setup :
+Novahiz livre 95 skills au total — le cœur du dépôt, plus les packs officiels installés par défaut au setup :
 
 | Catégorie | Skills | Objectif |
 |-----------|--------|----------|
@@ -327,9 +327,11 @@ Novahiz livre 94 skills couvrant toutes les catégories — 46 dans le cœur du 
 | `browser` | novahiz-browser, browser-session, novahiz-web-extract, ... | Automatisation web, captures, extraction |
 | `audit` | novahiz-security, package-risk-audit, llm-threat-review, ... | Sécurité, conformité, vulnérabilités |
 | `expo` | expo-overview, expo-router, expo-module, expo-dev-client, ... | Expo / React Native : routes, modules natifs, builds |
-| `devops` | eas-workflows, eas-app-stores, novahiz-release, ... | CI/CD, déploiements, releases versionnées |
+| `devops` | novahiz-release, novahiz-init, ... | Releases versionnées, onboarding, installation |
 
-Lancer `npx novahiz skills --all` pour voir la liste complète.
+Le décompte exact se relit à tout moment : `novahiz sync` (index) et `novahiz doctor` (ligne `Referenced skills`). `npx novahiz skills --all` donne la liste complète.
+
+> Les skills `eas-*` (workflows, stores, hosting, observe, update) sont des packs **payants** upstream : elles ne sont pas installées par défaut et `novahiz doctor` les exclut de `Referenced skills` par conception.
 
 ---
 
@@ -348,9 +350,22 @@ Novahiz auto-enregistre les serveurs MCP externes selon la catégorie du prompt 
 | novahiz-scheduler | `mcp/clepsydre/index.mjs` (local, zéro dépendance) | Apache-2.0 | devops |
 | dart | `dart mcp-server` (Dart SDK) | BSD-3-Clause | code, debug, design-ui, flutter |
 
-Packs de skills (installés depuis les dépôts officiels, jamais vendorés, et livrés **par défaut** au setup via `providers.autoInstall`) : `flutter/agent-plugins` (10 skills), `dart-lang/skills` (15 skills), `expo/skills` (19 skills, le groupe `expo-*` seulement ; les services payants `eas-*` exclus), `pbakaus/impeccable` (1 skill, la skill design upstream `impeccable`).
+Packs de skills (installés depuis les dépôts officiels, jamais vendorés, et livrés **par défaut** au setup via `providers.autoInstall`) : [`flutter/skills`](https://github.com/flutter/skills) (10 skills), `dart-lang/skills` (15 skills), `expo/skills` (19 skills, le groupe `expo-*` seulement ; les services payants `eas-*` exclus), `pbakaus/impeccable` (1 skill, la skill design upstream `impeccable`).
 
-**`git` est requis** par le CLI officiel des skills : sans lui, l'installation des packs échoue silencieusement et les skills manquent au premier lancement. `novahiz doctor` le nomme (ligne `git (skill packs)`), et **`/novahiz-skills-update`** — ou `novahiz deps --install` — réinstalle proprement tous les packs depuis leurs providers officiels. Voir [docs/PROVIDERS.md](docs/PROVIDERS.md).
+**`git` est requis** par le CLI officiel des skills : sans lui, l'installation des packs échoue silencieusement et les skills manquent au premier lancement. `novahiz doctor` le nomme (ligne `git (skill packs)`).
+
+### Installer, puis mettre à jour : deux étapes distinctes
+
+`deps --install` ne **remplit que les trous**. Dès qu'un pack est présent, sa commande d'installation est écartée (marqueur `installedWhen` satisfait) — sinon une seconde passe réinstallerait inutilement 45 skills. Conséquence directe : **cette même commande ne peut jamais rafraîchir un pack déjà installé.**
+
+```
+novahiz deps --install          # installe ce qui manque (packs absents)
+novahiz deps --install --update # rafraîchit tout depuis upstream
+```
+
+`--update` exécute la commande `update` déclarée par chaque provider — pour le CLI des skills, la sous-commande officielle `skills update -g -y`, qui parcourt les quatre sources (dart, flutter, expo, impeccable) en une passe. Contrairement à l'installation, **elle n'est jamais écartée** : rafraîchir un pack à jour est exactement le travail demandé.
+
+`/novahiz-skills-update` enchaîne les deux. Chaque plan porte `step: "update"` et, quand une même commande couvre plusieurs packs, la liste `covers` — on ne peut donc pas confondre un pack écarté et un pack mis à jour. Voir [docs/PROVIDERS.md](docs/PROVIDERS.md).
 
 Dépôts upstream et provenance complète des providers MCP et plugins opencode : [docs/PROVIDERS.md](docs/PROVIDERS.md), [docs/HARNESSES.md](docs/HARNESSES.md), [NOTICE.md](NOTICE.md).
 
@@ -396,6 +411,7 @@ Voir [docs/CONFIGURATION.md](docs/CONFIGURATION.md) pour toutes les options.
 | `novahiz roadmap` | Afficher la roadmap d'exécution |
 | `novahiz dispatch` | Générer des work packets |
 | `novahiz sync` | Reconstruire l'index des skills installées |
+| `novahiz deps --install [--update]` | Installer les packs de skills manquants, ou les rafraîchir tous avec `--update` (voir [Providers](#providers)) |
 | `novahiz clean` | Supprimer les vieux logs |
 | `novahiz upgrade` | Pull du dernier + rebuild |
 | `novahiz version` | Afficher la version |

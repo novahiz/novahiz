@@ -5,6 +5,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.9.5] - 2026-10-15
+
+> 0.9.4 was prepared on 2026-10-14 but never tagged nor published to npm
+> (the registry went straight from 0.9.3 to 0.9.5). Its changes are included
+> here and remain described under their own heading below.
+
 ### Added
 
 - **Wireframe-first design pipeline** - new `novahiz_wireframe` MCP tool and
@@ -44,6 +50,36 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - **Skills `novahiz-prd` and `novahiz-skill-craft`** ship in the package.
 - **Commands `novahiz-obsidian` and `novahiz-obsidian-audit`**, plus
   `bin/veille-mensuelle.ps1`.
+- **A real refresh path for the provider skill packs** - `deps --install
+  --update` and a per-provider `update` command in `catalog/providers.json`.
+  `deps --install` drops every pack whose `installedWhen` markers are all on
+  disk, so it could only fill gaps: `/novahiz-skills-update` called it and
+  therefore refreshed nothing, which is why flutter/dart/expo were never
+  actually updated. `updateCommands()` reads the provider's `update` command
+  instead and applies no `installedWhen` gate. For the skills CLI that command
+  is the upstream `skills update -g -y`, already present in the pinned
+  `skills@1.7.0`. An identical argv shared by several providers is deduplicated
+  and records the packs it covers under `covers`, in the dry-run plan and in
+  the result, so a skipped pack can no longer be mistaken for an updated one.
+  `/novahiz-skills-update` gained an explicit step 4 running it.
+- **The Flutter skill pack is installed from its official repository** -
+  `flutter/agent-plugins` is now recorded as `flutter/skills`, the name used by
+  the Flutter blog post *Introducing Skills for Dart and Flutter*. The two
+  resolve to the same repository (identical `main` HEAD `0ef3972` and branch
+  list), so this is a provenance correction, not a source change.
+
+### Fixed
+
+- **`tests/plugin-warmstart.test.ts` failed `tsc --noEmit`** with three real
+  type errors: the `editor` parameter shadowed the `editor` binding, making
+  `typeof editor` self-referential (TS2502), and `await cleanup()` was called
+  on the `void | Cleanup` union without a guard (TS2349, twice). The previous
+  session reported this file as type-clean; that report was wrong.
+- **`Agent harness copy outdated`** — the last non-blocking `doctor` failure —
+  is repaired by `node install/install.mjs --yes` alone. Only the rewrite of
+  `novahiz.config.json` is gated on `--force`; the plugin, agent and command
+  copies are not, so a plain run refreshes them while the config reports
+  `Existing config preserved`.
 
 ### Changed
 

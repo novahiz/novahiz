@@ -4,7 +4,7 @@ import { loadSpec, NovahizHome } from "../spec.ts";
 import { getMeta, openDb, setMeta } from "../db.ts";
 import { loadCatalog, loadInstalledSkills, persistCatalog, scanSkills, writeCatalog, writeSkillIndex } from "../catalog.ts";
 import { rankSkills } from "../relevance.ts";
-import { buildMcpEntries, enabledProviders, installCommands, pendingInstallCommands } from "../providers.ts";
+import { buildMcpEntries, enabledProviders, installCommands, pendingInstallCommands, updateCommands } from "../providers.ts";
 import { spawnSync } from "node:child_process";
 import { bootstrapFor, coreBootstrap, dependencyReport, missingPrerequisites, reloadPathFromRegistry, toolchainStatus } from "../deps.ts";
 import { classify } from "../classify.ts";
@@ -317,11 +317,19 @@ export function commandDeps(parsed: Parsed): void {
       : { provider: entry.provider.id, step: "bootstrap", note: `missing ${entry.missing.join(", ")}` };
   });
   const installed = new Set(scanSkills(spec, []).map((skill) => skill.id));
-  const pending = pendingInstallCommands(spec, installed);
+  // --update: refresh every pack from upstream instead of skipping the ones
+  // already present. Without it, pendingInstallCommands drops installed packs,
+  // so /novahiz-skills-update could never bring flutter/dart/expo up to date.
+  const updating = flagOn(parsed, "update");
+  const pending = updating ? updateCommands(spec) : pendingInstallCommands(spec, installed);
   const installPlan = pending.map((entry) => ({
     provider: entry.id,
-    step: "install",
-    command: entry.command.join(" ")
+    step: updating ? "update" : "install",
+    command: entry.command.join(" "),
+    // Present in the dry run too: a shared `skills update -g` collapsed onto a
+    // single plan line must still name every pack it will refresh, otherwise
+    // the plan hides three of the four providers it actually covers.
+    ...(entry.covers ? { covers: entry.covers } : {})
   }));
 
   if (!flagOn(parsed, "yes")) {
@@ -395,17 +403,26 @@ export function commandDeps(parsed: Parsed): void {
 
   // 4. Provider installs — pendingInstallCommands already dropped the packs
   // whose installedWhen skills are all on disk: a re-run installs nothing.
+  // In --update mode nothing is skipped: refreshing an installed pack is the
+  // requested behaviour, so every update command runs and reports as "update".
   const pendingIds = new Set(pending.map((entry) => entry.id));
-  const skipped = installCommands(spec).filter((entry) => !pendingIds.has(entry.id)).map((entry) => entry.id);
+  const skipped = updating ? [] : installCommands(spec).filter((entry) => !pendingIds.has(entry.id)).map((entry) => entry.id);
   if (skipped.length > 0) {
     results.push({ step: "install", skipped, note: "already installed (installedWhen satisfied)" });
   }
   for (const entry of pending) {
     const result = runScript(entry.command);
-    process.stdout.write(`${result.ok ? "ok  " : "fail"} install ${entry.id}\n`);
+    const step = updating ? "update" : "install";
+    process.stdout.write(`${result.ok ? "ok  " : "fail"} ${step} ${entry.id}\n`);
     if (!result.ok && result.stderr) process.stderr.write(result.stderr);
     if (result.error) process.stderr.write(`${result.error}\n`);
-    results.push({ provider: entry.id, step: "install", command: entry.command.join(" "), ok: result.ok });
+    results.push({
+      provider: entry.id,
+      step,
+      command: entry.command.join(" "),
+      ...(entry.covers ? { covers: entry.covers } : {}),
+      ok: result.ok
+    });
   }
   print(results);
 }

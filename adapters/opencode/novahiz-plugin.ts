@@ -1284,6 +1284,14 @@ async function setup(ctx: Context): Promise<Cleanup> {
 
   ensureProjectMemory(process.cwd());
 
+  // Warm-start the gate daemon so the first gated tool call doesn't pay the
+  // ~300 ms process startup cost. The daemon is fail-closed: if it fails to
+  // start, ensureGateChild returns null and the first gate call will retry
+  // (or deny via the existing fail-closed path). Skipped when the gate is
+  // escaped (NOVAHIZ_GATE=off): runGate is never reached then, so spawning
+  // would only leave an orphan process.
+  if (!DISABLED) ensureGateChild();
+
   // S-AUTO: aides d'auto-capture/auto-lecture — fermetures de session (etat,
   // logs et enforcement restent dans le meme scope que les hooks).
   //
@@ -1981,7 +1989,29 @@ async function setup(ctx: Context): Promise<Cleanup> {
     }
   });
 
-  return () => events.abort();
+  return () => {
+    events.abort();
+    // The daemon only exits on stdin end and holds this process's event loop,
+    // so a plugin reload without this teardown would leak one process per
+    // load (observed 2026-10-15: 9 orphans under opencode-cli.exe). Fail-closed
+    // is untouched: if a later session still needs the gate, ensureGateChild
+    // respawns it and a spawn failure still denies.
+    const child = gateChild;
+    gateChild = null;
+    releaseGatePending("plugin unloaded");
+    if (child) {
+      try {
+        child.stdin?.end();
+      } catch {
+        /* pipe already closed */
+      }
+      try {
+        child.kill();
+      } catch {
+        /* already gone */
+      }
+    }
+  };
 }
 
 const novahizPlugin: Plugin = { id: "novahiz-workflow", setup };

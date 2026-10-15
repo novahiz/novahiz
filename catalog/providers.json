@@ -62,45 +62,49 @@
     "id": "flutter-skills",
     "label": "Flutter agent skills",
     "kind": "skill",
-    "install": ["npx", "-y", "skills@1.7.0", "add", "flutter/agent-plugins", "--skill", "*", "-g", "-a", "opencode", "-y"],
+    "install": ["npx", "-y", "skills@1.7.0", "add", "flutter/skills", "--skill", "*", "-g", "-a", "opencode", "-y"],
+    "update": ["npx", "-y", "skills@1.7.0", "update", "-g", "-y"],
     "installedWhen": ["flutter-apply-architecture-best-practices"],
-    "source": "https://github.com/flutter/agent-plugins",
+    "source": "https://github.com/flutter/skills",
     "license": "BSD-3-Clause",
     "categories": ["code", "design-ui", "flutter"],
-    "purpose": "25 official Flutter/Dart agent skills (layouts, tests, architecture, routing, l10n)."
+    "purpose": "25 official Flutter/Dart agent skills (layouts, tests, architecture, routing, l10n). Official repo per the Flutter blog 'Introducing Skills for Dart and Flutter' (flutter/skills; flutter/agent-plugins resolves to the same repository, verified identical main HEAD 0ef3972). `update` runs the upstream `skills update` subcommand — the refresh deps --install alone can never perform."
   },
   {
     "id": "dart-skills",
     "label": "Dart agent skills",
     "kind": "skill",
     "install": ["npx", "-y", "skills@1.7.0", "add", "dart-lang/skills", "--skill", "*", "-g", "-a", "opencode", "-y"],
+    "update": ["npx", "-y", "skills@1.7.0", "update", "-g", "-y"],
     "installedWhen": ["dart-add-unit-test"],
     "source": "https://github.com/dart-lang/skills",
     "license": "BSD-3-Clause",
     "categories": ["code", "debug", "flutter"],
-    "purpose": "15 official Dart skills (subset of flutter/agent-plugins, kept for provenance)."
+    "purpose": "15 official Dart skills (subset of flutter/skills, kept for provenance). `update` runs upstream `skills update -g`."
   },
   {
     "id": "expo-skills",
     "label": "Expo agent skills",
     "kind": "skill",
     "install": ["npx", "-y", "skills@1.7.0", "add", "expo/skills", "--skill", "expo-overview", "expo-project-structure", "expo-router", "expo-animation", "expo-native-ui", "expo-design-system", "expo-ui", "expo-data-fetching", "expo-dom", "expo-web-to-native", "expo-module", "expo-migrate-module", "expo-brownfield", "expo-dev-client", "expo-examples", "expo-app-clip", "expo-upgrade", "expo-skill-eval", "expo-skill-feedback", "-g", "-a", "opencode", "-y"],
+    "update": ["npx", "-y", "skills@1.7.0", "update", "-g", "-y"],
     "installedWhen": ["expo-overview"],
     "source": "https://github.com/expo/skills",
     "license": "MIT",
     "categories": ["code", "expo"],
-    "purpose": "19 official Expo framework skills (expo-* group); the 7 eas-* paid-service skills are excluded. Installed to ~/.agents/skills; when git clone fails, fetch the tarball from codeload.github.com and copy the skill folders."
+    "purpose": "19 official Expo framework skills (expo-* group); the 7 eas-* paid-service skills are excluded. Installed to ~/.agents/skills; when git clone fails, fetch the tarball from codeload.github.com and copy the skill folders. `update` runs upstream `skills update -g` (docs.expo.dev/skills)."
   },
   {
     "id": "impeccable",
     "label": "Impeccable design skill",
     "kind": "skill",
     "install": ["npx", "-y", "skills@1.7.0", "add", "pbakaus/impeccable", "--skill", "impeccable", "-g", "-a", "opencode", "-y"],
+    "update": ["npx", "-y", "skills@1.7.0", "update", "-g", "-y"],
     "installedWhen": ["impeccable"],
     "source": "https://github.com/pbakaus/impeccable",
     "license": "Apache-2.0",
     "categories": ["design-ui"],
-    "purpose": "Upstream Impeccable skill (critique, audit and polish playbooks) required by gate rule R14. Installed to ~/.agents/skills; rerun the command to update."
+    "purpose": "Upstream Impeccable skill (critique, audit and polish playbooks) required by gate rule R14. Installed to ~/.agents/skills; rerun the command to update. `update` runs upstream `skills update -g` (the CLI/engine refresh stays the separate npm step)."
   },
   {
     "id": "novahiz-scan",

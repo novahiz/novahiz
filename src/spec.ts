@@ -91,6 +91,12 @@ export type Provider = {
   // (idempotent `deps --install`): when ALL of them exist in a skill root the
   // install command is skipped. Absent = always run.
   installedWhen?: string[];
+  // Official refresh command, distinct from `install` (2026-10-15). `install`
+  // is skipped once installedWhen is satisfied, so it can never bring an
+  // already-installed pack up to date; `update` is what `deps --install
+  // --update` runs instead. For the skills CLI that is `skills update`, the
+  // upstream subcommand dedicated to refreshing installed skills.
+  update?: string[];
   purpose?: string;
   categories?: string[];
   source?: string;
