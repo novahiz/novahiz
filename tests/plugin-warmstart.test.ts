@@ -66,18 +66,20 @@ function childGateDaemons(): number[] {
     }
     // ps -axo pid=,ppid=,args= et pas `ps --ppid`: --ppid est une extension
     // procps Linux, absente du ps BSD de macOS, qui leve "illegal option".
-    // Ce catch retournait alors [] en silence et masquait le daemon: le test
-    // echouait sur macos-latest alors que le daemon demarrait bien (prouve par
-    // la sonde, code de sortie 0). Le format pid/ppid conserve le contrat
-    // ci-dessus: seuls les enfants DE CE processus comptent.
+    // Ce catch retournait alors [] en silence et masquait tout daemon, sur
+    // macOS comme sur Linux. Le format pid/ppid conserve le contrat ci-dessus:
+    // seuls les enfants DE CE processus comptent.
     const out = execSync(`ps -axo pid=,ppid=,args=`, {
       encoding: "utf8",
       timeout: 15_000
     });
+    // Le filtre porte sur la LIGNE entiere, pas sur un element de parts: les
+    // arguments sont des chemins complets (/.../src/gate-daemon.ts), jamais
+    // l'element exact "gate-daemon".
     return out
       .split("\n")
+      .filter((line) => line.includes("gate-daemon"))
       .map((line) => line.trim().split(/\s+/))
-      .filter((parts) => parts.includes("gate-daemon"))
       .filter((parts) => Number.parseInt(parts[1], 10) === process.pid)
       .map((parts) => Number.parseInt(parts[0], 10))
       .filter((pid) => Number.isFinite(pid));
@@ -96,14 +98,18 @@ async function waitFor(probe: () => boolean, timeoutMs: number): Promise<boolean
 }
 
 // Diagnostic, appele uniquement quand le daemon n'a pas ete observe: tente le
-// meme spawn que le plugin et rend son stderr. Sans cela, un timeout ne dit
-// pas si le daemon n'a pas demarre ou s'il n'a pas ete vu — les deux se
-// resolvent par "assertion fausse" et la difference compte (observe en CI
-// macos-latest: providers reussit, le daemon n'apparait pas en 15 s).
+// spawn identique a celui du plugin — meme argv, stdin en pipe ouvert — et rend
+// le verdict. Sans cela, un timeout ne distingue pas "le daemon n'a pas
+// demarre" de "il tourne mais n'a pas ete vu", et les deux demandent des
+// correctifs differents.
+//
+// Le stdin compte: le daemon sert sur stdin et sort des que celui-ci se ferme.
+// Une sonde lancee en stdio "ignore" le voit sortir en code 0 par conception,
+// ce qui ne dit rien du spawn que fait le plugin.
 function probeDaemon(): Promise<string> {
   const daemon = join(REPO_ROOT, "src", "gate-daemon.ts");
   const probe = spawn(NODE, ["--experimental-strip-types", daemon], {
-    stdio: ["ignore", "pipe", "pipe"],
+    stdio: ["pipe", "pipe", "pipe"],
     windowsHide: true
   });
   return new Promise<string>((resolve) => {
@@ -114,12 +120,12 @@ function probeDaemon(): Promise<string> {
     });
     probe.on("exit", (code) => {
       exited = true;
-      resolve(`daemon sorti de lui-meme (code ${code}), stderr: ${stderr.slice(0, 400)}`);
+      resolve(`daemon sorti alors que le pipe reste ouvert (code ${code}), stderr: ${stderr.slice(0, 400)}`);
     });
     setTimeout(() => {
       if (!exited) {
         probe.kill();
-        resolve("daemon vivant 8 s apres demarrage direct: le spawn reussit, le plugin ne l'a pas lance");
+        resolve("daemon vivant 8 s avec stdin ouvert: ce spawn reussit ici, le plugin ne l'a pas lance");
       }
     }, 8_000);
   });
