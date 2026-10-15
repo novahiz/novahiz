@@ -554,8 +554,7 @@
     "defaultSkills": [
       "flutter-add-widget-test",
       "dart-add-unit-test",
-      "expo-skill-eval",
-      "eas-simulator"
+      "expo-skill-eval"
     ],
     "roadmap": {
       "id": "testing",
@@ -1329,14 +1328,7 @@
       "tag a version",
       "changelog"
     ],
-    "defaultSkills": [
-      "eas-workflows",
-      "eas-app-stores",
-      "eas-hosting",
-      "eas-observe",
-      "eas-update",
-      "eas-update-insights"
-    ],
+    "defaultSkills": [],
     "roadmap": {
       "id": "devops",
       "steps": [

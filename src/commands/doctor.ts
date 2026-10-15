@@ -439,8 +439,8 @@ function referencedSkills(spec: ReturnType<typeof loadSpec>): string[] {
  *  `indexSkills` is null when the index is unreadable — the index check already
  *  reports that, so the row stays quiet instead of double-failing.
  *  Only skills the package ships (packageRoot/skills) can make a fresh install
- *  broken. The remaining references — the dart/eas/expo/flutter packs and
- *  impeccable — are optional delivery downloaded on request and are simply not
+ *  broken. The remaining references, the dart/expo/flutter packs and
+ *  impeccable, are optional delivery downloaded on request and are simply not
  *  present on a machine that never asked for them; the gate already degrades
  *  them to "not enforced". Blocking on them turned every healthy fresh install
  *  red (`missing from index: dart-...` right after novahiz-install --yes). */
@@ -451,13 +451,7 @@ export function referencedSkillsCheck(
 ): DoctorCheck {
   const referenced = referencedSkills(spec);
   const absent = indexSkills ? referenced.filter((id) => !indexSkills.has(id)) : [];
-  const shipped = new Set<string>();
-  const shippedDir = join(packageRootDir, "skills");
-  if (existsSync(shippedDir)) {
-    for (const entry of readdirSync(shippedDir, { withFileTypes: true })) {
-      if (entry.isDirectory()) shipped.add(entry.name);
-    }
-  }
+  const shipped = shippedSkills(packageRootDir);
   const absentShipped = absent.filter((id) => shipped.has(id));
   const absentPack = absent.filter((id) => !shipped.has(id));
   // Only promise the update command when a pack can actually deliver what is
@@ -491,11 +485,14 @@ export function referencedSkillsCheck(
  *  argv: an explicit `--skill a b c` names them, and `--skill *` delivers the
  *  whole repo, whose ids start with the repo's leading segment with any hyphen
  *  suffix dropped (`flutter/skills` -> `flutter-`, `dart-lang/skills` ->
- *  `dart-`). Measured 2026-10-15: the 7 skills doctor reported as "pack skills
- *  not installed" are `eas-*`, referenced as `defaultSkills` by the `test` and
- *  `devops` categories while no provider ships them, so
- *  "run /novahiz-skills-update, or novahiz deps --install" could not have
- *  installed a single one. Advice no command can honour is a defect. */
+ *  `dart-`). Measured 2026-10-15 on the 0.9.5 install: the 7 skills doctor
+ *  reported as "pack skills not installed" were `eas-*`, referenced as
+ *  `defaultSkills` by `test` and `devops` while the expo pack deliberately
+ *  excludes them, so "run /novahiz-skills-update, or novahiz deps --install"
+ *  could not have installed a single one. Advice no command can honour is a
+ *  defect. Those references are gone from the catalog; the guard stays, since
+ *  the same situation reappears whenever a pack is disabled or its `--skill`
+ *  list stops naming an id the catalog still asks for. */
 function packDelivery(spec: ReturnType<typeof loadSpec>): { exact: Set<string>; prefixes: string[] } {
   const exact = new Set<string>();
   const prefixes: string[] = [];
@@ -516,6 +513,33 @@ function packDelivery(spec: ReturnType<typeof loadSpec>): { exact: Set<string>; 
     for (const id of args) if (id !== "*") exact.add(id);
   }
   return { exact, prefixes };
+}
+
+/** Skill ids the package itself carries in `packageRootDir/skills`. */
+function shippedSkills(packageRootDir: string): Set<string> {
+  const shipped = new Set<string>();
+  const shippedDir = join(packageRootDir, "skills");
+  if (existsSync(shippedDir)) {
+    for (const entry of readdirSync(shippedDir, { withFileTypes: true })) {
+      if (entry.isDirectory()) shipped.add(entry.name);
+    }
+  }
+  return shipped;
+}
+
+/** Referenced skill ids nothing in the system can supply: the package ships
+ *  none of them and no enabled pack can install them. Exported so the catalog
+ *  is held to this invariant in tests, since the row above reports it without
+ *  blocking and therefore never failed on it. */
+export function undeliverableReferences(
+  spec: ReturnType<typeof loadSpec>,
+  packageRootDir: string
+): string[] {
+  const shipped = shippedSkills(packageRootDir);
+  const { exact, prefixes } = packDelivery(spec);
+  return referencedSkills(spec).filter(
+    (id) => !shipped.has(id) && !exact.has(id) && !prefixes.some((prefix) => id.startsWith(prefix))
+  );
 }
 
 /** Impeccable design-context checks: PRODUCT.md and DESIGN.md resolution

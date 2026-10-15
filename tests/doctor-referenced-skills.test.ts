@@ -2,8 +2,10 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { referencedSkillsCheck } from "../src/commands/doctor.ts";
+import { dirname, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+import { referencedSkillsCheck, undeliverableReferences } from "../src/commands/doctor.ts";
+import { loadSpec } from "../src/spec.ts";
 
 // Contract of the "Referenced skills" row: the advice it gives must be advice
 // a command can honour.
@@ -20,6 +22,10 @@ import { referencedSkillsCheck } from "../src/commands/doctor.ts";
 //
 // The row now only offers the update command when a pack can deliver what is
 // missing, and names the rest as un-installable instead.
+//
+// Those 7 references left the catalog on 2026-10-15. The tests at the bottom
+// of this file pin the real catalog against their coming back: this row is
+// not blocking, so on its own it could not have caught the defect.
 
 type Spec = Parameters<typeof referencedSkillsCheck>[0];
 
@@ -191,6 +197,34 @@ test("referenced: argv sans --skill -> ignore, aucun prefixe", () => {
     });
     const row = referencedSkillsCheck(spec, withIndex([]), dir);
     assert.match(row.detail, /mystery referenced by no pack/);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+// The shipped catalog, not a synthetic one. `undeliverableReferences` is the
+// invariant the row above reports without blocking, so it is asserted here or
+// the catalog drifts again in silence.
+const catalogRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const catalogSpec = loadSpec(catalogRoot);
+
+test("catalogue: aucune reference ne demande une skill qu'aucun pack ne livre", () => {
+  assert.deepEqual(undeliverableReferences(catalogSpec, catalogRoot), []);
+});
+
+test("catalogue: aucun defaultSkills ne porte un eas-*", () => {
+  const eas = catalogSpec.categories.flatMap(
+    (category) => (category.defaultSkills ?? []).filter((id) => id.startsWith("eas-"))
+  );
+  assert.deepEqual(eas, []);
+});
+
+// Negative proof: the check really does name an id nothing can deliver.
+test("garde-fou: un eas-* de retour en defaultSkills est signale", () => {
+  const dir = barePackageRoot();
+  try {
+    const spec = makeSpec({ defaultSkills: ["eas-simulator"], providers: [] });
+    assert.deepEqual(undeliverableReferences(spec, dir), ["eas-simulator"]);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

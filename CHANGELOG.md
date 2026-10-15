@@ -5,6 +5,31 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Removed
+
+- **The 7 `eas-*` skills from the catalogue** - `test` and `devops` listed them
+  as `defaultSkills` (`eas-app-stores`, `eas-hosting`, `eas-observe`,
+  `eas-simulator`, `eas-update`, `eas-update-insights`, `eas-workflows`) while
+  the expo pack deliberately excludes them: `providers.json` says so in the
+  provider's own purpose. No provider could install a single one, so `doctor`
+  named them and `novahiz deps --install` returned `install: []`. 0.9.5 made
+  that row tell the truth instead of blaming the reader; the references
+  themselves stayed, and the row reports without blocking, which is why nothing
+  had failed since. `referencedSkills` now spans 51 ids and none of them is
+  undeliverable, so `doctor` reports `51 present` with no caveat. The seven
+  inert `overrides.json` entries went with them; the `devops` keywords `eas`,
+  `eas build` and `eas update` stay, since they route a deployment question to
+  a roadmap that still applies.
+
+### Added
+
+- **A test holding the catalogue to that invariant** -
+  `undeliverableReferences(spec, packageRootDir)` is exported from
+  `doctor.ts`, and `tests/doctor-referenced-skills.test.ts` runs it against the
+  shipped catalogue: it must return `[]`, no `defaultSkills` may carry an
+  `eas-*`, and a reintroduced one must be named. Checked by injection: putting
+  `eas-simulator` back into `test.defaultSkills` turns both assertions red.
+
 ## [0.9.7] - 2026-10-15
 
 ### Added
