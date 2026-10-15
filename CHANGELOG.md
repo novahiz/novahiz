@@ -5,6 +5,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.9.6] - 2026-10-15
+
 ### Added
 
 - **`PRODUCT.md` and `DESIGN.md`** - the product context and the visual-system
