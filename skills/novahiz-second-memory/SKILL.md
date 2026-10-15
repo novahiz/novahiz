@@ -29,11 +29,16 @@ is predefined, and every write lands in a predefined spot.
 
 ## The contract (non-negotiable)
 
-1. **Fixed arborescence** — content lives only inside the tree below. Nothing is ever
-   written at the vault root, and no top-level folder is invented.
+1. **Fixed arborescence** — content lives only inside the tree below. No note is ever
+   written at the vault root: only the three system files live there (`INDEX.md`,
+   `STRUCTURE.md`, `log.md`). No top-level folder is invented.
 2. **`INDEX.md` is the single entry point** — categories → index, subcategories →
-   category, subfolders → parent. It links exactly the active domains, nothing else.
-3. **Every folder owns a `_MOC.md`** — it indexes its children; children link back to it.
+   category, subfolders → parent. Its `## Categories` section carries exactly the active
+   domains — never more, never fewer. The `## System` section below it is fixed and lists
+   the system folders; the audit reads `## Categories` only.
+3. **Every content folder owns a `_MOC.md`** — it indexes its children; children link back
+   to it. The four system folders (`Inbox/`, `Archive/`, `Templates/`, `Excalidraw/`) sit
+   outside the graph: they carry no `_MOC.md`, and `doctor` never asks for one.
 4. **Auto-create** — a write never fails on a missing folder: the whole path is created
    (folder → `_MOC.md` → parent link → `INDEX.md` link) before the note is written.
 5. **A domain activates whole** — the first write that routes to a domain materializes its
@@ -78,6 +83,11 @@ second-memory/
 ```
 
 Full per-domain detail (MOC titles, leaves, what belongs where): `references/arborescence.md`.
+
+The four system folders sit outside the graph: they carry no `_MOC.md` and `doctor` never
+audits them. Routing reaches only `Inbox/`, as the parking spot for a note with no domain
+signal; `Archive/`, `Templates/` and `Excalidraw/` are never routing targets — the last one
+holds the plugin's own drawing data.
 
 Leaves mean:
 
@@ -142,6 +152,7 @@ Personal knowledge vault. Start here.
 - [[Inbox]]
 - [[Archive]]
 - [[Templates]]
+- [[Excalidraw]]
 ```
 
 `## Categories` is machine-managed: exactly the active domains, in catalog order.
@@ -198,6 +209,7 @@ Novahiz home. Dry-run is the default on every mutating subcommand.
 | `project-init` | give a project its folders (`docs/journal/decisions/<project>/`) and bind it to a branch — dry-run default |
 | `sync` | retire the old memory mirror: list/archive the vault notes that were slot copies (memory stays local) |
 | `status` | note counts, categories, open issues, resolved memory root |
+| `search` | full-text search across the vault notes (`second-memory search "<terms>"`) |
 
 `doctor` checks, in order: `vault`, `skeleton`, `arborescence`, `outside-tree folders`,
 `links`, `plugins`, `memory`. It exits **1 while issues remain** and 0 when the vault is
