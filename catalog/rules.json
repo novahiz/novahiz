@@ -94,7 +94,8 @@
     "description": "Load novahiz-wcag-audit on design-ui work and on audit prompts, where accessibility is in scope.",
     "when": {
       "match": "any",
-      "promptCategories": ["design-ui", "audit"]
+      "promptCategories": ["design-ui", "audit"],
+      "pathExcludes": ["**/tests/**", "**/__tests__/**", "**/*.test.*", "**/*.spec.*"]
     },
     "require": ["novahiz-wcag-audit"]
   },
@@ -121,7 +122,8 @@
         "**/*.html",
         "**/*.htm"
       ],
-      "minChange": 200
+      "minChange": 200,
+      "pathExcludes": ["**/tests/**", "**/__tests__/**", "**/*.test.*", "**/*.spec.*"]
     },
     "require": ["novahiz-humanizer", "ui-slop-remover", "ui-craft-rules"]
   },
@@ -139,7 +141,8 @@
         "**/*.html",
         "**/*.htm"
       ],
-      "minChange": 200
+      "minChange": 200,
+      "pathExcludes": ["**/tests/**", "**/__tests__/**", "**/*.test.*", "**/*.spec.*"]
     },
     "require": ["impeccable"]
   },
@@ -172,7 +175,8 @@
         "**/*.scss",
         "**/*.html"
       ],
-      "projectGlobs": ["stitch/**"]
+      "projectGlobs": ["stitch/**"],
+      "pathExcludes": ["**/tests/**", "**/__tests__/**", "**/*.test.*", "**/*.spec.*"]
     },
     "require": ["novahiz-stitch-fidelity"]
   },
@@ -192,7 +196,8 @@
         "**/components/**"
       ],
       "tiers": ["lite", "full"],
-      "minChange": 800
+      "minChange": 800,
+      "pathExcludes": ["**/tests/**", "**/__tests__/**", "**/*.test.*", "**/*.spec.*"]
     },
     "require": ["novahiz-wireframe"]
   },

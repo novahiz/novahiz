@@ -5,6 +5,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+
+- **`when.pathExcludes`** - a rule-level *negative* selector, the counterpart of
+  `pathGlobs`. A rule carrying it never applies to a matching path, whatever the
+  other selectors say. With `match: "any"` a prompt category alone fired on any
+  file, so `design-ui` demanded the frontend design skills on unit tests, and
+  inclusion-only selectors could not express "never on tests" (`**/*.tsx` also
+  matches `tests/Foo.test.tsx`). Applied to the five design-scoped rules
+  (R11-accessibility, R13-design-craft, R14-impeccable, R16-stitch-fidelity,
+  R17-wireframe), which now skip `**/tests/**`, `**/__tests__/**`,
+  `**/*.test.*` and `**/*.spec.*`. R9-code-review and R10-security are
+  untouched — a test is still code — and R15-token-economy keeps its own
+  `**/tests/token-economy.test.ts` target.
+
 ## [0.9.5] - 2026-10-15
 
 > 0.9.4 was prepared on 2026-10-14 but never tagged nor published to npm

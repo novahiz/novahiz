@@ -291,6 +291,17 @@ function selectorMatches(rule: Rule, classification: FileClass, path: string, ca
     if (!when.promptCategories || when.promptCategories.length === 0) return false;
     checks.push(when.promptCategories.some((category) => categories.includes(category)));
   } else {
+    // E1: pathExcludes is the negative counterpart of pathGlobs. A rule that
+    // carries it never applies to an excluded path, whatever the other
+    // selectors say — the only way to express "never on tests" when match is
+    // "any", where a prompt category alone would otherwise fire on any file.
+    if (
+      when.pathExcludes &&
+      when.pathExcludes.length > 0 &&
+      when.pathExcludes.some((glob) => globToRegExp(glob).test(path))
+    ) {
+      return false;
+    }
     if (when.fileClasses && when.fileClasses.length > 0) checks.push(when.fileClasses.includes(classification));
     if (when.pathGlobs && when.pathGlobs.length > 0) checks.push(when.pathGlobs.some((glob) => globToRegExp(glob).test(path)));
     if (when.promptCategories && when.promptCategories.length > 0) {

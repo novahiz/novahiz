@@ -35,6 +35,12 @@ type RuleWhen = {
   match?: "any" | "all";
   fileClasses?: string[];
   pathGlobs?: string[];
+  /** Negative counterpart of pathGlobs: the rule never applies to a path
+   * matching one of these globs, whatever the other selectors say. This is the
+   * only way to express "never on tests" when match is "any", where a prompt
+   * category on its own would otherwise fire on any file, unit tests included.
+   * Omitted = no exclusion, exactly as before. */
+  pathExcludes?: string[];
   /** Project-scoped selector: the rule applies only when at least one file under
    * the project root (nearest ancestor of the edited file holding .git,
    * package.json or pubspec.yaml) matches one of these globs, written from that
