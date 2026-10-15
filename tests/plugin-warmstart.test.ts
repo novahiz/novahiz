@@ -12,9 +12,30 @@
 // ont un autre parent et ne peuvent pas fausser la mesure.
 import assert from "node:assert/strict";
 import { execSync } from "node:child_process";
+import { existsSync } from "node:fs";
+import { join } from "node:path";
 import { test } from "node:test";
+import { fileURLToPath } from "node:url";
 import type { Context } from "@opencode/plugin/promise/plugin";
-import novahizPlugin from "../adapters/opencode/novahiz-plugin.ts";
+
+// Le plugin fige son HOME dans des constantes de module au chargement
+// (novahiz-plugin.ts L372-376): NOVAHIZ_HOME s'il est pose, sinon
+// ~/.config/novahiz — d'ou CLI et DAEMON.
+//
+// Sans cela, le test cible ce que la machine a d'installe, pas cet arbre:
+// - machine avec novahiz installe: ~/.config/novahiz existe, le daemon de
+//   l'INSTALLATION spawn et les assertions passent — un faux positif qui ne
+//   verifie aucun code du repo;
+// - CI (checkout vierge): le repertoire n'existe pas, le spawn echoue et
+//   `providers` sort en 1 ("Providers command failed (exit 1), MCP
+//   auto-register skipped" precedait chaque echec) puis les deux assertions
+//   tombent en timeout a 15 s.
+//
+// L'import est donc differe: un import statique serait hoiste et figerait
+// HOME avant que cette affectation ne s'execute.
+const REPO_ROOT = fileURLToPath(new URL("../", import.meta.url));
+process.env.NOVAHIZ_HOME = REPO_ROOT;
+const { default: novahizPlugin } = await import("../adapters/opencode/novahiz-plugin.ts");
 
 function childGateDaemons(): number[] {
   try {
@@ -83,6 +104,12 @@ function stubContext(): Context {
 }
 
 test("warm-start: setup() spawn le daemon avant tout appel runGate", async () => {
+  // Garde-fou contre le faux positif ci-dessus: si le test visait un autre
+  // HOME, cette phrase echoue avec une explication au lieu de passer.
+  assert.ok(
+    existsSync(join(REPO_ROOT, "src", "gate-daemon.ts")),
+    `le daemon vise est celui du repo (${join(REPO_ROOT, "src", "gate-daemon.ts")}), pas une installation`
+  );
   assert.equal(
     childGateDaemons().length,
     0,
