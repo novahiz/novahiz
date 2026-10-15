@@ -459,19 +459,63 @@ export function referencedSkillsCheck(
     }
   }
   const absentShipped = absent.filter((id) => shipped.has(id));
-  const absentPack = absent.length - absentShipped.length;
+  const absentPack = absent.filter((id) => !shipped.has(id));
+  // Only promise the update command when a pack can actually deliver what is
+  // missing: see packDelivery below.
+  const { exact, prefixes } = packDelivery(spec);
+  const deliverable = (id: string): boolean => exact.has(id) || prefixes.some((p) => id.startsWith(p));
+  const undeliverable = absentPack.filter((id) => !deliverable(id));
+  const present = referenced.length - absent.length;
+  let detail: string;
+  if (absent.length === 0) detail = `${present} present`;
+  else if (absentShipped.length > 0) detail = `missing from index: ${absent.join(", ")}`;
+  else {
+    detail = `${present} present, ${absentPack.length} pack skills not installed`;
+    // A skill the catalog references but no pack ships can never be installed —
+    // say so instead of sending the reader after a command that returns nothing.
+    detail +=
+      undeliverable.length > 0
+        ? `; ${undeliverable.join(", ")} referenced by no pack (deps cannot install them)`
+        : " (run /novahiz-skills-update, or novahiz deps --install)";
+  }
   return {
     id: "referenced",
     label: "Referenced skills",
     ok: absentShipped.length === 0,
-    detail:
-      absent.length === 0
-        ? `${referenced.length} present`
-        : absentShipped.length > 0
-          ? `missing from index: ${absent.join(", ")}`
-          : `${referenced.length - absent.length} present, ${absentPack} pack skills not installed (run /novahiz-skills-update, or novahiz deps --install)`,
+    detail,
     blocking: absentShipped.length > 0
   };
+}
+
+/** Skills a provider pack could really install, read off each pack's `install`
+ *  argv: an explicit `--skill a b c` names them, and `--skill *` delivers the
+ *  whole repo, whose ids start with the repo's leading segment with any hyphen
+ *  suffix dropped (`flutter/skills` -> `flutter-`, `dart-lang/skills` ->
+ *  `dart-`). Measured 2026-10-15: the 7 skills doctor reported as "pack skills
+ *  not installed" are `eas-*`, referenced as `defaultSkills` by the `test` and
+ *  `devops` categories while no provider ships them, so
+ *  "run /novahiz-skills-update, or novahiz deps --install" could not have
+ *  installed a single one. Advice no command can honour is a defect. */
+function packDelivery(spec: ReturnType<typeof loadSpec>): { exact: Set<string>; prefixes: string[] } {
+  const exact = new Set<string>();
+  const prefixes: string[] = [];
+  const disabled = new Set(spec.config.providers.disabled);
+  for (const provider of spec.providers) {
+    if (disabled.has(provider.id)) continue;
+    const argv = provider.install;
+    if (!Array.isArray(argv) || argv.length === 0) continue;
+    const at = argv.indexOf("--skill");
+    if (at === -1) continue;
+    const args = argv.slice(at + 1).filter((arg) => !arg.startsWith("-"));
+    if (args.length === 0) continue;
+    if (args.includes("*")) {
+      const repo = String(argv.find((arg) => arg.includes("/")) ?? "");
+      const head = repo.split("/")[0].split("-")[0];
+      if (head.length > 0) prefixes.push(`${head}-`);
+    }
+    for (const id of args) if (id !== "*") exact.add(id);
+  }
+  return { exact, prefixes };
 }
 
 /** Impeccable design-context checks: PRODUCT.md and DESIGN.md resolution

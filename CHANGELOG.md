@@ -36,6 +36,24 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   reinstall must not overwrite local skill edits — but the choice was previously
   only written down in `docs/PROVIDERS.md`, not shown to the person installing.
 
+### Fixed
+
+- **`doctor` no longer advises a command that cannot help** - the "Referenced
+  skills" row counted every absent non-shipped skill as a pack skill and
+  answered "run /novahiz-skills-update, or novahiz deps --install". Measured on
+  the 0.9.5 install: the 7 skills it named are `eas-app-stores`, `eas-hosting`,
+  `eas-observe`, `eas-simulator`, `eas-update`, `eas-update-insights`,
+  `eas-workflows`, referenced as `defaultSkills` by the `test` and `devops`
+  categories, while `catalog/providers.json` ships four skill packs only
+  (`flutter-skills`, `dart-skills`, `expo-skills`, `impeccable`) and the expo
+  command names 20 `expo-*` skills, no `eas-*`. `deps --install` accordingly
+  returned `install: []` and exited 0 - nothing to install. The row now reads
+  each pack's `install` argv (`--skill` list, or `--skill *` resolved to the
+  repo's leading segment, so `dart-lang/skills` covers `dart-*`), and skills no
+  pack can deliver are named as such instead of being sent after a command that
+  installs nothing. New `tests/doctor-referenced-skills.test.ts` pins the
+  contract - eight cases, none existed before.
+
 ## [0.9.5] - 2026-10-15
 
 > 0.9.4 was prepared on 2026-10-14 but never tagged nor published to npm
