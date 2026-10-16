@@ -2,7 +2,11 @@
 import { cpSync, existsSync, rmSync } from "node:fs";
 import { homedir } from "node:os";
 import { join, resolve, sep } from "node:path";
-import { loadManifest, NovahizHome, parseArgs, pruneEmptyDirs, saveManifest } from "./lib.mjs";
+import { loadManifest, NovahizHome, parseArgs, pruneEmptyDirs, saveManifest, withinDir } from "./lib.mjs";
+
+// Partage avec lib.mjs (staleOwnedPaths) ; re-exporte ici pour que l'API
+// publique de ce module ne bouge pas.
+export { withinDir };
 
 export function underHome(value) {
   const root = resolve(homedir());
@@ -11,13 +15,6 @@ export function underHome(value) {
   const prefix = normalize(root.endsWith(sep) ? root : root + sep);
   const candidate = normalize(target);
   return candidate === normalize(root) || candidate.startsWith(prefix);
-}
-
-export function withinDir(value, dir) {
-  const normalize = (item) => (process.platform === "win32" ? item.toLowerCase() : item);
-  const base = normalize(resolve(dir));
-  const target = normalize(resolve(value));
-  return target === base || target.startsWith(base.endsWith(sep) ? base : `${base}${sep}`);
 }
 
 function main() {

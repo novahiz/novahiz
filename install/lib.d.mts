@@ -30,6 +30,8 @@ export interface NovahizManifest {
   configCreated?: boolean;
   created?: string[];
   backups?: BackupEntry[];
+  /** Horodatage du dernier nettoyage (install.mjs --clean). */
+  cleanedAt?: string;
 }
 
 export interface NovahizConfig {
@@ -74,6 +76,40 @@ export declare function saveManifest(home: string, manifest: NovahizManifest): v
 export declare function mergeCreated(previous?: string[], next?: string[]): string[];
 export declare function mergeBackups(previous?: BackupEntry[], next?: BackupEntry[]): BackupEntry[];
 export declare function pruneEmptyDirs(paths: string[], stops?: string[]): void;
+
+// --- Nettoyage de l'installation precedente -------------------------------
+export interface OwnedRoot {
+  /** Racine de destination : la ou novahiz pose ses fichiers. */
+  dest: string;
+  /** Racine source equivalente, dans le package. */
+  src: string;
+}
+
+export interface CleanupResult {
+  /** Valeur attendue par ui.finishStep : "done" ou "skip". */
+  status: "done" | "skip";
+  /** Phrase expliquant l'issue, affichee telle quelle par l'installateur. */
+  detail: string;
+  /** Chemins reels supprimes ; toujours vide en mode a blanc. */
+  removed: string[];
+  /** Present uniquement en mode a blanc : ce qui partirait. */
+  stale?: string[];
+}
+
+export declare function withinDir(value: string, dir: string): boolean;
+export declare function staleOwnedPaths(
+  created: string[] | undefined,
+  roots: OwnedRoot[],
+  exists?: (path: string) => boolean,
+): string[];
+export declare function cleanupPreviousInstall(options: {
+  home: string;
+  configDir: string;
+  roots: OwnedRoot[];
+  clean: boolean;
+  dryRun?: boolean;
+  stepFailure?: string | null;
+}): CleanupResult;
 export declare function detectedHarnesses(dirs: Record<string, string>, whichFn?: (cmd: string) => boolean): string[];
 export declare function which(cmd: string): boolean;
 export declare function nodeVersionOk(minimum?: [number, number, number]): boolean;

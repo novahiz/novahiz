@@ -1,10 +1,11 @@
 #!/usr/bin/env node
 import { cpSync, closeSync, existsSync, mkdirSync, openSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
-import { join, resolve } from "node:path";
+import { join, relative, resolve } from "node:path";
 import { spawn, spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import {
+  cleanupPreviousInstall,
   copyFileWithBackup,
   copyInto,
   defaultConfig,
@@ -45,7 +46,8 @@ const STEPS = [
   "MCP servers",
   "opencode config",
   "Obsidian vault (second-memory)",
-  "Finalize"
+  "Finalize",
+  "Cleanup previous install"
 ];
 
 const CORE_ITEMS = [
@@ -75,6 +77,11 @@ async function main() {
   // jamais dans le dossier de config opencode que le serveur surveille.
   const deferOpencode = deferOpencodePhase(flags);
   const force = Boolean(flags.force);
+  // --clean : efface, a la fin du passage, les fichiers poses par une
+  // installation precedente qui ne sont plus livres. Par defaut inactif : une
+  // premiere installation ne doit pas declencher de suppression. C'est
+  // `novahiz upgrade --apply` qui l'active.
+  const clean = Boolean(flags.clean);
   const withSkills = !flags["no-skills"];
   const root = repoRoot(import.meta.url);
   const home = NovahizHome(flags);
@@ -239,6 +246,10 @@ async function main() {
   const backups = [];
   let coreCopied = false;
   let configCreated = false;
+  // Cause d'arret du nettoyage final. Une exception empeche deja d'atteindre la
+  // fin du script ; ce drapeau couvre le cas qu'une exception ne signale pas :
+  // un sous-processus qui sort sur un code non nul (catalogue, dependances).
+  let stepFailure = null;
 
   const sameRoot = resolve(root) === resolve(home);
   ui.step("Core files");
@@ -420,6 +431,7 @@ async function main() {
       });
       if (result.stdout) ui.raw(result.stdout);
       if (result.status !== 0 && result.stderr) ui.raw(result.stderr);
+      if (result.status !== 0) stepFailure = stepFailure ?? "catalog sync";
     }
   }
 
@@ -810,7 +822,46 @@ async function main() {
         note("Dependencies up to date.");
       }
     }
+
+  }
+
+  // --- Nettoyage de l'installation precedente ------------------------------
+  // Une mise a jour ne peut pas laisser derriere elle des skills renommes, des
+  // plugins retires ou des commandes devenues obsoles : ils restent charges au
+  // prochain demarrage. L'effacement ne s'appuie que sur une preuve de
+  // propriete, le manifeste d'installation precedent ; un fichier pose par un
+  // pack ou par l'utilisateur n'y figure pas et n'est jamais retenu.
+  ui.step("Cleanup previous install");
+  const ownedRoots = [
+    { dest: skillsDir, src: join(home, "skills") },
+    { dest: pluginsDir, src: join(home, "adapters", "opencode") },
+    { dest: join(configDir, "agent"), src: join(home, "adapters", "opencode", "agent") },
+    { dest: join(configDir, "commands"), src: join(home, "adapters", "opencode", "commands") }
+  ];
+  const cleanup = cleanupPreviousInstall({ home, configDir, roots: ownedRoots, clean, dryRun, stepFailure });
+  for (const path of cleanup.removed) note(`  removed: ${relative(home, path)}`);
+  for (const path of cleanup.stale ?? []) note(`  would remove: ${relative(home, path)}`);
+  if (cleanup.removed.length > 0) {
+    // L'index tient encore la liste des skills supprimes : on le rejoue une
+    // fois, sinon le prochain routage classifiera vers un skill parti.
+    const cleanupCli = join(home, "src", "cli.ts");
+    if (existsSync(cleanupCli)) {
+      note("Rebuilding catalog after cleanup (sync)");
+      const rebuild = spawnSync(process.execPath, [cleanupCli, "sync"], {
+        encoding: "utf8",
+        env: { ...process.env, NOVAHIZ_HOME: home }
+      });
+      if (rebuild.stdout) ui.raw(rebuild.stdout);
+      if (rebuild.status !== 0 && rebuild.stderr) ui.raw(rebuild.stderr);
+    }
+  }
+  ui.finishStep(cleanup.status, cleanup.detail);
+
+  if (!dryRun) {
     const summary = [`Novahiz installed in ${home}.`];
+    if (cleanup.removed.length > 0) {
+      summary.push(`${cleanup.removed.length} stale file(s) from a previous install removed.`);
+    }
     if (deferLogPath) summary.push(`opencode config phase: deferred - see ${deferLogPath} (runs once npm exits).`);
     if (configured.length > 0) summary.push("Restart opencode to activate the plugin and MCP server.");
     summary.push("Gate can be disabled with the NOVAHIZ_GATE=off environment variable.");

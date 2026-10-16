@@ -1,6 +1,6 @@
 import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
-import { dirname, join, resolve, sep } from "node:path";
+import { dirname, join, relative, resolve, sep } from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
@@ -267,6 +267,106 @@ export function mergeBackups(previous = [], next = []) {
   return [...map.values()].sort((a, b) => (a.path < b.path ? -1 : 1));
 }
 
+/** `dir` englobe `value` (egalite comprise), insensible a la casse sous Windows. */
+export function withinDir(value, dir) {
+  const normalize = (item) => (process.platform === "win32" ? item.toLowerCase() : item);
+  const base = normalize(resolve(dir));
+  const target = normalize(resolve(value));
+  return target === base || target.startsWith(base.endsWith(sep) ? base : `${base}${sep}`);
+}
+
+/**
+ * Fichiers que novahiz a poses et qui n'ont plus de source.
+ *
+ * Le manifeste d'installation (.novahiz-install.json, champ `created`) est la
+ * seule preuve de propriete : un fichier ecrit par un pack ou par l'utilisateur
+ * n'y figure pas et n'est donc jamais retenu. Trois gardes, dans l'ordre :
+ *   1. le chemin est sous une racine declaree source -> destination,
+ *   2. sa contrepartie dans la source n'existe plus,
+ *   3. ce n'est ni la config de l'utilisateur ni une sauvegarde seule.
+ * Un `.novahiz-bak` part avec le fichier dont il est la copie : une sauvegarde
+ * dont le fichier d'origine existe toujours reste en place.
+ */
+export function staleOwnedPaths(created, roots, exists = existsSync) {
+  const out = [];
+  for (const item of created ?? []) {
+    if (typeof item !== "string" || item.length === 0) continue;
+    if (item.endsWith("novahiz.config.json")) continue;
+    const root = roots.find((entry) => withinDir(item, entry.dest));
+    if (!root) continue;
+    const rel = relative(root.dest, item);
+    if (!rel || rel.startsWith("..")) continue;
+    if (exists(join(root.src, rel))) continue;
+    // Un manifeste peut nommer un fichier deja parti (supprime a la main).
+    // Il ne compte pas : `removed` doit ne lister que ce qui a vraiment bouge.
+    const backup = `${item}.novahiz-bak`;
+    if (exists(item)) out.push(item);
+    if (exists(backup)) out.push(backup);
+  }
+  return [...new Set(out)];
+}
+
+/**
+ * Decide et applique le nettoyage de l'installation precedente.
+ *
+ * Renvoie `{ status, detail, removed }`, `status` etant la valeur attendue par
+ * ui.finishStep ("done" ou "skip"). Seule preuve de propriete : le manifeste
+ * d'installation precedent, champ `created`, qui liste les chemins ecrits par
+ * novahiz lui-meme. Un fichier de pack ou de l'utilisateur n'y figure pas, il
+ * ne peut donc pas partir. Trois cas de sortie :
+ *   - `--clean` absent, ou echec d'une etape precedente : skip, rien ne bouge ;
+ *   - rien de retire : done ;
+ *   - au moins un fichier retire : done, manifeste mis a jour.
+ *
+ * Vit ici et non dans install.mjs : ce module est sans effet de bord a
+ * l'import, l'installateur execute main() au chargement.
+ */
+export function cleanupPreviousInstall({ home, configDir, roots, clean, dryRun = false, stepFailure = null }) {
+  if (!clean) {
+    return { status: "skip", detail: "pass --clean to remove files from a previous install", removed: [] };
+  }
+  if (stepFailure) {
+    return { status: "skip", detail: `an earlier step failed (${stepFailure}), cleanup aborted`, removed: [] };
+  }
+  const manifest = loadManifest(home);
+  // Deux preuves de propriete, pas une. `created` ne liste que les fichiers
+  // poses pour la premiere fois : sur une installation qui existait deja,
+  // chaque copie renvoyait `created: null` et rien n'etait enregistre, ce qui
+  // rendait le nettoyage inerte. `backups[].path` liste les fichiers ecrases,
+  // donc ecrits par novahiz — c'est la preuve qui manquait.
+  const owned = [
+    ...(manifest.created ?? []),
+    ...(manifest.backups ?? []).map((entry) => (entry && entry.path) || "").filter((path) => path.length > 0)
+  ];
+  const stale = staleOwnedPaths(owned, roots);
+  if (stale.length === 0) {
+    return { status: "done", detail: "no leftover file from a previous install", removed: [] };
+  }
+  if (dryRun) {
+    return {
+      status: "skip",
+      detail: `${stale.length} file(s) would be removed by a real run with --clean`,
+      removed: [],
+      stale
+    };
+  }
+  const removed = [];
+  for (const item of stale) {
+    rmSync(item, { force: true });
+    removed.push(item);
+  }
+  pruneEmptyDirs(removed, [configDir, ...roots.map((entry) => entry.dest)]);
+  saveManifest(home, {
+    ...manifest,
+    created: (manifest.created ?? []).filter((item) => !removed.includes(item)),
+    backups: (manifest.backups ?? []).filter(
+      (entry) => !removed.includes(entry.path) && !removed.includes(entry.backup)
+    ),
+    cleanedAt: new Date().toISOString()
+  });
+  return { status: "done", detail: `${removed.length} file(s) from a previous install removed`, removed };
+}
+
 export function pruneEmptyDirs(paths, stops = []) {
   const stopSet = new Set(stops.map((value) => resolve(value)));
   const candidates = new Set();
@@ -282,7 +382,11 @@ export function pruneEmptyDirs(paths, stops = []) {
       while (current && existsSync(current) && !stopSet.has(resolve(current))) {
         try {
           if (readdirSync(current).length !== 0) break;
-          rmSync(current, { recursive: false });
+          // recursive:false leve ERR_FS_EISDIR sur un repertoire : rm ne
+          // supprime qu'un fichier avec cet option, et le catch ci-dessous
+          // avalait l'erreur en faisant passer la fonction pour silencieuse.
+          // Le repertoire est deja vide ici, recursion sans effet de bord.
+          rmSync(current, { recursive: true });
           removed = true;
           const parent = dirname(current);
           if (parent === current) break;

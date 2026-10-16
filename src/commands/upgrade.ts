@@ -90,7 +90,7 @@ export function runNpm(args: string[], stdio: "inherit" | "pipe"): { status: num
   };
 }
 
-function npmFlow(parsed: Parsed, root: string): void {
+function npmFlow(parsed: Parsed, root: string, home: string): void {
   const local = readLocalVersion(root);
   const view = runNpm(["view", "novahiz", "version"], "pipe");
   if (view.status !== 0) {
@@ -115,10 +115,53 @@ function npmFlow(parsed: Parsed, root: string): void {
     process.exitCode = 1;
     return;
   }
+  // `npm install -g` ne met a jour QUE le package global : ~/.config/novahiz
+  // reste sur l'ancienne version, plugin et MCP comprises. Sans ce passage le
+  // user croit sa mise a jour faite alors que la moitie du systeme bouge pas.
+  if (!resyncAndClean(home)) return;
   process.stdout.write(
-    `Updated to ${latest}.\n` +
+    `Updated to ${latest}. The installation was resynced from the new package.\n` +
       "Restart OpenCode completely to load the new version, then run `novahiz doctor` if anything looks off.\n"
   );
+}
+
+/**
+ * Resynchronise le home novahiz depuis le package fraichement mis a jour, puis
+ * efface ce que l'ancienne version laissait derriere elle.
+ *
+ * Deux installations coexistent : le package (node_modules global ou checkout
+ * git) et le home (~/.config/novahiz, plus ses copies dans le dossier de
+ * config opencode). Ce passage est ce qui les remet d'accord. `--clean` ne
+ * retire que des fichiers dont le manifeste d'installation prouve que novahiz
+ * les a ecrits et dont la source a disparu.
+ */
+function resyncAndClean(home: string): boolean {
+  const installer = join(PKG_ROOT, "install", "install.mjs");
+  if (!existsSync(installer)) {
+    process.stderr.write(
+      `novahiz upgrade: installer not found at ${installer}.\n` +
+        "Run `node install/install.mjs --yes --clean` from the package root to finish the update.\n"
+    );
+    process.exitCode = 1;
+    return false;
+  }
+  process.stdout.write("\nResyncing the installation and removing files no longer shipped...\n");
+  const env = { ...process.env, NOVAHIZ_HOME: home };
+  // S'execute-t-on depuis un script npm ? Alors npm_lifecycle_event est encore
+  // present dans l'environnement, et l'installateur bascule en phase differee
+  // (il attend la mort de npm avant de bouger). Ici npm n'a rien en cours :
+  // le defer laisserait la commande renvoyer avant la fin du resync.
+  delete (env as Record<string, string | undefined>).npm_lifecycle_event;
+  const result = spawnSync(process.execPath, [installer, "--yes", "--clean"], { stdio: "inherit", env });
+  if (result.status !== 0) {
+    process.stderr.write(
+      "novahiz upgrade: resync failed, the previous installation was left as it is.\n" +
+        "Run `node install/install.mjs --yes --clean` from the package root to retry.\n"
+    );
+    process.exitCode = 1;
+    return false;
+  }
+  return true;
 }
 
 /** Flux git historique (install source) : dry-run par defaut, --apply tire. */
@@ -154,6 +197,10 @@ function gitFlow(parsed: Parsed, home: string): void {
   if (existsSync(syncCli)) {
     spawnSync(process.execPath, [syncCli, "sync"], { stdio: "inherit", env: { ...process.env, NOVAHIZ_HOME: home } });
   }
+  // Meme resynchronisation que le canal npm : les copies dans le dossier de
+  // config opencode viennent du home, pas du depot, et le nettoyage retire ce
+  // que l'ancienne version laissait.
+  if (!resyncAndClean(home)) return;
   process.stdout.write("\nUpgraded! Restart OpenCode to apply changes.\n");
 }
 
@@ -170,7 +217,7 @@ export function commandUpgrade(parsed: Parsed): void {
   // `npm i -g` n'a aucun .git dans ~/.config/novahiz.
   const target = detectTarget(PKG_ROOT, existsSync(join(home, ".git")));
   if (target === "npm") {
-    npmFlow(parsed, PKG_ROOT);
+    npmFlow(parsed, PKG_ROOT, home);
     return;
   }
   if (target === "git") {
