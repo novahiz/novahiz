@@ -5,6 +5,44 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.9.9] - 2026-10-16
+
+### Changed
+
+- **`novahiz upgrade --apply` now finishes the job it started** - it stopped at
+  `npm install -g novahiz@latest`, which refreshes the global package and
+  nothing else: `~/.config/novahiz`, the plugin copy and the MCP entrypoints
+  stayed on the previous version. It now resyncs the whole installation from
+  the fresh package (`install.mjs --yes --clean`) on both channels, so
+  `novahiz update` behaves exactly the same. If the update or the resync
+  fails, the command stops and reports the error instead of announcing a
+  completed upgrade.
+
+### Added
+
+- **A cleanup of the previous installation, opt-in** - an update used to leave
+  behind whatever it no longer shipped: a renamed skill stayed loadable, a
+  removed plugin stayed registered. `install.mjs --clean` now removes the files
+  a previous install wrote whose source has disappeared. The only proof of
+  ownership is the install manifest (`.novahiz-install.json`, field `created`):
+  a skill or a command placed by a pack is not in it, so it cannot be removed.
+  The rule "absent from the source" was the tempting one and it is wrong here —
+  it would have deleted `impeccable`, which the pack keeps in
+  `~/.agents/skills`. Three guards hold: only files under the four installed
+  roots, never after a failed step, never without `--clean`. A `.novahiz-bak`
+  goes with the file it backed up and never alone. `novahiz.config.json`,
+  `project-memory/` and `novahiz.sqlite` sit outside those roots, untouched by
+  construction.
+
+### Fixed
+
+- **`pruneEmptyDirs` never removed anything** - it called
+  `rmSync(dir, { recursive: false })`, which throws `ERR_FS_EISDIR` on a
+  directory, and the surrounding `catch` swallowed the error. The function
+  looked like it worked and silently left every emptied directory behind, for
+  `novahiz uninstall` as well. It now uses `recursive: true`, which is safe
+  because the directory is already known to be empty.
+
 ## [0.9.8] - 2026-10-15
 
 ### Removed
