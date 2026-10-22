@@ -5,6 +5,65 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-10-22
+
+### Fixed
+
+- **The gate and the injected block now agree on the pipeline** - `R6-Novahiz`
+  required plan/clarify/analyse/implement/converge on every workflow prompt,
+  while the roadmap loop only enforced `kind: "skill"`. A lite or Flutter task
+  could therefore announce nothing (or five skills) and be blocked for seven.
+  `R6` is removed and every non-optional roadmap step that carries
+  `requireSkills` is enforced, whatever its kind (`skill`, `edit`, `verify`,
+  `advisory`). `R10-security` is removed too: the audit roadmap already names
+  `novahiz-security`. `R11-accessibility` is narrowed to `design-ui`. The
+  catalogue now holds 13 rules instead of 15.
+- **A trivial follow-up no longer disarms the gate** - the plugin kept the
+  classification in memory only. `continue` / `ok`, or a plugin restart, fell
+  back to `general/trivial` and the gate allowed every edit with `missing: []`.
+  The last non-trivial classification is now persisted in the `sessions` table
+  (schema v3 adds the `prompt` and `tier` columns), `classify --session`
+  returns the effective classification, and the gate CLI reads that state from
+  the database when categories and prompt are empty.
+- **`doctor` reports a schema mismatch** - the schema check hardcoded
+  `ok: true`; it now compares `PRAGMA user_version` with `SCHEMA_VERSION`.
+- **The gate no longer blocks provably read-only shell commands** -
+  `git status`, `git log`, `git diff`, `ls`, `Get-Content` and their
+  equivalents are exempt (`src/readonly.ts`). The gate used to ask for the
+  design skills before it would let an agent read a file.
+- **French UI prompts are no longer fail-open** - `ajoute` / `ajouter` now
+  score as lite and `implémente` as full, so a French additive request reaches
+  the pipeline instead of falling through to trivial. `design-ui` recognises
+  `bouton`, `écran`, `connexion`, `formulaire`, `menu`, `champ`, `icône`,
+  `carte`, `modal`, `header`, `sidebar` and their English forms. Numeric
+  micro-changes (`ajoute 8px de marge`) stay trivial, and debug words
+  (`bug`, `error`, `crash`, ...) subtract from `design-ui` so
+  `fix the login bug` stays in `debug` instead of dragging the design pipeline
+  into a fix.
+
+### Changed
+
+- The gate CLI falls back to the persisted session state when the caller
+  passes no categories and no prompt, instead of letting the decision rest on
+  an empty classification.
+- The plugin asks `classify --session` and, for a trivial continuation,
+  inherits the previous task's prompt so the tier does not drop back to
+  trivial mid-task.
+
+### Added
+
+- **Session state persistence** - `src/session.ts` stores the categories, tier
+  and prompt of the last non-trivial task, with a TTL that keeps a stale
+  session from being mistaken for a continuation.
+- **A read-only allowlist for the gate** - `src/readonly.ts` lists the shell
+  commands the gate can prove do not write.
+- **The `novahiz-capture` skill** - reliable screenshot capture for the
+  physical Playwright browser, when a plain capture comes back stale, blank
+  or cropped.
+- **Three test files** - `tests/session-state.test.ts`, `tests/readonly.test.ts`
+  and `tests/gate-alignment.test.ts` pin the session state, the read-only
+  exemption and the alignment between the classifier and the gate.
+
 ## [0.9.9] - 2026-10-16
 
 ### Changed
