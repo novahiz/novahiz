@@ -5,6 +5,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.11.1] - 2026-10-22
+
+### Fixed
+
+- **`novahiz` no longer writes a debug line on every call** - 0.11.0 shipped
+  `bin/novahiz.mjs` with a leftover `console.error("DEBUG", ...)` that printed
+  the absolute home path and the auto-install state to stderr on each
+  invocation. The line is gone, and `tests/bin-entrypoint.test.ts` fails from
+  now on if the published entry point writes anything to stderr for
+  `--version`.
+
 ## [0.11.0] - 2026-10-22
 
 ### Changed
