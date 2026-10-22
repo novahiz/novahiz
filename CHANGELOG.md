@@ -5,6 +5,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.11.3] - 2026-10-22
+
+### Fixed
+
+- **`--clean` now sees the files an older version left behind** - the install
+  manifest never recorded what earlier installers had copied, so a home
+  upgraded across several versions kept dead entry points (`install/bootstrap.mjs`,
+  `install/install.sh`, `install/install.ps1`, `bin/veille-mensuelle.ps1`) that
+  `--clean` could not detect. `install/retired.json` now lists them with the
+  sha256 of the published content, line endings normalised to LF, and cleanup
+  removes an entry only when the file on disk still matches that fingerprint.
+  A file edited by hand no longer matches, comes back as kept, and is never
+  deleted. The inventory is read from the package, never from the home, so an
+  installation cannot widen the list of what it erases.
+
 ## [0.11.2] - 2026-10-22
 
 ### Fixed
