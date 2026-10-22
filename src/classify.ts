@@ -105,7 +105,11 @@ function skillsOfCategory(category: Category): string[] {
 function enforcedOfCategory(category: Category): string[] {
   const skills: string[] = [];
   for (const step of category.roadmap?.steps ?? []) {
-    if (step.kind !== "skill" || step.optional) continue;
+    // Every non-optional step counts, whatever its kind: `edit:implement` and
+    // `verify:converge` carry skills too. Restricting to kind "skill" made
+    // lite/debug roadmaps advertise nothing while the gate demanded R6's
+    // implement/converge — the block and the gate disagreed.
+    if (step.optional) continue;
     for (const skill of step.requireSkills ?? []) {
       if (!skills.includes(skill)) skills.push(skill);
     }

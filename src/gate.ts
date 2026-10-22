@@ -411,7 +411,13 @@ export function evaluateGate(input: GateInput): GateResult {
     // C1: compute the tier from the user prompt when available; content is
     // only a fallback for callers that do not carry a prompt (probes).
     const prompt = (input.prompt ?? "").trim();
-    const tier = input.tier ?? determineTier(prompt.length > 0 ? prompt : content);
+    // A missing prompt must not silently disarm enforcement: callers that
+    // already name a category (MCP gate, resumed session) are treated as a
+    // full task when neither prompt nor content can set the tier. Without
+    // this, `{categories:["audit"]}` with no prompt fell back to trivial and
+    // skipped the whole roadmap — a fail-open on the MCP path.
+    const seed = prompt.length > 0 ? prompt : content;
+    const tier = input.tier ?? (seed.length > 0 ? determineTier(seed) : categories.length > 0 ? "full" : "trivial");
 
     const requiredSkills: string[] = [];
     const matchedRules: string[] = [];
@@ -443,20 +449,9 @@ export function evaluateGate(input: GateInput): GateResult {
         if (projectRoot === undefined) projectRoot = projectRootOf(path);
         if (!projectGlobsMatch(projectRoot, rule.when.projectGlobs)) continue;
       }
-      // Tier gating for R6-Novahiz: trivial = skip entirely, lite = only implement+converge
-      if (rule.id === "R6-Novahiz") {
-        if (tier === "trivial") continue;
-        if (tier === "lite") {
-          // Only add implement and converge from R6's require list
-          for (const skill of rule.require) {
-            if (skill === "novahiz-implement" || skill === "novahiz-converge") {
-              if (!requiredSkills.includes(skill)) requiredSkills.push(skill);
-            }
-          }
-          matchedRules.push(rule.id);
-          continue;
-        }
-      }
+      // Tier gating for roadmap steps lives in the roadmap loop below; no rule
+      // carries the pipeline any more (R6 was removed), so a rule's require
+      // list is applied as written once its selectors match.
       if (rule.when.minChange && isTrivial(content, rule.when.minChange)) continue;
       // H1: contentSatisfies now throws on regex errors (fail-closed).
       // For contentExcludes: regex error → treat as "exclude matched" → skip rule.
@@ -489,7 +484,12 @@ export function evaluateGate(input: GateInput): GateResult {
       if (category?.roadmap) {
         roadmap = category.roadmap.id;
         for (const step of category.roadmap.steps) {
-          if (step.kind !== "skill" || step.optional) continue;
+          // Enforce every non-optional step, not only `kind: "skill"`:
+          // `edit:implement` and `verify:converge` are where the lite and
+          // Flutter/debug roadmaps put novahiz-implement / novahiz-converge.
+          // Skipping them made the roadmap demand nothing for those tiers while
+          // classify advertised nothing either — a silent fail-open.
+          if (step.optional) continue;
 
           // Tier-based filtering
           if (tier === "trivial") {

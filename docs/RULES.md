@@ -35,12 +35,10 @@ Content conditions are combined with AND against the selectors. A rule with `con
 | --- | --- | --- |
 | R3-supabase | a Supabase path or a Supabase prompt | `novahiz-supabase`, `novahiz-postgres` |
 | R4-playwright | a browser prompt category, or a browser test path (`**/*.e2e.ts`, `**/e2e/**`, `**/playwright/**`, `**/*.cy.ts`, …) | `novahiz-browser` |
-| R6-Novahiz | a prompt in a workflow category | pipeline skills (`novahiz-plan`, `novahiz-clarify`, `novahiz-analyse`, `novahiz-implement`, `novahiz-converge`) |
 | R7-assessment | an `assessment` prompt | assessment pipeline skills (`novahiz-assess-intake`, `novahiz-assess-research`, `novahiz-assess-define`, `novahiz-assess-shape`, `novahiz-assess-decide`) |
 | R8-docs | a documentation file under `novahiz-docs/` (`**/novahiz-docs/**/*.md`, relative or absolute) | `novahiz-docs` |
 | R9-code-review | a review prompt, any code file, or a `.tsx`/`.jsx`/`.vue`/`.svelte`/`.astro` file | `novahiz-code-review` |
-| R10-security | an audit prompt | `novahiz-security` |
-| R11-accessibility | a design-ui or audit prompt | `novahiz-wcag-audit` |
+| R11-accessibility | a design-ui prompt | `novahiz-wcag-audit` |
 | R12-web-extract | a research prompt | `novahiz-web-extract` |
 | R13-design-craft | a design-ui prompt or a style file (css/scss/less/html) | `novahiz-humanizer`, `ui-slop-remover`, `ui-craft-rules` |
 | R14-impeccable | a design-ui prompt or a style file (css/scss/less/html) | `impeccable` |
@@ -52,7 +50,7 @@ Content conditions are combined with AND against the selectors. A rule with `con
 For an edit, the gate collects skills from two places:
 
 1. Every matching rule.
-2. The `skill` steps of the primary category roadmap, skipping `optional` steps.
+2. Every non-optional step of the primary category roadmap that carries `requireSkills`, whatever its kind (`skill`, `edit`, `verify`, `advisory`). The pipeline itself is no longer a rule: `R6-Novahiz` was removed so the gate has a single source of truth for the pipeline, and `R10-security` was removed because the audit roadmap already names `novahiz-security`. Optional steps never enforce.
 
 Duplicates collapse. The result is filtered against the installed skills index:
 
@@ -85,7 +83,9 @@ The `gate` block in `novahiz.config.json` controls behavior:
 
 ## Shell writes
 
-The gate intercepts the shell tool when the command writes files. It extracts targets from redirections (`>`, `>>`, `&>`), `tee`, `cp`, `mv`, `rsync`, `robocopy`, `touch`, `truncate`, `sed -i`, `dd`, `rm`, `del`, `erase`, `rd`, and the PowerShell cmdlets `Set-Content`, `Add-Content`, `Out-File`, `New-Item`, `Copy-Item`, `Move-Item`, `Remove-Item`, `Rename-Item`, `Tee-Object`, `mkdir`. It looks through wrappers such as `sudo`, `env`, `timeout`, `nice`, and `cmd /c`, and ignores arguments that only look like a command. Commands that do not appear to write files pass through.
+The gate intercepts the shell tool when the command writes files. Commands it can prove read-only (`git status`, `git log`, `git diff`, `ls`, `Get-ChildItem`, `Get-Content`, `rg`, `Select-String`, …) are exempted before any rule or roadmap step runs. The check refuses the exemption as soon as the command chains, redirects, substitutes, or carries a write flag, so an unrecognised command stays gated.
+
+Otherwise it extracts targets from redirections (`>`, `>>`, `&>`), `tee`, `cp`, `mv`, `rsync`, `robocopy`, `touch`, `truncate`, `sed -i`, `dd`, `rm`, `del`, `erase`, `rd`, and the PowerShell cmdlets `Set-Content`, `Add-Content`, `Out-File`, `New-Item`, `Copy-Item`, `Move-Item`, `Remove-Item`, `Rename-Item`, `Tee-Object`, `mkdir`. It looks through wrappers such as `sudo`, `env`, `timeout`, `nice`, and `cmd /c`, and ignores arguments that only look like a command. Commands that do not appear to write files pass through.
 
 This detection is best-effort. A command that hides its target can still write without passing the gate. To disable shell gating, remove `bash` and `shell` from `gate.tools`.
 

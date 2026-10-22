@@ -51,10 +51,6 @@ The gate is the enforcement mechanism. It inspects every file edit and decides w
 │  R4-playwright:                                             │
 │    promptCategories: ["browser"]                            │
 │    → require novahiz-browser                           │
-│                                                             │
-│  R6-Novahiz:                                           │
-│    promptCategories: workflow categories                    │
-│    → require plan/clarify/analyse/implement/converge        │
 └──────────────────────────┬──────────────────────────────────┘
                            │
                            ▼
@@ -64,17 +60,13 @@ The gate is the enforcement mechanism. It inspects every file edit and decides w
 │  Primary category: database-supabase                        │
 │  Roadmap: schema                                            │
 │                                                             │
-│  Non-optional skill steps (kind: "skill" only):            │
-│  • plan → novahiz-plan                                 │
-│  • clarify → novahiz-clarify                           │
-│  • inspect → novahiz-analyse                           │
-│  • load → novahiz-supabase                             │
-│  • security → novahiz-postgres                         │
+│  Every non-optional step that carries requireSkills:        │
+│  • kind "skill", "edit", "verify" or "advisory"             │
+│  • the pipeline steps (plan, clarify, implement, converge)  │
+│    are enforced wherever the roadmap puts them              │
 │                                                             │
-│  Skipped (kind is not "skill"):                            │
-│  • migration (edit), test (verify), converge (verify),     │
-│    document (advisory) — listed in the roadmap, never      │
-│    added to requiredSkills                                │
+│  Skipped: optional steps only                               │
+│  • an optional step never adds a required skill             │
 └──────────────────────────┬──────────────────────────────────┘
                            │
                            ▼

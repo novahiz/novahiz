@@ -1633,7 +1633,7 @@ async function setup(ctx: Context): Promise<Cleanup> {
       // P0-B: the prompt travels on stdin. On argv it allowed option
       // injection (--home), broke past the Windows 32k limit, and was
       // readable in the process list.
-      const result = await run(["classify", "--stdin"], classifyText);
+      const result = await run(["classify", "--stdin", "--session", sessionID], classifyText);
       if (result.status !== 0) {
         classifyFailedBySession.set(sessionID, `classify exit ${result.status}`);
         await log("warn", `Classify failed (exit ${result.status}), gate tool calls refused for this session: ${result.stderr.trim().slice(0, 200)}`);
@@ -1645,6 +1645,7 @@ async function setup(ctx: Context): Promise<Cleanup> {
         requiredSkills?: string[];
         enforcedSkills?: string[];
         providers?: string[];
+        continuedFrom?: string;
         roadmaps?: { id: string; steps: { label: string; kind: string; requireSkills?: string[] }[] }[];
       };
       try {
@@ -1666,7 +1667,11 @@ async function setup(ctx: Context): Promise<Cleanup> {
       categoriesBySession.set(sessionID, categories);
       // P1-4: the gate takes the last prompt as its tier seed via --prompt even
       // when memory auto is off — set unconditionally, not inside MEMORY_AUTO.
-      lastPromptBySession.set(sessionID, text.slice(0, 300));
+      // A trivial follow-up ("continue") inherits the previous task's prompt:
+      // using the literal "continue" here would retier the session as trivial
+      // and skip the roadmap the classify call just restored.
+      const effectivePrompt = parsed.continuedFrom ?? text;
+      lastPromptBySession.set(sessionID, effectivePrompt.slice(0, 300));
       const primary = parsed.primary ?? categories[0] ?? null;
       const enforced = parsed.enforcedSkills ?? [];
       const required = parsed.requiredSkills ?? [];
@@ -1677,6 +1682,9 @@ async function setup(ctx: Context): Promise<Cleanup> {
         "[Novahiz enforcement]",
         `Categories detected: ${categories.join(", ") || "none"}${primary ? ` (primary: ${primary})` : ""}`
       ];
+      if (parsed.continuedFrom) {
+        lines.push(`Continuing the previous task: ${parsed.continuedFrom.slice(0, 160)}`);
+      }
       if (rewrite.sourceLanguage !== "en") {
         lines.push(`User language: ${rewrite.sourceLanguage} — respond in this language, not English.`);
       }
@@ -1699,7 +1707,7 @@ async function setup(ctx: Context): Promise<Cleanup> {
           await log("warn", "Ledger state is invalid JSON, enforcement injected without the task summary");
         }
       }
-      lines.push("The gate blocks edit/write/patch/apply_patch/bash/shell until the required skills are loaded via skill({id:\"...\"}).");
+      lines.push("The gate blocks edit/write/patch/apply_patch/bash/shell until the required skills are loaded via skill({id:\"...\"}). Read-only shell commands (status/log/diff/ls/Get-Content/...) are exempt.");
       lines.push("The gate is content-aware: novahiz-humanizer, ui-slop-remover and ui-craft-rules are required only on frontend design tasks (R13), and impeccable on the same design selectors (R14).");
       lines.push("Config edited = opencode restart required (config read at import).");
       lines.push("Memory lives in project-memory/ under the project root (cwd): index.json + fixed-size slots (8000 chars / 200 lines) with compact → archive → new-slot rotation. Use the MCP memory_* tools: memory_search to find relevant slots first, then memory_get to read, memory_write to append, memory_update to correct, memory_archive to retire.");

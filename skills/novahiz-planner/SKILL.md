@@ -43,7 +43,7 @@ Two back-loops exist: clarification returns to plan when an answer changes archi
 
 ## What the gate actually enforces
 
-The gate (see `novahiz-gate`) blocks only on steps of kind `skill`. In the `code` roadmap, those steps are `novahiz-plan`, `novahiz-clarify`, `novahiz-task`, `novahiz-analyse`, and `novahiz-code-review`. Steps `implement` and `converge` appear in `requiredSkills` yet refuse no edits.
+The gate (see `novahiz-gate`) blocks on every non-optional roadmap step that carries `requireSkills`, whatever its `kind`. In the `code` roadmap that includes `novahiz-plan`, `novahiz-clarify`, `novahiz-task`, `novahiz-analyse`, `novahiz-implement`, `novahiz-converge` and `novahiz-code-review`: the `edit:implement` and `verify:converge` steps enforce their skills like any `skill` step.
 
 Practical consequence: if implementation or convergence never happens, nothing mechanically stops you. The pipeline holds when agents follow it; steps 5 and 6 are not gate-blocked.
 

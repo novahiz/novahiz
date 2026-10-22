@@ -125,12 +125,10 @@ flowchart TD
     C --> D[R13 : prompt design-ui ou fichier style ?<br/>exiger humanizer + ui-slop + ui-craft]
     C --> F[R3 : le prompt était Supabase ?<br/>exiger novahiz-supabase + postgres]
     C --> G[R4 : le prompt était navigateur ?<br/>exiger novahiz-browser]
-    C --> H[R6 : prompt de workflow ?<br/>exiger plan/clarify/analyse/implement/converge]
     
-    D --> I{Application de la roadmap}
+    D --> I{Application de la roadmap<br/>étapes non optionnelles}
     F --> I
     G --> I
-    H --> I
     
     I --> J{Détection de placeholder<br/>tokens TODO / FIXME / placeholder}
     
@@ -160,17 +158,19 @@ flowchart TD
 |-------|------------------|-------|
 | R3-supabase | Un chemin Supabase ou un prompt Supabase | novahiz-supabase, novahiz-postgres |
 | R4-playwright | Une catégorie prompt navigateur, ou un chemin de test navigateur (`**/*.spec.ts`, `**/e2e/**`, `**/playwright/**`, …) | novahiz-browser |
-| R6-Novahiz | Un prompt dans une catégorie de workflow | novahiz-plan, -clarify, -analyse, -implement, -converge |
 | R7-assessment | Un prompt d'assessment | novahiz-assess-intake, -research, -define, -shape, -decide |
 | R8-docs | Une édition sous `novahiz-docs/**/*.md` | novahiz-docs |
 | R9-code-review | Un prompt de review ou un fichier de code en review | novahiz-code-review |
-| R10-security | Un prompt d'audit ou de sécurité | novahiz-security |
-| R11-accessibility | Un prompt design-ui ou audit | novahiz-wcag-audit |
+| R11-accessibility | Un prompt design-ui | novahiz-wcag-audit |
 | R12-web-extract | Un prompt de recherche | novahiz-web-extract |
 | R13-design-craft | Un prompt design-ui ou un fichier style (css/scss/less/html) | novahiz-humanizer, ui-slop-remover, ui-craft-rules |
 | R14-impeccable | Un prompt design-ui ou un fichier style (css/scss/less/html) | impeccable |
 
 `novahiz-humanizer` et `ui-slop-remover` ne sont exigées que sur les tâches de design frontend (R13) ; `impeccable` se charge de la même façon (R14) pour garder les playbooks shape, critique, audit, harden et polish accessibles, et la roadmap design-ui porte une étape de vérification `impeccable detect` déterministe avant ship. `novahiz init` et `novahiz doctor` affichent les fichiers de contexte `PRODUCT.md` / `DESIGN.md` d'impeccable en lignes advisory.
+
+Le pipeline (plan, clarify, analyse, implement, converge) n'est plus une règle : il vient des étapes non optionnelles de la roadmap de la catégorie principale, quel que soit leur `kind` (`skill`, `edit`, `verify`, `advisory`). Une seule source de vérité, donc le bloc affiché et le gate ne peuvent plus diverger sur ce point.
+
+Les commandes shell prouvées en lecture seule (`git status`, `git log`, `git diff`, `ls`, `Get-ChildItem`, `Get-Content`, `rg`, `Select-String`, …) sont exemptées avant toute règle ou roadmap. Dès qu'une commande chaîne, redirige, substitue ou porte un flag d'écriture, l'exemption tombe et le gate s'applique normalement.
 
 ### Gate reload
 

@@ -87,7 +87,7 @@ Novahiz defines 17 categories, each with its own keywords, priority, and roadmap
 | `review` | 55 | review, pull request, diff, feedback | `review` (4 steps) |
 | `audit` | 54 | audit, security, owasp, vulnerability | `audit` (6 steps) |
 | `test` | 53 | test, unit, integration, coverage, tdd | `testing` (6 steps) |
-| `design-ui` | 52 | design, ui, css, tailwind, responsive | `design` (10 steps) |
+| `design-ui` | 52 | design, ui, css, responsive, bouton, écran, connexion, formulaire | `design` (10 steps) |
 | `research` | 50 | research, investigate, documentation | `research` (5 steps) |
 | `docs-writing` | 49 | write, article, blog, copywriting | `writing` (6 steps) |
 | `browser` | 48 | browser, playwright, screenshot, dom | `browse` (8 steps) |
@@ -97,9 +97,22 @@ Novahiz defines 17 categories, each with its own keywords, priority, and roadmap
 | `assessment` | 44 | idea, assess, evaluate, feasibility, market, go no-go | `assessment` (5 steps) |
 | `general` | 0 | (fallback) | `general` (5 steps) |
 
+## French prompts
+
+Accent folding means one keyword covers both spellings: `écran` also matches
+`ecran`. Additive French verbs (`ajoute`, `ajouter`) score as lite; creation
+verbs (`crée`, `implémente`, `construis`) score as full. A numeric micro-change
+(`ajoute 8px de marge`) stays trivial, because the point is to catch a real UI
+change without promoting every pixel nudge.
+
+Auth words (`connexion`, `login`) weigh 1 in `design-ui`, and debug words
+(`bug`, `error`, `crash`, …) subtract from it. `fix the login bug` therefore
+stays in `debug`; `ajoute un bouton de connexion sur l'écran d'accueil`
+reaches `design-ui` through `bouton` and `écran`.
+
 ## Negative keywords
 
-Some categories define `negativeKeywords` that reduce the score. For example, `design-ui` has `["migration", "rls", "edge function"]` — if your prompt mentions "design" but also "migration", the Supabase category wins instead.
+Some categories define `negativeKeywords` that reduce the score. For example, `design-ui` has `["migration", "rls", "edge function"]` — if your prompt mentions "design" but also "migration", the Supabase category wins instead. Debug terms (`bug`, `error`, `crash`, …) play the same role: a login bug is a debug task, not a design task.
 
 ## Confidence and margin
 
@@ -109,7 +122,7 @@ Some categories define `negativeKeywords` that reduce the score. For example, `d
 ## Required vs enforced skills
 
 - **Required skills** = all skills from all matched categories' roadmaps + default skills. These are *suggested* to the model.
-- **Enforced skills** = only the non-optional `skill` steps from the *primary* category's roadmap. These are *required* by the gate — the edit is blocked if they are not loaded.
+- **Enforced skills** = all `requireSkills` carried by the *primary* category's non-optional steps, whatever their kind (`skill`, `edit`, `verify`, `advisory`). These are *required* by the gate — the edit is blocked if they are not loaded.
 
 ## Roadmaps
 

@@ -32,6 +32,8 @@ const CASES: { expect: Tier; lang: "FR" | "EN"; prompt: string }[] = [
   { expect: "trivial", lang: "FR", prompt: "corrige l'alignement de la grille" },
   { expect: "trivial", lang: "FR", prompt: "renomme le composant Bouton" },
   { expect: "lite", lang: "FR", prompt: "change la couleur du bouton en bleu" },
+  { expect: "lite", lang: "FR", prompt: "ajoute un bouton de connexion sur l'écran d'accueil" },
+  { expect: "full", lang: "FR", prompt: "implémente un formulaire de connexion" },
   { expect: "lite", lang: "EN", prompt: "fix the button padding" },
   { expect: "lite", lang: "EN", prompt: "add a gap between the cards" },
 

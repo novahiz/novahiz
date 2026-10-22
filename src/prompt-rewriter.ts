@@ -353,6 +353,7 @@ const AR_EN: Array<[RegExp, string]> = [
 const FR_EN: Array<[RegExp, string]> = [
   [word("base de donnees|base de données"), "database"],
   [word("page d'accueil|page daccueil|page d accueil"), "homepage"],
+  [word("accueil"), "home"],
   [word("mot de passe"), "password"],
   [word("site web"), "website"],
   [word("mise a jour|mise à jour"), "update"],

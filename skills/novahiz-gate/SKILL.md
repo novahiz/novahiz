@@ -32,7 +32,7 @@ Le gate pose une seule question : les skills exigées par le contexte sont-elles
 
 Hors design frontend, `novahiz-humanizer` et `ui-slop-remover` ne sont plus exigés par le gate. `impeccable` suit la même logique via R14.
 
-**Les étapes de roadmap** (`catalog/categories.json`) : seules celles marquées `kind: "skill"` sans `optional` ajoutent leurs `requireSkills` au gate (filtre `step.kind !== "skill" || step.optional` — `src/gate.ts:375` — puis filtrage par tier). Les étapes `edit`, `verify` et `advisory` sont sautées par ce filtre : leurs `requireSkills` n'entrent dans `requiredSkills` que si une règle ou une étape `skill` les mentionne aussi.
+**Les étapes de roadmap** (`catalog/categories.json`) : toutes les étapes non optionnelles qui portent `requireSkills` ajoutent leurs skills au gate, quel que soit leur `kind` (`skill`, `edit`, `verify`, `advisory`). Le seul filtre est `optional` — une étape `edit:implement` ou `verify:converge` bloque donc comme une étape `skill`. Les étapes sans `requireSkills` n'ajoutent rien, elles ne servent qu'à la checklist et au rapport.
 
 ## Sémantique de l'index (gate.ts, lignes 404 à 422)
 
@@ -77,4 +77,4 @@ Le seul prévu par le code : `NOVAHIZ_GATE=off` (ou `0`, `false`, `no`, `disable
 - Éditer en contournant, puis régulariser plus tard.
 - Supposer que l'édition est passée sans regarder `allow`.
 - Oublier `sync` après avoir ajouté ou renommé une skill.
-- Croire qu'une étape `edit` ou `verify` bloque : seul `kind: "skill"` bloque.
+- Croire qu'une étape `edit` ou `verify` ne bloque pas : elle bloque dès qu'elle porte `requireSkills` et n'est pas optionnelle.

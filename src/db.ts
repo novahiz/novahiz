@@ -68,7 +68,9 @@ export function openDb(dbPath: string, opts: { capture?: boolean } = {}): Databa
       agent TEXT,
       categories TEXT NOT NULL DEFAULT '[]',
       required_skills TEXT NOT NULL DEFAULT '[]',
-      updated_at TEXT NOT NULL
+      updated_at TEXT NOT NULL,
+      prompt TEXT,
+      tier TEXT
     );
     CREATE TABLE IF NOT EXISTS skill_invocations (
       session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
@@ -181,9 +183,13 @@ function ensureColumn(db: DatabaseSync, table: string, column: string, definitio
   db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition};`);
 }
 
-export const SCHEMA_VERSION = 2;
+export const SCHEMA_VERSION = 3;
 
 function migrate(db: DatabaseSync): void {
+  // v3: the last non-trivial classification of a session survives a plugin
+  // restart and lets "continue" / "ok" resume the task instead of failing open.
+  ensureColumn(db, "sessions", "prompt", "TEXT");
+  ensureColumn(db, "sessions", "tier", "TEXT");
   ensureColumn(db, "tasks", "revision", "INTEGER NOT NULL DEFAULT 0");
   ensureColumn(db, "tasks", "reviewed_at", "TEXT");
   ensureColumn(db, "tasks", "edits_since_review", "INTEGER NOT NULL DEFAULT 0");

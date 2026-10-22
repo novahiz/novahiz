@@ -703,16 +703,18 @@ export async function commandDoctor(parsed: Parsed): Promise<void> {
   // matches by the time this reads it. The value is read so a future migration
   // has something to branch on, and so a database from an older build shows up.
   let schemaDetail = "database unreadable";
+  let schemaOk = false;
   try {
     const db = openDb(dbFile);
     const row = db.prepare("PRAGMA user_version").get() as { user_version?: number } | undefined;
     const version = Number(row?.user_version ?? 0);
     db.close();
     schemaDetail = `version ${version} (expected ${SCHEMA_VERSION})`;
+    schemaOk = version === SCHEMA_VERSION;
   } catch (error) {
     schemaDetail = `unreadable: ${(error as Error).message}`;
   }
-  checks.push({ id: "schema", label: "Schema version", ok: true, detail: schemaDetail, blocking: false });
+  checks.push({ id: "schema", label: "Schema version", ok: schemaOk, detail: schemaDetail, blocking: false });
 
   const adapterSource = join(root, "adapters", "opencode", "novahiz-plugin.ts");
   const opencodeDir =

@@ -75,9 +75,9 @@ Step kinds:
 
 ## Enforcement
 
-The chosen level is skill-gate. For the category the classifier ranks first, every `skill` step that is not optional becomes a required skill in the gate, in addition to the content-aware rules. A required skill that is absent from the installed index is reported in `unmatchedRequired` and in `warnings`, and the gate stops requiring it for that edit, so a missing installation never blocks. Run `Novahiz sync` after installing or removing a skill so the index matches the disk.
+The chosen level is skill-gate. For the category the classifier ranks first, every non-optional step that carries `requireSkills` becomes a required skill in the gate, whatever its kind (`skill`, `edit`, `verify`, `advisory`), in addition to the content-aware rules. A required skill that is absent from the installed index is reported in `unmatchedRequired` and in `warnings`, and the gate stops requiring it for that edit, so a missing installation never blocks. Run `Novahiz sync` after installing or removing a skill so the index matches the disk.
 
-Steps of other kinds do not block. They shape the injected checklist and the report.
+The `kind` describes what the step asks the agent to do, not whether it enforces: `edit:implement` and `verify:converge` carry `novahiz-implement` and `novahiz-converge` and are enforced like any non-optional step. Steps without `requireSkills` shape the injected checklist and the report but add nothing to the gate.
 
 ## Primary category
 

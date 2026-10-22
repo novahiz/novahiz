@@ -27,30 +27,6 @@
     "require": ["novahiz-browser"]
   },
   {
-    "id": "R6-Novahiz",
-    "description": "Load Novahiz pipeline skills for any task triggering the workflow.",
-    "when": {
-      "promptCategories": [
-        "code",
-        "debug",
-        "review",
-        "audit",
-        "browser",
-        "design-ui",
-        "database-supabase",
-        "docs-writing",
-        "planning",
-        "devops",
-        "data",
-        "general",
-        "flutter",
-        "expo",
-        "test"
-      ]
-    },
-    "require": ["novahiz-plan", "novahiz-clarify", "novahiz-analyse", "novahiz-implement", "novahiz-converge"]
-  },
-  {
     "id": "R7-assessment",
     "description": "Load Idea Assessment pipeline skills.",
     "when": {
@@ -81,20 +57,11 @@
     "require": ["novahiz-code-review"]
   },
   {
-    "id": "R10-security",
-    "description": "Load novahiz-security on any security audit or hardening task.",
-    "when": {
-      "match": "any",
-      "promptCategories": ["audit"]
-    },
-    "require": ["novahiz-security"]
-  },
-  {
     "id": "R11-accessibility",
-    "description": "Load novahiz-wcag-audit on design-ui work and on audit prompts, where accessibility is in scope.",
+    "description": "Load novahiz-wcag-audit on design-ui work, where accessibility is in scope.",
     "when": {
       "match": "any",
-      "promptCategories": ["design-ui", "audit"],
+      "promptCategories": ["design-ui"],
       "pathExcludes": ["**/tests/**", "**/__tests__/**", "**/*.test.*", "**/*.spec.*"]
     },
     "require": ["novahiz-wcag-audit"]

@@ -756,7 +756,206 @@
       "accessibility",
       "a11y",
       "dashboard",
-      "form",
+      {
+        "term": "form",
+        "weight": 2
+      },
+      {
+        "term": "forms",
+        "weight": 2
+      },
+      {
+        "term": "formulaire",
+        "weight": 2
+      },
+      {
+        "term": "formulaires",
+        "weight": 2
+      },
+      {
+        "term": "bouton",
+        "weight": 2
+      },
+      {
+        "term": "boutons",
+        "weight": 2
+      },
+      {
+        "term": "button",
+        "weight": 2
+      },
+      {
+        "term": "buttons",
+        "weight": 2
+      },
+      {
+        "term": "écran",
+        "weight": 2
+      },
+      {
+        "term": "screen",
+        "weight": 2
+      },
+      {
+        "term": "screens",
+        "weight": 2
+      },
+      {
+        "term": "connexion",
+        "weight": 1
+      },
+      {
+        "term": "login",
+        "weight": 1
+      },
+      {
+        "term": "sign in",
+        "weight": 1
+      },
+      {
+        "term": "signin",
+        "weight": 1
+      },
+      {
+        "term": "sign up",
+        "weight": 1
+      },
+      {
+        "term": "signup",
+        "weight": 1
+      },
+      {
+        "term": "inscription",
+        "weight": 1
+      },
+      {
+        "term": "mot de passe",
+        "weight": 1
+      },
+      {
+        "term": "password",
+        "weight": 1
+      },
+      {
+        "term": "champ",
+        "weight": 1
+      },
+      {
+        "term": "field",
+        "weight": 1
+      },
+      {
+        "term": "input",
+        "weight": 1
+      },
+      {
+        "term": "menu",
+        "weight": 1
+      },
+      {
+        "term": "icône",
+        "weight": 1
+      },
+      {
+        "term": "icon",
+        "weight": 1
+      },
+      {
+        "term": "carte",
+        "weight": 1
+      },
+      {
+        "term": "card",
+        "weight": 1
+      },
+      {
+        "term": "modal",
+        "weight": 1
+      },
+      {
+        "term": "dialog",
+        "weight": 1
+      },
+      {
+        "term": "dialogue",
+        "weight": 1
+      },
+      {
+        "term": "header",
+        "weight": 1
+      },
+      {
+        "term": "footer",
+        "weight": 1
+      },
+      {
+        "term": "sidebar",
+        "weight": 1
+      },
+      {
+        "term": "composant",
+        "weight": 1
+      },
+      {
+        "term": "component",
+        "weight": 1
+      },
+      {
+        "term": "onglet",
+        "weight": 1
+      },
+      {
+        "term": "tab",
+        "weight": 1
+      },
+      {
+        "term": "avatar",
+        "weight": 1
+      },
+      {
+        "term": "badge",
+        "weight": 1
+      },
+      {
+        "term": "tooltip",
+        "weight": 1
+      },
+      {
+        "term": "toast",
+        "weight": 1
+      },
+      {
+        "term": "snackbar",
+        "weight": 1
+      },
+      {
+        "term": "drawer",
+        "weight": 1
+      },
+      {
+        "term": "panneau",
+        "weight": 1
+      },
+      {
+        "term": "panel",
+        "weight": 1
+      },
+      {
+        "term": "accueil",
+        "weight": 1
+      },
+      {
+        "term": "welcome",
+        "weight": 1
+      },
+      {
+        "term": "home",
+        "weight": 1
+      },
+      {
+        "term": "homepage",
+        "weight": 1
+      },
       "onboarding",
       "frontend design",
       "ui component",
@@ -773,7 +972,15 @@
     "negativeKeywords": [
       "migration",
       "rls",
-      "edge function"
+      "edge function",
+      "bug",
+      "error",
+      "crash",
+      "exception",
+      "regression",
+      "stacktrace",
+      "panic",
+      "broken"
     ],
     "defaultSkills": [
       "novahiz-humanizer",

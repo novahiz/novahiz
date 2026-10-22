@@ -10,6 +10,8 @@ import { changeText } from "../content.ts";
 import { classify } from "../classify.ts";
 import { enforceLedgerChecks, evaluateGate } from "../gate.ts";
 import { extractTargetPaths } from "../targets.ts";
+import { isReadOnlyCommand } from "../readonly.ts";
+import { isValidSessionId, readSessionClassification } from "../session.ts";
 
 export function commandGate(parsed: Parsed): void {
   const root = NovahizHome();
@@ -93,7 +95,7 @@ export function commandGate(parsed: Parsed): void {
   const single = asString(parsed.flags.file);
   let content = asString(parsed.flags.content);
   // C1: the prompt that triggered the edit drives the complexity tier.
-  const prompt = asString(parsed.flags.prompt);
+  let prompt = asString(parsed.flags.prompt);
   let paths: string[];
   if (single.length > 0) {
     paths = [single];
@@ -109,12 +111,45 @@ export function commandGate(parsed: Parsed): void {
         return;
       }
     }
+    // P0: a read-only shell command (status/log/diff/ls/...) is not an edit.
+    // It is exempted before any prompt rule, category or ledger check runs —
+    // the gate's job is to guard writes, not to make `git status` cost five
+    // skill loads. Unrecognised or chained commands fall through unchanged.
+    if ((tool === "bash" || tool === "shell") && args !== null && typeof args === "object") {
+      const record = args as Record<string, unknown>;
+      const command =
+        typeof record.command === "string" ? record.command : typeof record.cmd === "string" ? record.cmd : "";
+      if (isReadOnlyCommand(command)) {
+        print({ allow: true, tool, readonly: true, reason: "read-only shell command" });
+        return;
+      }
+    }
     paths = extractTargetPaths(tool, args);
     if (content.length === 0) content = changeText(tool, args);
   } else {
     process.stderr.write("novahiz: gate requires --file <path> or --args-stdin\n");
     process.exitCode = 1;
     return;
+  }
+
+  // P0: after a plugin restart the in-memory categories are gone and the
+  // caller sends neither categories nor prompt. Read the last non-trivial
+  // classification back from the session instead of classifying an empty seed
+  // into general/trivial — which allowed every edit with missing: [].
+  if (categories.length === 0 && prompt.length === 0 && session.length > 0 && isValidSessionId(session)) {
+    let stateDb: ReturnType<typeof openDb> | null = null;
+    try {
+      stateDb = openDb(dbPathFor(root, spec));
+      const state = readSessionClassification(stateDb, session);
+      if (state) {
+        categories = state.categories;
+        prompt = state.prompt;
+      }
+    } catch (error) {
+      process.stderr.write(`novahiz: session state read skipped: ${String(error).slice(0, 200)}\n`);
+    } finally {
+      stateDb?.close();
+    }
   }
 
   // Audit 2026-09-25 (P1-3): empty categories no longer fall through to an

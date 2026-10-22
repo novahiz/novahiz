@@ -8,6 +8,7 @@ import { buildMcpEntries, enabledProviders, installCommands, pendingInstallComma
 import { spawnSync } from "node:child_process";
 import { bootstrapFor, coreBootstrap, dependencyReport, missingPrerequisites, reloadPathFromRegistry, toolchainStatus } from "../deps.ts";
 import { classify } from "../classify.ts";
+import { isContinuation, isValidSessionId, readSessionClassification, writeSessionClassification } from "../session.ts";
 import { runScript } from "../exec.ts";
 import { activeTask, buildWorkPackets, getTask } from "../ledger.ts";
 
@@ -63,6 +64,38 @@ export function commandClassify(parsed: Parsed): void {
     minScore: numberFlag(parsed, "min-score", { min: 0 }),
     maxCategories: numberFlag(parsed, "max-categories", { min: 1, integer: true })
   });
+  const session = asString(parsed.flags.session);
+  if (!isValidSessionId(session)) {
+    print({ prompt: text, ...result });
+    return;
+  }
+
+  const db = openDb(dbPathFor(root, spec));
+  try {
+    const stored = readSessionClassification(db, session);
+    // A trivial follow-up ("continue", "ok") inherits the last non-trivial
+    // task of this session. Without this the plugin overwrote its categories
+    // with general/trivial and the gate allowed every edit (missing: []).
+    if (result.tier === "trivial" && stored && isContinuation(stored)) {
+      const continued = classify(spec, stored.prompt, {
+        minScore: numberFlag(parsed, "min-score", { min: 0 }),
+        maxCategories: numberFlag(parsed, "max-categories", { min: 1, integer: true })
+      });
+      print({ prompt: text, ...continued, continuedFrom: stored.prompt });
+      return;
+    }
+    if (result.tier !== "trivial") {
+      writeSessionClassification(db, {
+        session,
+        categories: result.categories.map((entry) => entry.id),
+        requiredSkills: result.enforcedSkills,
+        tier: result.tier,
+        prompt: text
+      });
+    }
+  } finally {
+    db.close();
+  }
   print({ prompt: text, ...result });
 }
 
@@ -166,11 +199,19 @@ export function commandSessionState(parsed: Parsed): void {
   const loaded = (db.prepare("SELECT skill FROM skill_invocations WHERE session_id = ?").all(session) as { skill: string }[]).map(
     (row) => row.skill
   );
-  const state = db.prepare("SELECT categories, required_skills FROM sessions WHERE id = ?").get(session) as
-    | { categories: string; required_skills: string }
+  const state = db.prepare("SELECT categories, required_skills, prompt, tier, updated_at FROM sessions WHERE id = ?").get(session) as
+    | { categories: string; required_skills: string; prompt: string | null; tier: string | null; updated_at: string }
     | undefined;
   db.close();
-  print({ session, loaded, categories: state ? safeJsonArray(state.categories) : [], requiredSkills: state ? safeJsonArray(state.required_skills) : [] });
+  print({
+    session,
+    loaded,
+    categories: state ? safeJsonArray(state.categories) : [],
+    requiredSkills: state ? safeJsonArray(state.required_skills) : [],
+    prompt: state?.prompt ?? "",
+    tier: state?.tier ?? null,
+    updatedAt: state?.updated_at ?? null
+  });
 }
 
 

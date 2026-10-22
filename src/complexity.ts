@@ -130,8 +130,10 @@ const SIGNALS: DimensionSignals = {
     /\b(auth|authentication|authorization|oauth|jwt|session|token|login|signup)\b/i,
     // Real-time domain
     /\b(real[\s-]?time|streaming|queue|worker|cron|scheduled|pub[\s-]?sub)\b/i,
-    // Design domain
-    /\b(ui|ux|interface|landing[\s-]?page|mockup|wireframe|layout|responsive|a11y|animation)\b/i,
+    // Design domain (French UI terms are folded: écran -> ecran). "login"
+    // stays out: it already belongs to the auth domain, and counting it twice
+    // pushed "fix the login bug" to full tier.
+    /\b(ui|ux|interface|landing[\s-]?page|mockup|wireframe|layout|responsive|a11y|animation|bouton|ecran|connexion|formulaire|button|screen)\b/i,
     // Infrastructure domain
     /\b(ci\/cd|pipeline|deployment|infrastructure|terraform|kubernetes|docker|cloud)\b/i,
     // AI/ML domain
@@ -150,15 +152,15 @@ const SIGNALS: DimensionSignals = {
     // a fail-open that suppresses the wireframe exactly when a screen is being
     // built (measured 2026-10-14: "cree un ecran entier..." -> lite,
     // "construis un formulaire d'inscription complexe" -> trivial).
-    // Deliberately NOT mirrored for repair verbs: adding French "corrige" /
-    // "ajoute" would promote small fixes from trivial to lite and demand
-    // novahiz-implement + novahiz-converge on every micro-task.
+    // Repair verbs stay out of this bank: adding French "corrige" would promote
+    // typo fixes from trivial to lite. Additive verbs are different, they change
+    // behavior, so "ajoute" gets a lite score below without ever reaching full.
     {
       // Verb endings, not bare stems: "developp" + (er|e|ons|ez|ent) matches
       // développe/développer/développons but NOT the noun "développement",
       // which must not promote a plain mention to full tier.
       pattern:
-        /\b(creee?s?|creer|creations?|construire|construis\w*|construit|developp(er|e|ons|ez|ent)|realis(er|e|ons|ez|ent)|maquett(er|e|ons|ez|ent|age)|generer|genere|architecturer)\b/i,
+        /\b(creee?s?|creer|creations?|construire|construis\w*|construit|developp(er|e|ons|ez|ent)|realis(er|e|ons|ez|ent)|maquett(er|e|ons|ez|ent|age)|generer|genere|architecturer|implement(er|e|ons|ez|ent))\b/i,
       lite: 0,
       full: 3
     },
@@ -169,6 +171,7 @@ const SIGNALS: DimensionSignals = {
     { pattern: /\b(fix|repair|patch|resolve|debug|diagnose)\b/i, lite: 2, full: 0 },
     { pattern: /\b(update|upgrade|bump|change|modify|edit|adjust)\b/i, lite: 2, full: 0 },
     { pattern: /\b(add|remove|delete|write|rename|relabel|reword|rephrase|optimize|simplify)\b/i, lite: 2, full: 0 },
+    { pattern: /\b(ajoute|ajouter|ajoutez|ajout)\b/i, lite: 2, full: 0 },
     // Trivial-tier actions (simple verbs)
     { pattern: /\b(comment|document|annotate|explain)\b/i, lite: 0, full: 0 },
     { pattern: /\b(typo|spelling|misspell|correct\s*the)\b/i, lite: 0, full: 0 },
@@ -180,6 +183,9 @@ const SIGNALS: DimensionSignals = {
 const TRIVIAL_OVERRIDE: RegExp[] = [
   // Explicit typo/fix commands
   /\b(fix\s+the\s+typo|correct\s+the\s+spelling|change\s+\w+\s+to\s+\w+)\b/i,
+  // French numeric micro-changes ("ajoute 8px de marge") stay trivial even
+  // though the additive verb now scores lite on a real UI change.
+  /\b(ajoute|ajouter|modifie|change)\s+\d+(?:[.,]\d+)?\s*(px|pixels?|rem|em|%)\b/i,
   // Single-word commands
   /^(rename|set|update|add|remove|delete|toggle|enable|disable)\s+\S+(\s+\S+){0,2}$/i,
   // Config-only changes — NOT trivial: changing config is a real action
