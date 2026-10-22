@@ -4,7 +4,7 @@
 
 17 catégories, 94 skills, 13 gate rules, 8 MCP providers — tout déterministe, tout local, tout JSON.
 
-> **Version 0.9.0** — publiée sur npm (`npm install -g --allow-scripts=novahiz novahiz` installe et configure tout : core, plugin, agent, skills packs et Playwright MCP). `CHANGELOG.md` et `scripts/` sont dans le tarball.
+> **Version 0.11.0** — `npm install -g novahiz` pose le CLI, et le premier `novahiz` lancé termine l'installation (core puis extras). `CHANGELOG.md` et `scripts/` sont dans le tarball.
 
 ```
 ┌──────────────────────────────────────────────────────────────────────────┐
@@ -41,27 +41,32 @@
 
 ## Démarrage rapide
 
-### Option 1 — En une ligne (recommandé)
+### Option 1 — npm (recommandé)
+
+```bash
+npm install -g novahiz
+novahiz doctor
+```
+
+`npm install -g` pose le CLI. Le premier `novahiz` lancé termine le reste, en deux passes : le **core** (skills, plugin, agent, commands, config, catalogue — local, sans réseau ni sudo), puis les **extras** (providers et toolchain, MCP globaux dont Playwright, vault Obsidian, rafraîchissement npm). Une seule fois.
+
+**Pourquoi au premier lancement et pas dans le postinstall ?** npm 11.16+ ne lance un script de lifecycle que si le paquet y est explicitement autorisé, et une installation globale n'a pas de `package.json` où l'inscrire : npm avertit (`npm warn allow-scripts novahiz`) et saute le script. Le CLI fait donc le même travail à son premier appel, ce qui fonctionne quelle que soit la version de npm. Pour que tout se passe pendant le `npm install` :
 
 ```bash
 npm install -g --allow-scripts=novahiz novahiz
 ```
 
-Une commande, tout est en place : CLI, core (skills, plugin, agent, commands), skills packs et Playwright MCP.
-
-**Pourquoi ce drapeau ?** npm 11.16+ ne considère plus les scripts de lifecycle (`postinstall`) comme autorisés tant qu'ils ne figurent pas dans `allowScripts`, et une installation globale n'a pas de `package.json` où l'inscrire : npm affiche alors `npm warn allow-scripts novahiz (...)`, et selon la version il saute le script — auquel cas `novahiz-install` n'a jamais tourné et rien n'est configuré. Le drapeau autorise explicitement ce paquet. Replis :
+Variantes :
 
 ```bash
-# valeur permanente : `npm install -g novahiz` marche ensuite sans drapeau
-npm config set allow-scripts=novahiz --location=user
-
-# paquet déjà installé sans configuration : une commande suffit
-novahiz-install --yes
+NOVAHIZ_NO_EXTRAS=1 novahiz doctor     # core seulement, aucun accès réseau
+NOVAHIZ_AUTOINSTALL=0 novahiz doctor   # ni core ni extras
+novahiz-install --extras               # rejouer les extras plus tard
 ```
 
-npm antérieur à 11.16 exécute les scripts par défaut : `npm install -g novahiz` suffit. Et si le blocage a eu lieu quand même, le premier `novahiz` lancé termine l'installation lui-même (désactivable avec `NOVAHIZ_AUTOINSTALL=0`).
-
 > Piège : `npm install -g --allow-scripts=novahiz` **sans** le nom du paquet installe le dossier courant et échoue avec `ENOENT: package.json`. Le nom du paquet est obligatoire : `npm install -g --allow-scripts=novahiz novahiz`.
+
+> Linux et macOS : les commandes système qui demandent `sudo` ou qui exécutent un script téléchargé ne sont jamais lancées. L'installeur affiche la ligne exacte (`sudo apt-get install -y python3`, `brew install uv`, …) et vous décidez. C'est ce qui rend l'installation utilisable sans terminal interactif.
 
 > Linux : le serveur Playwright MCP s'exécute sous WebKit (règle maison : Chromium interdit). WebKit exige ses dépendances système : si le navigateur ne démarre pas, `npx playwright install-deps webkit` (sudo requis sur Debian/Ubuntu).
 

@@ -162,8 +162,8 @@ export function writeJson(path, value) {
 // Windows; on macOS/Linux omitting the flag silently launches Playwright's
 // bundled Chromium (coreBundle: browserName ??= "chromium"), which the house
 // rule (adapters/opencode/instructions.md) forbids — WebKit is the sanctioned
-// non-Chromium fallback. Lives here so install.mjs, bootstrap.mjs and tests
-// share one source of truth.
+// non-Chromium fallback. Lives here so install.mjs and the tests share one
+// source of truth.
 export function playwrightBrowserFlag(platform = process.platform) {
   return platform === "win32" ? "--browser=msedge" : "--browser=webkit";
 }
@@ -405,16 +405,72 @@ export function detectedHarnesses(dirs, whichFn = which) {
   return ["opencode"].filter((name) => whichFn(name) || existsSync(dirs[name]));
 }
 
-export function which(cmd) {
-  const ext = process.platform === "win32" ? ".cmd" : "";
-  const probe = process.platform === "win32" ? "where" : "which";
-  const result = spawnSync(probe, [cmd + ext], { encoding: "utf8", stdio: "pipe" });
-  if (result.status === 0) return true;
-  if (process.platform === "win32") {
-    const result2 = spawnSync("where", [cmd], { encoding: "utf8", stdio: "pipe" });
-    return result2.status === 0;
+// PATH scan plutot qu'un appel a `which`/`where` : ces binaires ne sont pas
+// garantis (Debian minimal, conteneurs, Alpine sans which) et le spawn
+// ajoutait un echec silencieux a chaque detection. Meme semantique, sans
+// dependance externe. `PATHEXT` est respecte sous Windows pour les shims .cmd.
+export function which(cmd, env = process.env, platform = process.platform) {
+  const separator = platform === "win32" ? ";" : ":";
+  const dirs = String(env.PATH ?? env.Path ?? env.path ?? "")
+    .split(separator)
+    .filter(Boolean);
+  if (dirs.length === 0) return false;
+  const hasExtension = /\.(exe|cmd|bat|com)$/i.test(cmd);
+  const extensions =
+    platform === "win32" && !hasExtension
+      ? String(env.PATHEXT ?? ".COM;.EXE;.BAT;.CMD")
+          .split(";")
+          .filter(Boolean)
+      : [""];
+  for (const dir of dirs) {
+    for (const extension of extensions) {
+      try {
+        if (existsSync(join(dir, cmd + extension))) return true;
+      } catch {
+        // une entree de PATH invalide ne doit pas casser la detection
+      }
+    }
   }
   return false;
+}
+
+/**
+ * Shell a declarer dans la configuration opencode. Windows n'a pas de bash
+ * garanti (powershell.exe l'est, pwsh non) ; sur macOS le shell par defaut est
+ * zsh, pas bash. Forcer "bash" partout donnait a un utilisateur macOS un shell
+ * qui n'est pas le sien.
+ */
+export function shellSetting(env = process.env, platform = process.platform, whichFn = which) {
+  if (platform === "win32") return whichFn("pwsh", env) ? "pwsh" : "powershell";
+  const shell = String(env.SHELL ?? "")
+    .replace(/\\/g, "/")
+    .split("/")
+    .pop();
+  return ["bash", "zsh", "sh"].includes(shell) ? shell : "bash";
+}
+
+/**
+ * Mode de l'installateur.
+ *
+ * - `--core` : la partie locale et sure (copie du core, skills, plugin, agent,
+ *   commandes, catalogue, configuration). Aucun reseau, aucun sudo. C'est ce
+ *   que lance le postinstall npm : un `npm install -g` ne doit jamais attendre
+ *   un mot de passe sudo, un brew ou un telechargement.
+ * - `--extras` : seulement la partie reseau/systeme (providers, MCP globaux,
+ *   seed documentaire, vault Obsidian, mises a jour npm), rejouee au premier
+ *   lancement de `novahiz`.
+ * - sans drapeau : tout, comportement historique de `novahiz-install`.
+ *
+ * Les deux drapeaux ensemble valent "tout" : un appelant qui demande
+ * explicitement core ET extras ne doit pas se voir refuser l'un des deux.
+ */
+export function installMode(flags = {}) {
+  const core = flags.core === true;
+  const extras = flags.extras === true;
+  if (core && extras) return { core: true, extras: true, mode: "all" };
+  if (core) return { core: true, extras: false, mode: "core" };
+  if (extras) return { core: false, extras: true, mode: "extras" };
+  return { core: true, extras: true, mode: "all" };
 }
 
 export function nodeVersionOk(minimum = [22, 18, 0]) {
@@ -453,7 +509,7 @@ const deferSleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
  * - `--deferred-opencode` / `NOVAHIZ_DEFERRED=1` (le passage detache
  *   lui-meme) -> non : la phase deferree ne se defererait pas a l'infini ;
  * - `--sync` (repli d'urgence vers l'ancien comportement) -> non ;
- * - hors npm (novahiz-install direct, bootstrap CLI) -> non : le
+ * - hors npm (`novahiz-install` direct, premier lancement du CLI) -> non : le
  *   comportement historique entierement synchrone est conserve.
  */
 export function deferOpencodePhase(flags = {}, env = process.env) {

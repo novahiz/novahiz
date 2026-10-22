@@ -12,6 +12,7 @@ import {
   deferOpencodePhase,
   detectedHarnesses,
   findNpmAncestorPid,
+  installMode,
   loadManifest,
   mergeBackups,
   mergeCreated,
@@ -23,6 +24,7 @@ import {
   readJson,
   repoRoot,
   saveManifest,
+  shellSetting,
   skillNamesIn,
   spawnHost,
   waitForDeferredPhase,
@@ -82,6 +84,13 @@ async function main() {
   // premiere installation ne doit pas declencher de suppression. C'est
   // `novahiz upgrade --apply` qui l'active.
   const clean = Boolean(flags.clean);
+  // Deux modes, deux moments. Le postinstall npm passe --core : un
+  // `npm install -g` ne doit jamais attendre un mot de passe sudo, un brew ou
+  // un telechargement. Le premier lancement de `novahiz` rejoue --extras. Sans
+  // drapeau, `novahiz-install` fait tout, comme avant.
+  const mode = installMode(flags);
+  const runCore = mode.core;
+  const runExtras = mode.extras;
   const withSkills = !flags["no-skills"];
   const root = repoRoot(import.meta.url);
   const home = NovahizHome(flags);
@@ -98,6 +107,13 @@ async function main() {
 
   note(`novahiz home: ${home}`);
   note(`opencode config: ${configDir}`);
+  note(
+    mode.mode === "core"
+      ? "mode: core (providers, vault and MCP globals run at the first novahiz call)"
+      : mode.mode === "extras"
+        ? "mode: extras (core already installed, replaying providers, vault and MCP globals)"
+        : "mode: all (core and extras in one pass)"
+  );
 
   if (!nodeVersionOk()) {
     const message = `Node ${process.versions.node} is too old. Node 22.18 or later is required.`;
@@ -219,6 +235,10 @@ async function main() {
       continue;
     }
     const pkg = harnessPackages[name];
+    if (!runExtras) {
+      note(`${name} not detected. Global install deferred (extras run at the first novahiz call).`);
+      continue;
+    }
     if (dryRun) {
       note(`Would install ${name} globally (npm install -g ${pkg}).`);
       continue;
@@ -253,7 +273,11 @@ async function main() {
 
   const sameRoot = resolve(root) === resolve(home);
   ui.step("Core files");
-  if (!sameRoot) {
+  if (!runCore) {
+    note("Core copy skipped (--extras): the core is already in place.");
+    ui.finishStep("skip", "extras mode");
+  }
+  if (runCore && !sameRoot) {
     note(`Copying core to ${home}`);
     if (!dryRun) mkdirSync(home, { recursive: true });
     for (const item of CORE_ITEMS) {
@@ -288,14 +312,18 @@ async function main() {
   }
 
   ui.step("Skills");
-  if (deferOpencode) {
+  if (!runCore) {
+    note("Skills copy skipped (--extras).");
+    ui.finishStep("skip", "extras mode");
+  }
+  if (runCore && deferOpencode) {
     note("Opencode skills copy deferred to the post-npm phase.");
     ui.finishStep("skip", "deferred");
   }
-  if (!deferOpencode && withSkills && !configured.includes("opencode")) {
+  if (runCore && !deferOpencode && withSkills && !configured.includes("opencode")) {
     note("Skipping opencode skills copy (opencode not selected).");
   }
-  if (!deferOpencode && withSkills && configured.includes("opencode")) {
+  if (runCore && !deferOpencode && withSkills && configured.includes("opencode")) {
     const skillsSource = existsSync(join(home, "skills")) ? join(home, "skills") : join(root, "skills");
     if (existsSync(skillsSource)) {
       // Dedup only against roots the catalog actually scans (see
@@ -342,14 +370,18 @@ async function main() {
   // du modele de config, une entree fichier y declenchait l'avertissement
   // "configured plugin path must be a directory" a chaque demarrage.
   ui.step("Plugin, agent & commands");
-  if (deferOpencode) {
+  if (!runCore) {
+    note("Plugin, agent and commands skipped (--extras).");
+    ui.finishStep("skip", "extras mode");
+  }
+  if (runCore && deferOpencode) {
     note("Plugin, agent & commands deferred to the post-npm phase.");
     ui.finishStep("skip", "deferred");
   }
   for (const pluginFile of ["novahiz-plugin.ts", "novahiz-token-economy.ts"]) {
     const pluginSource = join(home, "adapters", "opencode", pluginFile);
     const pluginTarget = join(pluginsDir, pluginFile);
-    if (!deferOpencode && configured.includes("opencode") && existsSync(pluginSource)) {
+    if (runCore && !deferOpencode && configured.includes("opencode") && existsSync(pluginSource)) {
       note(`Installing opencode plugin in ${pluginTarget}`);
       if (!dryRun) {
         const result = copyFileWithBackup(pluginSource, pluginTarget, true);
@@ -363,7 +395,7 @@ async function main() {
     ? join(home, "adapters", "opencode", "agent", "novahiz.md")
     : join(root, "adapters", "opencode", "agent", "novahiz.md");
   const agentTarget = join(configDir, "agent", "novahiz.md");
-  if (!deferOpencode && configured.includes("opencode") && existsSync(agentSource)) {
+  if (runCore && !deferOpencode && configured.includes("opencode") && existsSync(agentSource)) {
     note(`Installing Novahiz agent in ${agentTarget}`);
     if (!dryRun) {
       const result = copyFileWithBackup(agentSource, agentTarget, true);
@@ -376,7 +408,7 @@ async function main() {
     ? join(home, "adapters", "opencode", "commands")
     : join(root, "adapters", "opencode", "commands");
   const commandsTarget = join(configDir, "commands");
-  if (!deferOpencode && configured.includes("opencode") && existsSync(commandsSource)) {
+  if (runCore && !deferOpencode && configured.includes("opencode") && existsSync(commandsSource)) {
     note(`Installing Novahiz commands in ${commandsTarget}`);
     if (!dryRun) {
       const result = copyInto(commandsSource, commandsTarget, true);
@@ -387,7 +419,11 @@ async function main() {
 
   ui.step("Configuration");
   const configPath = join(home, "novahiz.config.json");
-  if (force || !existsSync(configPath)) {
+  if (!runCore) {
+    note("Configuration skipped (--extras): the config is part of the core.");
+    ui.finishStep("skip", "extras mode");
+  }
+  if (runCore && (force || !existsSync(configPath))) {
     note(`Writing ${configPath}`);
     if (!dryRun) {
       const existedBefore = existsSync(configPath);
@@ -399,13 +435,18 @@ async function main() {
       writeJson(configPath, defaultConfig());
       configCreated = !existedBefore;
     }
-  } else {
+  } else if (runCore) {
     note(`Existing config preserved: ${configPath}`);
   }
 
   if (!dryRun) {
     const previous = loadManifest(home);
     const pkgVersion = readJson(join(root, "package.json"), {}).version ?? "0.0.0";
+    // Une installation neuve laisse les extras au premier lancement du CLI. Une
+    // mise a jour (manifeste deja present) ne les rejoue pas : l'utilisateur a
+    // deja un environnement configure, un `npm install` ne doit pas declencher
+    // de telechargement a sa place. `novahiz-install --extras` reste explicite.
+    const freshInstall = previous.version === undefined;
     saveManifest(home, {
       version: pkgVersion,
       installedAt: new Date().toISOString(),
@@ -416,12 +457,19 @@ async function main() {
       coreCopied: previous.coreCopied || coreCopied,
       configCreated: previous.configCreated || configCreated,
       created: mergeCreated(previous.created, created),
-      backups: mergeBackups(previous.backups, backups)
+      backups: mergeBackups(previous.backups, backups),
+      // Un passage --extras solde le drapeau qu'il reussisse ou non : sinon
+      // chaque appel de `novahiz` retenterait un telechargement reseau. La
+      // reprise se fait explicitement avec `novahiz-install --extras`.
+      extrasPending: freshInstall && runCore && !runExtras
     });
   }
 
   ui.step("Catalog & dependencies");
-  if (!dryRun) {
+  if (!runCore) {
+    note("Catalog rebuild skipped (--extras): already built by the core pass.");
+  }
+  if (runCore && !dryRun) {
     const cli = join(home, "src", "cli.ts");
     if (existsSync(cli)) {
       note("Building catalog (sync)");
@@ -435,7 +483,11 @@ async function main() {
     }
   }
 
-  if (!dryRun) {
+  if (!runExtras) {
+    note("Dependency and provider installs deferred (extras run at the first novahiz call).");
+    ui.finishStep("skip", "extras deferred");
+  }
+  if (runExtras && !dryRun) {
     const cli = join(home, "src", "cli.ts");
     const config = readJson(join(home, "novahiz.config.json"), {});
     // Installation automatique des dependances par defaut (2026-10-12):
@@ -487,7 +539,8 @@ async function main() {
   // n'avait aucun point d'entree. Le bouquet core couvre les piles de la
   // maison (web + dart/flutter/expo). Non bloquant : hors ligne, l'install
   // reussit quand meme et `novahiz docs ingest <id>` reste disponible.
-  if (!dryRun) {
+  // Reseau -> extras.
+  if (runExtras && !dryRun) {
     const docsIndex = join(home, "mcp", "novahiz-docs", "index.mjs");
     const docsCore = ["react", "nextjs", "typescript", "nodejs", "tailwindcss", "dart", "flutter", "expo"];
     if (existsSync(docsIndex)) {
@@ -534,8 +587,13 @@ async function main() {
   // dependency): no package, no shim.
 
   if (!dryRun) {
-    note("\nMCP servers: playwright installed globally; removed servers stay removed.");
+    note(
+      runExtras
+        ? "\nMCP servers: playwright installed globally; removed servers stay removed."
+        : "\nMCP servers: global installs deferred (extras); removed servers stay removed."
+    );
     for (const server of mcpServers) {
+      if (!runExtras) break;
       const check = spawnSync(process.platform === "win32" ? "where" : "which", [server.bin], {
         encoding: "utf8",
         stdio: "pipe"
@@ -583,6 +641,7 @@ async function main() {
     } else {
       note("  WARNING: Dart SDK not on PATH — MCP `dart` will not start until `dart` is installed");
     }
+    if (!runExtras) ui.finishStep("skip", "extras deferred");
   }
 
   // Optional official Flutter/Dart skill packs (upstream install, never vendored).
@@ -637,13 +696,17 @@ async function main() {
 
   // Generate opencode.jsonc
   ui.step("opencode config");
-  if (!configured.includes("opencode")) {
+  if (!runCore) {
+    note("opencode.jsonc skipped (--extras): it is written by the core pass.");
+    ui.finishStep("skip", "extras mode");
+  }
+  if (runCore && !configured.includes("opencode")) {
     note("Skipping opencode.jsonc (opencode not selected).");
   }
-  if (!dryRun && deferOpencode && configured.includes("opencode")) {
+  if (runCore && !dryRun && deferOpencode && configured.includes("opencode")) {
     note("\nopencode.jsonc generation deferred to the post-npm phase.");
   }
-  if (!dryRun && !deferOpencode && configured.includes("opencode")) {
+  if (runCore && !dryRun && !deferOpencode && configured.includes("opencode")) {
     const configPath = join(configDir, "opencode.jsonc");
     if (!existsSync(configPath)) {
       note(`\nCreating ${configPath}`);
@@ -730,12 +793,10 @@ async function main() {
           "prune": true,
           "reserved": 10000
         },
-        // PowerShell 7 (pwsh) is NOT bundled with Windows — Windows ships
-        // Windows PowerShell 5.1 (powershell.exe). Writing a hard "pwsh" gave
-        // every machine without PS7 an opencode config whose shell does not
-        // exist; probe and fall back to the one that always does. bash is
-        // universal on macOS/Linux.
-        "shell": process.platform === "win32" ? (which("pwsh") ? "pwsh" : "powershell") : "bash"
+        // powershell.exe est garanti sous Windows, pwsh non. Sur macOS le
+        // shell par defaut est zsh : forcer "bash" lui donnait un shell qui
+        // n'est pas le sien. Voir shellSetting() dans lib.mjs.
+        "shell": shellSetting()
       };
 
       // Official skills land in ~/.agents/skills (skills CLI) — load them too.
@@ -757,7 +818,10 @@ async function main() {
   // l'installation reste valide et `novahiz second-memory init` refera le
   // vault plus tard. --no-vault pour sauter cette etape.
   ui.step("Obsidian vault (second-memory)");
-  if (dryRun) {
+  if (!runExtras) {
+    note("Vault creation deferred (extras run at the first novahiz call).");
+    ui.finishStep("skip", "extras deferred");
+  } else if (dryRun) {
     note("Would create/verify the second-memory vault (novahiz second-memory init).");
   } else if (flags["no-vault"] || flags["skip-vault"]) {
     note("Skipped (--no-vault).");
@@ -784,7 +848,11 @@ async function main() {
   }
 
   ui.step("Finalize");
-  if (!dryRun) {
+  if (!runExtras) {
+    note("Dependency refresh deferred (extras run at the first novahiz call).");
+    ui.finishStep("skip", "extras deferred");
+  }
+  if (runExtras && !dryRun) {
     // Auto-update dependencies (scoped to novahiz home, NEVER the global prefix).
     //
     // npm exports its config to lifecycle scripts (npm_config_*, envExport
@@ -858,19 +926,25 @@ async function main() {
   ui.finishStep(cleanup.status, cleanup.detail);
 
   if (!dryRun) {
-    const summary = [`Novahiz installed in ${home}.`];
+    const summary = [
+      mode.mode === "extras" ? `Novahiz extras applied in ${home}.` : `Novahiz installed in ${home}.`
+    ];
     if (cleanup.removed.length > 0) {
       summary.push(`${cleanup.removed.length} stale file(s) from a previous install removed.`);
     }
     if (deferLogPath) summary.push(`opencode config phase: deferred - see ${deferLogPath} (runs once npm exits).`);
-    if (configured.length > 0) summary.push("Restart opencode to activate the plugin and MCP server.");
+    if (runCore && !runExtras) {
+      summary.push("Extras (providers, global MCP servers, Obsidian vault) run at the first `novahiz` call.");
+      summary.push("Replay them any time with `novahiz-install --extras`.");
+    }
+    if (configured.length > 0 && runCore) summary.push("Restart opencode to activate the plugin and MCP server.");
     summary.push("Gate can be disabled with the NOVAHIZ_GATE=off environment variable.");
     summary.push("Update anytime: `novahiz upgrade` (npm) or `/novahiz-upgrade` inside OpenCode.");
     ui.finish(summary);
   } else {
     ui.finish([
       "Dry-run complete, no changes written.",
-      "Next step: run `novahiz-install` (or `novahiz setup`) once to install everything — core skills, plugin, agent, provider skill packs (impeccable, flutter, dart, expo), and MCP servers. Then restart opencode."
+      "Next step: run `novahiz-install` once to install everything (core, provider skill packs, MCP servers, Obsidian vault), then restart opencode."
     ]);
   }
 }

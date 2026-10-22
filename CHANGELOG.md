@@ -5,6 +5,50 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-10-22
+
+### Changed
+
+- **`npm install -g novahiz` is the whole install instruction** - the installer
+  now has two modes and two moments. `--core` is the local half: home, skills,
+  plugin, agent, commands, config, catalog. No network, no `sudo`, so it is safe
+  from a postinstall, a CI job or an agent with no terminal. `--extras` is the
+  network/system half (providers and toolchain, global MCP servers, docs index
+  seed, Obsidian vault, npm refresh) and is replayed at the first real `novahiz`
+  call. Without a flag the installer still does everything in one pass, so
+  `novahiz-install` keeps its historical behaviour.
+- **The first `novahiz` run finishes the setup** - npm 11.16+ blocks install
+  scripts unless `allowScripts` covers the package, and a global install has no
+  `package.json` to record that approval in. `bin/novahiz.mjs` therefore runs
+  `--core` when no manifest exists, then `--extras` in the same invocation, and
+  clears `extrasPending`. `NOVAHIZ_NO_EXTRAS=1` and `NOVAHIZ_AUTOINSTALL=0`
+  remain the opt-outs.
+- **Linux and macOS compatibility** - `which()` and `commandExists()` scan
+  `PATH` (plus `PATHEXT` on Windows) instead of spawning `which`/`where`, which
+  Debian minimal and Alpine do not ship. The opencode `shell` setting follows
+  `$SHELL` on macOS/Linux (zsh by default on macOS) instead of hardcoding
+  `bash`, and keeps the `pwsh`/`powershell` probe on Windows. CI gains an
+  `install` job that runs the core installer and the resulting CLI on ubuntu,
+  macos and windows.
+- **Nothing privileged is executed any more** - the core toolchain bootstrap no
+  longer spawns `sudo apt-get install` or `sh -c "curl … | sh"`. Both are
+  printed as the exact manual command (`manual core python - run: …`), so a CI
+  job or an agent can no longer hang on a password prompt. `brew` and `winget`
+  (structured argv, no privilege escalation) stay executable.
+
+### Removed
+
+- **Four redundant entry points** - `install/bootstrap.mjs`,
+  `install/install.sh`, `install/install.ps1` and `bin/veille-mensuelle.ps1`,
+  together with the `novahiz-bootstrap` bin and the `bootstrap` / `bootstrap:dry`
+  scripts. `novahiz-install` is the single installer; `npm run setup:core` and
+  `npm run setup:extras` cover the two modes.
+
+### Fixed
+
+- **`novahiz --version` printed the usage** - the `command === undefined` branch
+  ran before the `--version` flag check.
+
 ## [0.10.0] - 2026-10-22
 
 ### Fixed

@@ -4,14 +4,32 @@ Novahiz needs Node.js 22.18 or later. There are no runtime dependencies.
 
 ## Quick install
 
-Clone the repository into the Novahiz home and run the installer:
+```
+npm install -g novahiz
+novahiz doctor
+```
+
+`npm install -g` puts the CLI on your PATH. The first real `novahiz` command finishes the setup, in two passes:
+
+1. **core** — local only: the Novahiz home, skills, plugin, agent, slash commands, config, catalog. No network, no `sudo`.
+2. **extras** — providers and toolchain, global MCP servers, the Obsidian vault, the npm refresh. This is the part that downloads and installs.
+
+npm 11.16 and later refuse to run a package's install scripts unless the package is explicitly allowed, and a global install has no `package.json` to record that approval in. The postinstall may therefore be skipped; the first-run pass covers it. To have the setup happen inside the npm install instead:
+
+```
+npm install -g --allow-scripts=novahiz novahiz
+```
+
+The two passes run the same code either way. Skip the extras with `NOVAHIZ_NO_EXTRAS=1`, skip both passes with `NOVAHIZ_AUTOINSTALL=0`.
+
+### From a checkout
 
 ```
 git clone https://github.com/novahiz/novahiz ~/.config/novahiz
 node ~/.config/novahiz/install/install.mjs
 ```
 
-On Windows, the same command works in PowerShell. If you cloned somewhere else, pass the target home:
+Without a flag the installer does everything in one interactive run, as it always has. On Windows the same command works in PowerShell. If you cloned somewhere else, pass the target home:
 
 ```
 node /path/to/novahiz/install/install.mjs --home ~/.config/novahiz
@@ -26,14 +44,19 @@ The installer runs `git`-free and never deletes your files. When run in a termin
 5. Builds the catalog with `sync`.
 6. Verifies provider dependencies, and installs them when you confirm or `--install-providers` is set.
 7. Installs the Novahiz agent into `~/.config/opencode/agent/novahiz.md` and the four slash commands into `~/.config/opencode/commands/`.
+8. Installs the global MCP servers and creates or verifies the Obsidian vault at `~/Documents/second-memory` — both are extras, so they run at the first CLI call when the install was core-only.
+
+Nothing privileged is ever executed. Commands that need `sudo`, or that pipe a downloaded script into a shell, are printed with the exact line to run; the installer does not ask for a password and does not execute them. This is what makes `--core` safe to run from a postinstall, a CI job, or an agent with no terminal.
 
 Restart opencode afterward. The plugin in `~/.config/opencode/plugins/novahiz-plugin.ts` is auto-discovered (confirmed by `opencode debug config`: `file:///…/plugins/novahiz-plugin.ts`, scope local), so it is not listed in `plugin[]` and you do not edit `opencode.jsonc` by hand. See [HARNESSES.md](HARNESSES.md) for the exact paths.
 
 ## Options
 
+- `--core` runs only the local half: home, skills, plugin, agent, commands, config, catalog. No network, no `sudo`. This is what the npm postinstall and the first-run pass use.
+- `--extras` runs only the network/system half: providers and toolchain, global MCP servers, docs index seed, Obsidian vault, npm refresh. Replay it any time with `novahiz-install --extras`.
 - `--home <path>` installs the core to a custom location.
 - `--scope project` targets `./.opencode` instead of the global config.
-- `--dry-run` prints the actions and writes nothing.
+- `--dry-run` prints the actions and writes nothing. The step list tells you which steps the current mode would skip.
 - `--no-skills` skips the skills copy.
 - `--force-skills` recopies a skill even when another scanned root already provides it.
 - `--install-providers` runs the provider dependency bootstrap and install commands.
@@ -41,6 +64,8 @@ Restart opencode afterward. The plugin in `~/.config/opencode/plugins/novahiz-pl
 - `--force` rewrites `novahiz.config.json` (the previous file is backed up as `novahiz.config.json.novahiz-bak`).
 - `--yes` skips every prompt. Use it in scripts and CI, where there is no terminal to answer.
 - `--interactive` forces the prompts even when the output is not a terminal.
+
+`--core` and `--extras` together mean "everything", which is also the behaviour when neither is given.
 
 ## What it touches
 

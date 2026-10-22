@@ -51,7 +51,7 @@ MCP servers, with provenance from `catalog/providers.json`:
 
 `novahiz-scheduler` is the local scheduler (own cron parser, atomic JSON store, stdio MCP server) written in this repository under `mcp/clepsydre`. It has zero npm dependency and no install step: the `command` points straight at `index.mjs`. It replaced the former AGPL `mcp-cron` package and the `scheduler-mcp` venv clone — no third-party scheduler code is used or vendored.
 
-`security` (`security-mcp`) has been removed and must never be reinstalled — explicit user decision, 2026-10-05 ("jamais réinstallés"). The entry is gone from `catalog/providers.json`; `install.mjs` and `bootstrap.mjs` keep their MCP install list empty and purge any trace of `security-mcp` or `mcp-cron` (shim and global package) on every run; `providers.disabled` in `novahiz.config.json` keeps the id out of the registry. The `audit` category is served by `novahiz-scan` (house, clean-room).
+`security` (`security-mcp`) has been removed and must never be reinstalled — explicit user decision, 2026-10-05 ("jamais réinstallés"). The entry is gone from `catalog/providers.json`; `install.mjs` keeps its MCP install list empty and purges any trace of `security-mcp` or `mcp-cron` (shim and global package) on every run; `providers.disabled` in `novahiz.config.json` keeps the id out of the registry. The `audit` category is served by `novahiz-scan` (house, clean-room).
 
 `dart` requires the Dart SDK on `PATH` (`requires: ["dart"]`). Without it the MCP entry still registers, but the server fails to start; disable it or install the SDK.
 
@@ -139,7 +139,7 @@ Each provider declares its prerequisites in `requires` (the executable it needs)
 - `npx` based providers need `npx`, which ships with Node.
 - `dart` needs the Dart SDK on `PATH` (`dart --version`). Flutter installs ship it.
 
-`Novahiz deps` checks every prerequisite and reports what is missing. `Novahiz deps --install` prints the plan (bootstrap and install steps) and runs nothing; with `--yes` it first bootstraps a missing prerequisite through its official installer, then runs each provider's install command. The installer runs the check on every install and, when `providers.autoInstall` is true or `--install-providers` is passed, runs the installs with `--yes` too.
+`Novahiz deps` checks every prerequisite and reports what is missing. `Novahiz deps --install` prints the plan (bootstrap and install steps) and runs nothing; with `--yes` it first bootstraps a missing prerequisite when the command is a structured package-manager argv (`brew`, `winget`), then runs each provider's install command. Commands that need `sudo` or pipe a downloaded script into a shell are printed as `manual … - run: …` and never executed: the installer has no terminal to answer a password prompt. The installer runs the check on every install and, when `providers.autoInstall` is true or `--install-providers` is passed, runs the installs with `--yes` too.
 
 ## Troubleshooting
 
@@ -165,6 +165,6 @@ Confirm the tool count (8 `lodestone_*` tools) with the `tools/list` call above,
 - `Novahiz providers` lists providers, optionally by `--category` or a query.
 - `Novahiz providers --mcp-json` prints the MCP entry map.
 - `Novahiz providers --install [--yes]` plans the official install commands; `--yes` executes them.
-- `Novahiz deps [--install] [--yes]` checks prerequisites and plans or runs the bootstrap/install commands.
+- `Novahiz deps [--install] [--yes]` checks prerequisites and plans or runs the bootstrap/install commands (privileged or downloaded-script bootstraps are printed, never run).
 - MCP `novahiz_providers` and `novahiz_deps` expose the list and the dependency status over stdio.
 - `Novahiz report` lists the provider ids.

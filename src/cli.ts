@@ -128,12 +128,14 @@ async function main(argv: string[]): Promise<void> {
     process.env.NOVAHIZ_HOME = resolve(expandHome(parsed.flags.home));
   }
   const command = parsed.positionals[0];
-  if (command === undefined || command === "help" || command === "--help" || command === "-h") {
-    usage();
-    return;
-  }
+  // `--version` sans commande tombe sur `command === undefined` et affichait
+  // l'aide : le test du drapeau doit passer avant celui de la commande.
   if (parsed.flags.version || parsed.flags.v) {
     printVersion();
+    return;
+  }
+  if (command === undefined || command === "help" || command === "--help" || command === "-h") {
+    usage();
     return;
   }
   switch (command) {

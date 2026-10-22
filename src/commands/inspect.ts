@@ -6,10 +6,10 @@ import { loadCatalog, loadInstalledSkills, persistCatalog, scanSkills, writeCata
 import { rankSkills } from "../relevance.ts";
 import { buildMcpEntries, enabledProviders, installCommands, pendingInstallCommands, updateCommands } from "../providers.ts";
 import { spawnSync } from "node:child_process";
-import { bootstrapFor, coreBootstrap, dependencyReport, missingPrerequisites, reloadPathFromRegistry, toolchainStatus } from "../deps.ts";
+import { bootstrapFor, commandExists, coreBootstrap, dependencyReport, manualCoreBootstrap, missingPrerequisites, reloadPathFromRegistry, toolchainStatus } from "../deps.ts";
 import { classify } from "../classify.ts";
 import { isContinuation, isValidSessionId, readSessionClassification, writeSessionClassification } from "../session.ts";
-import { runScript } from "../exec.ts";
+import { bootstrapBinAllowed, runScript } from "../exec.ts";
 import { activeTask, buildWorkPackets, getTask } from "../ledger.ts";
 
 export function commandCheck(): void {
@@ -347,14 +347,27 @@ export function commandDeps(parsed: Parsed): void {
   // --core-only: the installer's path when the user declined providers —
   // system dependencies (toolchain + npm health) still install automatically.
   const coreOnly = flagOn(parsed, "core-only");
-  const corePlan = coreBootstrap().filter(
-    (entry) => report.toolchain.find((tool) => tool.id === entry.id)?.ok === false
-  );
+  const corePlan = coreBootstrap()
+    .filter((entry) => report.toolchain.find((tool) => tool.id === entry.id)?.ok === false)
+    .map((entry) => ({
+      ...entry,
+      command: entry.argv.join(" "),
+      // Un bootstrap sudo ou un script telecharge execute par un shell n'est
+      // jamais lance : affiche, il reste une etape manuelle.
+      manual: manualCoreBootstrap(entry.argv) || !commandExists(entry.argv[0])
+    }));
   const npmPlan = report.npm.ok ? [] : [{ step: "npm", missing: report.npm.missing, note: report.npm.note }];
   const bootstrapPlan = missingPrerequisites(spec).map((entry) => {
     const bootstrap = bootstrapFor(entry.provider);
     return bootstrap && bootstrap.length > 0
-      ? { provider: entry.provider.id, step: "bootstrap", command: bootstrap.join(" ") }
+      ? {
+          provider: entry.provider.id,
+          step: "bootstrap",
+          command: bootstrap.join(" "),
+          // Hors allowlist de runScript (sudo, brew, winget, shell) : la
+          // commande est affichee, pas executee.
+          manual: !bootstrapBinAllowed(bootstrap[0])
+        }
       : { provider: entry.provider.id, step: "bootstrap", note: `missing ${entry.missing.join(", ")}` };
   });
   const installed = new Set(scanSkills(spec, []).map((skill) => skill.id));
@@ -386,6 +399,11 @@ export function commandDeps(parsed: Parsed): void {
   // through a plain spawn: runScript's catalog allowlist deliberately refuses
   // shells and package managers, and this argv never comes from the catalog.
   for (const entry of corePlan) {
+    if (entry.manual) {
+      process.stdout.write(`manual core ${entry.id} - run: ${entry.command}\n`);
+      results.push({ step: "core", tool: entry.id, command: entry.command, ok: false, manual: true });
+      continue;
+    }
     const result = spawnSync(entry.argv[0], entry.argv.slice(1), { encoding: "utf8", windowsHide: true });
     const ok = result.status === 0;
     process.stdout.write(`${ok ? "ok  " : "fail"} core ${entry.id}\n`);
@@ -433,6 +451,12 @@ export function commandDeps(parsed: Parsed): void {
     const bootstrap = bootstrapFor(entry.provider);
     if (!bootstrap || bootstrap.length === 0) {
       results.push({ provider: entry.provider.id, step: "bootstrap", ok: false, note: `missing ${entry.missing.join(", ")}` });
+      continue;
+    }
+    if (!bootstrapBinAllowed(bootstrap[0])) {
+      // sudo, brew, winget, shell : hors de l'allowlist, jamais executes.
+      process.stdout.write(`manual bootstrap ${entry.provider.id} - run: ${bootstrap.join(" ")}\n`);
+      results.push({ provider: entry.provider.id, step: "bootstrap", command: bootstrap.join(" "), ok: false, manual: true });
       continue;
     }
     const result = runScript(bootstrap);

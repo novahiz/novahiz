@@ -3,10 +3,54 @@ import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { expandHome, type Provider, type Spec } from "./spec.ts";
 
+// PATH scan plutot qu'un appel a `which`/`where` : ces binaires ne sont pas
+// garantis (Debian minimal, conteneurs, Alpine sans which) et un spawn par
+// verification ajoutait un echec silencieux. Meme semantique, sans dependance.
 export function commandExists(command: string): boolean {
-  const probe = process.platform === "win32" ? "where" : "which";
-  const result = spawnSync(probe, [command], { encoding: "utf8", shell: false });
-  return result.status === 0;
+  const separator = process.platform === "win32" ? ";" : ":";
+  const dirs = String(process.env.PATH ?? process.env.Path ?? process.env.path ?? "")
+    .split(separator)
+    .filter(Boolean);
+  if (dirs.length === 0) return false;
+  const hasExtension = /\.(exe|cmd|bat|com)$/i.test(command);
+  const extensions =
+    process.platform === "win32" && !hasExtension
+      ? String(process.env.PATHEXT ?? ".COM;.EXE;.BAT;.CMD")
+          .split(";")
+          .filter(Boolean)
+      : [""];
+  for (const dir of dirs) {
+    for (const extension of extensions) {
+      try {
+        if (existsSync(join(dir, command + extension))) return true;
+      } catch {
+        // une entree de PATH invalide ne doit pas casser la detection
+      }
+    }
+  }
+  return false;
+}
+
+/**
+ * Une commande de bootstrap du toolchain core doit-elle rester manuelle ?
+ *
+ * Deux familles ne sont jamais executees par l'installateur :
+ *  - `sudo` : demande un mot de passe sur le terminal. Un postinstall, un job
+ *    de CI ou un agent n'ont pas de TTY : le spawn attend indefiniment ou
+ *    echoue sans explication. L'installateur n'eleve jamais ses privileges.
+ *  - un shell (`sh -c`, `bash -c`) qui execute un script telecharge : c'est ce
+ *    que l'allowlist de exec.ts refuse pour les argv du catalogue, et un script
+ *    distant n'est pas verifiable avant execution.
+ * La commande exacte est affichee ; l'utilisateur decide de la lancer.
+ */
+export function manualCoreBootstrap(argv: string[]): boolean {
+  const bin =
+    (argv[0] ?? "")
+      .replace(/\\/g, "/")
+      .split("/")
+      .pop()
+      ?.toLowerCase() ?? "";
+  return ["sudo", "sh", "bash", "zsh", "dash", "curl", "wget"].includes(bin);
 }
 
 type DependencyStatus = {

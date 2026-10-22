@@ -64,7 +64,7 @@ function normalizeBin(bin: string): string {
   return base.toLowerCase();
 }
 
-function bootstrapBinAllowed(bin: string): boolean {
+export function bootstrapBinAllowed(bin: string): boolean {
   const name = normalizeBin(bin);
   const withoutExt = name.replace(/\.(exe|cmd|bat)$/i, "");
   return SAFE_BOOTSTRAP_BINS.has(name) || SAFE_BOOTSTRAP_BINS.has(withoutExt);

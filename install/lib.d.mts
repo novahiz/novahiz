@@ -32,6 +32,12 @@ export interface NovahizManifest {
   backups?: BackupEntry[];
   /** Horodatage du dernier nettoyage (install.mjs --clean). */
   cleanedAt?: string;
+  /**
+   * Vrai quand seul le core a tourne : les extras (providers, MCP globaux,
+   * vault Obsidian, rafraichissement npm) sont rejoues au premier lancement
+   * du CLI, puis le drapeau retombe a false.
+   */
+  extrasPending?: boolean;
 }
 
 export interface NovahizConfig {
@@ -111,7 +117,29 @@ export declare function cleanupPreviousInstall(options: {
   stepFailure?: string | null;
 }): CleanupResult;
 export declare function detectedHarnesses(dirs: Record<string, string>, whichFn?: (cmd: string) => boolean): string[];
-export declare function which(cmd: string): boolean;
+/**
+ * Scan de PATH, sans `which`/`where` externe (absents de Debian minimal et
+ * Alpine). `PATHEXT` est respecte sous Windows.
+ */
+export declare function which(cmd: string, env?: NodeJS.ProcessEnv, platform?: string): boolean;
+/**
+ * Shell declare dans opencode : `$SHELL` sur macOS/Linux (zsh par defaut sur
+ * macOS), pwsh si present sous Windows, sinon powershell.exe.
+ */
+export declare function shellSetting(
+  env?: NodeJS.ProcessEnv,
+  platform?: string,
+  whichFn?: (cmd: string, env?: NodeJS.ProcessEnv) => boolean,
+): string;
+/**
+ * `--core` (local, sans reseau ni sudo), `--extras` (reseau/systeme), ou les
+ * deux sans drapeau (comportement historique de `novahiz-install`).
+ */
+export declare function installMode(flags?: Record<string, unknown>): {
+  core: boolean;
+  extras: boolean;
+  mode: "all" | "core" | "extras";
+};
 export declare function nodeVersionOk(minimum?: [number, number, number]): boolean;
 
 // --- Phase opencode differee (postinstall npm) ------------------------------

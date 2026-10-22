@@ -39,3 +39,35 @@ jobs:
         run: node src/cli.ts check
         env:
           NOVAHIZ_HOME: ${{ github.workspace }}
+
+  # Preuve de compatibilite, pas une simulation : l'installateur core tourne
+  # pour de vrai sur les trois OS, puis le CLI installe repond. Le postinstall
+  # npm n'est pas joue (pas de lifecycle ici) : c'est le chemin exact du premier
+  # lancement de `novahiz`, celui qui doit marcher quand npm bloque les scripts.
+  install:
+    name: install (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+      - name: Install the core into a temporary home
+        shell: bash
+        run: node install/install.mjs --yes --core --no-skills --home "$RUNNER_TEMP/novahiz-home"
+      - name: The manifest defers the extras to the first CLI run
+        shell: bash
+        run: |
+          node -e 'const m=require(process.argv[1]); if (m.extrasPending !== true) { console.error("extrasPending missing:", JSON.stringify(m)); process.exit(1); }' "$RUNNER_TEMP/novahiz-home/.novahiz-install.json"
+      - name: The CLI installed in that home answers
+        shell: bash
+        run: node "$RUNNER_TEMP/novahiz-home/src/cli.ts" check
+        env:
+          NOVAHIZ_HOME: ${{ runner.temp }}/novahiz-home
+      - name: The extras plan stays a plan (dry-run, nothing executed)
+        shell: bash
+        run: node install/install.mjs --dry-run --extras --home "$RUNNER_TEMP/novahiz-home"
