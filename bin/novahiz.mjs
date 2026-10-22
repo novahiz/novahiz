@@ -21,7 +21,7 @@ const here = dirname(fileURLToPath(import.meta.url));
 const root = join(here, "..");
 const underNodeModules = root.replace(/\\/g, "/").toLowerCase().includes("/node_modules/");
 const dist = join(root, "dist", "cli.js");
-const src = join(root, "src", "cli.ts"); console.error("DEBUG", JSON.stringify({underNodeModules, root, auto: process.env.NOVAHIZ_AUTOINSTALL, noextras: process.env.NOVAHIZ_NO_EXTRAS}));
+const src = join(root, "src", "cli.ts");
 
 // npm 11.16+ blocks install scripts unless `allowScripts` covers them, and a
 // global install (`npm install -g`) has no package.json to record that
