@@ -1,4 +1,5 @@
 import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { createHash } from "node:crypto";
 import { homedir } from "node:os";
 import { dirname, join, relative, resolve, sep } from "node:path";
 import { spawnSync } from "node:child_process";
@@ -307,13 +308,57 @@ export function staleOwnedPaths(created, roots, exists = existsSync) {
 }
 
 /**
+ * Empreinte d'un fichier, fins de ligne normalisees en LF.
+ *
+ * Le paquet est livre en LF, l'installation ecrit en CRLF sous Windows : sans
+ * normalisation, le meme fichier ne se reconnait plus lui-meme d'une machine a
+ * l'autre. C'est cette empreinte, et pas les octets bruts, qui sert de preuve
+ * de propriete aux fichiers retires.
+ */
+export function normalisedSha256(content) {
+  return createHash("sha256").update(content.toString("utf8").replace(/\r\n/g, "\n"), "utf8").digest("hex");
+}
+
+/**
+ * Fichiers retires du paquet et encore presents dans le home.
+ *
+ * Le manifeste ne peut pas les connaitre : un fichier copie par une version
+ * anterieure a l'invention du champ `created` n'y figure pas, et rien ne le
+ * reference plus cote source. La preuve de propriete devient donc le contenu :
+ * l'entree ne part que si le fichier sur disque porte exactement l'empreinte
+ * publiee dans `retired.json`. Un fichier modifie a la main ne correspond plus
+ * et n'est jamais supprime ; il ressort dans `kept` pour etre dit a l'utilisateur.
+ */
+export function retiredOwnedPaths(retired, home, readFile = readFileSync, exists = existsSync) {
+  const removed = [];
+  const kept = [];
+  for (const entry of retired?.files ?? []) {
+    if (!entry || typeof entry.path !== "string" || typeof entry.sha256 !== "string") continue;
+    if (entry.path.length === 0 || entry.path.startsWith("..")) continue;
+    const target = join(home, entry.path);
+    if (!exists(target)) continue;
+    let digest;
+    try {
+      digest = normalisedSha256(readFile(target));
+    } catch {
+      continue;
+    }
+    if (digest === entry.sha256.toLowerCase()) removed.push(target);
+    else kept.push(target);
+  }
+  return { removed: [...new Set(removed)], kept: [...new Set(kept)] };
+}
+
+/**
  * Decide et applique le nettoyage de l'installation precedente.
  *
- * Renvoie `{ status, detail, removed }`, `status` etant la valeur attendue par
- * ui.finishStep ("done" ou "skip"). Seule preuve de propriete : le manifeste
- * d'installation precedent, champ `created`, qui liste les chemins ecrits par
- * novahiz lui-meme. Un fichier de pack ou de l'utilisateur n'y figure pas, il
- * ne peut donc pas partir. Trois cas de sortie :
+ * Renvoie `{ status, detail, removed, kept }`, `status` etant la valeur attendue
+ * par ui.finishStep ("done" ou "skip"). Deux preuves de propriete, selon l'age
+ * du fichier : le manifeste d'installation (`created`, `backups`) pour ce que
+ * les versions recentes ont ecrit, et l'empreinte de `retired.json` pour ce que
+ * les versions anterieures ont pose sans jamais l'enregistrer. Un fichier de
+ * pack, de l'utilisateur, ou modifie a la main ne satisfait ni l'une ni l'autre
+ * et reste en place. Cas de sortie :
  *   - `--clean` absent, ou echec d'une etape precedente : skip, rien ne bouge ;
  *   - rien de retire : done ;
  *   - au moins un fichier retire : done, manifeste mis a jour.
@@ -321,12 +366,20 @@ export function staleOwnedPaths(created, roots, exists = existsSync) {
  * Vit ici et non dans install.mjs : ce module est sans effet de bord a
  * l'import, l'installateur execute main() au chargement.
  */
-export function cleanupPreviousInstall({ home, configDir, roots, clean, dryRun = false, stepFailure = null }) {
+export function cleanupPreviousInstall({
+  home,
+  configDir,
+  roots,
+  clean,
+  dryRun = false,
+  stepFailure = null,
+  retired = null
+}) {
   if (!clean) {
-    return { status: "skip", detail: "pass --clean to remove files from a previous install", removed: [] };
+    return { status: "skip", detail: "pass --clean to remove files from a previous install", removed: [], kept: [] };
   }
   if (stepFailure) {
-    return { status: "skip", detail: `an earlier step failed (${stepFailure}), cleanup aborted`, removed: [] };
+    return { status: "skip", detail: `an earlier step failed (${stepFailure}), cleanup aborted`, removed: [], kept: [] };
   }
   const manifest = loadManifest(home);
   // Deux preuves de propriete, pas une. `created` ne liste que les fichiers
@@ -338,15 +391,18 @@ export function cleanupPreviousInstall({ home, configDir, roots, clean, dryRun =
     ...(manifest.created ?? []),
     ...(manifest.backups ?? []).map((entry) => (entry && entry.path) || "").filter((path) => path.length > 0)
   ];
-  const stale = staleOwnedPaths(owned, roots);
+  const retiredScan = retiredOwnedPaths(retired, home);
+  const stale = [...new Set([...staleOwnedPaths(owned, roots), ...retiredScan.removed])];
+  const kept = retiredScan.kept.filter((item) => !stale.includes(item));
   if (stale.length === 0) {
-    return { status: "done", detail: "no leftover file from a previous install", removed: [] };
+    return { status: "done", detail: "no leftover file from a previous install", removed: [], kept };
   }
   if (dryRun) {
     return {
       status: "skip",
       detail: `${stale.length} file(s) would be removed by a real run with --clean`,
       removed: [],
+      kept,
       stale
     };
   }
@@ -364,7 +420,7 @@ export function cleanupPreviousInstall({ home, configDir, roots, clean, dryRun =
     ),
     cleanedAt: new Date().toISOString()
   });
-  return { status: "done", detail: `${removed.length} file(s) from a previous install removed`, removed };
+  return { status: "done", detail: `${removed.length} file(s) from a previous install removed`, removed, kept };
 }
 
 export function pruneEmptyDirs(paths, stops = []) {

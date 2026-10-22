@@ -1,0 +1,25 @@
+{
+  "note": "Files Novahiz used to ship and no longer does. `install --clean` removes one only when the file on disk still carries the published sha256, computed with line endings normalised to LF. A file edited by hand no longer matches and is never deleted; the installer reports it as kept.",
+  "files": [
+    {
+      "path": "install/bootstrap.mjs",
+      "version": "0.11.0",
+      "sha256": "d4f90e6d091844b06590de1c7d201cc9bac2f2bd9f548f3c93b2bcfc68bd646c"
+    },
+    {
+      "path": "install/install.sh",
+      "version": "0.11.0",
+      "sha256": "9b2e7073f83c3aa9c0e9b269d8bec9187c22f0faebbcf0e71c2c74fb596dc2de"
+    },
+    {
+      "path": "install/install.ps1",
+      "version": "0.11.0",
+      "sha256": "6b44ef53bc9f0761c84a27776461c4c79683d832af037cc9fbbe82ec8dc7fb02"
+    },
+    {
+      "path": "bin/veille-mensuelle.ps1",
+      "version": "0.11.0",
+      "sha256": "4c88aeb86e274b4d5c2ddfd513e1c152189823e66959bbd578669277e4ffaabc"
+    }
+  ]
+}

@@ -52,6 +52,21 @@ const STEPS = [
   "Cleanup previous install"
 ];
 
+/**
+ * Inventaire des fichiers retires du paquet (`install/retired.json`).
+ *
+ * Le manifeste d'installation ne peut pas connaitre ce qu'une version
+ * anterieure a copie avant que ce champ existe : cet inventaire comble le trou.
+ * Il est lu depuis le paquet installe, jamais depuis le home, pour qu'une
+ * installation ne puisse pas elargir elle-meme la liste de ce qu'elle efface.
+ * Un fichier absent ou illisible rend une liste vide : le nettoyage retombe
+ * alors sur le seul manifeste, jamais sur une supposition.
+ */
+function readRetired() {
+  const parsed = readJson(join(repoRoot(import.meta.url), "install", "retired.json"), { files: [] });
+  return Array.isArray(parsed?.files) ? parsed : { files: [] };
+}
+
 const CORE_ITEMS = [
   "src",
   "catalog",
@@ -896,9 +911,10 @@ async function main() {
   // --- Nettoyage de l'installation precedente ------------------------------
   // Une mise a jour ne peut pas laisser derriere elle des skills renommes, des
   // plugins retires ou des commandes devenues obsoles : ils restent charges au
-  // prochain demarrage. L'effacement ne s'appuie que sur une preuve de
-  // propriete, le manifeste d'installation precedent ; un fichier pose par un
-  // pack ou par l'utilisateur n'y figure pas et n'est jamais retenu.
+  // prochain demarrage. L'effacement s'appuie sur deux preuves de propriete : le
+  // manifeste d'installation precedent, et pour les fichiers anterieurs a ce
+  // manifeste, l'empreinte publiee dans `retired.json`. Un fichier pose par un
+  // pack, par l'utilisateur, ou modifie a la main n'est jamais retenu.
   ui.step("Cleanup previous install");
   const ownedRoots = [
     { dest: skillsDir, src: join(home, "skills") },
@@ -906,9 +922,11 @@ async function main() {
     { dest: join(configDir, "agent"), src: join(home, "adapters", "opencode", "agent") },
     { dest: join(configDir, "commands"), src: join(home, "adapters", "opencode", "commands") }
   ];
-  const cleanup = cleanupPreviousInstall({ home, configDir, roots: ownedRoots, clean, dryRun, stepFailure });
+  const retired = readRetired();
+  const cleanup = cleanupPreviousInstall({ home, configDir, roots: ownedRoots, clean, dryRun, stepFailure, retired });
   for (const path of cleanup.removed) note(`  removed: ${relative(home, path)}`);
   for (const path of cleanup.stale ?? []) note(`  would remove: ${relative(home, path)}`);
+  for (const path of cleanup.kept ?? []) note(`  kept (modified since install): ${relative(home, path)}`);
   if (cleanup.removed.length > 0) {
     // L'index tient encore la liste des skills supprimes : on le rejoue une
     // fois, sinon le prochain routage classifiera vers un skill parti.

@@ -100,6 +100,8 @@ export interface CleanupResult {
   removed: string[];
   /** Present uniquement en mode a blanc : ce qui partirait. */
   stale?: string[];
+  /** Fichiers retires mais retouches depuis : jamais supprimes, seulement dits. */
+  kept: string[];
 }
 
 export declare function withinDir(value: string, dir: string): boolean;
@@ -108,6 +110,29 @@ export declare function staleOwnedPaths(
   roots: OwnedRoot[],
   exists?: (path: string) => boolean,
 ): string[];
+
+// --- Fichiers retires du paquet -------------------------------------------
+export interface RetiredFile {
+  /** Chemin relatif au home, tel que l'ancienne version l'installait. */
+  path: string;
+  /** Version qui a cesse de le livrer. */
+  version: string;
+  /** sha256 du contenu publie, fins de ligne normalisees en LF. */
+  sha256: string;
+}
+
+export interface RetiredInventory {
+  files: RetiredFile[];
+}
+
+/** Empreinte d'un contenu, `\r\n` ramene a `\n` avant hachage. */
+export declare function normalisedSha256(content: string | Buffer | Uint8Array): string;
+export declare function retiredOwnedPaths(
+  retired: RetiredInventory | null | undefined,
+  home: string,
+  readFile?: (path: string) => Buffer,
+  exists?: (path: string) => boolean,
+): { removed: string[]; kept: string[] };
 export declare function cleanupPreviousInstall(options: {
   home: string;
   configDir: string;
@@ -115,6 +140,7 @@ export declare function cleanupPreviousInstall(options: {
   clean: boolean;
   dryRun?: boolean;
   stepFailure?: string | null;
+  retired?: RetiredInventory | null;
 }): CleanupResult;
 export declare function detectedHarnesses(dirs: Record<string, string>, whichFn?: (cmd: string) => boolean): string[];
 /**
