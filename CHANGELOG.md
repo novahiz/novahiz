@@ -5,6 +5,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.11.2] - 2026-10-22
+
+### Fixed
+
+- **The 0.11.1 entry-point test no longer fails on Node 22.18** - it demanded a
+  completely empty stderr, but the CLI imports `node:sqlite`, which emits a
+  legitimate `ExperimentalWarning` on that line. The test now rejects only the
+  `DEBUG` line the release removed, and passes on Node 22.18.0 and Node 24.
+
 ## [0.11.1] - 2026-10-22
 
 ### Fixed
