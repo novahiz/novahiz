@@ -39,7 +39,10 @@ function runSync(): void {
   const home = homeDir();
   const cli = join(home, "src", "cli.ts");
   if (existsSync(cli)) {
-    spawnSync(process.execPath, [cli, "sync"], {
+    // src/cli.ts est du TypeScript : Node ne le lit pas nativement. On ajoute
+    // --experimental-strip-types pour pouvoir l'exécuter depuis le home,
+    // qui ne contient pas le build dist/ (réservé au paquet publié).
+    spawnSync(process.execPath, ["--experimental-strip-types", cli, "sync"], {
       encoding: "utf8",
       stdio: "inherit",
       env: { ...process.env, NOVAHIZ_HOME: home }
