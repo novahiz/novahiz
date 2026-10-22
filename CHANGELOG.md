@@ -5,6 +5,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.11.4] - 2026-10-22
+
+### Fixed
+
+- **`novahiz setup` now completes on Linux** - `runSync()` executed
+  `home/src/cli.ts` directly with Node, which cannot read TypeScript
+  without `--experimental-strip-types`. On a fresh global install the home
+  has no `dist/` build, so the sync step failed with
+  `ERR_UNKNOWN_FILE_EXTENSION`. The flag is now added so the two-pass
+  install (core then extras) completes on Linux, macOS and Windows.
+
 ## [0.11.3] - 2026-10-22
 
 ### Fixed
