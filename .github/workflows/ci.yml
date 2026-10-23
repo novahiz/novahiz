@@ -56,6 +56,8 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: "24"
+      - name: Install dependencies
+        run: npm install
       - name: Build dist (prepare)
         run: npm run prepare
       - name: Install the core into a temporary home
