@@ -505,7 +505,7 @@ async function main() {
     const cmd = cliSpawnArgs(home, "sync");
     if (cmd) {
       note("Building catalog (sync)");
-      const result = spawnSync(...cmd, {
+      const result = spawnSync(cmd[0], cmd.slice(1), {
         encoding: "utf8",
         env: { ...process.env, NOVAHIZ_HOME: home }
       });
@@ -534,7 +534,8 @@ async function main() {
         ? providersChoice
         : Boolean(flags["install-providers"]) || config?.providers?.autoInstall !== false;
     note("Checking dependencies");
-    const check = spawnSync(...cliSpawnArgs(home, "deps"), {
+    const checkArgs = cliSpawnArgs(home, "deps");
+    const check = spawnSync(checkArgs[0], checkArgs.slice(1), {
       encoding: "utf8",
       env: { ...process.env, NOVAHIZ_HOME: home }
     });
@@ -548,7 +549,8 @@ async function main() {
       note(autoInstall
         ? "Installing dependencies and providers (toolchain, MCP, skills, commands)"
         : "Installing core system dependencies (toolchain: python, uv — npm health)");
-      const result = spawnSync(...cliSpawnArgs(home, ...args), {
+      const installArgs = cliSpawnArgs(home, ...args);
+      const result = spawnSync(installArgs[0], installArgs.slice(1), {
         encoding: "utf8",
         env: { ...process.env, NOVAHIZ_HOME: home }
       });
@@ -861,7 +863,7 @@ async function main() {
     const vaultCmd = cliSpawnArgs(home, "second-memory", "init");
     if (vaultCmd) {
       note("Creating the second-memory vault (structure + Obsidian plugins, ~10 downloads)...");
-      const vault = spawnSync(...vaultCmd, {
+      const vault = spawnSync(vaultCmd[0], vaultCmd.slice(1), {
         encoding: "utf8",
         timeout: 180000,
         env: { ...process.env, NOVAHIZ_HOME: home }
@@ -949,7 +951,7 @@ async function main() {
     const cleanupCmd = cliSpawnArgs(home, "sync");
     if (cleanupCmd) {
       note("Rebuilding catalog after cleanup (sync)");
-      const rebuild = spawnSync(...cleanupCmd, {
+      const rebuild = spawnSync(cleanupCmd[0], cleanupCmd.slice(1), {
         encoding: "utf8",
         env: { ...process.env, NOVAHIZ_HOME: home }
       });
