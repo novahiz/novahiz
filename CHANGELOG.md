@@ -5,6 +5,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.11.6] - 2026-10-23
+
+### Fixed
+
+- **Installer spawnSync arguments** - `spawnSync(...cmd, opts)` spread the
+  command array into separate positional arguments, causing
+  `ERR_INVALID_ARG_TYPE` on the options object during the catalog sync step
+  of `novahiz setup`. All 5 call sites now use
+  `spawnSync(cmd[0], cmd.slice(1), opts)`.
+
 ## [0.11.5] - 2026-10-23
 
 ### Fixed
