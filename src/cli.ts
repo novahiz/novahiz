@@ -37,12 +37,21 @@ function homeDir(): string {
 
 function runSync(): void {
   const home = homeDir();
-  const cli = join(home, "src", "cli.ts");
-  if (existsSync(cli)) {
-    // src/cli.ts est du TypeScript : Node ne le lit pas nativement. On ajoute
-    // --experimental-strip-types pour pouvoir l'exécuter depuis le home,
-    // qui ne contient pas le build dist/ (réservé au paquet publié).
-    spawnSync(process.execPath, ["--experimental-strip-types", cli, "sync"], {
+  const cliJs = join(home, "dist", "cli.js");
+  const cliTs = join(home, "src", "cli.ts");
+  if (existsSync(cliJs)) {
+    // dist/cli.js est du JS compilé : Node le lit nativement, sur tous les
+    // builds (y compris ceux sans support TypeScript compilé).
+    spawnSync(process.execPath, [cliJs, "sync"], {
+      encoding: "utf8",
+      stdio: "inherit",
+      env: { ...process.env, NOVAHIZ_HOME: home }
+    });
+  } else if (existsSync(cliTs)) {
+    // Fallback pour un home qui ne contient que les sources (pas de build).
+    // --experimental-strip-types ne fonctionne que sur les builds Node avec
+    // support TypeScript compilé ; sinon l'utilisateur verra une erreur claire.
+    spawnSync(process.execPath, ["--experimental-strip-types", cliTs, "sync"], {
       encoding: "utf8",
       stdio: "inherit",
       env: { ...process.env, NOVAHIZ_HOME: home }

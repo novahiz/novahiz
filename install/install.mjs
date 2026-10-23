@@ -34,6 +34,22 @@ import {
 import { createPrompt } from "./prompt.mjs";
 import { createInstallerUI } from "./ui.mjs";
 
+// Retourne les arguments complets pour spawnSync afin d'exécuter le CLI
+// Novahiz depuis le home. Préfère dist/cli.js (JS compilé, fonctionne sur
+// tous les builds Node, y compris ceux sans support TypeScript compilé) et
+// tombe sur src/cli.ts avec --experimental-strip-types si dist manque.
+function cliSpawnArgs(home, ...args) {
+  const cliJs = join(home, "dist", "cli.js");
+  const cliTs = join(home, "src", "cli.ts");
+  if (existsSync(cliJs)) {
+    return [process.execPath, cliJs, ...args];
+  }
+  if (existsSync(cliTs)) {
+    return [process.execPath, "--experimental-strip-types", cliTs, ...args];
+  }
+  return null;
+}
+
 // Etapes visibles par l'utilisateur, dans l'ordre reel d'execution. La barre
 // de progression se base sur cette liste : toute section ajoutee ici doit
 // appeler ui.step() une fois (les sauts conditionnels passent par
@@ -77,6 +93,7 @@ const CORE_ITEMS = [
   "skills",
   "docs",
   "scripts",
+  "dist",
   "package.json",
   "tsconfig.json",
   "LICENSE",
@@ -485,10 +502,10 @@ async function main() {
     note("Catalog rebuild skipped (--extras): already built by the core pass.");
   }
   if (runCore && !dryRun) {
-    const cli = join(home, "src", "cli.ts");
-    if (existsSync(cli)) {
+    const cmd = cliSpawnArgs(home, "sync");
+    if (cmd) {
       note("Building catalog (sync)");
-      const result = spawnSync(process.execPath, [cli, "sync"], {
+      const result = spawnSync(...cmd, {
         encoding: "utf8",
         env: { ...process.env, NOVAHIZ_HOME: home }
       });
@@ -503,7 +520,6 @@ async function main() {
     ui.finishStep("skip", "extras deferred");
   }
   if (runExtras && !dryRun) {
-    const cli = join(home, "src", "cli.ts");
     const config = readJson(join(home, "novahiz.config.json"), {});
     // Installation automatique des dependances par defaut (2026-10-12):
     // - providers.acceptes (ou config autoInstall, defaut true) -> tout part
@@ -518,7 +534,7 @@ async function main() {
         ? providersChoice
         : Boolean(flags["install-providers"]) || config?.providers?.autoInstall !== false;
     note("Checking dependencies");
-    const check = spawnSync(process.execPath, [cli, "deps"], {
+    const check = spawnSync(...cliSpawnArgs(home, "deps"), {
       encoding: "utf8",
       env: { ...process.env, NOVAHIZ_HOME: home }
     });
@@ -532,7 +548,7 @@ async function main() {
       note(autoInstall
         ? "Installing dependencies and providers (toolchain, MCP, skills, commands)"
         : "Installing core system dependencies (toolchain: python, uv — npm health)");
-      const result = spawnSync(process.execPath, [cli, ...args], {
+      const result = spawnSync(...cliSpawnArgs(home, ...args), {
         encoding: "utf8",
         env: { ...process.env, NOVAHIZ_HOME: home }
       });
@@ -842,10 +858,10 @@ async function main() {
     note("Skipped (--no-vault).");
     ui.finishStep("skip");
   } else {
-    const vaultCli = join(home, "src", "cli.ts");
-    if (existsSync(vaultCli)) {
+    const vaultCmd = cliSpawnArgs(home, "second-memory", "init");
+    if (vaultCmd) {
       note("Creating the second-memory vault (structure + Obsidian plugins, ~10 downloads)...");
-      const vault = spawnSync(process.execPath, [vaultCli, "second-memory", "init"], {
+      const vault = spawnSync(...vaultCmd, {
         encoding: "utf8",
         timeout: 180000,
         env: { ...process.env, NOVAHIZ_HOME: home }
@@ -930,10 +946,10 @@ async function main() {
   if (cleanup.removed.length > 0) {
     // L'index tient encore la liste des skills supprimes : on le rejoue une
     // fois, sinon le prochain routage classifiera vers un skill parti.
-    const cleanupCli = join(home, "src", "cli.ts");
-    if (existsSync(cleanupCli)) {
+    const cleanupCmd = cliSpawnArgs(home, "sync");
+    if (cleanupCmd) {
       note("Rebuilding catalog after cleanup (sync)");
-      const rebuild = spawnSync(process.execPath, [cleanupCli, "sync"], {
+      const rebuild = spawnSync(...cleanupCmd, {
         encoding: "utf8",
         env: { ...process.env, NOVAHIZ_HOME: home }
       });
