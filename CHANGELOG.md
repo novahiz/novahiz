@@ -5,6 +5,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.11.5] - 2026-10-23
+
+### Fixed
+
+- **`novahiz setup` now completes on Linux with Node builds lacking TypeScript support** - `runSync()` and the installer spawned `home/src/cli.ts` directly, which fails with `ERR_UNKNOWN_FILE_EXTENSION` / `ERR_NO_TYPESCRIPT` on Node builds without TypeScript compiled in (e.g. Debian/Ubuntu Node 24.19.0). `runSync()` and all installer spawn sites now prefer `home/dist/cli.js` (JS compiled, present in the published package and copied into the home by the installer via `CORE_ITEMS`) and fall back to `src/cli.ts` with `--experimental-strip-types` only when `dist` is missing. `"dist"` was added to `CORE_ITEMS` so the file is copied into the home on every install.
+
 ## [0.11.4] - 2026-10-22
 
 ### Fixed
