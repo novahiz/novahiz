@@ -746,6 +746,97 @@ async function main() {
       const agentsSkillsDir = join(homedir(), ".agents", "skills");
       const agentsSkillsDirLegacy = join(homedir(), ".config", ".agents", "skills");
 
+      // Le chemin absolu de node est essentiel : OpenCode (notamment en
+      // mode GUI/Desktop sur Linux) ne hérite pas du PATH du shell, donc
+      // `node` seul ne se résout pas. On utilise donc le chemin absolu du
+      // node qui lance l'installateur.
+      const nodeBin = process.execPath;
+      // On propage le PATH de l'installateur aux MCP locaux pour que `node`,
+      // `npx`, `dart` etc. soient trouvables même sans héritage du shell.
+      const mcpEnv = { PATH: process.env.PATH };
+
+      // Détermine si le Dart SDK est présent (nécessaire pour le MCP dart).
+      let hasDart = false;
+      try {
+        const dartCheck = spawnSync(
+          process.platform === "win32" ? "where" : "which",
+          ["dart"],
+          { encoding: "utf8", stdio: "pipe" }
+        );
+        hasDart = dartCheck.status === 0;
+      } catch {
+        // dart introuvable, le MCP dart sera omis
+      }
+
+      const mcp = {
+        "novahiz-docs": {
+          "type": "local",
+          "command": [nodeBin, join(home, "mcp", "novahiz-docs", "index.mjs")],
+          "environment": mcpEnv,
+          "enabled": true
+        },
+        "novahiz-search": {
+          "type": "local",
+          "command": [nodeBin, join(home, "mcp", "lodestone", "index.mjs")],
+          "timeout": 120000,
+          "environment": mcpEnv,
+          "enabled": true
+        },
+        // `novahiz-scheduler` is the local scheduler (mcp/clepsydre, zero npm
+        // dependency): it ships ready to run, no setup step.
+        "novahiz-scheduler": {
+          "type": "local",
+          "command": [nodeBin, join(home, "mcp", "clepsydre", "index.mjs")],
+          "timeout": 120000,
+          "environment": mcpEnv,
+          "enabled": true
+        },
+        "playwright": {
+          "type": "local",
+          // See playwrightBrowserFlag() in lib.mjs for the platform rule.
+          "command": ["npx", "-y", "@playwright/mcp@0.0.82", playwrightBrowserFlag()],
+          "environment": mcpEnv,
+          "enabled": true
+        },
+        // Trio runtime (audit 2026-10-08) : novahiz_classify (27 outils dont
+        // la classification du pipeline), novahiz_gate (la porte que le skill
+        // novahiz-gate appelle) et scan (argus). Le transform du plugin les
+        // inscrit aussi, mais un transform arrive apres la resolution MCP ne
+        // lie jamais les serveurs — en config statique la connexion est
+        // garantie des l'installation. Le plugin voit editor.get(id) deja
+        // present et les saute : aucun doublon. timeout 120s = cold start
+        // argus (audit 2026-09-25 P2).
+        "novahiz-core": {
+          "type": "local",
+          "command": [nodeBin, join(home, "mcp", "novahiz-tools", "index.mjs")],
+          "timeout": 120000,
+          "environment": mcpEnv,
+          "enabled": true
+        },
+        "novahiz-gate": {
+          "type": "local",
+          "command": [nodeBin, join(home, "mcp", "novahiz-gate", "index.mjs")],
+          "timeout": 120000,
+          "environment": mcpEnv,
+          "enabled": true
+        },
+        "novahiz-scan": {
+          "type": "local",
+          "command": [nodeBin, join(home, "mcp", "argus", "src", "cli.mjs")],
+          "timeout": 120000,
+          "environment": mcpEnv,
+          "enabled": true
+        }
+      };
+      if (hasDart) {
+        mcp["dart"] = {
+          "type": "local",
+          "command": ["dart", "mcp-server"],
+          "environment": mcpEnv,
+          "enabled": true
+        };
+      }
+
       const openCodeConfig = {
         "$schema": "https://opencode.ai/config.json",
         // T3: sans ce champ, adapters/opencode/instructions.md n'est lu par
@@ -760,64 +851,7 @@ async function main() {
         // (typescript-language-server, etc.) peuvent manquer — des entrees
         // mortes = exactement le probleme qu'on veut jamais livrer.
         "lsp": true,
-        "mcp": {
-          "novahiz-docs": {
-            "type": "local",
-            "command": ["node", join(home, "mcp", "novahiz-docs", "index.mjs")],
-            "enabled": true
-          },
-          "novahiz-search": {
-            "type": "local",
-            "command": ["node", join(home, "mcp", "lodestone", "index.mjs")],
-            "timeout": 120000,
-            "enabled": true
-          },
-          // `novahiz-scheduler` is the local scheduler (mcp/clepsydre, zero npm
-          // dependency): it ships ready to run, no setup step.
-          "novahiz-scheduler": {
-            "type": "local",
-            "command": ["node", join(home, "mcp", "clepsydre", "index.mjs")],
-            "timeout": 120000,
-            "enabled": true
-          },
-          "playwright": {
-            "type": "local",
-            // See playwrightBrowserFlag() in lib.mjs for the platform rule.
-            "command": ["npx", "-y", "@playwright/mcp@0.0.82", playwrightBrowserFlag()],
-            "enabled": true
-          },
-          "dart": {
-            "type": "local",
-            "command": ["dart", "mcp-server"],
-            "enabled": true
-          },
-          // Trio runtime (audit 2026-10-08) : novahiz_classify (27 outils dont
-          // la classification du pipeline), novahiz_gate (la porte que le skill
-          // novahiz-gate appelle) et scan (argus). Le transform du plugin les
-          // inscrit aussi, mais un transform arrive apres la resolution MCP ne
-          // lie jamais les serveurs — en config statique la connexion est
-          // garantie des l'installation. Le plugin voit editor.get(id) deja
-          // present et les saute : aucun doublon. timeout 120s = cold start
-          // argus (audit 2026-09-25 P2).
-          "novahiz-core": {
-            "type": "local",
-            "command": ["node", join(home, "mcp", "novahiz-tools", "index.mjs")],
-            "timeout": 120000,
-            "enabled": true
-          },
-          "novahiz-gate": {
-            "type": "local",
-            "command": ["node", join(home, "mcp", "novahiz-gate", "index.mjs")],
-            "timeout": 120000,
-            "enabled": true
-          },
-          "novahiz-scan": {
-            "type": "local",
-            "command": ["node", join(home, "mcp", "argus", "src", "cli.mjs")],
-            "timeout": 120000,
-            "enabled": true
-          }
-        },
+        "mcp": mcp,
         "skills": {
           "paths": [skillsDir]
         },

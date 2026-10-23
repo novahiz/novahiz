@@ -5,6 +5,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.11.7] - 2026-10-23
+
+### Fixed
+
+- **MCP Novahiz ne fonctionnent pas sur Linux** - OpenCode (en mode GUI/Desktop) ne
+  n'hérite pas du PATH du shell, donc `node` seul ne se résolvait pas pour les MCP
+  locaux (`novahiz-core`, `novahiz-gate`, `novahiz-docs`, `novahiz-search`,
+  `novahiz-scheduler`, `novahiz-scan`). L'installateur utilise maintenant le chemin
+  absolu de `node` (`process.execPath`) et propage le `PATH` de l'installateur via
+  `environment` à chaque MCP. Le MCP `dart` est omis si le Dart SDK n'est pas
+  présent (`which dart` / `where dart`).
+
 ## [0.11.6] - 2026-10-23
 
 ### Fixed
