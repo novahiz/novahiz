@@ -5,6 +5,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.11.8] - 2026-10-23
+
+### Removed
+
+- **Support Linux et macOS retire** - Novahiz ne supporte plus que Windows.
+  L'installation et les MCP ne sont plus testes ni documentes pour Linux ni
+  macOS. La section d'installation du README ne couvre plus que Windows.
+
 ## [0.11.7] - 2026-10-23
 
 ### Fixed

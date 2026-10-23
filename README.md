@@ -43,46 +43,11 @@
 
 ### Option 1 — npm (recommandé)
 
-#### Linux
-
-Sur Linux, `/usr/local/lib/node_modules` appartient à `root`. Pour éviter d'utiliser `sudo` avec npm, configurez un préfixe dans votre dossier personnel :
-
-```bash
-mkdir -p ~/.npm-global
-npm config set prefix '~/.npm-global'
-echo 'export PATH=~/.npm-global/bin:$PATH' >> ~/.bashrc
-source ~/.bashrc
-npm install -g novahiz
-novahiz setup
-novahiz doctor
-```
-
-Si vous préférez conserver l'installation système (nécessite `sudo`) :
-
-```bash
-sudo npm install -g novahiz
-sudo novahiz setup
-```
-
 #### Windows
 
 Sur Windows, aucune configuration préalable n'est nécessaire :
 
 ```bash
-npm install -g novahiz
-novahiz setup
-novahiz doctor
-```
-
-#### macOS
-
-Sur macOS, aucune configuration particulière n'est nécessaire en général. Si vous obtenez une erreur de permissions sur `/usr/local/lib/node_modules`, utilisez la même méthode que sous Linux :
-
-```bash
-mkdir -p ~/.npm-global
-npm config set prefix '~/.npm-global'
-echo 'export PATH=~/.npm-global/bin:$PATH' >> ~/.zshrc
-source ~/.zshrc
 npm install -g novahiz
 novahiz setup
 novahiz doctor
