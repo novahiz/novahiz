@@ -56,6 +56,8 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: "24"
+      - name: Build dist (prepare)
+        run: npm run prepare
       - name: Install the core into a temporary home
         shell: bash
         run: node install/install.mjs --yes --core --no-skills --home "$RUNNER_TEMP/novahiz-home"
@@ -65,7 +67,7 @@ jobs:
           node -e 'const m=require(process.argv[1]); if (m.extrasPending !== true) { console.error("extrasPending missing:", JSON.stringify(m)); process.exit(1); }' "$RUNNER_TEMP/novahiz-home/.novahiz-install.json"
       - name: The CLI installed in that home answers
         shell: bash
-        run: node "$RUNNER_TEMP/novahiz-home/src/cli.ts" check
+        run: node "$RUNNER_TEMP/novahiz-home/dist/cli.js" check
         env:
           NOVAHIZ_HOME: ${{ runner.temp }}/novahiz-home
       - name: The extras plan stays a plan (dry-run, nothing executed)
