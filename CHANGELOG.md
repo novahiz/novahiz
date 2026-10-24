@@ -5,6 +5,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.11.9] - 2026-10-24
+
 ### Fixed
 
 - **Serveurs MCP `dart` et `playwright` déclarés en échec au démarrage** - les
