@@ -604,9 +604,9 @@ async function main() {
       const entry = providers.find((provider) => provider.id === "playwright");
       const command = Array.isArray(entry?.command) ? entry.command : [];
       const pin = command.find((token) => typeof token === "string" && token.includes("@playwright/mcp"));
-      return typeof pin === "string" ? pin : "@playwright/mcp@0.0.82";
+      return typeof pin === "string" ? pin : "@playwright/mcp@0.0.83";
     } catch {
-      return "@playwright/mcp@0.0.82";
+      return "@playwright/mcp@0.0.83";
     }
   })();
   const mcpServers = [
@@ -772,6 +772,7 @@ async function main() {
         "novahiz-docs": {
           "type": "local",
           "command": [nodeBin, join(home, "mcp", "novahiz-docs", "index.mjs")],
+          "timeout": 120000,
           "environment": mcpEnv,
           "enabled": true
         },
@@ -794,7 +795,9 @@ async function main() {
         "playwright": {
           "type": "local",
           // See playwrightBrowserFlag() in lib.mjs for the platform rule.
-          "command": ["npx", "-y", "@playwright/mcp@0.0.82", playwrightBrowserFlag()],
+          // timeout 180s : npx telecharge le paquet au premier lancement.
+          "command": ["npx", "-y", "@playwright/mcp@0.0.83", playwrightBrowserFlag()],
+          "timeout": 180000,
           "environment": mcpEnv,
           "enabled": true
         },
@@ -832,6 +835,10 @@ async function main() {
         mcp["dart"] = {
           "type": "local",
           "command": ["dart", "mcp-server"],
+          // Mesure 2026-10-24 : demarrage a froid 4-30 s (bundle
+          // dart_mcp_server 1.2.1) ; sans timeout explicite le harness coupe
+          // vers 30 s et le serveur est declare en echec.
+          "timeout": 180000,
           "environment": mcpEnv,
           "enabled": true
         };
