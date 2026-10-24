@@ -17,6 +17,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - **Pin Playwright désaligné** - `catalog/providers.json` et l'installateur
   épinglaient `@playwright/mcp@0.0.82` alors que le paquet publié et installé
   est `0.0.83`. Les deux sources pointent maintenant sur `0.0.83`.
+- **Texte de gate faux sur l'exemption shell read-only** - l'injection annonçait
+  que les commandes shell read-only sont exemptées, sans dire que tout `|`,
+  `;`, `&`, `>`, backtick, retour ligne ou `$(...)` annule l'exemption. Un agent
+  qui enchaînait `Get-ChildItem | Select-Object` se croyait face à un bug alors
+  que la règle est délibérément conservatrice (`src/readonly.ts`). Le texte
+  décrit maintenant la règle réelle : une seule commande, sans métacaractère,
+  sinon on découpe en appels séparés.
+- **`## [Unreleased]` dupliqué dans le CHANGELOG** - un second titre vide
+  subsistait au milieu de l'historique 0.8.x et cassait le repérage de la
+  section courante.
 
 ## [0.11.8] - 2026-10-23
 
@@ -701,8 +711,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   CLI bootstrap) keep the historical fully synchronous behaviour, and
   `--sync` forces that behaviour back under npm as an escape hatch.
   Regression tests: `tests/install-defer.test.ts`.
-
-## [Unreleased]
 
 ## [0.8.1] - 2026-10-10
 
