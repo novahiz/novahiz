@@ -8,6 +8,10 @@ import { openDb, SCHEMA_VERSION } from "../db.ts";
 import { loadInstalledSkills } from "../catalog.ts";
 import { findContextFile } from "../impeccable.ts";
 import { evaluateGate } from "../gate.ts";
+import { verifierPolitiquePlaywright } from "../playwright-policy.ts";
+import { backupHealth } from "../backup.ts";
+import { evolutionHealth } from "../evolution.ts";
+import { manifestHealth } from "../manifest.ts";
 import {
   DEFAULT_LIMIT_CHARS,
   DEFAULT_LIMIT_LINES,
@@ -586,6 +590,10 @@ export async function commandDoctor(parsed: Parsed): Promise<void> {
   const spec = loadSpec(root);
   const checks: DoctorCheck[] = [];
 
+  // P0.1: --force-readonly signale que le gate a été contourné pour ce diagnostic
+  // de secours. Il est enregistré mais n'altère pas le déroulement des checks.
+  const forceReadonly = flagOn(parsed, "force-readonly");
+
   const parts = process.versions.node.split(".").map((value) => Number(value));
   const nodeOk = parts[0] > 22 || (parts[0] === 22 && parts[1] >= 18);
   checks.push({ id: "node", label: "Node 22.18+", ok: nodeOk, detail: `v${process.versions.node}`, blocking: true });
@@ -601,6 +609,51 @@ export async function commandDoctor(parsed: Parsed): Promise<void> {
   });
 
   checks.push(referencedSkillsCheck(spec, index.available ? index.skills : null, packageRoot() ?? root));
+
+  // Cohérence session/index : le registre disait « aucune anomalie » alors que
+  // la base ne contenait plus que 4 skills pour une session qui en avait chargé
+  // quinze (TTL calculé sur la classification, pas sur l'activité). On mesure
+  // ce que la base retient vraiment et on signale les skills enregistrées qui
+  // ne sont plus dans l'index — un `sync` les a retirées ou renommées.
+  try {
+    const db = openDb(dbPathFor(root, spec));
+    try {
+      const sessions = db.prepare("SELECT id, updated_at FROM sessions").all() as { id: string; updated_at: string }[];
+      const rows = db
+        .prepare("SELECT session_id, skill, invoked_at FROM skill_invocations ORDER BY invoked_at DESC")
+        .all() as { session_id: string; skill: string; invoked_at: string }[];
+      const bySession = new Map<string, string[]>();
+      for (const row of rows) {
+        const list = bySession.get(row.session_id) ?? [];
+        list.push(row.skill);
+        bySession.set(row.session_id, list);
+      }
+      const unknown = index.available
+        ? [...new Set(rows.map((row) => row.skill))].filter((skill) => !index.skills.has(skill))
+        : [];
+      checks.push({
+        id: "sessions",
+        label: "Session/skills coherence",
+        ok: unknown.length === 0,
+        detail:
+          sessions.length === 0
+            ? "no session recorded yet"
+            : `${sessions.length} session(s), ${rows.length} skill(s) recorded` +
+              (unknown.length > 0 ? ` — recorded but absent from index: ${unknown.join(", ")}; run novahiz sync` : ""),
+        blocking: false
+      });
+    } finally {
+      db.close();
+    }
+  } catch (error) {
+    checks.push({
+      id: "sessions",
+      label: "Session/skills coherence",
+      ok: false,
+      detail: `ledger unreadable: ${String(error).slice(0, 120)}`,
+      blocking: false
+    });
+  }
 
   // SKILL_CLI is intentionally empty: novahiz-web-extract replaced the external
   // defuddle CLI on the research roadmap (see MEMORY.md). Keep the check so a
@@ -684,6 +737,17 @@ export async function commandDoctor(parsed: Parsed): Promise<void> {
     blocking: true
   });
 
+  // P0.1: statut du contournement --force-readonly
+  checks.push({
+    id: "gate-bypass",
+    label: "Gate bypass (--force-readonly)",
+    ok: true,
+    detail: forceReadonly
+      ? "activé : novahiz doctor --force-readonly contourne le gate pour diagnostic de secours"
+      : "inactif : le gate s'applique normalement",
+    blocking: false
+  });
+
   const dbFile = dbPathFor(root, spec);
   let dbOk = false;
   let dbDetail = "missing";
@@ -716,6 +780,11 @@ export async function commandDoctor(parsed: Parsed): Promise<void> {
   }
   checks.push({ id: "schema", label: "Schema version", ok: schemaOk, detail: schemaDetail, blocking: false });
 
+  // Phase 0 of auto-improvement: the safety net must be measurable before
+  // anything is allowed to change on its own. These three rows answer "can we
+  // go back?" without trusting a single file on disk.
+  checks.push(manifestHealth(root), backupHealth(root), evolutionHealth(root));
+
   const adapterSource = join(root, "adapters", "opencode", "novahiz-plugin.ts");
   const opencodeDir =
     process.env.OPENCODE_CONFIG_DIR && process.env.OPENCODE_CONFIG_DIR.length > 0
@@ -731,7 +800,7 @@ export async function commandDoctor(parsed: Parsed): Promise<void> {
   checks.push({ id: "adapter", label: "Plugin harness copy", ok: adapterOk, detail: adapterDetail, blocking: false });
 
   const memoryModule = join(root, "src", "memory.ts");
-  const memoryOk = existsSync(memoryModule) && DEFAULT_LIMIT_CHARS === 8000 && DEFAULT_LIMIT_LINES === 200;
+  const memoryOk = existsSync(memoryModule) && DEFAULT_LIMIT_CHARS === 16000 && DEFAULT_LIMIT_LINES === 400;
   checks.push({
     id: "memory",
     label: "Memory module",
@@ -847,6 +916,42 @@ export async function commandDoctor(parsed: Parsed): Promise<void> {
     blocking: false
   });
 
+  /*
+   * NX-37 : la politique du navigateur, vérifiée sur la commande réellement
+   * configurée. Le 2026-10-31, `--browser=msedge` était là mais le profil
+   * manquait : onze dossiers de profil, donc onze états de connexion.
+   */
+  const entreePlaywright = mcpEntries.find(({ name }) => name === "playwright")?.entry as
+    | { command?: unknown }
+    | undefined;
+  const commandePlaywright = Array.isArray(entreePlaywright?.command)
+    ? (entreePlaywright.command as string[])
+    : null;
+  const problemesNavigateur = verifierPolitiquePlaywright(commandePlaywright);
+  const dossierProfils = join(process.env.LOCALAPPDATA ?? homedir(), "ms-playwright-mcp");
+  let profilsHistoriques = 0;
+  try {
+    profilsHistoriques = existsSync(dossierProfils)
+      ? readdirSync(dossierProfils).filter((nom) => nom.startsWith("mcp-")).length
+      : 0;
+  } catch {
+    profilsHistoriques = 0;
+  }
+  const noteProfils =
+    profilsHistoriques > 1
+      ? ` — ${profilsHistoriques} profils historiques dans ${dossierProfils} (aucun supprimé)`
+      : "";
+  checks.push({
+    id: "playwright-policy",
+    label: "Browser policy",
+    ok: problemesNavigateur.length === 0,
+    detail:
+      problemesNavigateur.length > 0
+        ? problemesNavigateur.join("; ")
+        : `Edge et profil explicite${noteProfils}`,
+    blocking: false
+  });
+
   // Live probe: explicit opt-in, because npx cold caches can exceed the 10 s
   // per-server budget (a still-alive slow server gets one 30 s extension) and
   // a false negative would be worse than no probe.
@@ -924,6 +1029,7 @@ export async function commandDoctor(parsed: Parsed): Promise<void> {
     home: root,
     node: process.versions.node,
     platform: process.platform,
+    forceReadonly,
     checks,
     failing: failing.map((check) => check.id),
     blocking: blocking.map((check) => check.id)

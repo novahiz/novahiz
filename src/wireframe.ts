@@ -263,7 +263,7 @@ const normalizeForMatch = (value: string): string =>
 const CLASS_RULES: ClassRule[] = [
   {
     id: "form",
-    match: /\b(formulaire|inscription|connexion|login|sign\s?in|sign\s?up|signup|paiement|commande|checkout|payment|creer|creation|ajouter|ajout|editer|modifier|saisie|questionnaire|demande|onboarding)\b/,
+    match: /\b(formulaire|inscription|connexion|login|sign\s?in|sign\s?up|signup|commande|checkout|creer|creation|ajouter|ajout|editer|modifier|saisie|questionnaire|demande|onboarding)\b/,
     min: 3,
     reason:
       "un formulaire a trois responsabilites distinctes: saisir les champs, signaler les erreurs, confirmer le resultat. Les fusionner produit un ecran qui devient illisible des qu'une validation echoue",
@@ -275,7 +275,7 @@ const CLASS_RULES: ClassRule[] = [
   },
   {
     id: "list",
-    match: /\b(liste|catalogue|tableau|resultat|recherche|search|dashboard|accueil|home|feed|grille|index|parcourir|browse|galerie|gallery|collection|kpi|statistique)\b/,
+    match: /\b(liste|catalogue|tableau|resultat|recherche|search|dashboard|accueil|home|feed|grille|index|parcourir|browse|galerie|gallery|collection|kpi|statistique|messages?|messagerie|inbox|conversations?|fils?|thread|chat|boite de reception|paiements?|payments?|registres?|encaissements?|recettes?|factures?|tresorerie|impayes?)\b/,
     min: 3,
     reason:
       "un listing a trois regions: cadrer la recherche, lister le contenu, gerer le vide et la pagination. Sans les trois, la page est deserte des que la requete ne renvoie rien",
@@ -287,7 +287,7 @@ const CLASS_RULES: ClassRule[] = [
   },
   {
     id: "settings",
-    match: /\b(parametre|reglage|preference|configuration|settings|compte|account|profil|profile|admin|gestion|securite|notification|confidentialite)\b/,
+    match: /\b(parametre|reglage|preference|configuration|settings|compte|account|profil|profile|gestion|securite|notification|confidentialite)\b/,
     min: 2,
     reason:
       "des reglages exigent un groupement thematique ET un retour d'enregistrement: sans le second, l'utilisateur ne sait pas si ses changements ont ete pris en compte",
@@ -354,7 +354,25 @@ export type PlanSectionsResult = {
   minimum: number;
   matchedBy: string | null;
   heuristic: true;
+  /**
+   * When no class matched, say what the caller must supply instead of just
+   * "default applied": an agent that gets "default / nothing recognized" cannot
+   * act, and invents sections blindly.
+   */
+  classification: {
+    decided: boolean;
+    matchedBy: string | null;
+    needs: string[];
+    hints: { class: ScreenClass; words: string }[];
+  };
 };
+
+const CLASS_HINTS: { class: ScreenClass; words: string }[] = [
+  { class: "list", words: "liste, catalogue, résultats, index, annuaire" },
+  { class: "form", words: "formulaire, saisie, connexion, inscription, réservation, création" },
+  { class: "detail", words: "détail, fiche, profil, aperçu d'un élément" },
+  { class: "settings", words: "réglages, paramètres, compte, préférences, sécurité" },
+];
 
 // Suggestion mono/multi avec raisons. Rien n'est ecrit sur disque: l'agent
 // confirme ou corrige, puis passe les sections retenues a createScreen.
@@ -369,12 +387,29 @@ export function planSections(name: string, objective?: string): PlanSectionsResu
       ? `minimum structurel de ${rule.min} sections pour cette classe`
       : `une seule section suffit structurellement pour cette classe`,
   ];
+  const needs = matchedBy
+    ? []
+    : [
+        "préciser l'objectif de l'écran en une phrase (ce qu'il sert à faire), ou renommer l'écran",
+        "relancer planSections avec cet objectif : la classe sera déduite des mots reconnus",
+      ];
+  if (!matchedBy) {
+    reasons.push(
+      `classe non décidée — indices: ${CLASS_HINTS.map((hint) => `${hint.class} (${hint.words})`).join(" ; ")}`,
+    );
+  }
   return {
     slug: slugify(name),
     screenClass: rule.id,
     needsMultiple: rule.min > 1,
     sections: rule.expectations.map((expectation) => expectation.label),
     reasons,
+    classification: {
+      decided: matchedBy !== null,
+      matchedBy,
+      needs,
+      hints: CLASS_HINTS,
+    },
     minimum: rule.min,
     matchedBy,
     heuristic: true,
@@ -465,17 +500,21 @@ export type CreateScreenResult = {
   // Vrai quand l'ecran existe SANS aucune section: le signal que l'ecran est
   // incomplet. Jamais un succes silencieux.
   needsSections: boolean;
+  // Vrai quand l'ecran a ete cree en mode lightweight (screen.md seulement,
+  // pas de dossier sections/). L'agent peut promover plus tard avec sections.
+  lightweight: boolean;
   plan: PlanSectionsResult;
 };
 
 export function createScreen(
   project: string,
-  input: { name: string; objective?: string; sections?: string[] }
+  input: { name: string; objective?: string; sections?: string[]; lightweight?: boolean }
 ): CreateScreenResult {
   const slug = slugify(input.name);
   const dir = join(wireframeDir(project), slug);
   const screenFile = join(dir, "screen.md");
   const sectionNames = input.sections ?? [];
+  const lightweight = input.lightweight === true;
   const date = now();
   const plan = planSections(input.name, input.objective);
 
@@ -501,18 +540,22 @@ export function createScreen(
       screenFile,
       sectionFiles,
       needsSections: sectionFiles.length === 0,
+      lightweight: false,
       plan
     };
   }
-  mkdirSync(join(dir, "sections"), { recursive: true });
+  mkdirSync(dir, { recursive: true });
   writeFileSync(screenFile, SCREEN_TEMPLATE(slug, input.name, input.objective ?? "", date, sectionNames), "utf8");
   const sectionFiles: string[] = [];
-  sectionNames.forEach((name, index) => {
-    const sectionId = `${String(index + 1).padStart(2, "0")}-${slugify(name)}`;
-    const file = join(dir, "sections", `${sectionId}.md`);
-    writeFileSync(file, SECTION_TEMPLATE(slug, index + 1, slugify(name), name, date), "utf8");
-    sectionFiles.push(file);
-  });
+  if (!lightweight) {
+    mkdirSync(join(dir, "sections"), { recursive: true });
+    sectionNames.forEach((name, index) => {
+      const sectionId = `${String(index + 1).padStart(2, "0")}-${slugify(name)}`;
+      const file = join(dir, "sections", `${sectionId}.md`);
+      writeFileSync(file, SECTION_TEMPLATE(slug, index + 1, slugify(name), name, date), "utf8");
+      sectionFiles.push(file);
+    });
+  }
   rebuildIndex(project);
   return {
     slug,
@@ -522,6 +565,7 @@ export function createScreen(
     // Un ecran cree sans sections n'est jamais un succes silencieux: le champ
     // porte le signal, `plan` propose quoi en mettre.
     needsSections: sectionFiles.length === 0,
+    lightweight,
     plan
   };
 }
@@ -709,12 +753,36 @@ export function attachScreen(project: string, screenSlug: string): {
 }
 
 // Cycle de vie: draft -> approved -> stale (code divergent) -> mis à jour.
+/**
+ * NX-36 : ce que la revue a réellement vérifié au moment de l'approbation.
+ *
+ * `mark approved` exécutait la revue pour décider, puis jetait son verdict : le
+ * retour ne disait que « approved ». Un agent ne pouvait pas distinguer une
+ * approbation vérifiée d'une écriture de statut. Le résumé ci-dessous est ce
+ * que `mark` renvoie désormais avec le statut.
+ */
+export type ApprobationReport = {
+  verdict: ReviewResult["verdict"];
+  sections: number;
+  questions: number;
+  gaps: number;
+};
+
+export function resumeApprobation(review: ReviewResult): ApprobationReport {
+  return {
+    verdict: review.verdict,
+    sections: review.checkedSections.length,
+    questions: review.questions.length,
+    gaps: review.gaps.length,
+  };
+}
+
 export function markStatus(
   project: string,
   screenSlug: string,
   status: WireframeStatus,
   sectionId?: string
-): { path: string; status: WireframeStatus } {
+): { path: string; status: WireframeStatus; review: ApprobationReport | null } {
   if (!WIREFRAME_STATUSES.includes(status)) {
     throw new Error(`statut invalide: ${status} (attendu: ${WIREFRAME_STATUSES.join(", ")})`);
   }
@@ -723,19 +791,21 @@ export function markStatus(
   // qu'un wireframe est fini. Tant que la revue trouve une section importante
   // oubliee, `approved` est refuse — sinon la verification reste optionnelle et
   // l'on retombe dans le probleme initial.
+  let review: ApprobationReport | null = null;
   if (status === "approved" && !sectionId) {
-    const review = reviewScreen(project, screenSlug);
-    if (review.verdict !== "pass") {
+    const resultat = reviewScreen(project, screenSlug);
+    if (resultat.verdict !== "pass") {
       // Le formateur d'erreurs du serveur coupe a 300 caracteres (sanitisation
       // commune a tous les tools) et retire les caracteres non-ASCII. La
       // commande de rattrapage doit donc PRECEDER les details: elle seule peut
       // etre utilisee par l'agent si le message est tronque.
       throw new Error(
-        `approbation refusee pour ${screenSlug}: ${review.gaps.length} manque(s). ` +
+        `approbation refusee pour ${screenSlug}: ${resultat.gaps.length} manque(s). ` +
           `Corrigez: novahiz_wireframe action="sections" (puis action="review"). ` +
-          `Manques: ${review.gaps.map((gap) => `${gap.label} [${gap.severity}]`).join(", ")}`
+          `Manques: ${resultat.gaps.map((gap) => `${gap.label} [${gap.severity}]`).join(", ")}`
       );
     }
+    review = resumeApprobation(resultat);
   }
 
   const file = sectionId
@@ -747,5 +817,5 @@ export function markStatus(
     .replace(/^status: .*$/m, `status: ${status}`)
     .replace(/^updated: .*$/m, `updated: ${now()}`);
   writeFileSync(file, updated, "utf8");
-  return { path: file, status };
+  return { path: file, status, review };
 }

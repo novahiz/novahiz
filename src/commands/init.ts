@@ -1,4 +1,4 @@
-import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { join, relative } from "node:path";
 import { emit, flagOn, type Parsed } from "./context.ts";
 import { loadSpec, NovahizHome } from "../spec.ts";
@@ -215,6 +215,40 @@ function initMemory(cwd: string, dryRun: boolean, seed: boolean, project: Projec
   }
 }
 
+export function ensureProjectVerifyConfig(cwd: string): "created" | "exists" | "failed" {
+  const dir = join(cwd, ".novahiz");
+  const file = join(dir, "verify.json");
+  if (existsSync(file)) return "exists";
+  // A project that cannot declare what proves its work cannot use novahiz_verify.
+  // Detect the usual scripts once, at init time, so every new project starts
+  // with a usable contract instead of an empty promise.
+  const commands: Record<string, string> = {};
+  try {
+    const pkg = JSON.parse(readFileSync(join(cwd, "package.json"), "utf8")) as { scripts?: Record<string, unknown> };
+    const scripts = pkg.scripts ?? {};
+    const candidates: Record<string, string[]> = {
+      typecheck: ["typecheck", "tsc"],
+      test: ["test", "test:unit", "test:ci"],
+      lint: ["lint", "eslint"],
+      build: ["build"]
+    };
+    for (const [name, keys] of Object.entries(candidates)) {
+      const key = keys.find((candidate) => typeof scripts[candidate] === "string");
+      if (key) commands[name] = `npm run ${key}`;
+    }
+  } catch {
+    // No package.json (or unreadable): the file is still created, empty, with
+    // the shape a human can fill in.
+  }
+  try {
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(file, `${JSON.stringify({ commands }, null, 2)}\n`, "utf8");
+    return "created";
+  } catch {
+    return "failed";
+  }
+}
+
 function projectDoctor(project: ProjectInfo): InitStep {
   if (project.markers.length === 0) {
     return {
@@ -410,6 +444,27 @@ export function commandInit(parsed: Parsed): void {
       });
     }
     steps.push(impeccableContext(home, cwd, dryRun));
+    if (dryRun) {
+      steps.push({
+        id: "verify-config",
+        label: "Verification commands",
+        status: "dry-run",
+        detail: "would write .novahiz/verify.json with the detected test/typecheck/lint/build scripts"
+      });
+    } else {
+      const verifyStatus = ensureProjectVerifyConfig(cwd);
+      steps.push({
+        id: "verify-config",
+        label: "Verification commands",
+        status: verifyStatus === "failed" ? "failed" : verifyStatus === "created" ? "created" : "skipped",
+        detail:
+          verifyStatus === "failed"
+            ? "could not write .novahiz/verify.json"
+            : verifyStatus === "exists"
+              ? ".novahiz/verify.json already exists (left untouched)"
+              : ".novahiz/verify.json created with the detected scripts"
+      });
+    }
     const folder = obsidianProject(dryRun, project);
     steps.push(folder);
     steps.push(obsidianDocs(cwd, dryRun, project, folder));

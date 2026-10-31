@@ -1,6 +1,6 @@
 import type { Category, CategoryKeyword, RoadmapStep, Spec } from "./spec.ts";
 import { providersForCategories } from "./providers.ts";
-import { determineTier, type ComplexityTier } from "./complexity.ts";
+import { determineTier, liteKeeps, type ComplexityTier } from "./complexity.ts";
 
 type CategoryScore = {
   id: string;
@@ -9,6 +9,8 @@ type CategoryScore = {
   margin: number;
   terms: string[];
   negatives: string[];
+  /** Path rules that contributed to the score, e.g. "style file (globals.css)". */
+  pathSignals: string[];
 };
 
 type RoadmapView = {
@@ -24,6 +26,7 @@ type SkillInvocation = {
   kind: RoadmapStep["kind"];
   skills: string[];
   optional: boolean;
+  enforced: boolean;
 };
 
 type Classification = {
@@ -41,7 +44,90 @@ type ClassifyOptions = {
   minScore?: number;
   maxCategories?: number;
   fallbackCategory?: string;
+  /**
+   * Files the task touches. A prompt alone under-classifies: "ajoute le
+   * skeleton de chargement" carries no design vocabulary, but the files it
+   * edits are `.tsx` and `.css`. Path signals make the classification
+   * deterministic on what the work actually touches, not only on how it is
+   * phrased.
+   */
+  files?: string[];
 };
+
+/**
+ * Path → category signals. Ids are guarded against the catalog: a signal for a
+ * category the project does not define is ignored, never invented.
+ */
+const PATH_SIGNALS: { pattern: RegExp; category: string; weight: number; label: string }[] = [
+  { pattern: /\.(css|scss|sass|less|styl)$/i, category: "design-ui", weight: 3, label: "style file" },
+  { pattern: /\.(tsx|jsx|vue|svelte)$/i, category: "design-ui", weight: 1.5, label: "component file" },
+  {
+    pattern: /(^|\/)(globals\.css|tailwind\.config\.[cm]?[jt]s|theme\/)/i,
+    category: "design-ui",
+    weight: 2,
+    label: "design tokens",
+  },
+  {
+    pattern: /(^|\/)(supabase|migrations)\/|\.sql$/i,
+    category: "database-supabase",
+    weight: 4,
+    label: "database path",
+  },
+  {
+    pattern: /(^|\/)messages\/|\.(md|mdx)$|(^|\/)docs\//i,
+    category: "docs-writing",
+    weight: 2,
+    label: "documentation path",
+  },
+  {
+    pattern: /(^|\/)(Dockerfile|docker-compose\.ya?ml)$|(^|\/)\.github\/workflows\/|(^|\/)terraform\/|\.(ya?ml)$/i,
+    category: "devops",
+    weight: 3,
+    label: "infrastructure path",
+  },
+  {
+    pattern: /\.(test|spec)\.(ts|tsx|js|jsx|py|dart)$|(^|\/)(__tests__|tests?)\//i,
+    category: "test",
+    weight: 3,
+    label: "test path",
+  },
+  {
+    pattern: /(^|\/)lib\/data\/|\.(json|csv|parquet)$/i,
+    category: "data",
+    weight: 2,
+    label: "data path",
+  },
+];
+
+function pathSignalsFor(files: string[] | undefined, categoryId: string): string[] {
+  if (!files?.length) return [];
+  const signals: string[] = [];
+  for (const file of files) {
+    const normalized = file.replace(/\\/g, "/");
+    for (const rule of PATH_SIGNALS) {
+      if (rule.category !== categoryId) continue;
+      if (!rule.pattern.test(normalized)) continue;
+      const label = `${rule.label} (${normalized})`;
+      if (!signals.includes(label)) signals.push(label);
+    }
+  }
+  return signals;
+}
+
+function pathWeightFor(files: string[] | undefined, categoryId: string): number {
+  if (!files?.length) return 0;
+  let weight = 0;
+  for (const file of files) {
+    const normalized = file.replace(/\\/g, "/");
+    let best = 0;
+    for (const rule of PATH_SIGNALS) {
+      if (rule.category !== categoryId) continue;
+      if (rule.pattern.test(normalized) && rule.weight > best) best = rule.weight;
+    }
+    weight += best;
+  }
+  return Math.round(weight * 1000) / 1000;
+}
 
 export function fold(value: string): string {
   return value
@@ -92,7 +178,7 @@ function confidence(score: number): number {
   return Math.round((score / (score + 2)) * 100) / 100;
 }
 
-function skillsOfCategory(category: Category): string[] {
+export function skillsOfCategory(category: Category): string[] {
   const skills: string[] = [...category.defaultSkills];
   for (const step of category.roadmap?.steps ?? []) {
     for (const skill of step.requireSkills ?? []) {
@@ -102,7 +188,7 @@ function skillsOfCategory(category: Category): string[] {
   return skills;
 }
 
-function enforcedOfCategory(category: Category): string[] {
+export function enforcedOfCategory(category: Category): string[] {
   const skills: string[] = [];
   for (const step of category.roadmap?.steps ?? []) {
     // Every non-optional step counts, whatever its kind: `edit:implement` and
@@ -115,6 +201,35 @@ function enforcedOfCategory(category: Category): string[] {
     }
   }
   return skills;
+}
+
+/**
+ * Is this roadmap step enforced by the gate, or is it a checklist line?
+ *
+ * The rule is the gate's, not a new one: a step blocks only when it is not
+ * optional AND carries `requireSkills`. Exposing it on every step is what makes
+ * "critique / polish / a11y" visible as advisory before an agent plans around
+ * them — and what makes the ledger's close rule legible.
+ */
+export function stepEnforcement(step: RoadmapStep): {
+  enforced: boolean;
+  advisory: boolean;
+  why: string;
+} {
+  const skills = step.requireSkills ?? [];
+  if (step.optional === true) return { enforced: false, advisory: true, why: "optional step" };
+  if (skills.length === 0) return { enforced: false, advisory: true, why: "no required skill" };
+  return { enforced: true, advisory: false, why: `${skills.length} required skill(s)` };
+}
+
+export type AnnotatedStep = RoadmapStep & { enforced: boolean; advisory: boolean; why: string };
+
+type RoadmapLike = { id: string; steps: RoadmapStep[] } & Record<string, unknown>;
+type AnnotatedRoadmap = { id: string; steps: AnnotatedStep[] } & Record<string, unknown>;
+
+export function annotateRoadmap(roadmap: RoadmapLike | null | undefined): AnnotatedRoadmap | null {
+  if (!roadmap) return null;
+  return { ...roadmap, steps: roadmap.steps.map((step) => ({ ...step, ...stepEnforcement(step) })) };
 }
 
 export function classify(spec: Spec, prompt: string, options: ClassifyOptions = {}): Classification {
@@ -145,8 +260,10 @@ export function classify(spec: Spec, prompt: string, options: ClassifyOptions = 
       score -= keywordWeight(negative);
       negatives.push(matched);
     }
+    const pathSignals = pathSignalsFor(options.files, category.id);
+    score += pathWeightFor(options.files, category.id);
     if (score >= minScore) {
-      scored.push({ id: category.id, score, confidence: confidence(score), margin: 0, terms, negatives });
+      scored.push({ id: category.id, score, confidence: confidence(score), margin: 0, terms, negatives, pathSignals });
     }
   }
 
@@ -167,9 +284,9 @@ export function classify(spec: Spec, prompt: string, options: ClassifyOptions = 
   // the gate still applies R6 rules instead of silently allowing everything.
   if (selected.length === 0) {
     if (fallbackCategory.length > 0 && spec.categories.some((entry) => entry.id === fallbackCategory)) {
-      selected.push({ id: fallbackCategory, score: 0, confidence: 0, margin: 0, terms: [], negatives: [] });
+      selected.push({ id: fallbackCategory, score: 0, confidence: 0, margin: 0, terms: [], negatives: [], pathSignals: [] });
     } else if (spec.categories.some((entry) => entry.id === "general")) {
-      selected.push({ id: "general", score: 0, confidence: 0, margin: 0, terms: [], negatives: [] });
+      selected.push({ id: "general", score: 0, confidence: 0, margin: 0, terms: [], negatives: [], pathSignals: [] });
     }
   }
 
@@ -186,11 +303,13 @@ export function classify(spec: Spec, prompt: string, options: ClassifyOptions = 
       continue;
     }
     if (tier === "lite") {
-      // Lite: only implement + converge skills (skip plan, clarify, etc.)
+      // Lite keeps every domain skill and drops only the process skills (plan,
+      // clarify, task, analyse). The old filter kept implement/converge only,
+      // which erased wireframe and design craft from a lite design change while
+      // the gate was expected to enforce them.
       for (const step of category.roadmap?.steps ?? []) {
-        const allowed = (step.requireSkills ?? []).filter(
-          s => s === "novahiz-implement" || s === "novahiz-converge"
-        );
+        if (step.optional) continue;
+        const allowed = (step.requireSkills ?? []).filter(liteKeeps);
         for (const skill of allowed) {
           if (!requiredSkills.includes(skill)) requiredSkills.push(skill);
         }
@@ -210,11 +329,16 @@ export function classify(spec: Spec, prompt: string, options: ClassifyOptions = 
         label: step.label,
         kind: step.kind,
         skills: step.requireSkills ?? [],
-        optional: step.optional === true
+        optional: step.optional === true,
+        enforced: stepEnforcement(step).enforced
       });
     }
     if (category.roadmap) {
-      roadmaps.push({ category: category.id, id: category.roadmap.id, steps: category.roadmap.steps });
+      roadmaps.push({
+        category: category.id,
+        id: category.roadmap.id,
+        steps: annotateRoadmap(category.roadmap)!.steps
+      });
     }
   }
 
@@ -227,9 +351,7 @@ export function classify(spec: Spec, prompt: string, options: ClassifyOptions = 
   const enforcedSkills =
     tier !== "trivial" && primaryCategory
       ? tier === "lite"
-        ? enforcedOfCategory(primaryCategory).filter(
-            (skill) => skill === "novahiz-implement" || skill === "novahiz-converge"
-          )
+        ? enforcedOfCategory(primaryCategory).filter(liteKeeps)
         : enforcedOfCategory(primaryCategory)
       : [];
 

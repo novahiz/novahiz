@@ -3,7 +3,7 @@
     "id": "playwright",
     "label": "Playwright MCP",
     "kind": "mcp",
-    "command": ["npx", "-y", "@playwright/mcp@0.0.82"],
+    "command": ["npx", "-y", "@playwright/mcp@0.0.83"],
     "source": "https://github.com/microsoft/playwright-mcp",
     "license": "Apache-2.0",
     "categories": ["browser", "design-ui"]

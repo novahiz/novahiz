@@ -1082,8 +1082,7 @@
           "kind": "skill",
           "requireSkills": [
             "impeccable"
-          ],
-          "optional": true
+          ]
         },
         {
           "id": "impeccable-layout",
@@ -1244,8 +1243,7 @@
           "kind": "skill",
           "requireSkills": [
             "impeccable"
-          ],
-          "optional": true
+          ]
         },
         {
           "id": "impeccable-detect",
@@ -1267,8 +1265,7 @@
           "kind": "skill",
           "requireSkills": [
             "novahiz-wcag-audit"
-          ],
-          "optional": true
+          ]
         },
         {
           "id": "converge",
@@ -1664,6 +1661,72 @@
           "id": "report",
           "label": "Report findings",
           "kind": "advisory"
+        }
+      ]
+    }
+  },
+  {
+    "id": "cleanup",
+    "label": "Nettoyage / retrait",
+    "priority": 54,
+    "keywords": [
+      { "term": "supprimer", "weight": 3 },
+      { "term": "nettoyer", "weight": 3 },
+      { "term": "nettoyage", "weight": 2 },
+      { "term": "retirer", "weight": 2 },
+      { "term": "vider", "weight": 2 },
+      { "term": "purge", "weight": 2 },
+      { "term": "delete", "weight": 2 },
+      { "term": "remove", "weight": 2 },
+      { "term": "effacer", "weight": 1 },
+      { "term": "annuler", "weight": 1 },
+      { "term": "désinstaller", "weight": 1 },
+      { "term": "désactive", "weight": 1 },
+      { "term": "désactivez", "weight": 1 },
+      { "term": "espace client", "weight": 1 },
+      { "term": "dashboard", "weight": 1 },
+      { "term": "tableau de bord", "weight": 1 }
+    ],
+    "negativeKeywords": [
+      "créer",
+      "ajouter",
+      "implémenter",
+      "construire",
+      "développer",
+      "build",
+      "create",
+      "add",
+      "implement",
+      "nouveau",
+      "nouvelle"
+    ],
+    "defaultSkills": [],
+    "roadmap": {
+      "id": "cleanup",
+      "steps": [
+        {
+          "id": "plan",
+          "label": "Définir ce qui est supprimé",
+          "kind": "skill",
+          "requireSkills": [
+            "novahiz-plan"
+          ]
+        },
+        {
+          "id": "execute",
+          "label": "Effectuer la suppression",
+          "kind": "edit",
+          "requireSkills": [
+            "novahiz-implement"
+          ]
+        },
+        {
+          "id": "verify",
+          "label": "Vérifier l'absence de régression",
+          "kind": "verify",
+          "requireSkills": [
+            "novahiz-converge"
+          ]
         }
       ]
     }

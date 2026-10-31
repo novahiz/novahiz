@@ -48,6 +48,23 @@ retouches. Le gate `R17-wireframe` (et l'étape `wireframe` de la roadmap
 design-ui) exige cette skill chargée sur toute tâche design-ui ou tout fichier
 d'écran.
 
+### Chemin léger — écran existant, retouche ciblée
+
+La séquence complète construit un écran. Elle n'est pas faite pour changer une
+texture dans une section qui existe déjà. Dans ce cas :
+
+1. Le dossier `wireframes/<ecran>/` existe et `screen.md` est approuvé → **ne pas**
+   relancer `plan`, `screen`, `sections` ni `review`.
+2. Mettre à jour **la seule section concernée** (`novahiz_wireframe section`),
+   avec ses annotations et ses états.
+3. Passer directement à la construction de cette section.
+
+Ce qui reste interdit dans le chemin léger : construire une section qui n'a
+jamais été décrite, ou modifier la structure de l'écran sans repasser par
+`screen` et `review`. Le critère est simple — **la portée du changement décide du
+chemin**, pas l'habitude. Un nouvel écran suit les 11 étapes ; une retouche dans
+une section décrite en suit 3.
+
 Trois garde-fous portés par le code, pas par votre mémoire:
 
 - `screen` renvoie `needsSections: true` accompagné d'un `plan` quand l'écran est

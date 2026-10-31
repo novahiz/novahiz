@@ -15,7 +15,7 @@ Global skill for using Playwright MCP in OpenCode. It forces the development ser
 
 ## Hard rules
 
-1. **NEVER use Chrome or Chromium.** Use only Microsoft Edge via the Playwright MCP server (`--browser=msedge`). Never launch `chrome.exe`, `chromium`, or any Chromium-based process manually or programmatically. All browser automation goes through the MCP tools (`playwright_browser_*`). If Edge is not installed, fall back to another non-Chromium browser (Firefox, WebKit) via the Playwright MCP server.
+1. **Never launch `chrome.exe` or `chromium` yourself.** The approved browser is Microsoft Edge through the Playwright MCP server (`--browser=msedge`); Edge *is* Chromium-based, so "never Chromium" was misleading — the rule is about the *executable you launch*, not the engine. All browser automation goes through the MCP tools (`playwright_browser_*`). If Edge is not installed, fall back to Firefox or WebKit via the same MCP server.
 2. **Persistent profile only.** Profile folder: `~/.opencode/playwright-profile`. Never disable `--user-data-dir`. Never launch an ephemeral context for tasks requiring persistence. Never purge the folder without explicit user consent.
 3. **Dev server first.** Start the application server in an external terminal before navigating to `localhost`. Do not assume it is already running. Confirm it responds before the first navigation.
 4. **MCP tools only.** Navigation, clicks, typing, screenshots, and snapshots go through `playwright_browser_*`. No manual browser launch, no direct CDP attach outside the MCP server.
@@ -50,6 +50,17 @@ The MCP server owns the browser process. Tools are stateless calls against the c
 - Never accept unexpected dialogs without checking what they carry.
 - The persistent profile holds real sessions. Do not clear cookies or storage without asking.
 - If the profile causes startup failures, propose a backup before any reset.
+
+## When the page never loads
+
+Check in this order before blaming the app:
+
+1. **Is the server actually up?** `Invoke-WebRequest http://localhost:<port>/ -UseBasicParsing` (PowerShell) — a 200 is proof, a hanging socket is not.
+2. **Is the port already taken by another session?** Next refuses a second `next dev` with *"Another next dev server is already running"* and names the PID. Work against that server, or stop it explicitly; do not start a third.
+3. **Do fonts fail while the page renders?** `next/font` fetches Google fonts at build/start. On a network with broken IPv6 (`ENETUNREACH`) or a dead local DNS, the server answers 500 with `Module not found: Can't resolve '@vercel/turbopack-next/internal/font/google/font'`. Confirm with `node -e "fetch('https://fonts.gstatic.com').then(r=>console.log(r.status)).catch(e=>console.log(e.cause?.code))"`. If Node fetches but the bundler does not, run the dev server with `--webpack`: `npx next dev -p <port> --webpack`. That bypasses the Turbopack font loader without changing the app.
+4. **Did a cache purge break the build?** Never delete `.next` while a dev server is running — Next panics on a missing `*.sst`. Stop the server first, then purge.
+
+Report which check failed; "it does not work" is not a diagnosis.
 
 ## When the profile fails
 

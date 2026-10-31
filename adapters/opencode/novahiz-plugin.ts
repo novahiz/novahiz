@@ -1,6 +1,6 @@
 import type { Cleanup, Context, Plugin } from "@opencode/plugin/promise/plugin";
 import { spawn } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { isAbsolute, join, relative, resolve } from "node:path";
 
@@ -377,6 +377,62 @@ const CLI = join(HOME, "src", "cli.ts");
 const MCP = join(HOME, "mcp", "novahiz-tools", "index.mjs");
 const NODE =
   process.env.NOVAHIZ_NODE && process.env.NOVAHIZ_NODE.length > 0 ? process.env.NOVAHIZ_NODE : "node";
+
+/**
+ * Which event types this harness really emits.
+ *
+ * A hook that never fires leaves a question with two answers: wrong event name,
+ * or wrong payload. Writing one line per distinct type turns that into a fact
+ * the next session can read, instead of a guess that costs another restart.
+ */
+const seenEventTypes = new Set<string>();
+
+/**
+ * Where the end-of-session trace belongs.
+ *
+ * Measured 2026-10-29: the trace was spawned with `process.cwd()`, which for
+ * the plugin is where opencode was started — the user home — so a line landed
+ * in `C:\Users\Tawhid\.novahiz\session-end.jsonl` instead of the project. The
+ * research on the V2 schema (packages/schema/src/session-event.ts) says
+ * `session.execution.succeeded` carries only `sessionID` in `data`; the
+ * directory appears on `session.created` as `data.location.directory`, and some
+ * envelopes carry `location.directory` beside `data`.
+ *
+ * So: envelope location, then the directory remembered from this session's
+ * `session.created`, then the context directory. Never a guess: with none of
+ * them the trace is skipped rather than written into a directory that is not a
+ * project.
+ */
+const sessionDirs = new Map<string, string>();
+
+function traceDirectory(input: {
+  eventDirectory?: unknown;
+  remembered?: string;
+  contextDirectory?: unknown;
+}): string | null {
+  for (const candidate of [input.eventDirectory, input.remembered, input.contextDirectory]) {
+    if (typeof candidate === "string" && candidate.length > 0) return candidate;
+  }
+  return null;
+}
+
+
+function recordEventType(event: { type?: unknown; [key: string]: unknown }): void {
+  const type = typeof event?.type === "string" ? event.type : "(sans type)";
+  if (seenEventTypes.has(type)) return;
+  seenEventTypes.add(type);
+  try {
+    const dir = join(HOME, "logs");
+    mkdirSync(dir, { recursive: true });
+    appendFileSync(
+      join(dir, "plugin-events.log"),
+      `${new Date().toISOString()} ${type} keys=${Object.keys(event ?? {}).join(",")}\n`,
+      "utf8"
+    );
+  } catch {
+    // fail-open: instrumentation must never break the plugin
+  }
+}
 
 type GateConfig = { enabled?: boolean; mode?: string; envEscape?: string; tools?: string[] };
 
@@ -813,8 +869,35 @@ function parseToolPayload(result: unknown): Record<string, unknown> | null {
   }
 }
 
-export type AutoTrigger = "todoDone" | "review" | "spec";
-export type AutoReadHit = { id?: unknown; title?: unknown; score?: unknown; snippet?: unknown };
+/**
+ * NX-43 : l'identifiant de session enfant, tel que le résultat de délégation
+ * l'écrit (`sessionID="ses_..."`). Aucune invention : sans identifiant
+ * reconnaissable, aucun lien n'est enregistré, et le gate reste strict.
+ */
+function childSessionOf(result: unknown): string | null {
+  let text = "";
+  try {
+    const content = (result as { content?: unknown } | undefined)?.content;
+    if (typeof content === "string") {
+      text = content;
+    } else if (Array.isArray(content)) {
+      text = content
+        .map((part) =>
+          part && typeof part === "object" && typeof (part as { text?: unknown }).text === "string"
+            ? (part as { text: string }).text
+            : ""
+        )
+        .join("\n");
+    }
+    if (text.length === 0) text = typeof result === "string" ? result : JSON.stringify(result ?? "");
+  } catch {
+    return null;
+  }
+  const match = text.match(/\bses_[A-Za-z0-9]{6,}\b/);
+  return match ? match[0] : null;
+}
+
+export type AutoTrigger = "todoDone" | "review" | "spec";export type AutoReadHit = { id?: unknown; title?: unknown; score?: unknown; snippet?: unknown };
 
 // S-AUTO: detection deterministic du trigger depuis un execute.after réussi.
 // T1/T2 sur l'outil MCP novahiz_task (done/review), T5 sur l'edition des
@@ -1579,22 +1662,72 @@ async function setup(ctx: Context): Promise<Cleanup> {
   void (async () => {
     try {
       for await (const event of ctx.event.subscribe({ signal: events.signal })) {
-        if (event.type === "session.idle") {
+        if (event.type === "session.execution.succeeded") {
+          // Measured 2026-10-29: this harness emits `session.execution.succeeded`
+          // at the end of a run and never emits `session.idle` — the original
+          // trigger was a name that simply does not exist, which is why the
+          // trace never appeared. `session.idle` is kept as a secondary trigger
+          // for harnesses that do emit it; the CLI throttles per session, so a
+          // double trigger costs one process at most every ten minutes.
           // Fail-open: never block idle; skip when disabled or nothing pending.
           try {
-            const cwd = process.cwd();
-            if (autoDocsEnabled(cwd)) {
-              const state = readState(cwd);
-              if (state.dirty || state.pending.length > 0) {
-                const child = spawn(NODE, [CLI, "autodocs", "--flush"], {
-                  cwd,
-                  stdio: "ignore",
-                  timeout: RUN_TIMEOUT_MS,
-                  windowsHide: true
-                });
-                child.on("error", () => undefined);
-                child.unref();
+            const rawData = (event.data ?? {}) as Record<string, unknown>;
+            const nested = (rawData.session ?? {}) as { id?: unknown };
+            const sessionID =
+              (typeof rawData.sessionID === "string" ? rawData.sessionID : undefined) ??
+              (typeof nested.id === "string" ? nested.id : undefined) ??
+              (event as { properties?: { sessionID?: string } }).properties?.sessionID;
+            const envelope = event as { location?: { directory?: string } };
+            const traceCwd = traceDirectory({
+              eventDirectory: envelope.location?.directory,
+              remembered: sessionID ? sessionDirs.get(sessionID) : undefined,
+              contextDirectory: (ctx as { directory?: string }).directory
+            });
+            if (!traceCwd) {
+              // No project to attach the trace to: skip it. Writing into the
+              // plugin's own cwd is how the line ended up in the user home.
+              recordEventType(event);
+            } else {
+              if (autoDocsEnabled(traceCwd)) {
+                const state = readState(traceCwd);
+                if (state.dirty || state.pending.length > 0) {
+                  const child = spawn(NODE, [CLI, "autodocs", "--flush"], {
+                    cwd: traceCwd,
+                    stdio: "ignore",
+                    timeout: RUN_TIMEOUT_MS,
+                    windowsHide: true
+                  });
+                  child.on("error", () => undefined);
+                  child.unref();
+                }
               }
+              // End-of-session trace: one throttled line about what moved in this
+              // session, so the next one does not have to reconstruct it. The CLI
+              // owns the throttle and the format; nothing is written to the vault.
+              // A missing id still writes a trace, attributed to no session
+              // instead of to none at all.
+              const traceArgs = ["second-memory", "suggest", "--record"];
+              if (typeof sessionID === "string" && sessionID.length > 0) traceArgs.push("--session", sessionID);
+              const trace = spawn(NODE, [CLI, ...traceArgs], {
+                cwd: traceCwd,
+                stdio: "ignore",
+                timeout: RUN_TIMEOUT_MS,
+                windowsHide: true
+              });
+              trace.on("error", () => undefined);
+              trace.unref();
+            }
+          } catch {
+            // fail-open
+          }
+        } else if (event.type === "session.created") {
+          // The only event that carries the project directory in `data`.
+          try {
+            const data = (event.data ?? {}) as { sessionID?: unknown; location?: { directory?: unknown } };
+            const id = typeof data.sessionID === "string" ? data.sessionID : "";
+            const directory = data.location?.directory;
+            if (id.length > 0 && typeof directory === "string" && directory.length > 0) {
+              sessionDirs.set(id, directory);
             }
           } catch {
             // fail-open
@@ -1602,6 +1735,8 @@ async function setup(ctx: Context): Promise<Cleanup> {
         } else if (event.type === "session.deleted") {
           const sessionID = event.data?.sessionID;
           if (sessionID) forget(sessionID);
+        } else {
+          recordEventType(event);
         }
       }
     } catch {
@@ -1707,7 +1842,7 @@ async function setup(ctx: Context): Promise<Cleanup> {
           await log("warn", "Ledger state is invalid JSON, enforcement injected without the task summary");
         }
       }
-      lines.push("The gate blocks edit/write/patch/apply_patch/bash/shell until the required skills are loaded via skill({id:\"...\"}). Read-only shell commands (status/log/diff/ls/Get-Content/...) are exempt.");
+      lines.push("The gate blocks edit/write/patch/apply_patch/bash/shell until the required skills are loaded via skill({id:\"...\"}). A shell command is exempt only when it is provably read-only: one command (status/log/diff/ls/Get-Content/...) and no pipe, ';', '&', '>', backtick, newline or $(...) - split a chained command into separate calls instead of joining it.");
       lines.push("The gate is content-aware: novahiz-humanizer, ui-slop-remover and ui-craft-rules are required only on frontend design tasks (R13), and impeccable on the same design selectors (R14).");
       lines.push("Config edited = opencode restart required (config read at import).");
       lines.push("Memory lives in project-memory/ under the project root (cwd): index.json + fixed-size slots (8000 chars / 200 lines) with compact → archive → new-slot rotation. Use the MCP memory_* tools: memory_search to find relevant slots first, then memory_get to read, memory_write to append, memory_update to correct, memory_archive to retire.");
@@ -1972,6 +2107,17 @@ async function setup(ctx: Context): Promise<Cleanup> {
             (typeof args.path === "string" && args.path) ||
             "";
           await autoWriteFact("spec", { path: raw, tool: event.tool }, event.sessionID);
+        }
+      }
+
+      // NX-43: a delegation opens a child session in the same tree. The link is
+      // recorded where it is observed, never guessed from the session name —
+      // without it the gate treats the child as a stranger (claims refused) or
+      // as a competitor. Fail-open: a missed link only keeps the rule strict.
+      if ((tool === "subagent" || tool === "task") && event.status === "completed") {
+        const child = childSessionOf(event.result);
+        if (child && child !== event.sessionID) {
+          await callMcp("novahiz_task", { action: "link", session: event.sessionID, child });
         }
       }
 

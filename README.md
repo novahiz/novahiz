@@ -455,6 +455,20 @@ Tout est local, déterministe et JSON. Aucun appel cloud. Aucune inférence de m
 
 ---
 
+## Vérification et preuve
+
+Une affirmation se prouve avec une commande, pas avec une phrase.
+
+- `novahiz verify <nom> [--expect "texte"]` exécute une commande déclarée dans `.novahiz/verify.json` et enregistre ce qui s'est réellement passé : code de sortie, extrait de sortie, durée, empreinte. Le nom seul ne suffit pas à inventer un shell.
+- `novahiz docs verify` rejoue les affirmations marquées `<!-- verify: <nom> -->` dans `PRODUCT.md`, `DESIGN.md`, `SOURCES.md`, `README.md` et `novahiz-docs/`. Verdicts : `ok`, `failed`, `unknown`.
+- **Convention de code de sortie** : `3` signifie **mesure impossible** (service injoignable, réseau coupé). Le verdict devient `unknown`, jamais `failed`. Rouge veut dire « le document est faux », pas « le réseau a clignoté ». `2` reste réservé à une erreur d'usage du script.
+
+```json
+{ "commands": { "tests": "npm test", "typecheck": "npx tsc --noEmit" } }
+```
+
+---
+
 ## Licence
 
 Apache-2.0

@@ -19,8 +19,8 @@ import type { SlotDoc } from "./relevance.ts";
 export const MEMORY_DIR = "project-memory";
 export const SLOTS_DIR = "slots";
 export const INDEX_FILE = "index.json";
-export const DEFAULT_LIMIT_CHARS = 8000;
-export const DEFAULT_LIMIT_LINES = 200;
+export const DEFAULT_LIMIT_CHARS = 16000;
+export const DEFAULT_LIMIT_LINES = 400;
 export const MAX_CONTENT_LEN = 100000;
 export const MAX_TITLE_LEN = 200;
 export const MAX_DESC_LEN = 500;
@@ -60,6 +60,16 @@ export type SlotMeta = {
   previous?: string;
   /** P5 decay: derniere consultation explicite (memory_get); absent = jamais lu. */
   last_read?: string;
+  /**
+   * Name of a command declared in the project's `.novahiz/verify.json`.
+   * A decision that can go stale ("RIB in placeholder") carries the command
+   * that proves it, so `memory verify` can replay it instead of trusting a
+   * sentence written weeks ago.
+   */
+  verify?: string;
+  /** Last time that command was replayed, and what it said. */
+  last_verified?: string;
+  last_verdict?: "ok" | "failed" | "unknown";
 };
 
 export type MemoryIndex = {
@@ -90,7 +100,51 @@ export type SlotFile = {
   meta: SlotMeta;
   body: SlotBody;
   raw: string;
+  /** Format contract violations found on read (missing sections or keys). */
+  issues: string[];
 };
+
+const VERIFY_NAME = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/;
+
+/**
+ * Check a slot file against the format the skill promises: a frontmatter with
+ * the mandatory keys, a Résumé section, a Détails section, and a coherent
+ * verify/last_verdict pair. Returns human-readable issues; never throws, so a
+ * legacy slot stays readable and is reported instead of silently rewritten.
+ */
+export function slotFormatIssues(raw: string): string[] {
+  const issues: string[] = [];
+  const match = raw.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/);
+  if (!match) {
+    issues.push("frontmatter absent (le fichier doit commencer par ---)");
+    return issues;
+  }
+  const header = match[1];
+  const body = match[2];
+  const keys = new Set<string>();
+  for (const line of header.split(/\r?\n/)) {
+    const pair = line.match(/^([A-Za-z_][A-Za-z0-9_]*):\s*(.*)$/);
+    if (pair) keys.add(pair[1]);
+  }
+  for (const required of ["id", "title", "created", "status"]) {
+    if (!keys.has(required)) issues.push(`clé obligatoire absente: ${required}`);
+  }
+  if (!/^##\s*R[ée]sum[ée]\s*$/im.test(body)) issues.push("section « ## Résumé » absente");
+  if (!/^##\s+D[ée]tails\s*$/im.test(body)) issues.push("section « ## Détails » absente");
+
+  const verify = header.match(/^verify:\s*(.+)$/m)?.[1]?.trim();
+  const verdict = header.match(/^last_verdict:\s*(.+)$/m)?.[1]?.trim();
+  if (verify && !VERIFY_NAME.test(verify)) {
+    issues.push(`verify invalide: "${verify}" (lettres, chiffres, point, tiret, underscore)`);
+  }
+  if (verdict && !["ok", "failed", "unknown"].includes(verdict)) {
+    issues.push(`last_verdict invalide: "${verdict}" (ok | failed | unknown)`);
+  }
+  if (verdict && !verify) {
+    issues.push("last_verdict présent sans verify");
+  }
+  return issues;
+}
 
 export type WriteEntryInput = {
   title: string;
@@ -99,6 +153,7 @@ export type WriteEntryInput = {
   tags?: string[];
   slotId?: string;
   root?: string;
+  verify?: string;
 };
 
 export type WriteEntryResult = {
@@ -112,6 +167,8 @@ export type WriteEntryResult = {
   archivedTo?: string;
   /** S4: qualite du routage — high >= 0.5, medium >= 0.25, low sinon (memes bornes que memory_search). */
   confidence: "high" | "medium" | "low";
+  /** Format contract violations on the written slot (empty when clean). */
+  slotIssues?: string[];
   index: MemoryIndex;
 };
 
@@ -196,6 +253,40 @@ function nowIso(): string {
   return new Date().toISOString();
 }
 
+/**
+ * NX-29 : une valeur de frontmatter tient sur une ligne.
+ *
+ * `serializeSlot` écrivait `title: ${meta.title}` : un titre contenant un saut
+ * de ligne injectait une clé entière (`status: archived`) dans le bloc, et une
+ * valeur `---` le fermait avant l'heure. Le retour à la ligne est donc replié,
+ * les caractères de contrôle retirés, et une valeur qui commencerait par `---`
+ * ou par un guillemet est citée — `parseFrontmatter` la déquote.
+ */
+function frontmatterValue(value: string): string {
+  const single = value
+    .replace(/[\r\n]+/g, " ")
+    .replace(/[\u0000-\u001f\u007f]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (single.length === 0) return '""';
+  if (single.startsWith("---") || single.startsWith('"')) return JSON.stringify(single);
+  return single;
+}
+
+/** La valeur inverse : une valeur citée par `frontmatterValue` est déquotée. */
+function frontmatterRaw(value: string): string {
+  const trimmed = value.trim();
+  if (trimmed.startsWith('"')) {
+    try {
+      const parsed = JSON.parse(trimmed) as unknown;
+      if (typeof parsed === "string") return parsed;
+    } catch {
+      // Guillemet non JSON : la valeur reste telle quelle.
+    }
+  }
+  return trimmed;
+}
+
 function parseFrontmatter(raw: string): { meta: Partial<SlotMeta>; body: string } {
   const match = raw.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/);
   if (!match) return { meta: {}, body: raw };
@@ -206,7 +297,7 @@ function parseFrontmatter(raw: string): { meta: Partial<SlotMeta>; body: string 
     const pair = line.match(/^([A-Za-z_][A-Za-z0-9_]*):\s*(.*)$/);
     if (!pair) continue;
     const key = pair[1];
-    const value = pair[2].trim();
+    const value = frontmatterRaw(pair[2]);
     if (key === "id") meta.id = value;
     else if (key === "title") meta.title = value;
     else if (key === "description") meta.description = value;
@@ -218,6 +309,11 @@ function parseFrontmatter(raw: string): { meta: Partial<SlotMeta>; body: string 
     else if (key === "limit_lines") meta.limit_lines = Number(value);
     else if (key === "status") meta.status = value === "archived" ? "archived" : "active";
     else if (key === "previous") meta.previous = value.length > 0 ? value : undefined;
+    else if (key === "verify") meta.verify = value.length > 0 ? value : undefined;
+    else if (key === "last_verified") meta.last_verified = value.length > 0 ? value : undefined;
+    else if (key === "last_verdict") {
+      meta.last_verdict = value === "ok" || value === "failed" ? value : value === "unknown" ? "unknown" : undefined;
+    }
     else if (key === "tags") {
       meta.tags = value
         .replace(/^\[|\]$/g, "")
@@ -239,12 +335,12 @@ function splitSections(bodyText: string): SlotBody {
 }
 
 function serializeSlot(meta: SlotMeta, body: SlotBody): string {
-  const tags = meta.tags.length > 0 ? meta.tags.join(", ") : "";
+  const tags = meta.tags.length > 0 ? meta.tags.map(frontmatterValue).join(", ") : "";
   return [
     "---",
-    `id: ${meta.id}`,
-    `title: ${meta.title}`,
-    `description: ${meta.description}`,
+    `id: ${frontmatterValue(meta.id)}`,
+    `title: ${frontmatterValue(meta.title)}`,
+    `description: ${frontmatterValue(meta.description)}`,
     `created: ${meta.created}`,
     `updated: ${meta.updated}`,
     `chars: ${meta.chars}`,
@@ -254,6 +350,9 @@ function serializeSlot(meta: SlotMeta, body: SlotBody): string {
     `status: ${meta.status}`,
     `tags: ${tags}`,
     ...(meta.previous ? [`previous: ${meta.previous}`] : []),
+    ...(meta.verify ? [`verify: ${meta.verify}`] : []),
+    ...(meta.last_verified ? [`last_verified: ${meta.last_verified}`] : []),
+    ...(meta.last_verdict ? [`last_verdict: ${meta.last_verdict}`] : []),
     "---",
     "",
     "## Résumé",
@@ -553,28 +652,81 @@ function readSlotText(file: string): string {
   return raw;
 }
 
+/**
+ * Build a SlotMeta from parsed frontmatter.
+ *
+ * readSlot and scanSlots each rebuilt this object field by field, and both
+ * forgot the fields added later (verify, last_verified, last_verdict): the data
+ * was in the file and vanished on read. One builder, one place to extend.
+ */
+function metaFromParsed(
+  parsed: Partial<SlotMeta>,
+  base: { id: string; file: string },
+  raw?: string
+): SlotMeta {
+  return {
+    id: base.id,
+    title: parsed.title ?? base.id,
+    description: parsed.description ?? "",
+    created: parsed.created ?? nowIso(),
+    updated: parsed.updated ?? nowIso(),
+    chars: raw !== undefined ? countChars(raw) : 0,
+    lines: raw !== undefined ? countLines(raw) : 0,
+    limit_chars: parsed.limit_chars ?? DEFAULT_LIMIT_CHARS,
+    limit_lines: parsed.limit_lines ?? DEFAULT_LIMIT_LINES,
+    status: parsed.status ?? "active",
+    tags: parsed.tags ?? [],
+    previous: parsed.previous,
+    verify: parsed.verify,
+    last_verified: parsed.last_verified,
+    last_verdict: parsed.last_verdict,
+    file: base.file
+  };
+}
+
 export function readSlot(root: string, meta: Pick<SlotMeta, "file" | "id">): SlotFile {
   const file = slotPath(root, meta);
   if (!existsSync(file)) throw memError("E_SLOT", `slot introuvable: ${meta.id}`);
   const raw = readSlotText(file);
   const parsed = parseFrontmatter(raw);
   const body = splitSections(parsed.body);
-  const withFile: SlotMeta = {
-    id: meta.id,
-    title: parsed.meta.title ?? meta.id,
-    description: parsed.meta.description ?? "",
-    created: parsed.meta.created ?? nowIso(),
-    updated: parsed.meta.updated ?? nowIso(),
-    chars: countChars(raw),
-    lines: countLines(raw),
-    limit_chars: parsed.meta.limit_chars ?? DEFAULT_LIMIT_CHARS,
-    limit_lines: parsed.meta.limit_lines ?? DEFAULT_LIMIT_LINES,
-    status: parsed.meta.status ?? "active",
-    tags: parsed.meta.tags ?? [],
-    previous: parsed.meta.previous,
-    file: meta.file
-  };
-  return { meta: withFile, body, raw };
+  const withFile = metaFromParsed(parsed.meta, { id: meta.id, file: meta.file }, raw);
+  return { meta: withFile, body, raw, issues: slotFormatIssues(raw) };
+}
+
+/**
+ * NX-28 : l'index et le frontmatter peuvent diverger sans que rien ne le dise.
+ *
+ * L'index est réécrit à chaque écriture, mais un fichier édité à la main — ou
+ * une écriture interrompue — laisse une fiche qui annonce un autre titre ou un
+ * autre statut que son contenu. La comparaison porte sur ce qui pilote une
+ * décision : id, titre, statut. Un slot illisible est ignoré ici, il est déjà
+ * signalé ailleurs.
+ */
+export function slotMetadataDrift(root: string): { id: string; issues: string[] }[] {
+  const index = readIndex(root);
+  const drift: { id: string; issues: string[] }[] = [];
+
+  for (const slot of index.slots) {
+    const issues: string[] = [];
+    try {
+      const file = readSlot(root, slot);
+      if (file.meta.id !== slot.id) {
+        issues.push(`id : index « ${slot.id} », frontmatter « ${file.meta.id} »`);
+      }
+      if (file.meta.title !== slot.title) {
+        issues.push(`title : index « ${slot.title} », frontmatter « ${file.meta.title} »`);
+      }
+      if (file.meta.status !== slot.status) {
+        issues.push(`status : index « ${slot.status} », frontmatter « ${file.meta.status} »`);
+      }
+    } catch {
+      continue;
+    }
+    if (issues.length > 0) drift.push({ id: slot.id, issues });
+  }
+
+  return drift;
 }
 
 export function nextSlotId(index: MemoryIndex, root?: string): string {
@@ -697,12 +849,22 @@ export function rankTargetSlot(
 ): RankTarget | null {
   if (input.slotId) {
     const explicit = index.slots.find((slot) => slot.id === input.slotId);
-    if (!explicit) throw memError("E_SLOT", `slot inconnu: ${input.slotId}`);
+    if (!explicit) {
+      // A requested id that does not exist yet is a creation request, not an
+      // error: the writer creates the slot and names it afterwards. Throwing
+      // here forced the caller to drop the id and let relatedness pick an
+      // unrelated slot instead.
+      return null;
+    }
     if (explicit.status === "archived") throw memError("E_SLOT", `slot archivé: ${input.slotId}`);
     // Ecriture dirigeée: la cible est nommement choisie, score maximal.
     return { slot: explicit, score: 1 };
   }
   const haystack = [input.title, input.description ?? "", ...(input.tags ?? [])].join(" ");
+  const foldedTitle = fold(input.title).trim();
+  const inputTags = new Set(
+    (input.tags ?? []).map((tag) => fold(tag).trim()).filter((tag) => tag.length > 0),
+  );
   const active = index.slots.filter((slot) => slot.status === "active");
   // S4: le Resume entre dans le score — c'est lui qui retrouve un slot dont
   // le titre ne matche plus apres une reecriture de Resume. Un slot
@@ -718,11 +880,34 @@ export function rankTargetSlot(
   });
   const idf = buildRouteIdf(routed.map((entry) => entry.text));
   let best: RankTarget | null = null;
+  let bestExact = false;
   for (const entry of routed) {
-    const score = relatedness(haystack, entry.text, idf);
-    if (best === null || score > best.score) best = { slot: entry.slot, score };
+    // Titre et tags explicites d'abord, recouvrement de tokens en repli. Un
+    // titre identique doit gagner même si le Resume a ete reecrit ; deux notes
+    // qui partagent leurs tags appartiennent au meme sujet plus surement que
+    // deux notes qui partagent des mots frequents.
+    const base = relatedness(haystack, entry.text, idf);
+    const slotTags = new Set(
+      entry.slot.tags.map((tag) => fold(tag).trim()).filter((tag) => tag.length > 0),
+    );
+    let sharedTags = 0;
+    for (const tag of inputTags) if (slotTags.has(tag)) sharedTags += 1;
+    const tagUnion = inputTags.size + slotTags.size - sharedTags;
+    const tagScore = tagUnion > 0 ? sharedTags / tagUnion : 0;
+    const titleExact = foldedTitle.length > 0 && fold(entry.slot.title).trim() === foldedTitle;
+    const score = Math.min(1, base + 0.35 * tagScore + (titleExact ? 0.5 : 0));
+    if (best === null || score > best.score) {
+      best = { slot: entry.slot, score };
+      bestExact = titleExact;
+    }
   }
-  if (best !== null && best.score >= ROUTE_MIN_SCORE) return best;
+  /*
+   * Merge only on an explicit slot id or an identical title. Relatedness alone
+   * used to be enough, which wrote a messaging session into the admin shell
+   * slot (slot-067). A near match now creates its own slot; the caller can
+   * still target an existing one by id.
+   */
+  if (best !== null && best.score >= ROUTE_MIN_SCORE && bestExact) return best;
   return null;
 }
 
@@ -736,7 +921,7 @@ export function findTargetSlot(
 
 export function createSlot(
   root: string,
-  input: { title: string; description?: string; tags?: string[] }
+  input: { title: string; description?: string; tags?: string[]; verify?: string }
 ): { meta: SlotMeta; index: MemoryIndex } {
   const index = ensureMemoryRoot(root);
   const id = nextSlotId(index, root);
@@ -751,7 +936,8 @@ export function createSlot(
     limit_lines: DEFAULT_LIMIT_LINES,
     status: "active" as SlotStatus,
     tags: (input.tags ?? []).map((tag) => tag.trim()).filter(Boolean).slice(0, 12),
-    file
+    file,
+    ...(input.verify ? { verify: input.verify } : {})
   };
   const meta = measure(base, body);
   writeFileSync(slotPath(root, meta), serializeSlot(meta, body), "utf8");
@@ -900,7 +1086,8 @@ function writeEntryLocked(
     const made = createSlot(root, {
       title,
       description: input.description,
-      tags: input.tags
+      tags: input.tags,
+      verify: input.verify
     });
     target = made.meta;
     index = made.index;
@@ -918,6 +1105,7 @@ function writeEntryLocked(
       created,
       duplicate: true,
       confidence,
+      ...(slot.issues.length > 0 ? { slotIssues: slot.issues } : {}),
       index: withHeal(index)
     };
   }
@@ -933,6 +1121,14 @@ function writeEntryLocked(
   if (input.tags && input.tags.length > 0) {
     const tags = [...new Set([...slot.meta.tags, ...input.tags.map((tag) => tag.trim()).filter(Boolean)])].slice(0, 12);
     slot = { ...slot, meta: { ...slot.meta, tags } };
+  }
+  if (input.verify && input.verify.trim().length > 0) {
+    // The slot now carries the command that proves it; any previous verdict is
+    // stale the moment the assertion changes.
+    slot = {
+      ...slot,
+      meta: { ...slot.meta, verify: input.verify.trim(), last_verified: undefined, last_verdict: undefined }
+    };
   }
 
   let nextMeta = persistSlot(root, slot.meta, body);
@@ -965,12 +1161,32 @@ function writeEntryLocked(
     index = upsertIndexSlot(index, nextMeta);
     index = upsertIndexSlot(index, rotatedMeta);
     index = writeIndex(root, index);
-    return { slot: rotatedMeta, rotated: true, compacted, archivedTo, created, confidence, index: withHeal(index) };
+    const rotatedIssues = slotFormatIssues(serializeSlot(rotatedMeta, slotBody));
+    return {
+      slot: rotatedMeta,
+      rotated: true,
+      compacted,
+      archivedTo,
+      created,
+      confidence,
+      ...(rotatedIssues.length > 0 ? { slotIssues: rotatedIssues } : {}),
+      index: withHeal(index)
+    };
   }
 
   index = upsertIndexSlot(index, nextMeta);
   index = writeIndex(root, index);
-  return { slot: nextMeta, rotated: false, compacted, archivedTo, created, confidence, index: withHeal(index) };
+  const finalIssues = slotFormatIssues(serializeSlot(nextMeta, body));
+  return {
+    slot: nextMeta,
+    rotated: false,
+    compacted,
+    archivedTo,
+    created,
+    confidence,
+    ...(finalIssues.length > 0 ? { slotIssues: finalIssues } : {}),
+    index: withHeal(index)
+  };
 }
 
 export function listSlots(root?: string): MemoryIndex {
@@ -1000,18 +1216,7 @@ function scanSlots(root: string, warnings?: string[]): SlotMeta[] {
       const parsed = parseFrontmatter(raw);
       const body = splitSections(parsed.body);
       const id = parsed.meta.id ?? name.replace(/\.md$/, "").split("-").slice(0, 2).join("-");
-      const base = {
-        id,
-        title: parsed.meta.title ?? id,
-        description: parsed.meta.description ?? "",
-        created: parsed.meta.created ?? nowIso(),
-        limit_chars: parsed.meta.limit_chars ?? DEFAULT_LIMIT_CHARS,
-        limit_lines: parsed.meta.limit_lines ?? DEFAULT_LIMIT_LINES,
-        status: parsed.meta.status ?? ("active" as SlotStatus),
-        tags: parsed.meta.tags ?? [],
-        previous: parsed.meta.previous,
-        file: join(SLOTS_DIR, name)
-      };
+      const base = metaFromParsed(parsed.meta, { id, file: join(SLOTS_DIR, name) });
       slots.push(measure(base, body));
     } catch (error) {
       // P1: un slot corrompu (EISDIR, UTF-8 casse...) n'arrete ni le heal ni
@@ -1065,7 +1270,8 @@ export function parseSlotInput(args: Record<string, unknown>): WriteEntryInput {
     description: typeof args?.description === "string" ? args.description : undefined,
     tags: Array.isArray(args?.tags) ? args.tags.map(String) : undefined,
     slotId: typeof args?.slotId === "string" ? assertSlotId(args.slotId) : undefined,
-    root: typeof args?.root === "string" ? args.root : undefined
+    root: typeof args?.root === "string" ? args.root : undefined,
+    verify: typeof args?.verify === "string" && args.verify.trim().length > 0 ? args.verify.trim() : undefined
   };
 }
 
@@ -1358,6 +1564,58 @@ export function archiveSlot(id: string, root?: string): SlotArchiveResult {
       slot: archivedMeta,
       archived: true,
       changed: true,
+      index: withHealFlag(nextIndex, healed)
+    };
+  } finally {
+    release();
+  }
+}
+
+export type SlotVerificationResult = {
+  slot: SlotMeta;
+  verify: string;
+  verdict: "ok" | "failed" | "unknown";
+  verifiedAt: string;
+  index: MemoryIndex;
+};
+
+/**
+ * Record the outcome of replaying a slot's declared verification command.
+ *
+ * The slot is rewritten with `last_verified` / `last_verdict`; its body never
+ * changes. A verdict of `unknown` is used when the declared command is missing
+ * from the project's `.novahiz/verify.json` — the assertion is still traceable,
+ * it is simply not checkable here.
+ */
+export function recordSlotVerification(
+  id: string,
+  options: { root?: string; verdict: "ok" | "failed" | "unknown"; at?: string }
+): SlotVerificationResult {
+  const slotId = assertSlotId(id);
+  const dir = options.root && options.root.length > 0 ? options.root : memoryRoot();
+  const release = acquireRootLock(dir);
+  try {
+    const index = ensureMemoryRoot(dir);
+    const healed = index.healed === true;
+    const meta = index.slots.find((slot) => slot.id === slotId);
+    if (!meta) throw memError("E_SLOT", `slot inconnu: ${slotId}`);
+    if (meta.status === "archived") throw memError("E_SLOT", `slot archivé: ${slotId}`);
+    const current = readSlot(dir, meta);
+    const verifiedAt = options.at ?? nowIso();
+    if (!current.meta.verify) {
+      throw memError("E_VERIFY", `slot ${slotId} ne déclare aucune commande verify: ajouter verify: <nom> à l'écriture`);
+    }
+    const nextMeta = persistSlot(
+      dir,
+      { ...current.meta, last_verified: verifiedAt, last_verdict: options.verdict },
+      current.body
+    );
+    const nextIndex = writeIndex(dir, upsertIndexSlot(index, nextMeta));
+    return {
+      slot: nextMeta,
+      verify: nextMeta.verify as string,
+      verdict: options.verdict,
+      verifiedAt,
       index: withHealFlag(nextIndex, healed)
     };
   } finally {

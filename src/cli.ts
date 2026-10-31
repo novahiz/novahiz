@@ -2,10 +2,11 @@ import { readFileSync, existsSync } from "node:fs";
 import { join, dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
-import { parse, print, flagOn, type Parsed } from "./commands/context.ts";
+import { parse, print, flagOn, asString, splitList, type Parsed } from "./commands/context.ts";
 import { expandHome, NovahizHome } from "./spec.ts";
 
-import { commandCheck, commandSync, commandClassify, commandSkills, commandCategories, commandRules, commandSessionLoad, commandSessionState, commandCatalog, commandRoadmap, commandStep, commandProviders, commandDeps, commandDispatch } from "./commands/inspect.ts";
+import { commandCheck, commandSync, commandClassify, commandSkills, commandCategories, commandRules, commandSessionLoad, commandSessionState, commandCatalog, commandRoadmap, commandStep, commandProviders, commandDeps, commandDispatch, commandResume, commandVerify, commandSkillpack, commandDev, commandSecrets } from "./commands/inspect.ts";
+import { commandRender } from "./commands/render.ts";
 import { commandGate, commandGateToggle } from "./commands/gate.ts";
 import { commandReport } from "./commands/report.ts";
 import { commandTask } from "./commands/task.ts";
@@ -21,6 +22,10 @@ import { commandAutodocs } from "./commands/autodocs.ts";
 import { commandUpgrade } from "./commands/upgrade.ts";
 import { commandStitch } from "./commands/stitch.ts";
 import { commandDocs } from "./commands/docs.ts";
+import { commandBackup, commandEvolution, commandManifest } from "./commands/backup.ts";
+import { commandImprove } from "./commands/improve.ts";
+import { commandRepair } from "./commands/repair.ts";
+import { scopedCommit } from "./gitguard.ts";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -60,12 +65,23 @@ function usage(): void {
       "task new <title>        Start a new tracked task",
       "task status             Show task progress",
       "task done <id>          Mark a todo as complete",
+      "resume --session <id>   Reload the real state after a restart: skills, classification, task, claims, evidence",
+      "verify <name>           Run a command declared in .novahiz/verify.json and record the evidence",
+      "skillpack --category <id>  Compact map of a category's skills (purpose + rules), before loading them",
+      "dev doctor              Diagnose the dev environment: ports in use, .next cache, font/CDN reachability",
+      "secrets scan            Scan logs, tmp and recorded evidence for leaked credentials (masked output)",
+      "backup [create|list|verify|restore]  Snapshots of the system home, verified by SHA-256 (native / auto-improve / pre-restore)",
+      "evolution [list|append|verify]  Append-only registry of every change, with provenance and a hash chain",
+      "manifest [sync|diff]    Baseline digests of the system files, and their drift from disk",
+      "improve [scan|list|show|dismiss|apply]  Proposals only: missing category, unused skill, repeated failure (apply is supervised)",
+      "repair [--apply]       Auto-repair on a closed whitelist (index, stale sessions, baseline); report by default",
       "report                  Session report",
       "clean                   Remove old logs and sessions",
       "snap [save|list|show|diff|restore|export|verify|prune|status]  Ledger snapshots (ours, no external tool)",
       "graph [build|status|find|all|trace|api|map|fresh|help]  Code graph (ours, in-process)",
+      "commit <message> --files a,b  Commit only these paths (never another session's staged files)",
       "memory [status|clean|prune]  Project memory hygiene (dry-run by default, --apply)",
-      "second-memory [init|doctor|lint|fix|sync|project-init|status|search]  Obsidian vault management (dry-run by default, --apply)",
+      "second-memory [init|doctor|lint|fix|sync|project-init|status|search|decisions|suggest]  Obsidian vault management (dry-run by default, --apply)",
       "upgrade [--apply]      Check for a newer release: npm (global installs) or git pull (source checkouts)",
       "docs [status|ingest <id>|--all]  Local docs index: state, or fill it (network)",
       "stitch [--key <k>]     Configure the Google Stitch MCP API key (interactive prompt if no --key)",
@@ -178,6 +194,8 @@ async function main(argv: string[]): Promise<void> {
       return commandDocs(parsed);
     case "skills":
       return commandSkills(parsed);
+    case "render":
+      return commandRender(parsed);
     case "categories":
       return commandCategories();
     case "rules":
@@ -186,6 +204,26 @@ async function main(argv: string[]): Promise<void> {
       return commandSessionLoad(parsed);
     case "session-state":
       return commandSessionState(parsed);
+    case "resume":
+      return commandResume(parsed);
+    case "verify":
+      return commandVerify(parsed);
+    case "skillpack":
+      return commandSkillpack(parsed);
+    case "dev":
+      return commandDev(parsed);
+    case "secrets":
+      return commandSecrets(parsed);
+    case "backup":
+      return commandBackup(parsed);
+    case "evolution":
+      return commandEvolution(parsed);
+    case "manifest":
+      return commandManifest(parsed);
+    case "improve":
+      return commandImprove(parsed);
+    case "repair":
+      return commandRepair(parsed);
     case "catalog":
       return commandCatalog(parsed);
     case "roadmap":
@@ -198,6 +236,19 @@ async function main(argv: string[]): Promise<void> {
       return commandDeps(parsed);
     case "dispatch":
       return commandDispatch(parsed);
+    case "commit": {
+      // Commit only the named paths. `git commit` without a pathspec publishes
+      // whatever another session already staged; this one cannot.
+      const message = asString(parsed.flags.message) || parsed.positionals[1] || "";
+      const files = [
+        ...splitList(parsed.flags.files),
+        ...parsed.positionals.slice(2)
+      ].filter((entry) => entry.length > 0);
+      const outcome = scopedCommit(process.cwd(), { message, files });
+      print(outcome);
+      if (!outcome.ok) process.exitCode = 1;
+      return;
+    }
     case "tokens":
       return commandTokens(parsed);
     case "snap":

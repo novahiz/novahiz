@@ -1,12 +1,17 @@
 import type { Rule, Spec } from "./spec.ts";
 import { dirname, isAbsolute, join, relative, resolve } from "node:path";
+import { tmpdir } from "node:os";
 import { existsSync, readdirSync, statSync } from "node:fs";
+import { homedir } from "node:os";
 import { hasPlaceholder, hasProse, hasStyle, isTrivial } from "./content.ts";
-import { determineTier, type ComplexityTier } from "./complexity.ts";
+import { determineTier, liteKeeps, type ComplexityTier } from "./complexity.ts";
 // Shared ledger enforcement (audit P1-D/M1): the CLI command and the MCP
 // novahiz_gate tool both run these checks so their verdicts cannot diverge.
 import { activeTask, ownedByOpenTodo, recordEdit, reviewBlockReason, reviewDue, traceCheck } from "./ledger.ts";
 import { capture } from "./snap.ts";
+import { claimedByAny, conflictingClaim, migrationCommand } from "./claims.ts";
+import { sessionFamily } from "./lineage.ts";
+import { activeSessionsOnProject, isProjectRoot, projectRootForPath } from "./sessions.ts";
 import type { openDb } from "./db.ts";
 
 type GateDb = ReturnType<typeof openDb>;
@@ -295,6 +300,17 @@ function selectorMatches(rule: Rule, classification: FileClass, path: string, ca
     // carries it never applies to an excluded path, whatever the other
     // selectors say — the only way to express "never on tests" when match is
     // "any", where a prompt category alone would otherwise fire on any file.
+    /*
+     * A design rule names a UI surface. On infrastructure code (.ts, .sql,
+     * .json, .md) it must not fire at all, even when its path globs happen to
+     * match a source directory such as app or components. Without this early
+     * return, a large edit to an action file still demanded the wireframe
+     * through the path selector. UI-capable sources keep matching.
+     */
+    const designRule = when.promptCategories?.includes("design-ui") ?? false;
+    const uiPath = /\.(css|scss|sass|less|styl|html?|vue|svelte|astro|jsx|tsx|dart|swift|kt|kts)$/i.test(path);
+    if (designRule && !uiPath) return false;
+
     if (
       when.pathExcludes &&
       when.pathExcludes.length > 0 &&
@@ -302,7 +318,16 @@ function selectorMatches(rule: Rule, classification: FileClass, path: string, ca
     ) {
       return false;
     }
-    if (when.fileClasses && when.fileClasses.length > 0) checks.push(when.fileClasses.includes(classification));
+    /*
+     * fileClasses is a scope guard, not an alternative selector. Under
+     * `match: "any"`, a check that merely adds a candidate let a design rule
+     * fire on a .ts file as soon as the prompt carried `design-ui` — exactly
+     * the false positive that forced four design skills on a one-line comment.
+     * A rule that names file classes never applies outside them.
+     */
+    if (when.fileClasses && when.fileClasses.length > 0) {
+      if (!when.fileClasses.includes(classification)) return false;
+    }
     if (when.pathGlobs && when.pathGlobs.length > 0) checks.push(when.pathGlobs.some((glob) => globToRegExp(glob).test(path)));
     if (when.promptCategories && when.promptCategories.length > 0) {
       checks.push(when.promptCategories.some((category) => categories.includes(category)));
@@ -322,6 +347,23 @@ function selectorMatches(rule: Rule, classification: FileClass, path: string, ca
 // C3: files whose content defines what the gate requires. They live under
 // build/ but must never be treated as ignored build output.
 const PROTECTED_INDEX_SUFFIXES = ["/build/installed-skills.json", "/build/catalog.json"];
+
+/**
+ * NX-52 : un fichier jetable hors projet ne déclenche pas le pipeline.
+ *
+ * Écrire une sonde dans le dossier temporaire de la machine n'est pas un
+ * travail de projet : la classification venait du prompt, donc une sonde de
+ * diagnostic héritait du pipeline d'évaluation (cinq skills) parce que la
+ * demande parlait d'évaluation. Le chemin tranche ici : sous le dossier
+ * temporaire du système, hors du projet, le fichier est traité comme ignoré.
+ */
+export function isTempPath(path: string): boolean {
+  if (path.trim().length === 0) return false;
+  const normaliser = (valeur: string): string => valeur.replace(/\\/g, "/").replace(/\/+$/, "");
+  const temporaire = normaliser(resolve(tmpdir()));
+  const absolu = normaliser(isAbsolute(path) ? resolve(path) : resolve(process.cwd(), path));
+  return absolu === temporaire || absolu.startsWith(`${temporaire}/`);
+}
 
 export function isProtectedIndexPath(path: string): boolean {
   // C3 must hold on Windows too. Gate receives paths carrying the platform
@@ -364,6 +406,7 @@ export type GateResult = {
   requiredSkills: string[];
   missingSkills: string[];
   unmatchedRequired: string[];
+  presentButMissingOnDisk: string[];
   matchedRules: string[];
   indexMissing: boolean;
   placeholder: boolean;
@@ -387,8 +430,9 @@ export function evaluateGate(input: GateInput): GateResult {
     // dropping a skill from the index would silently un-require it.
     const ignored =
       !pathless &&
-      !isProtectedIndexPath(path) &&
-      input.spec.config.gate.ignoreFiles.some((glob) => globToRegExp(glob).test(path));
+      (isTempPath(path) ||
+        (!isProtectedIndexPath(path) &&
+          input.spec.config.gate.ignoreFiles.some((glob) => globToRegExp(glob).test(path))));
     if (ignored) {
       return {
         allow: true,
@@ -399,6 +443,7 @@ export function evaluateGate(input: GateInput): GateResult {
         requiredSkills: [],
         missingSkills: [],
         unmatchedRequired: [],
+        presentButMissingOnDisk: [],
         matchedRules: [],
         indexMissing: false,
         placeholder: false,
@@ -417,7 +462,43 @@ export function evaluateGate(input: GateInput): GateResult {
     // this, `{categories:["audit"]}` with no prompt fell back to trivial and
     // skipped the whole roadmap — a fail-open on the MCP path.
     const seed = prompt.length > 0 ? prompt : content;
-    const tier = input.tier ?? (seed.length > 0 ? determineTier(seed) : categories.length > 0 ? "full" : "trivial");
+    const declaredTier = input.tier ?? (seed.length > 0 ? determineTier(seed) : categories.length > 0 ? "full" : "trivial");
+    /*
+     * Adapt the pipeline to the work in front of it, not only to the wording
+     * of the request. A full-tier prompt that edits 300 characters is a
+     * focused change: the planning steps were decided when the task was
+     * opened, and replaying them on every small edit is what made a one-line
+     * fix demand plan, clarify and tasks. Small edits fall to lite; domain
+     * checks (implement, converge, security) stay because liteKeeps keeps
+     * them. An explicitly passed tier is never downgraded.
+     */
+    const smallEdit = !pathless && content.trim().length > 0 && content.trim().length < 800;
+    const tier = input.tier ? declaredTier : declaredTier === "full" && smallEdit ? "lite" : declaredTier;
+
+    // P0.1: `novahiz doctor --force-readonly` est un diagnostic de secours qui
+    // doit pouvoir s'exécuter même quand aucune skill n'est chargée et que le
+    // gate est verrouillé. On court-circuite toute évaluation de règle et de
+    // roadmap pour cette commande spécifique.
+    if ((input.tool === "shell" || input.tool === "bash")) {
+      const command = content.trim();
+      if (/^novahiz\s+doctor\b/.test(command) && /\b--force-readonly\b/.test(command)) {
+        return {
+          allow: true,
+          ignored: false,
+          fileClass: classification,
+          roadmap: null,
+          tier,
+          requiredSkills: [],
+          missingSkills: [],
+          unmatchedRequired: [],
+          presentButMissingOnDisk: [],
+          matchedRules: [],
+          indexMissing: false,
+          placeholder: false,
+          reasons: ["novahiz doctor --force-readonly: gate bypassé pour diagnostic de secours"]
+        };
+      }
+    }
 
     const requiredSkills: string[] = [];
     const matchedRules: string[] = [];
@@ -478,6 +559,28 @@ export function evaluateGate(input: GateInput): GateResult {
     const primary = categories[0];
     let roadmap: string | null = null;
 
+    /*
+     * A design roadmap carries skills that only make sense on a design file.
+     * When the target is ordinary code (a .ts action, a shell component, a
+     * comment in navigation.ts), those skills stop applying: the category came
+     * from the session, not from the file. This is the defect that demanded
+     * four design skills for a one-line comment. The work-structuring skills
+     * (implement, converge) stay; security and database skills stay too.
+     */
+    const DESIGN_ONLY_SKILLS = new Set([
+      "novahiz-wireframe",
+      "design-token-pipeline",
+      "novahiz-humanizer",
+      "ui-slop-remover",
+      "ui-craft-rules",
+      "impeccable",
+      "novahiz-wcag-audit",
+    ]);
+    const designSkillApplies = (skill: string) => {
+      if (classification === "design") return true;
+      const uiSource = /\.(tsx|jsx|vue|svelte|astro|dart|swift|kt|kts)$/i.test(path);
+      return uiSource || !DESIGN_ONLY_SKILLS.has(skill);
+    };
 
     if (primary) {
       const category = input.spec.categories.find((entry) => entry.id === primary);
@@ -497,10 +600,12 @@ export function evaluateGate(input: GateInput): GateResult {
             continue;
           }
           if (tier === "lite") {
-            // Lite: only implement + converge skills (skip plan, clarify, etc.)
-            const allowed = (step.requireSkills ?? []).filter(
-              s => s === "novahiz-implement" || s === "novahiz-converge"
-            );
+            // Lite skips the skills that only structure the work (plan,
+            // clarify, task, analyse) but keeps every domain skill the full
+            // tier would enforce. Hardcoding implement/converge made a lite
+            // design change drop wireframe, design craft and the impeccable
+            // checks — the "lite erases the roadmap" defect.
+            const allowed = (step.requireSkills ?? []).filter(liteKeeps).filter(designSkillApplies);
             if (allowed.length === 0) continue;
             for (const skill of allowed) {
               if (!requiredSkills.includes(skill)) requiredSkills.push(skill);
@@ -509,6 +614,7 @@ export function evaluateGate(input: GateInput): GateResult {
           }
 
           for (const skill of step.requireSkills ?? []) {
+            if (!designSkillApplies(skill)) continue;
             if (!requiredSkills.includes(skill)) requiredSkills.push(skill);
           }
         }
@@ -519,18 +625,72 @@ export function evaluateGate(input: GateInput): GateResult {
     const indexAvailable = input.installedIndexAvailable !== false;
     const effective: string[] = [];
     const unmatchedRequired: string[] = [];
+    const presentButMissingOnDisk: string[] = [];
     for (const skill of requiredSkills) {
-      if (indexAvailable && installed && !installed.has(skill)) unmatchedRequired.push(skill);
-      else effective.push(skill);
+      // Compétence absente de l'index : non exigée, mais signalée pour un sync.
+      // Quand l'index est lisible mais que le jeu installé est inconnu (null),
+      // on enforce tout par défaut (comportement historique).
+      if (indexAvailable && installed && !installed.has(skill)) {
+        unmatchedRequired.push(skill);
+        continue;
+      }
+      if (!indexAvailable) {
+        // Index illisible : on ne peut pas vérifier l'installation, donc on ne
+        // peut pas non plus déclarer la compétence absente. Fail closed : la
+        // compétence reste exigée. Avant, elle sortait de `effective` et le
+        // gate répondait allow:true en prétendant « all required skills are
+        // enforced » — un gate qui s'ouvre quand son propre index est cassé.
+        effective.push(skill);
+        continue;
+      }
+      // Compétence dans l'index. On vérifie que son fichier source existe encore
+      // sur disque sous l'un des skillRoots (détection "dans l'index mais absent du disque").
+      if (installed) {
+        let foundOnDisk = false;
+        for (const root of input.spec.config.skillRoots) {
+          const expanded = root.startsWith("~") ? join(homedir(), root.slice(2)) : root;
+          const absRoot = isAbsolute(expanded) ? expanded : join(input.spec.root, expanded);
+          const candidate = join(absRoot, skill, "SKILL.md");
+          if (existsSync(candidate)) {
+            foundOnDisk = true;
+            break;
+          }
+        }
+        if (!foundOnDisk) {
+          presentButMissingOnDisk.push(skill);
+          continue;
+        }
+      }
+      effective.push(skill);
     }
 
     const loaded = new Set(input.loadedSkills ?? []);
-    const missingSkills = effective.filter((skill) => !loaded.has(skill));
+    // P1.3: si une skill requise est manquante mais que son CLI est présent dans
+    // node_modules/.bin, on n'en fait pas une compétence bloquante — on émet un
+    // warning à la place. Ceci évite de paralyser l'agent quand impeccable (ou
+    // une autre skill avec binaire) est référencée par le catalogue mais non
+    // installée dans le projet.
+    const cliBySkill: Record<string, string> = {
+      impeccable: "impeccable"
+    };
+    const cliWarnings: string[] = [];
+    const missingSkills: string[] = [];
+    for (const skill of effective) {
+      if (loaded.has(skill)) continue;
+      const cliName = cliBySkill[skill] ?? skill;
+      const cliPath = join(input.spec.root, "node_modules", ".bin", cliName);
+      if (existsSync(cliPath)) {
+        cliWarnings.push(`skill ${skill} manquante mais CLI présent dans node_modules/.bin — warning seulement`);
+        continue;
+      }
+      missingSkills.push(skill);
+    }
 
     const placeholderEligible = input.spec.config.gate.placeholders && (classification === "code" || classification === "design");
     const placeholder = placeholderEligible && hasPlaceholder(content);
 
     const reasons: string[] = [];
+    reasons.push(...cliWarnings);
     // P8 (2026-10-14): `rule.description` was declared in spec.ts and read by
     // nobody — metadata that never reached the model, so a block only ever said
     // WHAT to load, never why. On a block the owning rule's text is now surfaced
@@ -573,6 +733,7 @@ export function evaluateGate(input: GateInput): GateResult {
       requiredSkills: effective,
       missingSkills,
       unmatchedRequired,
+      presentButMissingOnDisk,
       matchedRules,
       indexMissing: input.installedIndexAvailable === false,
       placeholder,
@@ -588,6 +749,7 @@ export function evaluateGate(input: GateInput): GateResult {
       requiredSkills: [],
       missingSkills: [],
       unmatchedRequired: [],
+      presentButMissingOnDisk: [],
       matchedRules: [],
       indexMissing: false,
       placeholder: false,
@@ -600,6 +762,44 @@ export function evaluateGate(input: GateInput): GateResult {
 // novahiz_gate tool (audit P1-D/M1): same checks and the same log rows, so the
 // two entry points cannot drift apart. Mutates results[].allow exactly like
 // the original CLI block; returns aggregate reasons and the review warning.
+/**
+ * Fusionne les raisons par cible dans le message court.
+ *
+ * `evaluateGate` remplit `reasons` par cible, et le CLI ne publiait que les
+ * raisons globales : le message de blocage disait quoi charger, jamais quel
+ * fichier l'avait déclenché. Ici les raisons sont regroupées par texte, et le
+ * chemin n'est ajouté que lorsqu'elles ne concernent pas toutes les cibles.
+ *
+ * Fonction pure : elle ne lit ni disque ni base, ce qui la rend testable.
+ */
+export function mergeTargetReasons(
+  targets: readonly { path: string; reasons: readonly string[] }[],
+  existing: readonly string[] = [],
+): string[] {
+  const result = [...existing];
+  const seen = new Set(result);
+  const pathBearing = targets.filter((target) => target.path.length > 0).length;
+  const byReason = new Map<string, string[]>();
+
+  for (const target of targets) {
+    for (const reason of target.reasons) {
+      if (seen.has(reason)) continue;
+      const paths = byReason.get(reason) ?? [];
+      if (target.path.length > 0 && !paths.includes(target.path)) paths.push(target.path);
+      byReason.set(reason, paths);
+    }
+  }
+
+  for (const [reason, paths] of byReason) {
+    if (seen.has(reason)) continue;
+    seen.add(reason);
+    const everywhere = pathBearing === 0 || paths.length >= pathBearing;
+    result.push(everywhere || paths.length === 0 ? reason : `${reason} [${paths.join(", ")}]`);
+  }
+
+  return result;
+}
+
 export function enforceLedgerChecks(
   db: GateDb,
   input: {
@@ -610,9 +810,13 @@ export function enforceLedgerChecks(
     results: (GateResult & { path: string })[];
     spec: Spec;
     gateConfig: Spec["config"]["gate"];
+    /** Texte de la commande pour un outil shell/bash (NX-42). */
+    command?: string;
+    /** Projet de la commande, quand l'appelant le connaît déjà. */
+    projectRoot?: string | null;
   }
 ): { reasons: string[]; reviewWarning: string } {
-  const { session, tool, paths, categories, results, spec, gateConfig } = input;
+  const { session, tool, paths, categories, results, spec, gateConfig, command, projectRoot } = input;
   const reasons: string[] = [];
   let reviewWarning = "";
 
@@ -630,6 +834,88 @@ export function enforceLedgerChecks(
       if (!trace.ok) {
         entry.allow = false;
         reasons.push(trace.reason);
+      }
+    }
+  }
+
+  // Concurrence multi-session : un chemin réservé par une autre session vivante
+  // est refusé. Sans cette vérification, deux sessions écrivent le même fichier
+  // et personne ne le découvre avant le commit — vécu : 72 entrées sales
+  // appartenant à une autre session dans le même worktree.
+  // NX-43: the family is computed once. A parent and its delegated child are
+  // one body of work: the child inherits the parent's claims, and neither is
+  // treated as the other's competing session.
+  const famille = session.length > 0 ? sessionFamily(db, session) : new Set<string>();
+  if (session.length > 0) {
+    for (const entry of results) {
+      if (entry.path.length === 0) continue;
+      const claim = conflictingClaim(db, { session, filePath: entry.path, family: famille });
+      if (claim) {
+        entry.allow = false;
+        const detail = claim.reason ? ` (${claim.reason})` : "";
+        const reason =
+          `path claimed by session ${claim.session_id} until ${claim.expires_at}${detail}. ` +
+          `Release it with novahiz_claim action=release, or work in a separate worktree.`;
+        entry.reasons.push(reason);
+        reasons.push(reason);
+        continue;
+      }
+      /*
+       * NX-41: opt-in claim requirement, off by default. When on, an edit on a
+       * path this session has not claimed is refused as soon as another
+       * session is live on the same project. The claim is what makes two
+       * agents in one worktree visible to each other before the conflict
+       * instead of after it.
+       */
+      if (gateConfig.claims?.required === true) {
+        const projectRoot = projectRootForPath(entry.path);
+        const autres = activeSessionsOnProject(db, { projectRoot, excludeSession: session }).filter(
+          (autre) => !famille.has(autre.session),
+        );
+        if (autres.length > 0 && !claimedByAny(db, { sessions: famille, filePath: entry.path })) {
+          entry.allow = false;
+          const reason =
+            `path not claimed while ${autres.length} other session(s) are live on this project ` +
+            `(${autres.map((autre) => autre.session).join(", ")}). ` +
+            `Claim it with novahiz_claim action=claim path=${entry.path}, or work in a separate worktree.`;
+          entry.reasons.push(reason);
+          reasons.push(reason);
+        }
+      }
+    }
+  }
+
+  /*
+   * NX-42 : la moitié destructive d'une migration est la commande, pas le
+   * fichier. `supabase db push` ne porte aucun chemin, donc le contrôle de
+   * claim ci-dessus ne le voit jamais. Quand les claims sont requis, une
+   * commande de migration exige un claim vivant sur le dossier des migrations.
+   */
+  if (
+    gateConfig.claims?.required === true &&
+    session.length > 0 &&
+    (tool === "shell" || tool === "bash") &&
+    typeof command === "string" &&
+    command.trim().length > 0 &&
+    migrationCommand(command)
+  ) {
+    const racine = projectRoot ?? (isProjectRoot(process.cwd()) ? process.cwd() : null);
+    if (racine) {
+      const dossier = join(racine, "supabase", "migrations");
+      const autres = activeSessionsOnProject(db, { projectRoot: racine, excludeSession: session }).filter(
+        (autre) => !famille.has(autre.session),
+      );
+      // Une session seule ne paie pas l'étape : le verrou n'a de sens que si
+      // une autre session peut appliquer la même migration.
+      if (autres.length > 0 && !claimedByAny(db, { sessions: famille, filePath: dossier })) {
+        const reason =
+          `migration command not claimed (${command.trim().slice(0, 80)}). ` +
+          `Claim the migrations directory first: novahiz_claim action=claim path=${dossier}.`;
+        reasons.push(reason);
+        for (const entry of results) {
+          entry.allow = false;
+          entry.reasons.push(reason);
+        }
       }
     }
   }
