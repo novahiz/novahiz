@@ -676,8 +676,13 @@ export function evaluateGate(input: GateInput): GateResult {
           }
         }
         if (!foundOnDisk) {
+          // Mesuré sur la CI du dépôt : une skill encore dans l'index mais
+          // absente du disque sortait de `effective`, donc du verdict, et
+          // l'écriture passait avec « toutes les skills requises appliquées ».
+          // Supprimer un SKILL.md ouvrait donc le gate. La compétence reste
+          // exigée ; `presentButMissingOnDisk` explique pourquoi le blocage
+          // persiste après un chargement qui ne peut pas aboutir.
           presentButMissingOnDisk.push(skill);
-          continue;
         }
       }
       effective.push(skill);

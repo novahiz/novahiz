@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
-import { dirname, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
+import { existsSync, readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { test } from "node:test";
 
@@ -83,7 +84,11 @@ test("bodyOf rend tout ce qui suit le frontmatter", () => {
 
 test("les skills installées ne produisent aucune erreur", () => {
   const rapport = lintSkills(loadSpec(repoRoot));
-  assert.ok(rapport.checked >= 90, `skills vérifiées : ${rapport.checked}`);
+  // Borne tiree du depot : un checkout nu ne contient que les skills livrees.
+  const livrees = readdirSync(join(repoRoot, "skills"), { withFileTypes: true }).filter(
+    (entry) => entry.isDirectory() && existsSync(join(repoRoot, "skills", entry.name, "SKILL.md")),
+  ).length;
+  assert.ok(rapport.checked >= livrees, `skills vérifiées : ${rapport.checked} pour ${livrees} livrées`);
 
   // Le conflit `impeccable` (deux versions dans deux racines) a été réglé le
   // 2026-10-31 par une réinstallation propre via le provider : une seule copie,

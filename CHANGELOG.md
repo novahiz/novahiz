@@ -381,6 +381,16 @@ with the command or the test that proves the fix. The structural ones:
   floor, slot limits, wireframe vocabulary, design path exclusion), each change
   carrying the NX id that justifies it. `npm test`: 1 082 tests, 1 081 pass,
   1 skipped, 0 fail. `npm run typecheck`: clean.
+- **A skill still in the index but missing from disk no longer opens the gate.**
+  It left `effective` entirely, so the write was allowed with "all required
+  skills enforced" while the skill could not be loaded: deleting a `SKILL.md`
+  opened the gate. It stays required and is reported in
+  `presentButMissingOnDisk`. Measured on the repository CI, where five design
+  tests were red for exactly this reason.
+- **Three tests measured the machine instead of the repository** (skill count
+  `>= 90`, `impeccable` present on disk). Their bounds now come from the shipped
+  corpus, so a bare checkout is measured for what it ships; the path
+  case-folding test skips where the filesystem is case-sensitive.
 
 ## [0.11.9] - 2026-10-24
 

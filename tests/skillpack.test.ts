@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
-import { dirname, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
+import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, test } from "node:test";
 
@@ -16,8 +17,13 @@ describe("skillpack: une carte compacte avant de charger", () => {
     assert.equal(pack.category, "design-ui");
     assert.ok(pack.skills.length > 0);
     for (const skill of pack.skills) {
-      assert.equal(skill.found, true, `${skill.id} introuvable sur disque`);
-      assert.ok(skill.description.length > 0, `${skill.id} sans description`);
+      // Sur un checkout nu, seules les skills livrees existent sur disque :
+      // `impeccable` vient d'une installation externe. Le pack doit dire la
+      // verite dans les deux cas, et ne jamais annoncer une description qu'il
+      // n'a pas lue.
+      const livree = existsSync(join(repoRoot, "skills", skill.id, "SKILL.md"));
+      assert.equal(skill.found, livree, `${skill.id}: found=${skill.found} sur disque=${livree}`);
+      if (skill.found) assert.ok(skill.description.length > 0, `${skill.id} sans description`);
     }
   });
 

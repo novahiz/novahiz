@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
-import { dirname, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
+import { existsSync, readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { test } from "node:test";
 
@@ -52,7 +53,13 @@ test("auditSkills trie les plus grosses skills en premier", () => {
 
 test("l'audit des skills installées mesure sans échouer", () => {
   const rapport = auditInstalledSkills(loadSpec(repoRoot));
-  assert.ok(rapport.checked >= 90, `skills mesurées : ${rapport.checked}`);
+  // La borne vient du dépôt, pas de la machine : sur un checkout nu la CI ne
+  // voit que les skills livrées (50). Un seuil fixe à 90 ne mesurait que la
+  // richesse de l'installation locale.
+  const livrees = readdirSync(join(repoRoot, "skills"), { withFileTypes: true }).filter(
+    (entry) => entry.isDirectory() && existsSync(join(repoRoot, "skills", entry.name, "SKILL.md")),
+  ).length;
+  assert.ok(rapport.checked >= livrees, `skills mesurées : ${rapport.checked} pour ${livrees} livrées`);
   assert.ok(rapport.totalChars > 0);
   assert.deepEqual(rapport.scanErrors, []);
 });

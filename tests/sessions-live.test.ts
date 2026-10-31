@@ -86,14 +86,21 @@ describe("sessions: une autre session active sur le projet est signalee", () => 
     assert.equal(worktreeHint([], "ses_moi"), null);
   });
 
-  test("le chemin du projet est compare sans tenir compte de la casse Windows", () => {
-    const db = fresh();
-    const project = resolve("C:/tmp/Projet-Casse");
-    evidence(db, "ses_case", project, now());
-    const seen = activeSessionsOnProject(db, { projectRoot: project.toUpperCase() });
-    db.close();
-    assert.equal(seen.length, 1);
-  });
+  test(
+    "le chemin du projet est compare sans tenir compte de la casse Windows",
+    // Le pliage de casse des chemins n'a de sens que la ou le systeme de
+    // fichiers est insensible a la casse. Mesure sur la CI Linux : la meme
+    // assertion y comparait deux chemins reellement differents.
+    { skip: process.platform === "win32" ? false : "casse insensible seulement sur Windows" },
+    () => {
+      const db = fresh();
+      const project = resolve("C:/tmp/Projet-Casse");
+      evidence(db, "ses_case", project, now());
+      const seen = activeSessionsOnProject(db, { projectRoot: project.toUpperCase() });
+      db.close();
+      assert.equal(seen.length, 1);
+    },
+  );
 
   test("une session vue par le gate est detectee meme sans tâche ni claim", () => {
     const db = fresh();
