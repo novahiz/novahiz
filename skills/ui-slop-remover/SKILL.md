@@ -24,6 +24,8 @@ Companion: `ui-craft-rules` builds the constructive choices (palette roles, type
 
 A pattern is a problem when it is the *default* form with no product reason. The same pattern with a stated choice behind it (off-default hue, custom treatment, coherent with the rest of the screen) is craft. That test decides every line below.
 
+**An explicit brief wins.** When the product owner names a pattern on purpose — "fade each card in", "a purple accent", "a centred pill hero" — that is a decision, not slop. The pass then checks *execution* instead of forbidding the pattern: is the fade varied (distance, rotation and delay differ, nothing stutters), is the accent used with intent (states, hierarchy, not decoration everywhere), does the pill carry a real headline rather than a placeholder? Do not remove a requested choice. Say what the brief asked, then judge how it was carried out.
+
 ## Color tells
 
 | Tell | What it looks like | Replace with |

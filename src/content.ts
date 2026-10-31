@@ -84,9 +84,13 @@ const PLACEHOLDER_PATTERNS = [
   /<placeholder/i,
   /<your[_ ]code/i,
   /\blorem ipsum\b/i,
-  /\.\.\.\s*rest of\b/i,
+  // Un vrai marqueur s'écrit avec une espace après les trois points
+  // (« … rest of the file », « … existing code »). Sans cette espace, le
+  // motif attrapait le spread JavaScript et refusait une édition légitime
+  // (constaté le 2026-10-31 sur src/gate.ts).
+  /\.\.\.\s+rest of\b/i,
   /\bimplement me\b/i,
-  /\.\.\.\s*existing\b/i
+  /\.\.\.\s+existing\b/i
 ];
 
 export function hasPlaceholder(text: string): boolean {

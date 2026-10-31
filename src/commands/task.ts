@@ -2,7 +2,9 @@ import { join } from "node:path";
 import { asString, dbPathFor, numberFlag, parse, print, readStdin, splitList, type Parsed } from "./context.ts";
 import { loadSpec, NovahizHome } from "../spec.ts";
 import { openDb } from "../db.ts";
-import { activeTask, addTodos, amendTodo, blockTodo, completeTodo, createTask, dropTask, dropTodo, getTask, getTodo, insertTodo, ledgerSummary, parseReviewDiff, recordTodoDone, reorderTodos, resume, reviewDue, reviewTask, revisionSignals, startTodo, type ReviewDiff, type TodoAmendment, type TodoInput, type TodoKind } from "../ledger.ts";
+import { projectKey } from "../evidence.ts";
+import { activeSessionsOnProject, worktreeHint } from "../sessions.ts";
+import { activeTask, addTodos, amendTodo, blockTodo, closeTask, completeTodo, createTask, dropTask, dropTodo, getTask, getTodo, insertTodo, ledgerSummary, parseReviewDiff, planHistory, recordTodoDone, reorderTodos, resume, reviewDue, reviewTask, revisionSignals, startTodo, type ReviewDiff, type TodoAmendment, type TodoInput, type TodoKind, type TodoSize } from "../ledger.ts";
 
 const TODO_KINDS: readonly string[] = ["read", "edit", "verify", "delegate"];
 
@@ -25,6 +27,7 @@ export function normalizeTodoInput(item: unknown): TodoInput {
     kind: kind as TodoKind,
     acceptance: record.acceptance ? String(record.acceptance) : undefined,
     owner: owners.length > 0 ? owners.join(",") : undefined,
+    size: record.size ? (String(record.size).toUpperCase() as TodoSize) : undefined,
     dependsOn,
     maxIterations: Number.isFinite(maxIterations) && maxIterations > 0 ? maxIterations : undefined
   };
@@ -53,8 +56,42 @@ export function commandTask(parsed: Parsed): void {
     if (action === "start") return taskStart(parsed, db, session, spec);
     if (action === "done") return taskDone(parsed, db, session, spec);
     if (action === "block") return taskBlock(parsed, db, session, spec);
+    if (action === "close") {
+      const taskId = asString(parsed.flags.task) || activeTask(db, session)?.id;
+      if (!taskId) {
+        print({ error: "no active task" });
+        process.exitCode = 1;
+        return;
+      }
+      const current = getTask(db, taskId);
+      let required: { steps: string[]; scopes: string[] } | undefined;
+      if (current?.category) {
+        const category = spec.categories.find((entry) => entry.id === current.category);
+        const steps = (category?.roadmap?.steps ?? [])
+          .filter((step) => step.optional !== true && (step.requireSkills ?? []).length > 0)
+          .map((step) => step.id);
+        const scopes: string[] = [];
+        if (current.project_root) scopes.push(`project:${projectKey(current.project_root)}`);
+        if (current.session_id) scopes.push(current.session_id);
+        scopes.push("default");
+        required = { steps, scopes };
+      }
+      print(closeTask(db, taskId, asString(parsed.flags.proof), required));
+      return;
+    }
 
     if (action === "signals") return taskSignals(parsed, db, session, spec);
+    if (action === "history") {
+      const taskId = asString(parsed.flags.task) || activeTask(db, session)?.id;
+      if (!taskId) {
+        print({ error: "no active task" });
+        process.exitCode = 1;
+        return;
+      }
+      const limit = numberFlag(parsed, "limit", { min: 1, integer: true });
+      print({ task: taskId, history: planHistory(db, taskId, limit) });
+      return;
+    }
 
     if (action === "review") return taskReview(parsed, db, session, spec);
 
@@ -71,7 +108,7 @@ export function commandTask(parsed: Parsed): void {
     if (action === "resume") return taskResume(db, session);
     if (action === "current") return taskCurrent(db, session);
 
-    print({ error: `unknown task action: ${action}`, actions: ["new", "plan", "todo", "start", "done", "block", "review", "amend", "insert", "drop", "reorder", "signals", "status", "resume", "current"] });
+    print({ error: `unknown task action: ${action}`, actions: ["new", "plan", "todo", "start", "done", "block", "close", "history", "review", "amend", "insert", "drop", "reorder", "signals", "status", "resume", "current"] });
     process.exitCode = 1;
   } catch (error) {
     print({ error: String((error as Error)?.message ?? error) });
@@ -171,6 +208,7 @@ function taskInsert(parsed: Parsed, db: ReturnType<typeof openDb>, session: stri
     kind: asString(parsed.flags.kind) || "edit",
     acceptance: asString(parsed.flags.acceptance) || undefined,
     owner: splitList(parsed.flags.owner),
+    size: asString(parsed.flags.size) ? (asString(parsed.flags.size).toUpperCase() as TodoSize) : undefined,
     maxIterations: numberFlag(parsed, "max-iterations", { min: 1, integer: true }) || undefined
   });
   const positionRaw = asString(parsed.flags.position);
@@ -210,6 +248,8 @@ function taskAmend(parsed: Parsed, db: ReturnType<typeof openDb>, session: strin
   if (owners.length > 0) patch.owner = owners.join(",");
   const maxIterations = numberFlag(parsed, "max-iterations", { min: 1, integer: true });
   if (maxIterations !== undefined && maxIterations > 0) patch.maxIterations = maxIterations;
+  const size = asString(parsed.flags.size);
+  if (size) patch.size = size.toUpperCase() as TodoSize;
   print({ todo: amendTodo(db, id, patch) });
   return;
     }
@@ -319,6 +359,7 @@ function taskTodo(parsed: Parsed, db: ReturnType<typeof openDb>, session: string
       kind: (asString(parsed.flags.kind) || "edit") as TodoKind,
       acceptance: asString(parsed.flags.acceptance) || undefined,
       owner: owners.length > 0 ? owners.join(",") : undefined,
+      size: asString(parsed.flags.size) ? (asString(parsed.flags.size).toUpperCase() as TodoSize) : undefined,
       maxIterations: maxIterations !== undefined && maxIterations > 0 ? maxIterations : undefined
     }
   ]);
@@ -368,8 +409,18 @@ function taskNew(parsed: Parsed, db: ReturnType<typeof openDb>, session: string,
   const id = asString(parsed.flags.id) || undefined;
   // F: the shell's cwd is the project this plan belongs to — record it so the
   // ledger only counts and blocks edits inside that project.
-  const task = createTask(db, { title, id, sessionId: session || undefined, projectRoot: process.cwd() });
-  print({ task, todos: [] });
+  const task = createTask(db, {
+    title,
+    id,
+    sessionId: session || undefined,
+    projectRoot: process.cwd(),
+    category: asString(parsed.flags.category) || undefined
+  });
+  const others = activeSessionsOnProject(db, {
+    projectRoot: process.cwd(),
+    excludeSession: session || null
+  });
+  print({ task, otherSessions: others, worktreeHint: worktreeHint(others, session || "this session") });
   return;
     }
 

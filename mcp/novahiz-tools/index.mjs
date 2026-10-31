@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 import { createInterface } from "node:readline";
 import { pathToFileURL } from "node:url";
-import { resolve, sep } from "node:path";
+import { dirname, resolve, sep } from "node:path";
 import { existsSync, mkdirSync, readFileSync, readdirSync, realpathSync, unlinkSync, writeFileSync } from "node:fs";
-import { classify } from "../../src/classify.ts";
+import { classify, annotateRoadmap } from "../../src/classify.ts";
 import { loadSpec } from "../../src/spec.ts";
 import { loadCatalog, loadInstalledSkills } from "../../src/catalog.ts";
 import { rankSkills } from "../../src/relevance.ts";
@@ -13,8 +13,17 @@ import { graphFileApi, graphFind, graphFindAll, graphFreshness, graphRepoMap, gr
 import { enabledProviders } from "../../src/providers.ts";
 import { dependencyReport } from "../../src/deps.ts";
 import { attachScreen, createScreen, createSection, createSections, initWireframes, listScreens, markStatus, planSections, rebuildIndex as rebuildWireframeIndex, reviewScreen } from "../../src/wireframe.ts";
-import { activeTask, addTodos, amendTodo, blockTodo, buildWorkPackets, completeTodo, createTask, dropTask, dropTodo, getTask, getTodo, insertTodo, ledgerSummary, listTodos, parseReviewDiff, recordTodoDone, reorderTodos, resume, reviewDue, reviewTask, revisionSignals, startTodo } from "../../src/ledger.ts";
-import { DEFAULT_LIMIT_CHARS, DEFAULT_LIMIT_LINES, archiveSlot, ensureMemoryRoot, getSlot, listSlots, parseSlotInput, rebuildFts, rebuildIndex, resolveMemoryDir, searchSlots, touchSlotRead, updateSlot, writeEntry } from "../../src/memory.ts";
+import { activeTask, addTodos, amendTodo, blockTodo, buildWorkPackets, closeStepsFor, closeTask, completeTodo, createTask, dropTask, dropTodo, getTask, getTodo, insertTodo, ledgerSummary, listTodos, openTodoIds, parseReviewDiff, planHistory, recordTodoDone, reorderTodos, resume, reviewDue, reviewTask, revisionSignals, startTodo } from "../../src/ledger.ts";
+import { DEFAULT_LIMIT_CHARS, DEFAULT_LIMIT_LINES, archiveSlot, ensureMemoryRoot, getSlot, listSlots, parseSlotInput, rebuildFts, rebuildIndex, recordSlotVerification, resolveMemoryDir, searchSlots, touchSlotRead, updateSlot, writeEntry } from "../../src/memory.ts";
+import { listEvidence, projectKey, runVerification } from "../../src/evidence.ts";
+import { activeSessionsOnProject, defaultSessionForProject, worktreeHint } from "../../src/sessions.ts";
+import { buildSkillpack } from "../../src/skillpack.ts";
+import { claimPaths, listClaims, releasePaths } from "../../src/claims.ts";
+import { recordSessionLink } from "../../src/lineage.ts";
+import { createBackup, listBackups, restoreBackup, verifyBackup } from "../../src/backup.ts";
+import { applyProposal, detect, listProposals, readProposal, sampleDb, setProposalStatus, writeProposal } from "../../src/improve.ts";
+import { applyRepair, repair } from "../../src/repair.ts";
+import { autoImproveState } from "../../src/autoimprove.ts";
 
 // --- P1 degradation gracieuse: la memoire ne bloque jamais l'agent ---------
 // Le schema annonce la racine projet ou le dossier memoire (canonique
@@ -141,13 +150,93 @@ try {
 } catch { /* keep default */ }
 const SERVER_INFO = { name: "novahiz-core", version: SERVER_VERSION };
 
+/*
+ * NX-39: one source of truth for the task actions.
+ *
+ * The schema enum, the tool description and the handler's accept-list used to
+ * be three separate literals, and the description had already lost `history`
+ * while the enum kept it. They now derive from this list: an action added here
+ * is declared everywhere, and the test suite compares the three.
+ */
+export const TASK_ACTIONS = [
+  "new",
+  "plan",
+  "todo",
+  "start",
+  "done",
+  "block",
+  "close",
+  "review",
+  "amend",
+  "insert",
+  "drop",
+  "reorder",
+  "signals",
+  "status",
+  "resume",
+  "current",
+  "history",
+  "link"
+];
+
+export const TASK_TOOL = {
+  name: "novahiz_task",
+  description: `Drive the durable execution ledger and keep its plan alive. Create a task, add long detailed todos, then start, complete or block them. Revise the plan between steps with review, amend, insert, drop and reorder. An edit or verify todo cannot be completed without proof (free text, or evidence:<id> from novahiz_verify). A task no longer closes itself: close it explicitly once every todo is settled. Actions: ${TASK_ACTIONS.join(", ")}.`,
+  inputSchema: {
+    type: "object",
+    properties: {
+      action: {
+        type: "string",
+        enum: TASK_ACTIONS,
+        description: "What to do with the ledger."
+      },
+      title: { type: "string", description: "Task title for action new." },
+      category: { type: "string", description: "Category id the task belongs to (action new). Closing the task then requires that category's non-optional roadmap steps to be recorded with novahiz_step." },
+      id: { type: "string", description: "Task id (new) or todo/task id (start, done, block, drop)." },
+      task: { type: "string", description: "Task id. Defaults to the active task." },
+      session: { type: "string", description: "Session id used to scope the active task." },
+      projectRoot: { type: "string", description: "Project directory a new task belongs to (action new). Omitted = unscoped legacy task." },
+      child: { type: "string", description: "Child session id for action link: records that this session delegated to it, so the gate treats both as one body of work." },
+      label: { type: "string", description: "Todo label for action todo." },
+      kind: { type: "string", enum: ["read", "edit", "verify", "delegate"], description: "Todo kind." },
+      acceptance: { type: "string", description: "Acceptance criterion for the todo." },
+      owner: { type: "string", description: "Comma-separated file globs this todo owns." },
+      size: { type: "string", enum: ["XS", "S", "M", "L", "XL"], description: "Contract size of the todo." },
+      proof: { type: "string", description: "Proof for action done or close. Required for edit and verify todos: the command you ran and its result, or evidence:<id> from novahiz_verify." },
+      reason: { type: "string", description: "Reason for action block." },
+      limit: { type: "number", description: "Maximum rows for action history (default 50, max 500)." },
+      maxIterations: { type: "number", description: "Iteration budget for the todo (default 12)." },
+      dependsOn: { type: "array", items: { type: "string" }, description: "Todo ids this todo depends on." },
+      position: { type: "string", description: "Insert position for action insert: start, end, or a sequence number." },
+      order: { type: "array", items: { type: "string" }, description: "Todo ids in the new order for action reorder." },
+      changes: {
+        type: "object",
+        description: "Plan diff for action review: { additions, amendments, removals, order }."
+      },
+      todos: {
+        type: "array",
+        items: { type: "object" },
+        description: "Array of todo inputs for action plan."
+      }
+    },
+    required: ["action"]
+  }
+};
+
 const TOOLS = [
   {
     name: "novahiz_classify",
     description: "Classify a prompt into Novahiz categories and return the skills those categories require.",
     inputSchema: {
       type: "object",
-      properties: { prompt: { type: "string", description: "The user prompt to classify." } },
+      properties: {
+        prompt: { type: "string", description: "The user prompt to classify." },
+        files: {
+          type: "array",
+          items: { type: "string" },
+          description: "Files the task touches. Path signals (css, migrations, tests, docs) make the classification deterministic on the actual work, not only on the phrasing."
+        }
+      },
       required: ["prompt"]
     }
   },
@@ -200,52 +289,121 @@ const TOOLS = [
   },
   {
     name: "novahiz_step",
-    description: "Record or list roadmap step progress for a session.",
+    description:
+      "Record that a roadmap step of the current pipeline is done, so a restart or a new session resumes at the right step instead of replaying the whole roadmap. Scope defaults to the current project; pass session to scope it to one agent session. Call it right after finishing a step, with the step id printed by novahiz_roadmap. Without done, it lists what is already recorded.",
     inputSchema: {
       type: "object",
       properties: {
-        session: { type: "string" },
-        done: { type: "string", description: "Step id to mark done." }
+        session: { type: "string", description: "Session to scope the progress to. Omitted = the current project." },
+        done: { type: "string", description: "Roadmap step id to mark done, as printed by novahiz_roadmap (plan, clarify, task, analyse, implement, converge…)." },
+        drop: { type: "string", description: "Roadmap step id to mark not applicable, with a reason. A dropped step no longer blocks close. Use it when a roadmap step does not fit the work (wireframe for a pure code change)." },
+        reason: { type: "string", description: "Why the step is dropped. Required with drop." }
       }
     }
   },
   {
-    name: "novahiz_task",
-    description: "Drive the durable execution ledger and keep its plan alive. Create a task, add long detailed todos, then start, complete or block them. Revise the plan between steps with review, amend, insert, drop and reorder. A todo of kind verify cannot be completed without proof. Actions: new, plan, todo, start, done, block, review, amend, insert, drop, reorder, signals, status, resume, current.",
+    name: "novahiz_skillpack",
+    description:
+      "Compact map of a category's skills: one line of purpose plus headings and bullet rules per skill, capped. Read it before loading a dozen SKILL.md files. It does not replace skill(): the gate still requires the real load. Returns what is already loaded for this session and what remains.",
     inputSchema: {
       type: "object",
       properties: {
-        action: {
-          type: "string",
-          enum: ["new", "plan", "todo", "start", "done", "block", "review", "amend", "insert", "drop", "reorder", "signals", "status", "resume", "current"],
-          description: "What to do with the ledger."
-        },
-        title: { type: "string", description: "Task title for action new." },
-        id: { type: "string", description: "Task id (new) or todo/task id (start, done, block, drop)." },
-        task: { type: "string", description: "Task id. Defaults to the active task." },
-        session: { type: "string", description: "Session id used to scope the active task." },
-        projectRoot: { type: "string", description: "Project directory a new task belongs to (action new). Omitted = unscoped legacy task." },
-        label: { type: "string", description: "Todo label for action todo." },
-        kind: { type: "string", enum: ["read", "edit", "verify", "delegate"], description: "Todo kind." },
-        acceptance: { type: "string", description: "Acceptance criterion for the todo." },
-        owner: { type: "string", description: "Comma-separated file globs this todo owns." },
-        proof: { type: "string", description: "Proof for action done. Required when the todo kind is verify." },
-        reason: { type: "string", description: "Reason for action block." },
-        maxIterations: { type: "number", description: "Iteration budget for the todo (default 12)." },
-        dependsOn: { type: "array", items: { type: "string" }, description: "Todo ids this todo depends on." },
-        position: { type: "string", description: "Insert position for action insert: start, end, or a sequence number." },
-        order: { type: "array", items: { type: "string" }, description: "Todo ids in the new order for action reorder." },
-        changes: {
-          type: "object",
-          description: "Plan diff for action review: { additions, amendments, removals, order }."
-        },
-        todos: {
-          type: "array",
-          items: { type: "object" },
-          description: "Array of todo inputs for action plan."
-        }
+        category: { type: "string", description: "Category id, e.g. design-ui or debug." },
+        skills: { type: "array", items: { type: "string" }, description: "Explicit skill ids instead of a category." },
+        maxChars: { type: "number", description: "Character budget for the whole pack (default 12000)." },
+        session: { type: "string", description: "Session used to report what is already loaded." }
+      }
+    }
+  },
+  TASK_TOOL,
+  {
+    name: "novahiz_verify",
+    description:
+      "Run a verification command declared by the project in .novahiz/verify.json and record what actually happened (exit code, output tail, duration, hash). Use it to back a proof instead of asserting a result. Only names declared in that file can run: this is not a general shell.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        name: { type: "string", description: "Declared command name, e.g. tests or typecheck." },
+        session: { type: "string", description: "Session id stored with the evidence." },
+        timeoutMs: { type: "number", description: "Timeout in milliseconds (default 120000, max 600000)." },
+        expect: { type: "string", description: "Optional substring the output must contain for ok=true." },
+        projectRoot: { type: "string", description: "Project directory holding .novahiz/verify.json. Defaults to the server cwd." }
+      },
+      required: ["name"]
+    }
+  },
+  {
+    name: "novahiz_evidence",
+    description:
+      "List the verification records stored for this workspace: name, command, exit code, hash and when it ran.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        limit: { type: "number", description: "Maximum rows (default 20, max 200)." },
+        session: { type: "string", description: "Only this session's evidence." }
+      }
+    }
+  },
+  {
+    name: "novahiz_claim",
+    description:
+      "Reserve file paths for this session before editing them, so a concurrent session cannot silently write the same files. The gate refuses an edit on a path another live session holds. Actions: claim, release, list.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        action: { type: "string", enum: ["claim", "release", "list"], description: "What to do with the claims." },
+        session: { type: "string", description: "Session id owning the claim (required for claim and release)." },
+        paths: { type: "array", items: { type: "string" }, description: "Files to claim or release." },
+        ttlMinutes: { type: "number", description: "Claim lifetime in minutes (default 30, max 240)." },
+        reason: { type: "string", description: "Why this session holds these paths." }
       },
       required: ["action"]
+    }
+  },
+  {
+    name: "novahiz_backup",
+    description:
+      "Versioned snapshots of the Novahiz home, verified by SHA-256. create takes a snapshot (kind native = baseline before any self-improvement, never pruned; auto-improve = newest two kept; pre-restore = automatic before a restore). verify re-hashes every stored file. restore refuses to write when the snapshot fails its own verification, snapshots the current state first, and needs confirm equal to the backup id. It also reports needsRebuild: dist/ is rebuilt, never snapshotted.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        action: { type: "string", enum: ["create", "list", "verify", "restore"], description: "What to do." },
+        kind: { type: "string", enum: ["native", "auto-improve", "pre-restore"], description: "Snapshot kind (create, or filter for list)." },
+        id: { type: "string", description: "Snapshot id (verify, restore)." },
+        note: { type: "string", description: "Why this snapshot exists (create)." },
+        confirm: { type: "string", description: "Restore only: must equal id, after reading what the snapshot holds." },
+        prune: { type: "boolean", description: "Restore only: also delete system files the snapshot does not hold. Destructive, off by default." }
+      },
+      required: ["action"]
+    }
+  },
+  {
+    name: "novahiz_improve",
+    description:
+      "Self-observation, not self-modification. scan reads the ledger and writes proposals for three measurable things: sessions stuck in the fallback category (3+), a required skill loaded 3+ times that produced no edit and no proof, and the same verification failing 3+ times. apply accepts exactly one mechanical kind (unused-skill -> advisory) and needs confirm equal to the proposal id; it snapshots, patches, re-reads the disk, replays the recorded prompts through the classifier and the gate, and rolls back on any drift. reopen reverses a dismissal. NOVAHIZ_AUTOIMPROVE=off disables scan and apply.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        action: { type: "string", enum: ["scan", "list", "show", "dismiss", "apply", "reopen"], description: "What to do." },
+        dry: { type: "boolean", description: "scan: return candidates without writing proposals." },
+        status: { type: "string", enum: ["proposed", "applied", "dismissed", "rejected"], description: "list: filter by status." },
+        id: { type: "string", description: "Proposal id (show, dismiss, apply)." },
+        reason: { type: "string", description: "dismiss: why it is not acted on." },
+        confirm: { type: "string", description: "apply only: must equal id, after reading the proposal." }
+      },
+      required: ["action"]
+    }
+  },
+  {
+    name: "novahiz_repair",
+    description:
+      "Automatic repair on a closed whitelist: skills index (rebuilt), missing native baseline (created), missing manifest (only when no snapshot can contradict it). Ledger integrity is reported, never fixed in place. Every fix is re-checked afterwards. report by default; apply:true fixes what the whitelist names. Never touches catalog/, src/, rules, the gate or the classifier.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        apply: { type: "boolean", description: "Apply the whitelisted fixes instead of reporting only." },
+        id: { type: "string", description: "Fix a single check by id: skills-index, ledger-integrity, backup-missing, manifest-missing." }
+      }
     }
   },
   {
@@ -261,7 +419,7 @@ const TOOLS = [
   },
   {
     name: "memory_write",
-    description: "Append a dated entry into project-memory under project-memory/slots. Picks the related active slot by token overlap or creates a new one; rotates (compact, archive, new slot) when full (8000 chars / 200 lines).",
+    description: "Append a dated entry into project-memory under project-memory/slots. Picks the related active slot by title, tags or token overlap; rotates (compact, archive, new slot) when full (8000 chars / 200 lines). Pass verify to attach the name of a .novahiz/verify.json command that proves the entry.",
     inputSchema: {
       type: "object",
       properties: {
@@ -269,6 +427,7 @@ const TOOLS = [
         content: { type: "string", description: "Markdown body for Détails." },
         description: { type: "string", description: "Slot description when creating." },
         tags: { type: "array", items: { type: "string" } },
+        verify: { type: "string", description: "Name of a command declared in .novahiz/verify.json that proves this entry. memory_verify replays it and records the verdict." },
         slotId: { type: "string", description: "Force a target slot id instead of relatedness." },
         root: { type: "string", description: "Project root or memory dir (default cwd): resolved to <root>/project-memory; a legacy layout (index.json + slots/) is accepted as-is; outside the workspace -> degrades to the workspace memory (degraded: true on the response)." }
       },
@@ -288,6 +447,19 @@ const TOOLS = [
         root: { type: "string", description: "Project root or memory dir (default cwd): resolved to <root>/project-memory; a legacy layout (index.json + slots/) is accepted as-is; outside the workspace -> degrades to the workspace memory (degraded: true on the response)." }
       },
       required: ["id", "mode"]
+    }
+  },
+  {
+    name: "memory_verify",
+    description:
+      "Replay the verification command declared by a memory slot (or by every slot that declares one) and record the verdict with its date. The command must be named in the project's .novahiz/verify.json.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        slot: { type: "string", description: "Slot id to verify (default: every active slot declaring verify)." },
+        apply: { type: "boolean", description: "Record last_verified / last_verdict in the slot (default false: read-only report)." },
+        root: { type: "string", description: "Project root or memory dir (default cwd)." }
+      }
     }
   },
   {
@@ -529,6 +701,7 @@ function normalizeTodo(item) {
     kind: item.kind ? String(item.kind) : undefined,
     acceptance: item.acceptance ? String(item.acceptance) : undefined,
     owner,
+    size: item.size ? String(item.size) : undefined,
     dependsOn: Array.isArray(item.dependsOn)
       ? item.dependsOn.map(String)
       : Array.isArray(item.depends_on)
@@ -591,7 +764,12 @@ function callTool(name, args) {
     if (prompt.length > MAX_PROMPT_LEN) {
       throw new Error(`Invalid params: prompt exceeds ${MAX_PROMPT_LEN} characters`);
     }
-    return toolResult({ prompt, ...classify(spec, prompt) });
+    return toolResult({
+      prompt,
+      ...classify(spec, prompt, {
+        files: Array.isArray(args?.files) ? args.files.map(String) : undefined
+      })
+    });
   }
   if (name === "novahiz_list_skills") {
     const index = loadInstalledSkills(spec);
@@ -623,7 +801,7 @@ function callTool(name, args) {
       const primary = classify(spec, args.query).primary;
       category = spec.categories.find((entry) => entry.id === primary);
     }
-    return toolResult({ category: category?.id ?? null, roadmap: category?.roadmap ?? null });
+    return toolResult({ category: category?.id ?? null, roadmap: annotateRoadmap(category?.roadmap) });
   }
   if (name === "novahiz_providers") {
     const enabled = new Set(enabledProviders(spec).map((provider) => provider.id));
@@ -653,26 +831,54 @@ function callTool(name, args) {
     return toolResult({ node: process.version, platform: process.platform, ...dependencyReport(spec, spec.root) });
   }
   if (name === "novahiz_step") {
-    const session = String(args?.session ?? "default");
+    // The agent does not know its OpenCode session id, so defaulting to the
+    // literal "default" mixed every session of every project into one row set.
+    // Scope to the project instead: roadmap progress survives a restart and
+    // never leaks into another project.
     const done = args?.done ? String(args.done) : "";
+    const dropped = args?.drop ? String(args.drop) : "";
+    const reason = args?.reason ? String(args.reason).trim() : "";
     // WS3: the step id follows the roadmap naming pattern (plan, write,
     // impeccable-critique) — reject anything else before it reaches the database.
-    if (done.length > 0 && !/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(done)) {
-      throw new Error(`Invalid params: step id must match [A-Za-z0-9][A-Za-z0-9._-]{0,127} (got "${done}")`);
+    for (const id of [done, dropped]) {
+      if (id.length > 0 && !/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(id)) {
+        throw new Error(`Invalid params: step id must match [A-Za-z0-9][A-Za-z0-9._-]{0,127} (got "${id}")`);
+      }
+    }
+    if (dropped.length > 0 && reason.length === 0) {
+      throw new Error("Invalid params: drop requires a reason, so the ledger can explain why the step does not apply");
     }
     const db = openDb(resolve(spec.root, spec.config.dbPath));
     try {
-      if (done.length > 0) {
+      // Prefer the session the gate observed for this project; fall back to the
+      // project scope so progress still survives a restart without a session.
+      const session =
+        (args?.session ? String(args.session) : null) ??
+        defaultSessionForProject(db, { projectRoot: process.cwd() }).session ??
+        `project:${projectKey(process.cwd())}`;
+      if (done.length > 0 || dropped.length > 0) {
         const ts = new Date().toISOString();
-        // roadmap_progress.session_id has a foreign key to sessions(id):
-        // ensure the session row exists before recording a step, otherwise
-        // a first-time session fails with "FOREIGN KEY constraint failed".
-        db.prepare(
-          "INSERT OR IGNORE INTO sessions (id, categories, required_skills, updated_at) VALUES (?, '[]', '[]', ?)"
-        ).run(session, ts);
-        db.prepare(
-          "INSERT INTO roadmap_progress (session_id, step_id, status, updated_at) VALUES (?, ?, 'done', ?) ON CONFLICT(session_id, step_id) DO UPDATE SET status = 'done', updated_at = excluded.updated_at"
-        ).run(session, done, new Date().toISOString());
+        const stepId = done.length > 0 ? done : dropped;
+        const stepStatus = done.length > 0 ? "done" : "dropped";
+        /*
+         * Record under every scope a close may consult. The task's own session
+         * and the literal "default" scope used by closeTask are both written,
+         * because the gate's session and the task's session can differ after a
+         * restart or a compaction. Without this the close refused a step that
+         * had been recorded, which is exactly what happened in the admin
+         * messages session.
+         */
+        const scopes = new Set([session, "default"]);
+        const current = activeTask(db, session);
+        if (current?.session_id) scopes.add(current.session_id);
+        for (const scope of scopes) {
+          db.prepare(
+            "INSERT OR IGNORE INTO sessions (id, categories, required_skills, updated_at) VALUES (?, '[]', '[]', ?)"
+          ).run(scope, ts);
+          db.prepare(
+            "INSERT INTO roadmap_progress (session_id, step_id, status, updated_at) VALUES (?, ?, ?, ?) ON CONFLICT(session_id, step_id) DO UPDATE SET status = excluded.status, updated_at = excluded.updated_at"
+          ).run(scope, stepId, stepStatus, new Date().toISOString());
+        }
       }
       const steps = db.prepare("SELECT step_id, status, updated_at FROM roadmap_progress WHERE session_id = ? ORDER BY updated_at").all(session);
       return toolResult({ session, steps });
@@ -680,20 +886,78 @@ function callTool(name, args) {
       db.close();
     }
   }
+  if (name === "novahiz_skillpack") {
+    const pack = buildSkillpack(spec, {
+      category: args?.category ? String(args.category) : undefined,
+      skills: Array.isArray(args?.skills) ? args.skills.map(String) : undefined,
+      maxChars: Number.isFinite(args?.maxChars) ? Number(args.maxChars) : undefined
+    });
+    const db = openDb(resolve(spec.root, spec.config.dbPath));
+    let loaded = [];
+    try {
+      const session =
+        (args?.session ? String(args.session) : null) ??
+        defaultSessionForProject(db, { projectRoot: process.cwd() }).session;
+      if (session) {
+        loaded = (db.prepare("SELECT skill FROM skill_invocations WHERE session_id = ? ORDER BY skill").all(session) ?? []).map(
+          (row) => String(row.skill)
+        );
+      }
+    } finally {
+      db.close();
+    }
+    return toolResult({
+      ...pack,
+      loaded,
+      missingToLoad: pack.skills.map((skill) => skill.id).filter((id) => !loaded.includes(id))
+    });
+  }
   if (name === "novahiz_task") {
     const action = String(args?.action ?? "status");
     // M-MCP: validate action before opening DB — avoids opening/closing on invalid input
-    const VALID_ACTIONS = ["new", "plan", "todo", "start", "done", "block", "review", "amend", "insert", "drop", "reorder", "signals", "status", "resume", "current"];
+    const VALID_ACTIONS = TASK_ACTIONS;
     if (!VALID_ACTIONS.includes(action)) {
       throw new Error(`Invalid params: unknown task action '${action}'`);
     }
     const session = args?.session ? String(args.session) : undefined;
     const db = openDb(resolve(spec.root, spec.config.dbPath));
     try {
+      if (action === "link") {
+        // NX-43: the adapter records the delegation the moment it sees it.
+        // Refusing an empty parent is deliberate: a link invented from a
+        // missing id would silently exempt the wrong session later.
+        const parent = session ?? "";
+        const child = args?.child ? String(args.child) : "";
+        if (parent.length === 0) return toolResult("link requires a session (the parent)", true);
+        if (child.length === 0) return toolResult("link requires child", true);
+        return toolResult(recordSessionLink(db, { child, parent }));
+      }
       if (action === "new") {
         // F: projectRoot scopes the new task to a project when the caller knows
         // it; omitted = unscoped legacy task (no path filtering).
-        return toolResult(createTask(db, { title: String(args?.title ?? ""), id: args?.id ? String(args.id) : undefined, sessionId: session, projectRoot: args?.projectRoot ? String(args.projectRoot) : undefined }));
+        return toolResult((() => {
+          const projectRootArg = args?.projectRoot ? String(args.projectRoot) : null;
+          const projectRoot = projectRootArg ?? process.cwd();
+          const fromProject = session ? null : defaultSessionForProject(db, { projectRoot }).session ?? null;
+          const resolved = session ?? fromProject ?? undefined;
+          const task = createTask(db, { title: String(args?.title ?? ""), id: args?.id ? String(args.id) : undefined, sessionId: resolved, projectRoot: projectRootArg ?? undefined, category: args?.category ? String(args.category) : undefined });
+          const others = activeSessionsOnProject(db, { projectRoot, excludeSession: resolved ?? null });
+          /*
+           * NX-16 / NX-17: the payload used to spread the raw task row, so the
+           * caller could not tell which session the steps would be recorded
+           * under, nor whether the project root was given or defaulted. Both
+           * are now explicit, with where each value came from.
+           */
+          return {
+            ...task,
+            session: resolved ?? null,
+            sessionSource: session ? "argument" : fromProject ? "default-for-project" : "none",
+            projectRoot,
+            projectRootSource: projectRootArg ? "argument" : "cwd",
+            otherSessions: others,
+            worktreeHint: worktreeHint(others, resolved ?? "this session")
+          };
+        })());
       }
       if (action === "plan") {
         const taskId = args?.task ? String(args.task) : activeTask(db, session)?.id;
@@ -719,7 +983,16 @@ function callTool(name, args) {
       if (action === "done") {
         const id = String(args?.id ?? "");
         const target = getTodo(db, id);
-        if (!target) return toolResult("no active task", true);
+        if (!target) {
+          // Un id inconnu n'est pas « aucune tâche active » : l'agent a besoin
+          // des ids valides pour se corriger en un appel.
+          const task = activeTask(db, session);
+          const valid = task ? listTodos(db, task.id).map((todo) => todo.id) : [];
+          return toolResult(
+            { error: `unknown todo: ${id}`, validTodos: valid, task: task?.id ?? null },
+            true,
+          );
+        }
         // H1: completeTodo + recordTodoDone must be atomic. Use a SAVEPOINT
         // so the nested capture inside completeTodo doesn't break the outer
         // transaction boundary.
@@ -739,6 +1012,36 @@ function callTool(name, args) {
         }
       }
       if (action === "block") return toolResult(blockTodo(db, String(args?.id ?? ""), args?.reason ? String(args.reason) : ""));
+      if (action === "close") {
+        const taskId = args?.task ? String(args.task) : activeTask(db, session)?.id;
+        if (!taskId) return toolResult("no active task", true);
+        const current = getTask(db, taskId);
+        let required;
+        if (current?.category) {
+          const category = spec.categories.find((entry) => entry.id === current.category);
+          const steps = closeStepsFor(
+            (category?.roadmap?.steps ?? [])
+              .filter((step) => step.optional !== true && (step.requireSkills ?? []).length > 0)
+              .map((step) => step.id),
+            spec.config.ledger?.close
+          );
+          const scopes = [];
+          if (current.project_root) scopes.push(`project:${projectKey(current.project_root)}`);
+          if (current.session_id) scopes.push(current.session_id);
+          if (session) scopes.push(String(session));
+          scopes.push("default");
+          required = { steps, scopes };
+        }
+        return toolResult(closeTask(db, taskId, args?.proof ? String(args.proof) : "", required));
+      }
+      if (action === "history") {
+        const taskId = args?.task ? String(args.task) : activeTask(db, session)?.id;
+        if (!taskId) return toolResult("no active task", true);
+        return toolResult({
+          task: taskId,
+          history: planHistory(db, taskId, Number.isFinite(args?.limit) ? Number(args.limit) : undefined)
+        });
+      }
       if (action === "review") {
         const taskId = args?.task ? String(args.task) : activeTask(db, session)?.id;
         if (!taskId) return toolResult("no active task", true);
@@ -758,6 +1061,7 @@ function callTool(name, args) {
           kind: args?.kind ? String(args.kind) : undefined,
           acceptance: args?.acceptance !== undefined ? (args.acceptance === null ? null : String(args.acceptance)) : undefined,
           owner: args?.owner !== undefined ? (args.owner === null ? null : String(args.owner)) : undefined,
+          size: args?.size !== undefined ? (args.size === null ? null : String(args.size)) : undefined,
           maxIterations: Number.isFinite(args?.maxIterations) ? Number(args.maxIterations) : undefined
         };
         return toolResult(amendTodo(db, String(args?.id ?? ""), patch));
@@ -807,8 +1111,104 @@ function callTool(name, args) {
           : resume(db, session);
         const review = state.task ? reviewDue(db, state.task.id) : null;
         const signals = state.task ? revisionSignals(db, state.task.id) : [];
-        return toolResult({ task: state.task, current: state.current, todos: state.todos, summary: ledgerSummary(state), review, signals });
+        const openTodos = state.task ? openTodoIds(db, state.task.id) : [];
+        return toolResult({
+          /*
+           * NX-21: `status`, `resume` and `current` are three names for one
+           * question, and they already shared this branch. The payload now
+           * echoes which alias was asked and which scope answered, so a caller
+           * never has to guess whether it read the explicit session or the
+           * default one.
+           */
+          action,
+          session: session ?? null,
+          scope: session ?? "default",
+          task: state.task,
+          current: state.current,
+          todos: state.todos,
+          summary: ledgerSummary(state),
+          review,
+          signals,
+          openTodos,
+          readyToClose: Boolean(state.task && state.task.status === "active" && openTodos.length === 0)
+        });
       }
+    } finally {
+      db.close();
+    }
+  }
+  if (name === "novahiz_verify") {
+    const db = openDb(resolve(spec.root, spec.config.dbPath));
+    try {
+      const projectRoot = resolve(args?.projectRoot ? String(args.projectRoot) : process.cwd());
+      const resolvedSession =
+        (args?.session ? String(args.session) : null) ??
+        defaultSessionForProject(db, { projectRoot }).session ??
+        undefined;
+      const outcome = runVerification(db, {
+        projectRoot,
+        name: String(args?.name ?? ""),
+        session: resolvedSession,
+        timeoutMs: Number.isFinite(args?.timeoutMs) ? Number(args.timeoutMs) : undefined,
+        expect: args?.expect ? String(args.expect) : undefined
+      });
+      return toolResult(outcome, !outcome.ok);
+    } finally {
+      db.close();
+    }
+  }
+  if (name === "novahiz_evidence") {
+    const db = openDb(resolve(spec.root, spec.config.dbPath));
+    try {
+      return toolResult({
+        evidence: listEvidence(db, {
+          limit: Number.isFinite(args?.limit) ? Number(args.limit) : undefined,
+          session: args?.session ? String(args.session) : undefined,
+          projectRoot: args?.projectRoot ? String(args.projectRoot) : process.cwd()
+        })
+      });
+    } finally {
+      db.close();
+    }
+  }
+  if (name === "novahiz_claim") {
+    const action = String(args?.action ?? "list");
+    const db = openDb(resolve(spec.root, spec.config.dbPath));
+    try {
+      if (action === "claim") {
+        const paths = Array.isArray(args?.paths) ? args.paths.map(String) : [];
+        const projectRoot = args?.projectRoot ? String(args.projectRoot) : process.cwd();
+        const resolvedSession =
+          (args?.session ? String(args.session) : null) ??
+          defaultSessionForProject(db, { projectRoot }).session;
+        if (!resolvedSession) {
+          throw new Error(
+            "Invalid params: no session id given and none could be resolved for this project. Pass session explicitly."
+          );
+        }
+        return toolResult(
+          claimPaths(db, {
+            session: resolvedSession,
+            paths,
+            ttlMinutes: Number.isFinite(args?.ttlMinutes) ? Number(args.ttlMinutes) : undefined,
+            reason: args?.reason ? String(args.reason) : undefined,
+            projectRoot
+          }),
+          false
+        );
+      }
+      if (action === "release") {
+        return toolResult(
+          releasePaths(db, {
+            session: String(args?.session ?? ""),
+            paths: Array.isArray(args?.paths) ? args.paths.map(String) : undefined
+          })
+        );
+      }
+      if (action === "list") {
+        return toolResult({ claims: listClaims(db, { projectRoot: args?.projectRoot ? String(args.projectRoot) : process.cwd() }) });
+      }
+      throw new Error(`Invalid params: unknown claim action '${action}'`);
     } finally {
       db.close();
     }
@@ -833,6 +1233,48 @@ function callTool(name, args) {
     } finally {
       db.close();
     }
+  }
+  if (name === "memory_verify") {
+    const dir = safeMemoryRoot(args?.root ? String(args.root) : undefined);
+    const index = listSlots(dir);
+    const slotFilter = args?.slot ? String(args.slot) : null;
+    const targets = index.slots.filter(
+      (slot) => slot.status === "active" && Boolean(slot.verify) && (!slotFilter || slot.id === slotFilter)
+    );
+    if (slotFilter && targets.length === 0) {
+      throw new Error(`memory slot ${slotFilter} declares no verify command (or is not active)`);
+    }
+    const projectRoot = dirname(dir);
+    const db = openDb(resolve(spec.root, spec.config.dbPath));
+    const results = [];
+    try {
+      for (const slot of targets) {
+        const outcome = runVerification(db, { projectRoot, name: String(slot.verify) });
+        const missing =
+          typeof outcome.error === "string" &&
+          (outcome.error.startsWith("no verify config") || outcome.error.startsWith("unknown verification"));
+        const verdict = outcome.ok ? "ok" : missing ? "unknown" : "failed";
+        let recorded = false;
+        if (args?.apply === true) {
+          recordSlotVerification(slot.id, { root: dir, verdict });
+          recorded = true;
+        }
+        results.push({
+          slot: slot.id,
+          verify: slot.verify,
+          verdict,
+          ok: outcome.ok,
+          exitCode: outcome.exitCode,
+          durationMs: outcome.durationMs,
+          evidenceId: outcome.evidenceId,
+          ...(outcome.error ? { error: String(outcome.error).slice(0, 200) } : {}),
+          recorded
+        });
+      }
+    } finally {
+      db.close();
+    }
+    return toolResult({ root: dir, projectRoot, checked: results.length, results }, results.some((row) => row.verdict === "failed"));
   }
   if (name === "memory_write") {
     if (args?.content !== undefined && typeof args.content === "string" && args.content.length > MAX_CONTENT_LEN) {
@@ -1122,8 +1564,107 @@ function callTool(name, args) {
     if (name === "graph_freshness") {
       return toolResult(graphFreshness(root, { rebuild: args?.rebuild === true }));
     }
-    throw new Error(`Unknown tool: ${name}`);
   }
+  if (name === "novahiz_backup") {
+      const action = String(args?.action ?? "list");
+      const home = spec.root;
+      if (action === "create") {
+        const kind = args?.kind ? String(args.kind) : "auto-improve";
+        if (!["native", "auto-improve", "pre-restore"].includes(kind)) {
+          return toolResult({ error: `unknown kind ${kind} (native, auto-improve, pre-restore)` }, true);
+        }
+        return toolResult({ created: createBackup(home, { kind, note: args?.note ? String(args.note) : undefined }) });
+      }
+      if (action === "list") {
+        const all = listBackups(home);
+        const kind = args?.kind ? String(args.kind) : null;
+        const backups = kind ? all.filter((meta) => meta.kind === kind) : all;
+        return toolResult({ count: backups.length, backups });
+      }
+      if (action === "verify") {
+        const id = args?.id ? String(args.id) : null;
+        const targets = id ? listBackups(home).filter((meta) => meta.id === id) : listBackups(home);
+        if (id && targets.length === 0) return toolResult({ error: `unknown backup: ${id}` }, true);
+        const results = targets.map((meta) => verifyBackup(home, meta.id));
+        const failed = results.filter((result) => !result.ok).length;
+        return toolResult({ checked: results.length, failed, results }, failed > 0);
+      }
+      if (action === "restore") {
+        const id = args?.id ? String(args.id) : "";
+        if (!id) return toolResult({ error: "restore needs an id" }, true);
+        // Restoring rewrites the system home: the caller must name the snapshot
+        // it means to put back, not just "restore".
+        if (String(args?.confirm ?? "") !== id) {
+          return toolResult({ error: "restore requires confirm equal to the backup id" }, true);
+        }
+        const result = restoreBackup(home, id, { prune: args?.prune === true });
+        return toolResult(result, !result.ok);
+      }
+      return toolResult({ error: `unknown backup action: ${action} (create, list, verify, restore)` }, true);
+    }
+    if (name === "novahiz_improve") {
+      const action = String(args?.action ?? "list");
+      const home = spec.root;
+      const gate = autoImproveState();
+      if (!gate.enabled && (action === "scan" || action === "apply")) {
+        return toolResult({ disabled: true, reason: gate.reason, action });
+      }
+      if (action === "scan") {
+        const db = openDb(resolve(spec.root, spec.config.dbPath));
+        try {
+          const drafts = detect(sampleDb(db), spec);
+          if (args?.dry === true) return toolResult({ dry: true, candidates: drafts });
+          const proposals = drafts.map((draft) => {
+            const { proposal, created } = writeProposal(home, draft);
+            return { id: proposal.id, kind: proposal.kind, target: proposal.target, created };
+          });
+          return toolResult({ count: proposals.length, proposals });
+        } finally {
+          db.close();
+        }
+      }
+      if (action === "list") {
+        const status = args?.status ? String(args.status) : null;
+        const all = listProposals(home);
+        const filtered = status ? all.filter((proposal) => proposal.status === status) : all;
+        return toolResult({ count: filtered.length, proposals: filtered });
+      }
+      if (action === "show") {
+        const proposal = readProposal(home, String(args?.id ?? ""));
+        return proposal ? toolResult(proposal) : toolResult({ error: `unknown proposal: ${args?.id ?? ""}` }, true);
+      }
+      if (action === "dismiss") {
+        const updated = setProposalStatus(home, String(args?.id ?? ""), "dismissed", args?.reason ? String(args.reason) : "");
+        return updated ? toolResult({ dismissed: updated.id, note: updated.note }) : toolResult({ error: "unknown proposal" }, true);
+      }
+      if (action === "reopen") {
+        const updated = setProposalStatus(home, String(args?.id ?? ""), "proposed", args?.reason ? String(args.reason) : "");
+        return updated ? toolResult({ reopened: updated.id, status: updated.status }) : toolResult({ error: "unknown proposal" }, true);
+      }
+      if (action === "apply") {
+        const id = String(args?.id ?? "");
+        if (String(args?.confirm ?? "") !== id) {
+          return toolResult({ error: "apply requires confirm equal to the proposal id, after reading it" }, true);
+        }
+        const result = applyProposal(home, id);
+        return toolResult(result, !result.ok);
+      }
+      return toolResult({ error: `unknown improve action: ${action} (scan, list, show, dismiss, apply)` }, true);
+    }
+    if (name === "novahiz_repair") {
+      const id = args?.id ? String(args.id) : null;
+      if (id) {
+        const outcome = applyRepair(spec.root, id);
+        return toolResult(outcome, !outcome.ok);
+      }
+      const report = repair(spec.root, { apply: args?.apply === true });
+      const problems = report.checks.filter((check) => check.problem !== null);
+      return toolResult({
+        healthy: report.checks.length - problems.length,
+        problems,
+        outcomes: report.outcomes
+      });
+    }
   if (name === "novahiz_wireframe") {
     const project = typeof args?.project === "string" && args.project.length > 0 ? args.project : process.cwd();
     const action = String(args?.action ?? "");
@@ -1296,7 +1837,22 @@ function handle(message) {
           };
         }
       }
-      return { jsonrpc: "2.0", id, result: toolResult(`internal error: ${msg}`, true) };
+      // Une erreur d'usage n'est pas un bug du serveur : la préfixer
+      // « internal error » brouille la distinction et pousse à chercher au
+      // mauvais endroit. On ne garde le préfixe que pour l'inattendu.
+      const usagePrefixes = [
+        "unknown todo",
+        "unknown task",
+        "unknown id",
+        "Invalid params",
+        "todo ",
+        "task ",
+        "review failed",
+        "no active task",
+        "memory "
+      ];
+      const isUsage = usagePrefixes.some((prefix) => msg.startsWith(prefix));
+      return { jsonrpc: "2.0", id, result: toolResult(isUsage ? msg : `internal error: ${msg}`, true) };
     }
   }
   if (method === "ping") return { jsonrpc: "2.0", id, result: {} };

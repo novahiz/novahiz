@@ -108,14 +108,24 @@ function walkForSkillFiles(root: string, found: string[], visited: Set<string>, 
   }
 }
 
-export function scanSkills(spec: Spec, errors: string[] = []): SkillRecord[] {
+/**
+ * NX-33 : la liste des SKILL.md, partagée par l'index et le lint.
+ *
+ * `scanSkills` déduplique par nom : un doublon de nom disparaît de l'index sans
+ * un mot. Le lint a besoin de tous les fichiers, y compris les doublons.
+ */
+export function findSkillFiles(spec: Spec, errors: string[] = []): string[] {
   const files: string[] = [];
   const visited = new Set<string>();
   for (const root of spec.config.skillRoots) {
     const expanded = expandHome(root);
     walkForSkillFiles(isAbsolute(expanded) ? expanded : join(spec.root, expanded), files, visited, errors);
   }
-  files.sort();
+  return files.sort();
+}
+
+export function scanSkills(spec: Spec, errors: string[] = []): SkillRecord[] {
+  const files = findSkillFiles(spec, errors);
 
   const byId = new Map<string, SkillRecord>();
   for (const file of files) {

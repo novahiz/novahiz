@@ -324,7 +324,29 @@ export function scoreComplexity(prompt: string): ComplexityTier {
  * Main entry point for the complexity system.
  */
 export function determineTier(prompt: string): ComplexityTier {
-  // C2: guard against null/undefined — treat as trivial instead of crashing
+  // C2: guard against null/undefined - treat as trivial instead of crashing
   if (!prompt || typeof prompt !== "string") return "trivial";
   return scoreComplexity(prompt);
+}
+
+/**
+ * Skills a lite change may skip.
+ *
+ * These either only structure the work (plan, clarify, task, analyse) or demand
+ * a full audit for a small change (`novahiz-wcag-audit` on a colour tweak). The
+ * full tier keeps them. Everything else a category enforces — design craft,
+ * wireframe, critique, polish — survives the lite tier, otherwise a "small"
+ * change silently loses the checks that make it safe. Shared by the gate and
+ * the classifier so the two cannot drift.
+ */
+export const LITE_SKIPPED_SKILLS: readonly string[] = [
+  "novahiz-plan",
+  "novahiz-clarify",
+  "novahiz-task",
+  "novahiz-analyse",
+  "novahiz-wcag-audit",
+];
+
+export function liteKeeps(skill: string): boolean {
+  return !LITE_SKIPPED_SKILLS.includes(skill);
 }

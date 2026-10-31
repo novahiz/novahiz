@@ -4,17 +4,27 @@
     "description": "Load Supabase skills on any Supabase task.",
     "when": {
       "match": "any",
-      "pathGlobs": ["**/supabase/**", "**/migrations/**"],
-      "promptCategories": ["database-supabase"]
+      "pathGlobs": [
+        "**/supabase/**",
+        "**/migrations/**"
+      ],
+      "promptCategories": [
+        "database-supabase"
+      ]
     },
-    "require": ["novahiz-supabase", "novahiz-postgres"]
+    "require": [
+      "novahiz-supabase",
+      "novahiz-postgres"
+    ]
   },
   {
     "id": "R4-playwright",
     "description": "Load novahiz-browser on any task using Playwright or targeting browser tests.",
     "when": {
       "match": "any",
-      "promptCategories": ["browser"],
+      "promptCategories": [
+        "browser"
+      ],
       "pathGlobs": [
         "**/*.e2e.ts",
         "**/*.e2e.js",
@@ -24,63 +34,109 @@
         "**/*.cy.ts"
       ]
     },
-    "require": ["novahiz-browser"]
+    "require": [
+      "novahiz-browser"
+    ]
   },
   {
     "id": "R7-assessment",
     "description": "Load Idea Assessment pipeline skills.",
     "when": {
-      "promptCategories": ["assessment"]
+      "promptCategories": [
+        "assessment"
+      ]
     },
-    "require": ["novahiz-assess-intake", "novahiz-assess-research", "novahiz-assess-define", "novahiz-assess-shape", "novahiz-assess-decide"]
+    "require": [
+      "novahiz-assess-intake",
+      "novahiz-assess-research",
+      "novahiz-assess-define",
+      "novahiz-assess-shape",
+      "novahiz-assess-decide"
+    ]
   },
   {
     "id": "R8-docs",
     "description": "Load novahiz-docs when editing project documentation (docs tree, README/CHANGELOG, or a docs-writing prompt).",
     "when": {
       "match": "any",
-      "pathGlobs": ["**/novahiz-docs/**/*.md", "**/docs/**/*.md", "**/README.md", "**/CHANGELOG.md"],
-      "promptCategories": ["docs-writing"]
+      "pathGlobs": [
+        "**/novahiz-docs/**/*.md",
+        "**/docs/**/*.md",
+        "**/README.md",
+        "**/CHANGELOG.md"
+      ],
+      "promptCategories": [
+        "docs-writing"
+      ]
     },
-    "require": ["novahiz-docs"]
+    "require": [
+      "novahiz-docs"
+    ]
   },
   {
     "id": "R9-code-review",
     "description": "Load novahiz-code-review on code review tasks or code edits of 200+ characters (small touch-ups skip the review).",
     "when": {
       "match": "any",
-      "promptCategories": ["review"],
-      "fileClasses": ["code"],
-      "pathGlobs": ["**/*.tsx", "**/*.jsx", "**/*.vue", "**/*.svelte", "**/*.astro"],
+      "promptCategories": [
+        "review"
+      ],
+      "fileClasses": [
+        "code"
+      ],
+      "pathGlobs": [
+        "**/*.tsx",
+        "**/*.jsx",
+        "**/*.vue",
+        "**/*.svelte",
+        "**/*.astro"
+      ],
       "minChange": 200
     },
-    "require": ["novahiz-code-review"]
+    "require": [
+      "novahiz-code-review"
+    ]
   },
   {
     "id": "R11-accessibility",
     "description": "Load novahiz-wcag-audit on design-ui work, where accessibility is in scope.",
     "when": {
       "match": "any",
-      "promptCategories": ["design-ui"],
-      "pathExcludes": ["**/tests/**", "**/__tests__/**", "**/*.test.*", "**/*.spec.*"]
+      "promptCategories": [
+        "design-ui"
+      ],
+      "pathExcludes": [
+        "**/tests/**",
+        "**/__tests__/**",
+        "**/*.test.*",
+        "**/*.spec.*"
+      ]
     },
-    "require": ["novahiz-wcag-audit"]
+    "require": [
+      "novahiz-wcag-audit"
+    ]
   },
   {
     "id": "R12-web-extract",
     "description": "Load novahiz-web-extract when fetching web content.",
     "when": {
       "match": "any",
-      "promptCategories": ["research"]
+      "promptCategories": [
+        "research"
+      ]
     },
-    "require": ["novahiz-web-extract"]
+    "require": [
+      "novahiz-web-extract"
+    ]
   },
   {
     "id": "R13-design-craft",
     "description": "Load novahiz-humanizer, ui-slop-remover and ui-craft-rules on frontend design tasks only.",
     "when": {
       "match": "any",
-      "promptCategories": ["design-ui"],
+      "promptCategories": [
+        "design-ui"
+      ],
       "pathGlobs": [
         "**/*.css",
         "**/*.scss",
@@ -90,16 +146,42 @@
         "**/*.htm"
       ],
       "minChange": 200,
-      "pathExcludes": ["**/tests/**", "**/__tests__/**", "**/*.test.*", "**/*.spec.*"]
+      "pathExcludes": [
+        "**/tests/**",
+        "**/__tests__/**",
+        "**/*.test.*",
+        "**/*.spec.*"
+      ],
+      "contentExcludes": [
+        "supprimer",
+        "nettoyer",
+        "nettoyage",
+        "retirer",
+        "vider",
+        "purge",
+        "delete",
+        "remove",
+        "effacer",
+        "annuler",
+        "désinstaller",
+        "désactive",
+        "désactivez"
+      ]
     },
-    "require": ["novahiz-humanizer", "ui-slop-remover", "ui-craft-rules"]
+    "require": [
+      "novahiz-humanizer",
+      "ui-slop-remover",
+      "ui-craft-rules"
+    ]
   },
   {
     "id": "R14-impeccable",
     "description": "Load the impeccable design skill on frontend design tasks so critique/audit/polish playbooks stay available.",
     "when": {
       "match": "any",
-      "promptCategories": ["design-ui"],
+      "promptCategories": [
+        "design-ui"
+      ],
       "pathGlobs": [
         "**/*.css",
         "**/*.scss",
@@ -109,9 +191,31 @@
         "**/*.htm"
       ],
       "minChange": 200,
-      "pathExcludes": ["**/tests/**", "**/__tests__/**", "**/*.test.*", "**/*.spec.*"]
+      "pathExcludes": [
+        "**/tests/**",
+        "**/__tests__/**",
+        "**/*.test.*",
+        "**/*.spec.*"
+      ],
+      "contentExcludes": [
+        "supprimer",
+        "nettoyer",
+        "nettoyage",
+        "retirer",
+        "vider",
+        "purge",
+        "delete",
+        "remove",
+        "effacer",
+        "annuler",
+        "désinstaller",
+        "désactive",
+        "désactivez"
+      ]
     },
-    "require": ["impeccable"]
+    "require": [
+      "impeccable"
+    ]
   },
   {
     "id": "R15-token-economy",
@@ -125,7 +229,9 @@
         "**/docs/TOKENS.md"
       ]
     },
-    "require": ["token-economy"]
+    "require": [
+      "token-economy"
+    ]
   },
   {
     "id": "R16-stitch-fidelity",
@@ -142,17 +248,28 @@
         "**/*.scss",
         "**/*.html"
       ],
-      "projectGlobs": ["stitch/**"],
-      "pathExcludes": ["**/tests/**", "**/__tests__/**", "**/*.test.*", "**/*.spec.*"]
+      "projectGlobs": [
+        "stitch/**"
+      ],
+      "pathExcludes": [
+        "**/tests/**",
+        "**/__tests__/**",
+        "**/*.test.*",
+        "**/*.spec.*"
+      ]
     },
-    "require": ["novahiz-stitch-fidelity"]
+    "require": [
+      "novahiz-stitch-fidelity"
+    ]
   },
   {
     "id": "R17-wireframe",
     "description": "Load novahiz-wireframe on any design-ui task or on any screen/view/component file: the wireframe-first sequence (screen sketch + per-section annotated wireframes feeding impeccable shape) is mandatory before constructing a screen or section. It is skipped only for micro-changes - the rule applies from 800 characters of change, at lite or full complexity, so touching an existing screen never demands a wireframe.",
     "when": {
       "match": "any",
-      "promptCategories": ["design-ui"],
+      "promptCategories": [
+        "design-ui"
+      ],
       "pathGlobs": [
         "**/wireframes/**",
         "**/screens/**",
@@ -162,11 +279,21 @@
         "**/app/**",
         "**/components/**"
       ],
-      "tiers": ["lite", "full"],
+      "tiers": [
+        "lite",
+        "full"
+      ],
       "minChange": 800,
-      "pathExcludes": ["**/tests/**", "**/__tests__/**", "**/*.test.*", "**/*.spec.*"]
+      "pathExcludes": [
+        "**/tests/**",
+        "**/__tests__/**",
+        "**/*.test.*",
+        "**/*.spec.*"
+      ]
     },
-    "require": ["novahiz-wireframe"]
+    "require": [
+      "novahiz-wireframe"
+    ]
   },
   {
     "id": "R18-skill-craft",
@@ -181,6 +308,8 @@
         "**/skills/**/*.json"
       ]
     },
-    "require": ["novahiz-skill-craft"]
+    "require": [
+      "novahiz-skill-craft"
+    ]
   }
 ]

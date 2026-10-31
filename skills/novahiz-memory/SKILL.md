@@ -50,6 +50,18 @@ This skill writes the human-facing narrative: `MEMORY.md` and, when a fact must 
 
 MEMORY.md and slots both carry `title`, dates and `tags`. Pages and entries link with `[[wikilinks]]`. When the subject already exists, enrich it instead of creating a second entry.
 
+## A decision can carry its own proof
+
+Some entries assert something that can stop being true: "the RIB is still a placeholder", "the migration is applied", "the build passes". Pass `verify` with the name of a command declared in the project's `.novahiz/verify.json`:
+
+```
+memory_write({ title: "RIB encore en placeholder", content: "...", verify: "typecheck" })
+```
+
+`memory_verify` (or `novahiz memory verify`) replays that command and reports `ok`, `failed` or `unknown` — unknown meaning the declared name is not in the project config. Add `apply` to record `last_verified` / `last_verdict` in the slot. Changing the `verify` of a slot clears the previous verdict, because a new assertion is not covered by the old proof.
+
+A slot without `verify` is a note. A slot with `verify` is an assertion that can be re-checked — prefer the second when the fact is operational.
+
 ## Before writing
 
 Show the chosen local destination (MEMORY.md section or slot title). A declared write is a write you can verify later.

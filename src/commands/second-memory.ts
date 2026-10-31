@@ -14,7 +14,8 @@ import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, renameS
 import { basename, dirname, join } from "node:path";
 import { homedir } from "node:os";
 
-import { emit, flagOn, type Parsed } from "./context.ts";
+import { emit, flagOn, asString, type Parsed } from "./context.ts";
+import { recordSessionEnd } from "../session-end.ts";
 import { createSlot, resolveMemoryDir, updateSlot } from "../memory.ts";
 import { NovahizHome, packageRoot } from "../spec.ts";
 import { stitchConfigured } from "./stitch.ts";
@@ -212,6 +213,21 @@ function memoryRootForSync(): string | null {
   if (override.length > 0) return existsSync(override) ? override : null;
   const globalRoot = join(homedir(), ".config", "project-memory");
   if (existsSync(globalRoot)) return globalRoot;
+  const { dir } = resolveMemoryDir(undefined, process.cwd());
+  return existsSync(dir) ? dir : null;
+}
+
+/**
+ * Memory of the *current project*.
+ *
+ * memoryRootForSync prefers the legacy global mirror (`~/.config/project-memory`)
+ * because the vault sync historically read it. The project binding (`vault.json`)
+ * lives in the project's own memory, so reading the global one reported "not
+ * bound" for a project that was bound.
+ */
+function projectMemoryRoot(): string | null {
+  const override = (process.env.NOVAHIZ_SM_MEMORY ?? "").trim();
+  if (override.length > 0) return existsSync(override) ? override : null;
   const { dir } = resolveMemoryDir(undefined, process.cwd());
   return existsSync(dir) ? dir : null;
 }
@@ -1728,6 +1744,22 @@ function routeOf(vault: string, rel: string): Segment[] | null {
   return segments.length > 0 ? segments : null;
 }
 
+function readProjectBinding(): { bound: boolean; domain: string | null; branch: string | null; slug: string | null; path: string | null } {
+  const root = projectMemoryRoot();
+  if (!root) return { bound: false, domain: null, branch: null, slug: null, path: null };
+  const file = join(root, "vault.json");
+  if (!existsSync(file)) return { bound: false, domain: null, branch: null, slug: null, path: file };
+  try {
+    const raw = JSON.parse(readFileSync(file, "utf8")) as { domain?: unknown; branch?: unknown; slug?: unknown; project?: unknown };
+    const domain = typeof raw.domain === "string" ? raw.domain : null;
+    const branch = typeof raw.branch === "string" ? raw.branch : null;
+    const slug = typeof raw.slug === "string" ? raw.slug : typeof raw.project === "string" ? projectFolder(raw.project, "") : null;
+    return { bound: Boolean(domain && branch), domain, branch, slug, path: file };
+  } catch {
+    return { bound: false, domain: null, branch: null, slug: null, path: file };
+  }
+}
+
 function secondMemoryStatus(parsed: Parsed): void {
   const vault = vaultPath();
   const exists = existsSync(vault);
@@ -1735,7 +1767,16 @@ function secondMemoryStatus(parsed: Parsed): void {
   const categories = exists ? listCategories(vault) : [];
   const issues = exists ? lintVault() : [];
   const memory = memoryRootForSync() ?? "";
-  emit(parsed, { vault, exists, notes: notes.length, categories, issues: issues.length, memory }, () => {
+  // A project that is not bound to a branch writes notes nowhere predictable:
+  // say it explicitly instead of letting the user assume the wiring exists.
+  const projectMemory = projectMemoryRoot() ?? "";
+  const binding = readProjectBinding();
+  const target = binding.bound && binding.slug
+    ? `${binding.domain}/${binding.branch}/docs/${binding.slug}`
+    : binding.bound
+      ? `${binding.domain}/${binding.branch}`
+      : null;
+  emit(parsed, { vault, exists, notes: notes.length, categories, issues: issues.length, memory, projectMemory, binding, target }, () => {
     const lines = ["second-memory status:"];
     lines.push(`  vault: ${vault}`);
     lines.push(`  exists: ${exists}`);
@@ -1743,6 +1784,12 @@ function secondMemoryStatus(parsed: Parsed): void {
     lines.push(`  categories: ${categories.join(", ") || "(none)"}`);
     lines.push(`  issues: ${issues.length}`);
     lines.push(`  memory: ${memory || "(none)"}`);
+    if (projectMemory && projectMemory !== memory) lines.push(`  project memory: ${projectMemory}`);
+    lines.push(
+      binding.bound
+        ? `  project: lié à ${binding.domain}/${binding.branch}${target ? ` → ${target}` : ""}`
+        : `  project: NON lié à une branche du vault${binding.path ? ` (${binding.path})` : ""} — lancer \`novahiz second-memory project-init --name <projet> --apply\``
+    );
     return lines.join("\n");
   });
 }
@@ -2419,6 +2466,141 @@ function secondMemoryProjectInit(parsed: Parsed): void {
   });
 }
 
+// --- decisions : ce qui reste ouvert, en un tableau -------------------------
+// Les mêmes points (RIB, backend, licence photos…) traînaient dans six slots et
+// plusieurs notes sans jamais former une liste. Cette commande les rassemble en
+// lecture seule : aucune note n'est modifiée.
+const OPEN_DECISION_MARKERS =
+  /(reste ouvert|encore ouvert|à faire|a faire|\btodo\b|pending|en attente|bloqu|non r[ée]solu|open decision|à remplacer|a remplacer)/i;
+
+function secondMemoryDecisions(parsed: Parsed): void {
+  const vault = vaultPath();
+  const binding = readProjectBinding();
+  if (!existsSync(vault)) {
+    process.stderr.write("second-memory decisions: vault introuvable — lancer `novahiz second-memory init`\n");
+    process.exitCode = 1;
+    return;
+  }
+  const prefix = binding.bound ? `${binding.domain}/${binding.branch}/` : "";
+  const notes = listVaultNotes(vault).filter(
+    (rel) => rel.includes("/decisions/") && (prefix.length === 0 || rel.startsWith(prefix)),
+  );
+  const rows: { note: string; line: string }[] = [];
+  for (const rel of notes) {
+    let raw = "";
+    try {
+      raw = readFileSync(join(vault, rel), "utf8");
+    } catch {
+      continue;
+    }
+    for (const line of raw.split(/\r?\n/)) {
+      const trimmed = line.replace(/^[-*]\s*/, "").trim();
+      if (trimmed.length === 0) continue;
+      if (!OPEN_DECISION_MARKERS.test(trimmed)) continue;
+      rows.push({ note: rel, line: trimmed.slice(0, 220) });
+      if (rows.length >= 200) break;
+    }
+    if (rows.length >= 200) break;
+  }
+  emit(
+    parsed,
+    { vault, scope: prefix || "(tout le vault)", notesScanned: notes.length, count: rows.length, rows },
+    () => {
+      const lines = [`second-memory decisions — ${rows.length} point(s) ouvert(s)`];
+      lines.push(`  périmètre: ${prefix || "(tout le vault)"} · ${notes.length} note(s) de décisions`);
+      for (const row of rows) lines.push(`  - ${row.note.split("/").pop()} : ${row.line}`);
+      if (rows.length === 0) lines.push("  aucune décision ouverte détectée");
+      return lines.join("\n");
+    },
+  );
+}
+
+// --- suggest : quoi verser au vault en fin de session -----------------------
+// Remplace le rappel qui n'existe pas encore côté harness : la liste est
+// calculée, jamais écrite. L'agent ou l'humain décide de flusher.
+function secondMemorySuggest(parsed: Parsed): void {
+  const binding = readProjectBinding();
+  const docsDir = join(process.cwd(), "novahiz-docs");
+  const recentDocs: { file: string; ageHours: number }[] = [];
+  if (existsSync(docsDir)) {
+    for (const name of readdirSync(docsDir).filter((entry) => entry.endsWith(".md"))) {
+      try {
+        const ageHours = Math.floor((Date.now() - statSync(join(docsDir, name)).mtimeMs) / 3_600_000);
+        if (ageHours <= 24) recentDocs.push({ file: name, ageHours });
+      } catch {
+        // fichier disparu entre readdir et stat
+      }
+    }
+  }
+  const memory = projectMemoryRoot();
+  const recentSlots: { id: string; title: string }[] = [];
+  if (memory) {
+    try {
+      const index = JSON.parse(readFileSync(join(memory, "index.json"), "utf8")) as {
+        slots?: { id?: string; title?: string; updated?: string }[];
+      };
+      const cutoff = Date.now() - 24 * 60 * 60 * 1000;
+      for (const slot of index.slots ?? []) {
+        const updated = Date.parse(String(slot.updated ?? ""));
+        if (Number.isFinite(updated) && updated >= cutoff && slot.id) {
+          recentSlots.push({ id: slot.id, title: String(slot.title ?? "") });
+        }
+      }
+    } catch {
+      // index illisible : signalé par memory status, pas ici
+    }
+  }
+  const payload = {
+    bound: binding.bound,
+    target: binding.bound && binding.slug ? `${binding.domain}/${binding.branch}/docs/${binding.slug}` : null,
+    recentDocs,
+    recentSlots: recentSlots.slice(0, 8),
+  };
+  // `--record` is what the plugin calls on session.idle. It writes one durable
+  // line about this moment into `.novahiz/session-end.jsonl` — never a vault
+  // note, and never a merge: deciding what survives stays a human act.
+  const record = flagOn(parsed, "record")
+    ? recordSessionEnd(process.cwd(), {
+        session: asString(parsed.flags.session) || null,
+        bound: payload.bound,
+        docsModified: recentDocs.length,
+        slots: recentSlots.length,
+        target: payload.target,
+      })
+    : null;
+  emit(
+    parsed,
+    { ...payload, record },
+    () => {
+      const lines = ["second-memory suggest (lecture seule) :"];
+      lines.push(
+        binding.bound
+          ? `  projet lié: ${binding.domain}/${binding.branch} → ${binding.slug}`
+          : "  projet NON lié: project-init --name <projet> --apply avant de verser quoi que ce soit",
+      );
+      lines.push(
+        recentDocs.length > 0
+          ? `  docs modifiés <24h: ${recentDocs.map((doc) => doc.file).join(", ")}`
+          : "  docs: aucun changement récent",
+      );
+      lines.push(
+        recentSlots.length > 0
+          ? `  slots récents: ${recentSlots.slice(0, 5).map((slot) => `${slot.id} (${slot.title})`).join(" ; ")}`
+          : "  slots: aucun ajout récent",
+      );
+      if (record) {
+        lines.push(
+          record.recorded
+            ? `  trace de fin de session enregistrée: ${record.record?.at}`
+            : `  trace non écrite: ${record.reason}`,
+        );
+      }
+      lines.push("  rien n'est écrit dans le vault: décider ce qui survit, puis `novahiz autodocs --flush` ou une note de journal.");
+      return lines.join("\n");
+    },
+  );
+}
+
 export async function secondMemoryCommand(argv: string[], parsed: Parsed): Promise<void> {
   const sub = argv[0] ?? "status";
   switch (sub) {
@@ -2442,6 +2624,12 @@ export async function secondMemoryCommand(argv: string[], parsed: Parsed): Promi
       return;
     case "status":
       secondMemoryStatus(parsed);
+      return;
+    case "decisions":
+      secondMemoryDecisions(parsed);
+      return;
+    case "suggest":
+      secondMemorySuggest(parsed);
       return;
     case "search":
       secondMemorySearch(parsed);

@@ -33,8 +33,17 @@ Stable spec from the W3C Design Tokens Community Group (October 2025). Prefer it
 
 Style Dictionary v4 reads DTCG natively. Full 2025.10 colour-object support is still landing in v5; check the version you pin before migrating hex-only colour tokens.
 
-## Layer model (the spec does not mandate one)
+## CSS-first projects (no DTCG files)
 
+Some projects keep tokens as CSS custom properties in a single theme block (`@theme`, `:root`, or a Tailwind config that generates them). Do not invent DTCG JSON there. Apply the same three layers directly:
+
+- **Base**: raw values declared once (`--color-sand-100: #f4efe6`). Components never read them.
+- **Semantic**: intent aliases that reference base values (`--color-surface`, `--color-ink`, `--color-primary`).
+- **Component**: only where a component genuinely diverges; otherwise consume the semantic layer.
+
+The invariants survive: no component reads a base value, every new colour enters at the base layer and earns a semantic name, contrast is measured on the semantic pair actually rendered, and the theme block is the single source — no hardcoded hex in components. The checklist below applies unchanged, with "token file" meaning that theme block.
+
+## Layer model (the spec does not mandate one)
 The spec standardizes the container. Layering is your architecture decision. The common stack:
 
 ```

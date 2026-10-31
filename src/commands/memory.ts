@@ -11,30 +11,54 @@
 // archive — "jamais lu depuis N jours". status est strictement en lecture:
 // ni ecriture, ni heal cache (le heal appartient aux appels memory_*).
 import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, statSync, unlinkSync } from "node:fs";
-import { join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 
-import { emit, flagOn, type Parsed } from "./context.ts";
+import { emit, dbPathFor, flagOn, type Parsed } from "./context.ts";
 import {
   archiveSlot,
   indexPath,
   readIndex,
   readSlot,
   rebuildIndex,
+  recordSlotVerification,
+  relatedness,
   resolveMemoryDir,
   SLOTS_DIR,
+  slotMetadataDrift,
   slotsDir,
   updateSlot,
   type SlotMeta
 } from "../memory.ts";
-import { NovahizHome } from "../spec.ts";
+import { NovahizHome, loadSpec } from "../spec.ts";
+import { openDb } from "../db.ts";
+import { runVerification } from "../evidence.ts";
 
 const DAY_MS = 86_400_000;
 const PENDING_DIR = ".pending";
 const LOCK_FILE = ".lock";
 
+/**
+ * NX-50 : `--dir` et `--root` désignent la même chose.
+ *
+ * `--dir` n'était lu nulle part : `novahiz memory status --dir <projet>` lisait
+ * la mémoire canonique et affichait son propre chemin, sans un mot. La commande
+ * avait donc l'air de répondre sur le dossier demandé. Les deux options sont
+ * acceptées, `--root` gagne, et un désaccord est signalé.
+ */
+export function memoryRootFlag(flags: Record<string, unknown>): string | undefined {
+  const root = typeof flags.root === "string" && flags.root.length > 0 ? flags.root : undefined;
+  const dir = typeof flags.dir === "string" && flags.dir.length > 0 ? flags.dir : undefined;
+  return root ?? dir;
+}
+
 function resolveRoot(parsed: Parsed): { dir: string; layout: string } {
-  const raw = typeof parsed.flags.root === "string" && parsed.flags.root.length > 0 ? parsed.flags.root : undefined;
+  const raw = memoryRootFlag(parsed.flags as Record<string, unknown>);
+  const root = typeof parsed.flags.root === "string" && parsed.flags.root.length > 0 ? parsed.flags.root : "";
+  const dir = typeof parsed.flags.dir === "string" && parsed.flags.dir.length > 0 ? parsed.flags.dir : "";
+  if (root && dir && resolve(root) !== resolve(dir)) {
+    process.stderr.write(`novahiz memory: --root et --dir diffèrent, --root (${root}) est retenu\n`);
+  }
   // Un --root explicite est un choix de l'humain: son propre dossier sert de
   // reference de workspace (regles 2-5 identiques au MCP). La restriction
   // E_ROOT ne vaut que pour le defaut cwd, comme cote MCP.
@@ -136,6 +160,23 @@ function memoryStatus(parsed: Parsed): void {
     : { present: false, pid: null, ageMs: null, stale: false, reason: "memoire absente" };
   const pending = exists ? readPending(dir) : { entries: 0, failed: 0, failedNames: [] };
   const { orphans, ghosts } = divergence(dir, probe, disk);
+  const metadataDrift = probe.state === "sain" ? slotMetadataDrift(dir) : [];
+
+  // Format contract: the skill promises mandatory keys and a Résumé/Détails
+  // pair; nothing checked it, so a malformed slot read back as an empty body
+  // with no warning. Reported here, never rewritten.
+  const formatIssues: { id: string; issues: string[] }[] = [];
+  if (probe.state === "sain") {
+    for (const slot of probe.slots) {
+      if (slot.status !== "active") continue;
+      try {
+        const file = readSlot(dir, slot);
+        if (file.issues.length > 0) formatIssues.push({ id: slot.id, issues: file.issues });
+      } catch {
+        // Unreadable slot already reported in the disk section.
+      }
+    }
+  }
 
   const slots =
     probe.state === "sain"
@@ -164,6 +205,7 @@ function memoryStatus(parsed: Parsed): void {
     index: probe.state === "sain" ? { state: probe.state, updated: probe.updated } : { state: probe.state },
     slots,
     disk: { files: disk.files.length, orphans, ghosts, unreadable: disk.unreadable },
+    format: { slotsWithIssues: formatIssues.length, details: formatIssues.slice(0, 5) },
     lock,
     pending: { entries: pending.entries, failed: pending.failed }
   };
@@ -183,6 +225,16 @@ function memoryStatus(parsed: Parsed): void {
     }
     const fmt = (list: string[]): string => (list.length > 0 ? list.join(", ") : "aucun");
     lines.push(`disque: ${disk.files.length} .md — orphelins: ${fmt(orphans)} | fantomes: ${fmt(ghosts)} | illisibles: ${fmt(disk.unreadable)}`);
+    lines.push(
+      formatIssues.length > 0
+        ? `format: ${formatIssues.length} slot(s) hors contrat — ${formatIssues.slice(0, 3).map((entry) => `${entry.id} (${entry.issues[0]})`).join(" ; ")}`
+        : "format: tous les slots respectent le contrat"
+    );
+    lines.push(
+      metadataDrift.length > 0
+        ? `metadonnees: ${metadataDrift.length} slot(s) en divergence — ${metadataDrift.slice(0, 3).map((entry) => `${entry.id} (${entry.issues[0]})`).join(" ; ")}`
+        : "metadonnees: index et frontmatter d'accord"
+    );
     lines.push(
       `verrou: ${lock.present ? `${lock.reason}${lock.stale ? " (periime)" : ""}` : "absent"} | ` +
         `.pending: ${pending.entries} entree(s), ${pending.failed} echec(s)`
@@ -794,6 +846,245 @@ function memoryCheckDocs(parsed: Parsed): void {
   });
 }
 
+// --- compact: quasi-doublons fusionnes, dry-run par defaut ----------------
+// clean ne traite que les corps STRICTEMENT identiques. Deux jours de travail
+// ont produit 18 slots dont plusieurs racontaient le meme sujet avec des mots
+// differents : rien ne les rapprochait. compact regroupe par similarite, garde
+// le plus ancien, y verse le contenu des autres, puis les archive (jamais de
+// suppression). Seuil par defaut eleve : fusionner deux notes distinctes
+// perdrait de l'information, ce qui est pire qu'un doublon.
+type CompactGroup = {
+  keep: string;
+  keepTitle: string;
+  merge: { id: string; title: string; file: string; score: number }[];
+};
+
+function planCompact(
+  dir: string,
+  slots: SlotMeta[],
+  threshold: number,
+): { groups: CompactGroup[]; maxScore: number } {
+  const active = slots.filter((slot) => slot.status === "active");
+  const order = [...active].sort(
+    (a, b) => Date.parse(a.created) - Date.parse(b.created) || (a.id < b.id ? -1 : 1)
+  );
+  const texts = new Map<string, string>();
+  for (const slot of order) {
+    try {
+      const file = readSlot(dir, slot);
+      texts.set(slot.id, `${slot.title} ${slot.description} ${slot.tags.join(" ")} ${file.body.summary}`);
+    } catch {
+      // Slot illisible: signale ailleurs, jamais fusionne.
+    }
+  }
+  const assigned = new Set<string>();
+  const groups: CompactGroup[] = [];
+  let maxScore = 0;
+  const ids = order.map((slot) => slot.id).filter((id) => texts.has(id));
+  for (let i = 0; i < ids.length; i += 1) {
+    for (let j = i + 1; j < ids.length; j += 1) {
+      const score = relatedness(texts.get(ids[i])!, texts.get(ids[j])!);
+      if (score > maxScore) maxScore = score;
+    }
+  }
+  for (const slot of order) {
+    if (assigned.has(slot.id)) continue;
+    const source = texts.get(slot.id);
+    if (!source) continue;
+    const merged: { id: string; title: string; file: string; score: number }[] = [];
+    for (const other of order) {
+      if (other.id === slot.id || assigned.has(other.id)) continue;
+      const target = texts.get(other.id);
+      if (!target) continue;
+      const score = relatedness(source, target);
+      if (score >= threshold) {
+        merged.push({ id: other.id, title: other.title, file: other.file, score: Math.round(score * 100) / 100 });
+      }
+    }
+    if (merged.length === 0) continue;
+    assigned.add(slot.id);
+    for (const entry of merged) assigned.add(entry.id);
+    groups.push({ keep: slot.id, keepTitle: slot.title, merge: merged });
+  }
+  return { groups, maxScore: Math.round(maxScore * 100) / 100 };
+}
+
+function memoryCompact(parsed: Parsed): void {
+  const { dir } = resolveRoot(parsed);
+  const apply = flagOn(parsed, "apply");
+  const raw = typeof parsed.flags.threshold === "string" ? Number.parseFloat(parsed.flags.threshold) : NaN;
+  const threshold = Number.isFinite(raw) && raw >= 0.3 && raw <= 1 ? raw : 0.45;
+  const probe = probeIndex(dir);
+  if (probe.state !== "sain") {
+    process.stderr.write(
+      `novahiz memory compact: index ${probe.state} — lancer d'abord \`novahiz memory clean --apply\`\n`
+    );
+    process.exitCode = 1;
+    return;
+  }
+  const { groups, maxScore } = planCompact(dir, probe.slots, threshold);
+  const merged: string[] = [];
+  const archived: string[] = [];
+  const errors: string[] = [];
+  const date = new Date().toISOString().slice(0, 10);
+  if (apply) {
+    for (const group of groups) {
+      for (const entry of group.merge) {
+        try {
+          const file = readSlot(dir, { id: entry.id, file: entry.file });
+          const body = file.body.details.trim().length > 0 ? file.body.details : file.body.summary;
+          updateSlot({
+            id: group.keep,
+            root: dir,
+            mode: "append",
+            content: `— fusionne de ${entry.id} « ${entry.title} » (compact ${date})\n${body}`
+          });
+          merged.push(entry.id);
+          const result = archiveSlot(entry.id, dir);
+          if (result.changed) archived.push(entry.id);
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          errors.push(`${entry.id}: ${message.slice(0, 160)}`);
+        }
+      }
+    }
+  }
+  if (errors.length > 0) process.exitCode = 1;
+  const value = {
+    root: dir,
+    apply,
+    threshold,
+    maxScore,
+    groups: groups.map((group) => ({
+      keep: group.keep,
+      keepTitle: group.keepTitle,
+      merge: group.merge.map((entry) => ({ id: entry.id, title: entry.title, score: entry.score }))
+    })),
+    merged,
+    archived,
+    errors
+  };
+  emit(parsed, value, () => {
+    const head = apply ? "compact (apply):" : "compact (dry-run — ajouter --apply pour executer):";
+    const lines = [head, `seuil: ${threshold} (similarite max observee: ${maxScore})`];
+    for (const group of groups) {
+      lines.push(`  - garder ${group.keep} « ${group.keepTitle} »`);
+      for (const entry of group.merge) lines.push(`      ~ ${entry.id} « ${entry.title} » (${entry.score})`);
+    }
+    if (groups.length === 0) {
+      lines.push(
+        maxScore < threshold
+          ? `  aucun quasi-doublon — le plus proche atteint ${maxScore}, sous le seuil ${threshold}.`
+          : "  aucun quasi-doublon",
+      );
+    }
+    else if (!apply) lines.push(`  ${groups.length} groupe(s) a fusionner (dry-run)`);
+    else lines.push(`  ${archived.length} slot(s) archive(s) apres fusion — aucun fichier supprime`);
+    for (const failure of errors) lines.push(`  echec: ${failure}`);
+    return lines.join("\n");
+  });
+}
+
+// --- verify: rejoue la vérification déclarée par chaque slot ---------------
+// Une décision datée (« RIB en placeholder ») reste vraie jusqu'à preuve du
+// contraire. Le slot déclare `verify: <nom>` — un nom présent dans
+// `.novahiz/verify.json` du projet — et cette commande rejoue la vérification
+// pour de vrai, puis enregistre le verdict avec sa date.
+type VerifyRow = {
+  slot: string;
+  verify: string;
+  verdict: "ok" | "failed" | "unknown";
+  ok: boolean;
+  exitCode: number | null;
+  durationMs: number;
+  evidenceId: string;
+  error?: string;
+  recorded: boolean;
+};
+
+function memoryVerify(parsed: Parsed): void {
+  const { dir } = resolveRoot(parsed);
+  const apply = flagOn(parsed, "apply");
+  const slotFilter =
+    typeof parsed.flags.slot === "string" && parsed.flags.slot.length > 0 ? parsed.flags.slot : null;
+  const probe = probeIndex(dir);
+  if (probe.state !== "sain") {
+    process.stderr.write(
+      `novahiz memory verify: index ${probe.state} — lancer d'abord \`novahiz memory clean --apply\`\n`
+    );
+    process.exitCode = 1;
+    return;
+  }
+  const declared = probe.slots.filter((slot) => slot.status === "active" && Boolean(slot.verify));
+  if (slotFilter !== null && !declared.some((slot) => slot.id === slotFilter)) {
+    process.stderr.write(
+      `novahiz memory verify: ${slotFilter} ne déclare aucune commande verify (ou n'est pas actif)\n`
+    );
+    process.exitCode = 1;
+    return;
+  }
+  const targets = slotFilter === null ? declared : declared.filter((slot) => slot.id === slotFilter);
+
+  const home = NovahizHome();
+  const spec = loadSpec(home);
+  // project-memory/ vit dans le projet ; le contrat .novahiz/verify.json aussi.
+  const projectRoot = dirname(dir);
+  const db = openDb(dbPathFor(home, spec));
+  const rows: VerifyRow[] = [];
+  const errors: string[] = [];
+  try {
+    for (const slot of targets) {
+      const name = String(slot.verify);
+      const outcome = runVerification(db, { projectRoot, name, timeoutMs: 120_000 });
+      const missing =
+        typeof outcome.error === "string" &&
+        (outcome.error.startsWith("no verify config") || outcome.error.startsWith("unknown verification"));
+      const verdict: VerifyRow["verdict"] = outcome.ok ? "ok" : missing ? "unknown" : "failed";
+      let recorded = false;
+      if (apply) {
+        try {
+          recordSlotVerification(slot.id, { root: dir, verdict });
+          recorded = true;
+        } catch (error) {
+          errors.push(`${slot.id}: ${error instanceof Error ? error.message : String(error)}`);
+        }
+      }
+      rows.push({
+        slot: slot.id,
+        verify: name,
+        verdict,
+        ok: outcome.ok,
+        exitCode: outcome.exitCode,
+        durationMs: outcome.durationMs,
+        evidenceId: outcome.evidenceId,
+        ...(outcome.error ? { error: String(outcome.error).slice(0, 200) } : {}),
+        recorded
+      });
+    }
+  } finally {
+    db.close();
+  }
+  if (rows.some((row) => row.verdict === "failed") || errors.length > 0) process.exitCode = 1;
+  const value = { root: dir, projectRoot, apply, checked: rows.length, results: rows, errors };
+  emit(parsed, value, () => {
+    const head = apply
+      ? "verify (apply — verdict enregistré):"
+      : "verify (lecture seule — ajouter --apply pour enregistrer le verdict):";
+    const lines = [head];
+    for (const row of rows) {
+      const mark = row.verdict === "ok" ? "ok  " : row.verdict === "unknown" ? "?   " : "FAIL";
+      lines.push(
+        `  ${mark} ${row.slot} · ${row.verify} · exit ${row.exitCode ?? "-"} · ${row.durationMs} ms` +
+          (row.recorded ? " · enregistré" : "") +
+          (row.error ? ` · ${row.error}` : "")
+      );
+    }
+    if (rows.length === 0) lines.push("  aucun slot ne déclare de verify");
+    for (const failure of errors) lines.push(`  echec: ${failure}`);
+    return lines.join("\n");
+  });
+}
+
 export function memoryCommand(argv: string[], parsed: Parsed): void {
   const sub = argv[0] ?? "status";
   switch (sub) {
@@ -809,8 +1100,14 @@ export function memoryCommand(argv: string[], parsed: Parsed): void {
     case "check-docs":
       memoryCheckDocs(parsed);
       return;
+    case "compact":
+      memoryCompact(parsed);
+      return;
+    case "verify":
+      memoryVerify(parsed);
+      return;
     default:
-      process.stderr.write(`novahiz memory: unknown subcommand "${sub}" (status | clean | prune | check-docs)\n`);
+      process.stderr.write(`novahiz memory: unknown subcommand "${sub}" (status | clean | prune | check-docs | compact | verify)\n`);
       process.exitCode = 1;
   }
 }

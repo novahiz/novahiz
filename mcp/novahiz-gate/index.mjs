@@ -11,10 +11,12 @@ import { pathToFileURL } from "node:url";
 import { resolve } from "node:path";
 import { readFileSync, realpathSync } from "node:fs";
 import { classify } from "../../src/classify.ts";
+import { seedForClassification } from "../../src/seed.ts";
 import { enforceLedgerChecks, evaluateGate } from "../../src/gate.ts";
 import { loadSpec } from "../../src/spec.ts";
 import { loadInstalledSkills } from "../../src/catalog.ts";
 import { openDb } from "../../src/db.ts";
+import { recordProjectSession, projectRootForPath } from "../../src/sessions.ts";
 
 const SUPPORTED_PROTOCOLS = ["2024-11-05", "2025-06-18"];
 let SERVER_VERSION = "0.0.0";
@@ -118,18 +120,24 @@ function callTool(name, args) {
     }
     // Auto-classify when categories is omitted or empty: seed from prompt,
     // fall back to content, then file path. Explicit categories always win.
+    // The seed rule is shared with the CLI (`src/seed.ts`): a documentation
+    // file contributes no seed, so a changelog that talks about design does not
+    // demand design skills for a one-line edit.
     let categories = args?.categories ? args.categories.map(String) : [];
     if (categories.length === 0) {
-      const seed =
-        (typeof args?.prompt === "string" && args.prompt.length > 0 ? args.prompt : "") ||
-        (typeof args?.content === "string" && args.content.length > 0 ? args.content : "") ||
-        file;
-      try {
-        categories = classify(spec, seed).categories.map((entry) => entry.id);
-      } catch {
-        // Fail closed on classify errors: keep empty categories so
-        // evaluateGate still runs path/content rules instead of crashing.
-        categories = [];
+      const seed = seedForClassification({
+        prompt: typeof args?.prompt === "string" ? args.prompt : "",
+        content: typeof args?.content === "string" ? args.content : "",
+        paths: file.length > 0 ? [file] : [],
+      });
+      if (seed.length > 0) {
+        try {
+          categories = classify(spec, seed).categories.map((entry) => entry.id);
+        } catch {
+          // Fail closed on classify errors: keep empty categories so
+          // evaluateGate still runs path/content rules instead of crashing.
+          categories = [];
+        }
       }
     }
     const index = loadInstalledSkills(spec);
@@ -140,6 +148,7 @@ function callTool(name, args) {
     // exactly like the CLI gate (src/commands/gate.ts). A session that cannot
     // read its own DB fails closed — never a silent unscoped verdict.
     let loaded = args?.loaded ? args.loaded.map(String) : [];
+    let unverifiedLoaded = [];
     let mdb = null;
     try {
       mdb = openDb(resolve(spec.root, spec.config.dbPath));
@@ -153,11 +162,31 @@ function callTool(name, args) {
       );
     }
     if (session.length > 0 && mdb) {
+      // The gate is the only place that sees the OpenCode session id, and every
+      // gated call passes through here. Recording it lets the MCP tools (which
+      // receive no session) attribute what they create instead of writing NULL.
+      try {
+        recordProjectSession(mdb, process.cwd(), session);
+      } catch {
+        // Attribution is a convenience; a failure must never block a verdict.
+      }
       try {
         const rows = mdb.prepare("SELECT skill FROM skill_invocations WHERE session_id = ?").all(session);
-        const merged = new Set(loaded);
-        for (const row of rows) merged.add(String(row.skill));
-        loaded = [...merged];
+        const recorded = new Set(rows.map((row) => String(row.skill)));
+        // Le paramètre `loaded` est déclaratif : n'importe quel appelant peut y
+        // écrire n'importe quoi. Dès qu'une session possède au moins une ligne
+        // en base, la base fait foi et une skill non enregistrée ne compte
+        // pas. Avant ce correctif, un appelant pouvait s'auto-déclarer chargé
+        // sans jamais appeler skill(). Le repli sur `loaded` reste pour
+        // l'amorçage (aucune ligne encore) et pour les sous-agents.
+        if (recorded.size > 0) {
+          unverifiedLoaded = loaded.filter((skill) => !recorded.has(skill));
+          loaded = [...recorded];
+        } else {
+          const merged = new Set(loaded);
+          for (const skill of recorded) merged.add(skill);
+          loaded = [...merged];
+        }
       } catch {
         return toolResult(
           { allow: false, error: "session DB error", tool, missingSkills: [], reasons: ["session DB read failed"] },
@@ -191,7 +220,12 @@ function callTool(name, args) {
           categories,
           results: [result],
           spec,
-          gateConfig: spec.config.gate
+          gateConfig: spec.config.gate,
+          // NX-42: un appel shell n'a pas de chemin — la commande et le projet
+          // doivent être transmis pour que le verrou de migration s'applique
+          // aussi par cette entrée, pas seulement par le CLI du plugin.
+          command: typeof args?.content === "string" ? args.content : "",
+          projectRoot: file.length > 0 ? projectRootForPath(file) : null
         });
         if (enforced.reasons.length > 0) result.reasons.push(...enforced.reasons);
         if (enforced.reviewWarning) result.reasons.push(enforced.reviewWarning);
@@ -215,6 +249,13 @@ function callTool(name, args) {
     }
     result.mode = spec.config.gate.mode;
     if (warnings.length > 0) result.warnings = warnings;
+    if (unverifiedLoaded.length > 0) {
+      result.unverifiedLoaded = unverifiedLoaded;
+      result.reasons = [
+        ...(result.reasons ?? []),
+        `ignored ${unverifiedLoaded.join(", ")}: declared loaded but absent from the session record. Load the skill with skill({id}) so it is recorded.`
+      ];
+    }
     // A gate refusal is a normal verdict, not an execution error.
     return toolResult(result, false);
   }

@@ -41,6 +41,17 @@ IF the category is neither research nor general AND no task is open:
 
 Two back-loops exist: clarification returns to plan when an answer changes architecture; convergence returns to tasks when a remainder shows up.
 
+## Record the step you just finished
+
+`novahiz_step` stores the roadmap step reached, so a restart or a new session resumes at the right place instead of replaying the whole pipeline. The id is the one `novahiz_roadmap` prints (`plan`, `clarify`, `task`, `analyse`, `implement`, `converge`…).
+
+```
+novahiz_step({ done: "implement" })
+novahiz_step({ done: "converge" })
+```
+
+Without `session`, progress is scoped to the **current project** — the agent does not know its OpenCode session id, and defaulting to a shared bucket mixed every project together. Call it right after the step ends, not at the end of the session: that is the whole point.
+
 ## What the gate actually enforces
 
 The gate (see `novahiz-gate`) blocks on every non-optional roadmap step that carries `requireSkills`, whatever its `kind`. In the `code` roadmap that includes `novahiz-plan`, `novahiz-clarify`, `novahiz-task`, `novahiz-analyse`, `novahiz-implement`, `novahiz-converge` and `novahiz-code-review`: the `edit:implement` and `verify:converge` steps enforce their skills like any `skill` step.

@@ -125,6 +125,59 @@ export function openDb(dbPath: string, opts: { capture?: boolean } = {}): Databa
     );
     CREATE INDEX IF NOT EXISTS enforcement_log_logged_at ON enforcement_log(logged_at);
     CREATE INDEX IF NOT EXISTS enforcement_log_session ON enforcement_log(session_id);
+    CREATE TABLE IF NOT EXISTS evidence (
+      id TEXT PRIMARY KEY,
+      session_id TEXT,
+      project_root TEXT,
+      name TEXT NOT NULL,
+      command TEXT NOT NULL,
+      exit_code INTEGER NOT NULL,
+      ok INTEGER NOT NULL,
+      output_tail TEXT NOT NULL DEFAULT '',
+      hash TEXT NOT NULL,
+      duration_ms INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS evidence_created_at ON evidence(created_at);
+    CREATE INDEX IF NOT EXISTS evidence_session ON evidence(session_id);
+    CREATE TABLE IF NOT EXISTS file_claims (
+      path_key TEXT PRIMARY KEY,
+      path TEXT NOT NULL,
+      session_id TEXT NOT NULL,
+      project_root TEXT,
+      reason TEXT,
+      claimed_at TEXT NOT NULL,
+      expires_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS file_claims_session ON file_claims(session_id);
+    CREATE INDEX IF NOT EXISTS file_claims_expiry ON file_claims(expires_at);
+    CREATE TABLE IF NOT EXISTS plan_history (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      task_id TEXT NOT NULL,
+      action TEXT NOT NULL,
+      target TEXT,
+      before_json TEXT,
+      after_json TEXT,
+      reason TEXT,
+      created_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS plan_history_task ON plan_history(task_id, id);
+    CREATE TABLE IF NOT EXISTS project_sessions (
+      project_root TEXT NOT NULL,
+      session_id TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      PRIMARY KEY (project_root, session_id)
+    );
+    CREATE INDEX IF NOT EXISTS project_sessions_updated ON project_sessions(updated_at);
+    -- NX-43: a subagent runs in its own session id inside the same tree.
+    -- Without the link, the gate sees a stranger (competing for claims) or an
+    -- heir (inheriting them) depending on nothing at all.
+    CREATE TABLE IF NOT EXISTS session_links (
+      child_id TEXT PRIMARY KEY,
+      parent_id TEXT NOT NULL,
+      created_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS session_links_parent ON session_links(parent_id);
     CREATE INDEX IF NOT EXISTS todos_task_id ON todos(task_id);
     CREATE INDEX IF NOT EXISTS tasks_status_session ON tasks(status, session_id);
     CREATE INDEX IF NOT EXISTS skill_invocations_session ON skill_invocations(session_id);
@@ -152,7 +205,7 @@ export function openDb(dbPath: string, opts: { capture?: boolean } = {}): Databa
 // project, because SQLite does not parameterize identifiers. H8: the allowlist
 // below makes the "fixed strings only" invariant structural — any future caller
 // passing a non-listed identifier throws instead of injecting SQL.
-const SAFE_TABLES = new Set([
+export const SAFE_TABLES = new Set([
   "meta",
   "skills",
   "categories",
@@ -161,6 +214,11 @@ const SAFE_TABLES = new Set([
   "skill_invocations",
   "roadmap_progress",
   "enforcement_log",
+  "evidence",
+  "file_claims",
+  "plan_history",
+  "project_sessions",
+  "session_links",
   "tasks",
   "todos"
 ]);
@@ -183,7 +241,7 @@ function ensureColumn(db: DatabaseSync, table: string, column: string, definitio
   db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition};`);
 }
 
-export const SCHEMA_VERSION = 3;
+export const SCHEMA_VERSION = 7;
 
 function migrate(db: DatabaseSync): void {
   // v3: the last non-trivial classification of a session survives a plugin
@@ -198,6 +256,21 @@ function migrate(db: DatabaseSync): void {
   // one project's plan never counts or blocks another project's files. NULL on
   // legacy tasks keeps the previous unscoped owner behaviour.
   ensureColumn(db, "tasks", "project_root", "TEXT");
+  // v4: the novahiz-task contract already asked for a size and a proof on every
+  // step; the tool only accepted label/kind/acceptance/owner, so the contract
+  // existed in prose only. `size` is the missing half; the proof is enforced in
+  // completeTodo. `closing_proof` records how the task itself was closed.
+  ensureColumn(db, "todos", "size", "TEXT");
+  ensureColumn(db, "tasks", "closing_proof", "TEXT");
+  // v5: the ledger is shared by every project on the machine. Evidence and
+  // claims carry the project they belong to, so listing one project's proofs
+  // never shows another's.
+  ensureColumn(db, "evidence", "project_root", "TEXT");
+  ensureColumn(db, "file_claims", "project_root", "TEXT");
+  // v6: a task remembers the category it was opened under, so closing it can
+  // demand the non-optional roadmap steps that category enforces. NULL on legacy
+  // tasks keeps the previous behaviour (no roadmap check).
+  ensureColumn(db, "tasks", "category", "TEXT");
   db.exec(`PRAGMA user_version = ${SCHEMA_VERSION};`);
 }
 

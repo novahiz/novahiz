@@ -203,14 +203,14 @@ describe("wireframe: reviewScreen (revue critique)", () => {
     const project = tempDir();
     initWireframes(project);
     createScreen(project, {
-      name: "Paiement",
-      sections: ["Champs et saisie", "Validation et erreurs", "Confirmation"]
+      name: "Paiements",
+      sections: ["Contexte et filtres", "Contenu principal", "Etats vides et pagination"]
     });
-    const review = reviewScreen(project, "paiement");
+    const review = reviewScreen(project, "paiements");
     assert.equal(review.verdict, "pass");
     assert.equal(review.gaps.length, 0);
     assert.equal(review.sectionCount, 3);
-    assert.equal(review.screenClass, "form");
+    assert.equal(review.screenClass, "list");
   });
 });
 
@@ -253,15 +253,15 @@ describe("wireframe: markStatus (cycle de vie)", () => {
     const project = tempDir();
     initWireframes(project);
     const { screenFile, sectionFiles } = createScreen(project, {
-      name: "Paiement",
-      sections: ["Champs et saisie", "Validation et erreurs", "Confirmation"]
+      name: "Paiements",
+      sections: ["Contexte et filtres", "Contenu principal", "Etats vides et pagination"]
     });
-    const marked = markStatus(project, "paiement", "approved");
+    const marked = markStatus(project, "paiements", "approved");
     assert.equal(marked.status, "approved");
     assert.match(readFileSync(screenFile, "utf8"), /status: approved/);
     // Le statut de l'ecran ne touche pas a celui de la section.
     assert.match(readFileSync(sectionFiles[0], "utf8"), /status: draft/);
-    const stale = markStatus(project, "paiement", "stale", "01-champs-et-saisie");
+    const stale = markStatus(project, "paiements", "stale", "01-contexte-et-filtres");
     assert.equal(stale.status, "stale");
     assert.match(readFileSync(sectionFiles[0], "utf8"), /status: stale/);
   });
@@ -269,20 +269,20 @@ describe("wireframe: markStatus (cycle de vie)", () => {
   test("approved est refuse tant qu'une section importante manque", () => {
     const project = tempDir();
     initWireframes(project);
-    createScreen(project, { name: "Paiement", sections: ["Formulaire"] });
+    createScreen(project, { name: "Paiements", sections: ["Contexte et filtres"] });
     assert.throws(
-      () => markStatus(project, "paiement", "approved"),
+      () => markStatus(project, "paiements", "approved"),
       (error: Error) => {
         assert.match(error.message, /approbation refusee/);
-        assert.match(error.message, /Validation et erreurs/);
+        assert.match(error.message, /Contenu principal/);
         assert.match(error.message, /action="sections"/);
         return true;
       },
       "le blocage doit nommer la section manquante et la commande pour la creer"
     );
     // Un ecran complet, lui, passe: le blocage n'est pas decoratif.
-    createSections(project, "paiement", ["Validation et erreurs", "Confirmation"]);
-    assert.equal(markStatus(project, "paiement", "approved").status, "approved");
+    createSections(project, "paiements", ["Contenu principal", "Etats vides et pagination"]);
+    assert.equal(markStatus(project, "paiements", "approved").status, "approved");
   });
 
   test("un statut hors cycle de vie est refuse", () => {

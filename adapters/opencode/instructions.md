@@ -64,6 +64,11 @@ When an **AI writing pattern** is detected (in text, code, or design), fix it **
 
 ## Todo — Detailed Rules
 
+**The durable list is `novahiz_task`.** When the runtime also exposes a
+`todowrite` tool, it mirrors the ledger for the screen; when it does not, the
+ledger is the only list and no other tool should be called. Never reference a
+tool that is absent from the catalog.
+
 1. **One active step only** — `in_progress` on exactly one step at a time.
 2. **Real-time updates** — Update the list as soon as a step changes state. Do not wait for the task to finish.
 3. **No premature completion** — Mark `completed` only after the work is done and verified. Never based on intention.
