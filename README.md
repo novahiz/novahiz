@@ -4,7 +4,7 @@
 
 17 catégories, 94 skills, 13 gate rules, 8 MCP providers — tout déterministe, tout local, tout JSON.
 
-> **Version 0.11.9** - `npm install -g novahiz` pose le CLI, et le premier `novahiz` lancé termine l'installation (core puis extras). `CHANGELOG.md` et `scripts/` sont dans le tarball.
+> **Version 0.12.0** - `npm install -g novahiz` pose le CLI, et le premier `novahiz` lancé termine l'installation (core puis extras). `CHANGELOG.md` et `scripts/` sont dans le tarball.
 
 ```
 ┌──────────────────────────────────────────────────────────────────────────┐
@@ -457,6 +457,20 @@ Voir [docs/CLI.md](docs/CLI.md) pour la référence complète.
 Novahiz traite les skills comme des **serrures** et le prompt comme une **clé**. Le classifier détermine quelles serrures existent. Le gate vérifie que vous avez les bonnes clés chargées. Pas de clé, pas d'édition.
 
 Tout est local, déterministe et JSON. Aucun appel cloud. Aucune inférence de modèle dans le chemin de décision. Même prompt + même config = même résultat, à chaque fois.
+
+---
+
+## Vérification et preuve
+
+Une affirmation se prouve avec une commande, pas avec une phrase.
+
+- `novahiz verify <nom> [--expect "texte"]` exécute une commande déclarée dans `.novahiz/verify.json` et enregistre ce qui s'est réellement passé : code de sortie, extrait de sortie, durée, empreinte. Le nom seul ne suffit pas à inventer un shell.
+- `novahiz docs verify` rejoue les affirmations marquées `<!-- verify: <nom> -->` dans `PRODUCT.md`, `DESIGN.md`, `SOURCES.md`, `README.md` et `novahiz-docs/`. Verdicts : `ok`, `failed`, `unknown`.
+- **Convention de code de sortie** : `3` signifie **mesure impossible** (service injoignable, réseau coupé). Le verdict devient `unknown`, jamais `failed`. Rouge veut dire « le document est faux », pas « le réseau a clignoté ». `2` reste réservé à une erreur d'usage du script.
+
+```json
+{ "commands": { "tests": "npm test", "typecheck": "npx tsc --noEmit" } }
+```
 
 ---
 

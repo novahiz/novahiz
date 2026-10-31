@@ -128,6 +128,12 @@ export type GateConfig = {
   ignoreFiles: string[];
   placeholders: boolean;
   trace: TraceConfig;
+  /**
+   * NX-41: when required, an edit on a path this session has not claimed is
+   * refused while another session is live on the same project. Off by
+   * default — a solo session must not pay a paperwork step for every edit.
+   */
+  claims: { required: boolean };
 };
 
 type ClassifyConfig = {
@@ -144,6 +150,16 @@ type LedgerReviewConfig = {
 type LedgerConfig = {
   enabled: boolean;
   review: LedgerReviewConfig;
+  /**
+   * NX-45 / NX-46 : forcer l'audit et/ou la convergence à la clôture.
+   *
+   * La fermeture exige déjà les étapes non optionnelles de la roadmap de la
+   * catégorie. Ces deux drapeaux ajoutent une étape indépendante de la
+   * catégorie, pour un projet qui veut la même discipline partout. Faux par
+   * défaut : forcer un audit sur une tâche de documentation serait une
+   * procédure sans objet.
+   */
+  close: { requireAudit: boolean; requireConverge: boolean };
 };
 
 // S-AUTO: capture et consultation automatiques de la memoire.
@@ -251,6 +267,9 @@ export const DEFAULT_CONFIG: NovahizConfig = {
     trace: {
       enabled: false,
       categories: ["code", "debug", "audit", "review", "database-supabase"]
+    },
+    claims: {
+      required: false
     }
   },
   classify: {
@@ -265,9 +284,17 @@ export const DEFAULT_CONFIG: NovahizConfig = {
   },
   ledger: {
     enabled: true,
+    // Keep in sync with DEFAULT_REVIEW_EDITS / DEFAULT_REVIEW_TODOS in
+    // src/ledger.ts: this object is passed explicitly to reviewDue, so it
+    // overrides those defaults. It used to say 3/2 while ledger.ts said 3/2,
+    // and changing one alone silently changed nothing.
     review: {
-      edits: 3,
-      todos: 2
+      edits: 10,
+      todos: 5
+    },
+    close: {
+      requireAudit: false,
+      requireConverge: false
     }
   },
   // S-AUTO: memoire automatique full-on — les 5 triggers T1-T5 actives, la
@@ -358,6 +385,12 @@ export function mergeConfig(raw: Partial<NovahizConfig> | null | undefined): Nov
   if (!Array.isArray(trace.categories)) trace.categories = [...DEFAULT_CONFIG.gate.trace.categories];
   gate.trace = trace;
 
+  const claimsSource: { required?: boolean } = gateSource.claims && typeof gateSource.claims === "object" ? gateSource.claims : {};
+  gate.claims = {
+    required:
+      typeof claimsSource.required === "boolean" ? claimsSource.required : DEFAULT_CONFIG.gate.claims.required
+  };
+
   const classifySource: Partial<ClassifyConfig> = source.classify && typeof source.classify === "object" ? source.classify : {};
   const classify: ClassifyConfig = { ...DEFAULT_CONFIG.classify, ...classifySource };
   if (typeof classify.minScore !== "number" || !Number.isFinite(classify.minScore)) {
@@ -383,9 +416,19 @@ export function mergeConfig(raw: Partial<NovahizConfig> | null | undefined): Nov
     edits: typeof reviewSource.edits === "number" && Number.isFinite(reviewSource.edits) && reviewSource.edits > 0 ? Math.trunc(reviewSource.edits) : DEFAULT_CONFIG.ledger.review.edits,
     todos: typeof reviewSource.todos === "number" && Number.isFinite(reviewSource.todos) && reviewSource.todos > 0 ? Math.trunc(reviewSource.todos) : DEFAULT_CONFIG.ledger.review.todos
   };
+  const closeSource: { requireAudit?: boolean; requireConverge?: boolean } =
+    ledgerSource.close && typeof ledgerSource.close === "object" ? ledgerSource.close : {};
   const ledger: LedgerConfig = {
     enabled: typeof ledgerSource.enabled === "boolean" ? ledgerSource.enabled : DEFAULT_CONFIG.ledger.enabled,
-    review
+    review,
+    close: {
+      requireAudit:
+        typeof closeSource.requireAudit === "boolean" ? closeSource.requireAudit : DEFAULT_CONFIG.ledger.close.requireAudit,
+      requireConverge:
+        typeof closeSource.requireConverge === "boolean"
+          ? closeSource.requireConverge
+          : DEFAULT_CONFIG.ledger.close.requireConverge
+    }
   };
 
   // S-AUTO: un bloc memory.auto absent ou invalide retombe sur les defauts

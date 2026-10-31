@@ -78,6 +78,31 @@ function argsAreVersionOnly(tokens: string[]): boolean {
   return tokens.length === 2 && ["-v", "--version", "-version", "-V"].includes(tokens[1]);
 }
 
+/**
+ * A package script that only reads the code. `npm run typecheck` used to be
+ * refused as a shell write, which blocked the very verification the gate
+ * demands. Only scripts whose names are checks pass; `build`, `dev`, `start`
+ * and anything unknown stay subject to the gate.
+ */
+const SAFE_SCRIPTS = /^(typecheck|tsc|lint|check|verify)(:[\w.-]+)?$/i;
+
+function scriptIsReadOnly(tokens: string[]): boolean {
+  const runIndex = tokens.findIndex((token) => token === "run" || token === "run-script");
+  if (runIndex < 0) return false;
+  const script = tokens[runIndex + 1];
+  if (!script || !SAFE_SCRIPTS.test(script)) return false;
+  // A script argument could still write (-u, --update, --fix).
+  return !tokens.slice(runIndex + 2).some((token) => /^(-u|--update|-w|--watch|--fix)$/i.test(token));
+}
+
+function npxIsReadOnly(tokens: string[]): boolean {
+  const tool = tokens[1]?.toLowerCase();
+  if (tool === "tsc") return tokens.some((token) => token === "--noEmit");
+  if (tool === "eslint") return !tokens.some((token) => token === "--fix");
+  if (tool === "prettier") return tokens.some((token) => token === "--check");
+  return false;
+}
+
 function gitIsReadOnly(tokens: string[]): boolean {
   let index = 1;
   while (index < tokens.length) {
@@ -115,8 +140,12 @@ export function isReadOnlyCommand(command: string): boolean {
   if (cmd.length === 0) return false;
 
   if (cmd === "git") return gitIsReadOnly(tokens);
-  // Runtimes and package managers: only a version probe, never a script.
-  if (["node", "npm", "pnpm", "yarn", "python", "python3", "py", "dart", "flutter", "go", "cargo", "rustc", "java"].includes(cmd)) {
+  // Runtimes and package managers: a version probe, or a check script.
+  if (["npm", "pnpm", "yarn"].includes(cmd)) {
+    return argsAreVersionOnly(tokens) || scriptIsReadOnly(tokens);
+  }
+  if (cmd === "npx") return npxIsReadOnly(tokens);
+  if (["node", "python", "python3", "py", "dart", "flutter", "go", "cargo", "rustc", "java"].includes(cmd)) {
     return argsAreVersionOnly(tokens);
   }
   return SIMPLE_READ_ONLY.has(cmd);

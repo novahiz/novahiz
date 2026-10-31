@@ -31,9 +31,11 @@ The request already has a category. No file has been touched yet.
 Log it where it survives context loss:
 
 ```
-novahiz_task action="new"  title="<the request in one sentence>"
+novahiz_task action="new"  title="<the request in one sentence>" category="<category id>"
 novahiz_task action="plan" todos=[...]
 ```
+
+`category` is what makes the roadmap binding real: at `close`, the ledger demands every non-optional roadmap step of that category (the ones that carry `requireSkills`) to be recorded with `novahiz_step`. Without a category, the task closes freely — that is the legacy behaviour, not a recommendation.
 
 `todowrite` keeps the list visible on screen; `novahiz_task` keeps the durable record.
 

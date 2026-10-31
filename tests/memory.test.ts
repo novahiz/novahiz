@@ -133,11 +133,16 @@ describe("memory.ts - characterization (comportement actuel, S0)", () => {
       assert.equal(relatedness("de la", "les des"), 0);
     });
 
-    test("findTargetSlot: score >= 0.25 route vers le slot existant", () => {
+    test("findTargetSlot: un titre identique route vers le slot existant", () => {
       const root = makeRoot();
       const made = createSlot(root, { title: "alpha beta gamma delta" });
-      const target = findTargetSlot(made.index, root, { title: "alpha" });
+      const target = findTargetSlot(made.index, root, { title: "alpha beta gamma delta" });
       assert.equal(target?.id, made.meta.id);
+      // NX-24 revu: un simple voisinage de tokens (0.25 < seuil de fusion 0.5)
+      // ne fusionne plus deux sujets. Le cas qui a motive la regle est
+      // slot-067, ou une session messagerie s'est ecrite dans le slot du shell
+      // admin sur un score de coincidence.
+      assert.equal(findTargetSlot(made.index, root, { title: "alpha" }), null);
     });
 
     test("findTargetSlot: 0.2 < 0.25 retourne null (nouvel emplacement)", () => {
@@ -157,10 +162,13 @@ describe("memory.ts - characterization (comportement actuel, S0)", () => {
       assert.equal(findTargetSlot(index, root, { title: "alpha" }), null);
     });
 
-    test("findTargetSlot: slotId explicite inconnu -> E_SLOT", () => {
+    test("findTargetSlot: slotId explicite inconnu -> aucun routage, la creation prend le relais (NX-25)", () => {
       const root = makeRoot();
       const index = ensureMemoryRoot(root);
-      throwsCode(() => findTargetSlot(index, root, { title: "t", slotId: "slot-999" }), "E_SLOT");
+      assert.equal(findTargetSlot(index, root, { title: "t", slotId: "slot-999" }), null);
+      const made = writeEntry({ root, title: "t", content: "x", slotId: "slot-999" });
+      assert.equal(made.created, true);
+      assert.equal(made.index.slots.length, 1);
     });
 
     test("findTargetSlot: slotId archive -> E_SLOT avec mention archive", () => {
@@ -280,9 +288,10 @@ describe("memory.ts - characterization (comportement actuel, S0)", () => {
   });
 
   describe("rotation a la plenitude", () => {
-    test("ligne unique de 9000 chars: compactage impossible -> rotation directe", () => {
+    test("ligne unique plus longue que la limite: compactage impossible -> rotation directe", () => {
       const root = makeRoot();
-      const result = writeEntry({ root, title: "slot gros test", content: "x".repeat(9000) });
+      const taille = DEFAULT_LIMIT_CHARS + 1000;
+      const result = writeEntry({ root, title: "slot gros test", content: "x".repeat(taille) });
       assert.equal(result.created, true);
       assert.equal(result.compacted, false);
       assert.equal(result.rotated, true);
@@ -290,13 +299,13 @@ describe("memory.ts - characterization (comportement actuel, S0)", () => {
       const statuses = new Map(result.index.slots.map((slot) => [slot.id, slot.status]));
       assert.equal(statuses.get("slot-001"), "archived");
       assert.equal(statuses.get("slot-002"), "active");
-      assert.match(getSlot("slot-001", root).body.details, /^x{9000}$/);
+      assert.equal(getSlot("slot-001", root).body.details.trim().length, taille);
     });
 
     test("S3: contenu pluri-ligne plein -> compactage borne libere la place, pas de rotation", () => {
       const root = makeRoot();
       const content = Array.from(
-        { length: 10 },
+        { length: 20 },
         (_, index) => `Ligne ${index} ` + "y".repeat(890)
       ).join("\n");
       const result = writeEntry({ root, title: "slot multiline", content });
@@ -311,14 +320,16 @@ describe("memory.ts - characterization (comportement actuel, S0)", () => {
       assert.equal(slot.meta.status, "active");
       assert.ok(slot.body.summary.length <= MAX_SUMMARY_CHARS);
       assert.ok(slot.body.summary.startsWith("slot multiline"));
-      assert.match(slot.body.summary, /Ligne 5/);
+      // Le Resume borne garde la derniere ligne du fold: avec des lignes de 890
+      // caracteres, une seule tient dans le budget.
+      assert.match(slot.body.summary, /Ligne 15/);
       assert.equal(slot.body.details.split(/\r?\n/).length, 4);
       assert.ok(slot.meta.chars < DEFAULT_LIMIT_CHARS);
     });
 
     test("ecriture forcee vers un slot archive -> E_SLOT", () => {
       const root = makeRoot();
-      writeEntry({ root, title: "slot gros test", content: "x".repeat(9000) });
+      writeEntry({ root, title: "slot gros test", content: "x".repeat(DEFAULT_LIMIT_CHARS + 1000) });
       throwsCode(
         () => writeEntry({ root, title: "autre sujet la", content: "y", slotId: "slot-001" }),
         "E_SLOT"

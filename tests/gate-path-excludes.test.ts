@@ -113,12 +113,14 @@ describe("pathExcludes: les regles de design ne visent pas les tests unitaires",
     assert.ok(result.missingSkills.includes("novahiz-humanizer"));
   });
 
-  test("sans pathExcludes, la categorie design-ui declencherait sur n'importe quel chemin", () => {
+  test("sans pathExcludes, la categorie design-ui declencherait sur une source UI ecartee d'ordinaire", () => {
     // The rule shape that caused the bug: `match: any` + a prompt category, no
     // exclusion. Proves the exclusion is what does the work, not the layout.
+    // Depuis NX-01 une regle design ne vise que les sources d'interface : le
+    // chemin reste donc un `.tsx`, mais un `.tsx` que les exclusions ecartent.
     const result = evaluateGate({
       tool: "edit",
-      filePath: "tests/plugin-warmstart.test.ts",
+      filePath: "src/components/Widget.test.tsx",
       content: TEST_BODY,
       prompt: "corriger un test unitaire",
       categories: ["design-ui"],

@@ -39,19 +39,29 @@ Files involved: path/a, path/b
 Size: XS | S | M | L | XL
 ```
 
-## The ledger refuses a `verify` step that carries no proof
+## The ledger refuses an `edit` or `verify` step that carries no proof
 
-`novahiz_task` holds the line: a step of kind `verify` cannot close without `proof`. You fix the proof when you write the plan, not when doubt shows up.
+`novahiz_task` holds the line: a step of kind `edit` or `verify` cannot close without `proof`. You fix the proof when you write the plan, not when doubt shows up.
+
+The strongest proof is machine-checked: run the command through `novahiz_verify` (declared once in `.novahiz/verify.json`), then pass `evidence:<id>` as the proof. The ledger refuses an unknown id and refuses evidence whose `ok` is false. Free text stays accepted for an observation, but it proves nothing on its own.
 
 | Action | Usage |
 |---|---|
-| `plan` | deposit the full list at once |
+| `plan` | deposit the full list at once (`size` accepted per step) |
 | `todo` | add a step (`kind`: read, edit, verify, delegate) |
-| `start` / `done` | open and close (`done` needs `proof` on a verify step) |
+| `start` / `done` | open and close (`done` needs `proof` on an edit or verify step) |
+| `close` | close the whole task: every step settled, and a proof |
 | `block` | block, with `reason` |
 | `review` | revise the plan between steps |
 | `amend` / `insert` / `drop` / `reorder` | fix the list without rewriting it |
-| `signals` / `status` / `resume` | read state |
+| `signals` / `status` / `resume` | read state; `status` reports `openTodos` and `readyToClose` |
+| `history` | read the plan journal: every add, amend, insert, drop, reorder, review, close and abandon, with its before/after |
+
+A task does not close itself. When the last step is done, `status` reports `readyToClose: true`; call `close` with the proof that the whole result holds. Until then the plan stays visible.
+
+If the task was opened with a `category`, `close` also refuses while a non-optional roadmap step of that category is not recorded as done (`novahiz_step`). The roadmap stops being decorative: `critique`, `polish`, `a11y` must be recorded, or the step dropped from the catalog. A task opened without a category keeps the old behaviour and closes freely.
+
+Nothing rewrites the plan silently: `history` returns the journal, newest first, so a reviewer can see what changed, when, and why.
 
 ## Size
 

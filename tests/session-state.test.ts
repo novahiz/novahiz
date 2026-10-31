@@ -122,8 +122,30 @@ describe("session: CLI classify --session", () => {
       }
     );
 
-  test("une commande shell en lecture seule passe meme gate arme", () => {
-    const result = gate("ses_continue", "git status", ["--categories", "", "--prompt", "implement a login button"]);
+  test("le gate enregistre la session du projet, la ou il tourne toujours", () => {
+    // Measured on 2026-10-29: project_sessions was empty for a project with
+    // live sessions, because only the MCP gate recorded it and the plugin path
+    // never goes through that server. resume and otherSessions read "none".
+    const session = "ses_recorded_project";
+    // A read-only shell command short-circuits before the ledger block, so the
+    // probe uses a command that goes through the full path: blocked or allowed
+    // does not matter, the session must be attached either way.
+    const result = gate(session, "npm run build", ["--categories", "code", "--prompt", "implement a login button"]);
+    assert.ok(result.status === 0 || result.status === 2, result.stderr);
+
+    const db = openDb(join(home, "novahiz.sqlite"));
+    try {
+      const rows = db
+        .prepare("SELECT project_root, session_id FROM project_sessions WHERE session_id = ?")
+        .all(session) as { project_root: string; session_id: string }[];
+      assert.equal(rows.length, 1, "la session doit etre rattachee a son projet");
+      assert.ok(rows[0].project_root.length > 0);
+    } finally {
+      db.close();
+    }
+  });
+
+  test("une commande shell en lecture seule passe meme gate arme", () => {    const result = gate("ses_continue", "git status", ["--categories", "", "--prompt", "implement a login button"]);
     assert.equal(result.status, 0, result.stderr);
     const json = JSON.parse(result.stdout) as { allow: boolean; readonly?: boolean };
     assert.equal(json.allow, true);

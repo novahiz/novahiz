@@ -4,6 +4,8 @@ import { globToRegExp, isSafeRegexPattern } from "./gate.ts";
 import { capture } from "./snap.ts";
 
 export type TodoKind = "read" | "edit" | "verify" | "delegate";
+export type TodoSize = "XS" | "S" | "M" | "L" | "XL";
+export const TODO_SIZES: readonly TodoSize[] = ["XS", "S", "M", "L", "XL"];
 type TodoStatus = "pending" | "in_progress" | "done" | "blocked" | "dropped";
 type TaskStatus = "active" | "done" | "abandoned";
 
@@ -19,6 +21,8 @@ interface TaskRow {
   edits_since_review: number;
   todos_since_review: number;
   project_root: string | null;
+  closing_proof: string | null;
+  category: string | null;
 }
 
 interface TodoRow {
@@ -34,6 +38,7 @@ interface TodoRow {
   depends_on: string;
   iterations: number;
   max_iterations: number | null;
+  size: string | null;
   updated_at: string;
 }
 
@@ -44,6 +49,8 @@ export interface TodoInput {
   owner?: string;
   dependsOn?: string[];
   maxIterations?: number;
+  /** Contract size, XS to XL. Kept as a free string in SQL, validated on write. */
+  size?: TodoSize;
   status?: TodoStatus;
 }
 
@@ -72,8 +79,13 @@ interface TraceResult {
 }
 
 export const DEFAULT_MAX_ITERATIONS = 12;
-const DEFAULT_REVIEW_EDITS = 3;
-const DEFAULT_REVIEW_TODOS = 2;
+// Cadence de review : le plan doit rester vivant, mais pas au prix d'un
+// `review` tous les trois edits suivi d'un nouveau blocage deux todos plus
+// loin — coût constaté en session réelle (trois reviews consécutives pour un
+// seul lot de travail). 10 edits ou 5 todos laissent la place à une tranche
+// utile tout en gardant le garde-fou.
+const DEFAULT_REVIEW_EDITS = 10;
+const DEFAULT_REVIEW_TODOS = 5;
 const SESSION_TTL_MS = 4 * 60 * 60 * 1000;
 
 interface ReviewPolicy {
@@ -96,6 +108,7 @@ export interface TodoAmendment {
   owner?: string | null;
   dependsOn?: string[];
   maxIterations?: number;
+  size?: TodoSize | null;
 }
 
 export interface ReviewDiff {
@@ -103,6 +116,28 @@ export interface ReviewDiff {
   amendments?: Array<{ id: string } & TodoAmendment>;
   removals?: Array<string | { id: string; reason?: string }>;
   order?: string[];
+}
+
+export type PlanAction = "add" | "insert" | "amend" | "drop" | "reorder" | "review" | "close" | "abandon";
+
+export interface PlanHistoryRow {
+  id: number;
+  task_id: string;
+  action: PlanAction;
+  target: string | null;
+  before_json: string | null;
+  after_json: string | null;
+  reason: string | null;
+  created_at: string;
+}
+
+export interface PlanChange {
+  taskId: string;
+  action: PlanAction;
+  target?: string | null;
+  before?: unknown;
+  after?: unknown;
+  reason?: string | null;
 }
 
 interface RevisionSignal {
@@ -130,32 +165,48 @@ function nowIso(): string {
 // mislabelled with this operation while it captures somebody else's write.
 export function pruneSessions(db: DatabaseSync): number {
   const cutoff = new Date(Date.now() - SESSION_TTL_MS).toISOString();
+  // TTL = inactivité, pas « temps écoulé depuis la dernière classification ».
+  // Une session qui charge une skill reste active : sa ligne `sessions` n'est
+  // écrite qu'à la classification, donc la comparer seule à la coupure purgeait
+  // les skills d'une session en plein travail (constaté : 4 skills en base
+  // contre 15 chargées, d'où des GATE RELOAD en boucle). On retient la plus
+  // récente des deux activités — classification ou chargement de skill.
+  const staleIds = (
+    db
+      .prepare(
+        `SELECT s.id AS id FROM sessions s
+         WHERE s.updated_at < ?
+           AND COALESCE(
+                 (SELECT MAX(i.invoked_at) FROM skill_invocations i WHERE i.session_id = s.id),
+                 s.updated_at
+               ) < ?`,
+      )
+      .all(cutoff, cutoff) as { id: string }[]
+  ).map((row) => row.id);
+  if (staleIds.length === 0) return 0;
+  const placeholders = staleIds.map(() => "?").join(", ");
   db.exec("SAVEPOINT prune_sp");
   let removed = 0;
   try {
     removed += Number(
       db
-        .prepare(
-          "DELETE FROM skill_invocations WHERE session_id IN (SELECT id FROM sessions WHERE updated_at < ?)",
-        )
-        .run(cutoff).changes,
+        .prepare(`DELETE FROM skill_invocations WHERE session_id IN (${placeholders})`)
+        .run(...staleIds).changes,
     );
     removed += Number(
       db
-        .prepare(
-          "DELETE FROM roadmap_progress WHERE session_id IN (SELECT id FROM sessions WHERE updated_at < ?)",
-        )
-        .run(cutoff).changes,
+        .prepare(`DELETE FROM roadmap_progress WHERE session_id IN (${placeholders})`)
+        .run(...staleIds).changes,
     );
     removed += Number(
       db
-        .prepare(
-          "DELETE FROM enforcement_log WHERE session_id IN (SELECT id FROM sessions WHERE updated_at < ?)",
-        )
-        .run(cutoff).changes,
+        .prepare(`DELETE FROM enforcement_log WHERE session_id IN (${placeholders})`)
+        .run(...staleIds).changes,
     );
     removed += Number(
-      db.prepare("DELETE FROM sessions WHERE updated_at < ?").run(cutoff).changes,
+      db
+        .prepare(`DELETE FROM sessions WHERE id IN (${placeholders})`)
+        .run(...staleIds).changes,
     );
     db.exec("RELEASE SAVEPOINT prune_sp");
   } catch (error) {
@@ -169,6 +220,60 @@ function genId(prefix: string): string {
   return `${prefix}_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
 }
 
+const PLAN_SNAPSHOT_MAX = 4000;
+
+function planSnapshot(value: unknown): string | null {
+  if (value === undefined || value === null) return null;
+  try {
+    const json = JSON.stringify(value);
+    return json.length > PLAN_SNAPSHOT_MAX ? `${json.slice(0, PLAN_SNAPSHOT_MAX)}…` : json;
+  } catch {
+    return null;
+  }
+}
+
+function todoSnapshot(todo: TodoRow): Record<string, unknown> {
+  return {
+    label: todo.label,
+    kind: todo.kind,
+    status: todo.status,
+    acceptance: todo.acceptance,
+    owner: todo.owner,
+    dependsOn: parseDeps(todo.depends_on),
+    size: todo.size,
+    maxIterations: todo.max_iterations
+  };
+}
+
+/**
+ * Journal of every plan mutation.
+ *
+ * `amend`, `insert`, `drop` and `reorder` rewrote the plan silently: the ledger
+ * kept the current state and nothing else, so a reviewer could not tell who
+ * removed a step or when a dependency moved. Each mutation now appends one row
+ * with the before/after snapshot; the plan itself is untouched.
+ */
+export function recordPlanChange(db: DatabaseSync, change: PlanChange): void {
+  db.prepare(
+    "INSERT INTO plan_history (task_id, action, target, before_json, after_json, reason, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)"
+  ).run(
+    change.taskId,
+    change.action,
+    change.target ?? null,
+    planSnapshot(change.before),
+    planSnapshot(change.after),
+    change.reason ?? null,
+    nowIso()
+  );
+}
+
+export function planHistory(db: DatabaseSync, taskId: string, limit = 50): PlanHistoryRow[] {
+  const bounded = Math.min(Math.max(Number(limit) || 50, 1), 500);
+  return db
+    .prepare("SELECT * FROM plan_history WHERE task_id = ? ORDER BY id DESC LIMIT ?")
+    .all(taskId, bounded) as unknown as PlanHistoryRow[];
+}
+
 function parseDeps(raw: string | null): string[] {
   try {
     const parsed = JSON.parse(raw || "[]");
@@ -179,7 +284,10 @@ function parseDeps(raw: string | null): string[] {
   }
 }
 
-export function createTask(db: DatabaseSync, options: { title: string; id?: string; sessionId?: string; projectRoot?: string }): TaskRow {
+export function createTask(
+  db: DatabaseSync,
+  options: { title: string; id?: string; sessionId?: string; projectRoot?: string; category?: string },
+): TaskRow {
   const taskId = options.id && options.id.trim().length > 0 ? options.id.trim() : genId("task");
   const ts = nowIso();
   // H5: ensure referenced session exists (auto-create if needed for FK compliance)
@@ -190,9 +298,10 @@ export function createTask(db: DatabaseSync, options: { title: string; id?: stri
   // edits to that project. Callers that cannot know it (legacy MCP flows) pass
   // nothing and get NULL = unscoped, the behaviour before this column existed.
   const projectRoot = options.projectRoot && options.projectRoot.trim().length > 0 ? resolve(options.projectRoot) : null;
+  const category = options.category && options.category.trim().length > 0 ? options.category.trim() : null;
   db.prepare(
-    "INSERT INTO tasks (id, title, status, session_id, created_at, updated_at, project_root) VALUES (?, ?, 'active', ?, ?, ?, ?)"
-  ).run(taskId, options.title, options.sessionId ?? null, ts, ts, projectRoot);
+    "INSERT INTO tasks (id, title, status, session_id, created_at, updated_at, project_root, category) VALUES (?, ?, 'active', ?, ?, ?, ?, ?)"
+  ).run(taskId, options.title, options.sessionId ?? null, ts, ts, projectRoot, category);
   capture(db, "task-created", options.title);
   return getTask(db, taskId) as TaskRow;
 }
@@ -230,11 +339,20 @@ export function listTodos(db: DatabaseSync, taskId: string): TodoRow[] {
   return db.prepare("SELECT * FROM todos WHERE task_id = ? ORDER BY seq").all(taskId) as unknown as TodoRow[];
 }
 
-export function addTodos(db: DatabaseSync, taskId: string, items: TodoInput[]): TodoRow[] {
+function normalizeSize(value: unknown): TodoSize | null {
+  if (value === undefined || value === null || value === "") return null;
+  const raw = String(value).trim().toUpperCase();
+  if (!TODO_SIZES.includes(raw as TodoSize)) {
+    throw new Error(`invalid todo size: ${String(value)} (expected ${TODO_SIZES.join(", ")})`);
+  }
+  return raw as TodoSize;
+}
+
+export function addTodos(db: DatabaseSync, taskId: string, items: TodoInput[], options: { silent?: boolean } = {}): TodoRow[] {
   const task = getTask(db, taskId);
   if (!task) throw new Error(`unknown task: ${taskId}`);
   const insert = db.prepare(
-    "INSERT INTO todos (id, task_id, seq, label, kind, status, acceptance, proof, owner, depends_on, iterations, max_iterations, updated_at) VALUES (?, ?, COALESCE((SELECT MAX(seq) FROM todos WHERE task_id = ?), 0) + 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+    "INSERT INTO todos (id, task_id, seq, label, kind, status, acceptance, proof, owner, depends_on, iterations, max_iterations, size, updated_at) VALUES (?, ?, COALESCE((SELECT MAX(seq) FROM todos WHERE task_id = ?), 0) + 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
   );
   const ids: string[] = [];
   db.exec("SAVEPOINT add_todos_sp");
@@ -254,9 +372,13 @@ export function addTodos(db: DatabaseSync, taskId: string, items: TodoInput[]): 
         JSON.stringify(item.dependsOn ?? []),
         0,
         item.maxIterations ?? DEFAULT_MAX_ITERATIONS,
+        normalizeSize(item.size),
         nowIso()
       );
       ids.push(todoId);
+      if (!options.silent) {
+        recordPlanChange(db, { taskId, action: "add", target: todoId, after: item });
+      }
     }
     reopenTask(db, taskId);
     db.exec("RELEASE SAVEPOINT add_todos_sp");
@@ -312,15 +434,37 @@ export function startTodo(db: DatabaseSync, id: string): TodoRow {
   return getTodo(db, id) as TodoRow;
 }
 
+/** A proof may point at recorded evidence, which the ledger can verify. */
+function assertProof(db: DatabaseSync, todo: TodoRow, proof: string): void {
+  const trimmed = proof.trim();
+  // edit and verify both change reality: closing either without a trace is the
+  // exact hole this ledger is supposed to close. `read` and `delegate` record
+  // an intention, so an empty proof stays acceptable there.
+  if (todo.kind !== "edit" && todo.kind !== "verify") return;
+  if (trimmed.length === 0) {
+    const article = todo.kind === "edit" ? "an edit" : "a verify";
+    throw new Error(
+      `todo ${todo.id} is ${article} step and needs proof: the command you ran and its result, ` +
+        `or evidence:<id> returned by novahiz_verify`,
+    );
+  }
+  const match = /^evidence:(\S+)$/.exec(trimmed);
+  if (!match) return;
+  const row = db.prepare("SELECT id, ok, name FROM evidence WHERE id = ?").get(match[1]) as
+    | { id: string; ok: number; name: string }
+    | undefined;
+  if (!row) throw new Error(`proof references unknown evidence ${match[1]}; run novahiz_verify first`);
+  if (Number(row.ok) !== 1) {
+    throw new Error(`proof references failed evidence ${match[1]} (${row.name}); fix the failure and verify again`);
+  }
+}
+
 export function completeTodo(db: DatabaseSync, id: string, proof = ""): TodoRow {
   const todo = getTodo(db, id);
   if (!todo) throw new Error(`unknown todo: ${id}`);
   const trimmed = String(proof ?? "").trim();
-  if (todo.kind === "verify" && trimmed.length === 0) {
-    throw new Error(`todo ${id} is a verify step and needs proof (the command you ran and its result)`);
-  }
+  assertProof(db, todo, trimmed);
   db.prepare("UPDATE todos SET status = 'done', proof = ?, updated_at = ? WHERE id = ?").run(trimmed.length > 0 ? trimmed : null, nowIso(), id);
-  maybeCompleteTask(db, todo.task_id);
   capture(db, "todo-completed", id);
   return getTodo(db, id) as TodoRow;
 }
@@ -333,11 +477,79 @@ export function blockTodo(db: DatabaseSync, id: string, reason = ""): TodoRow {
   return getTodo(db, id) as TodoRow;
 }
 
-function maybeCompleteTask(db: DatabaseSync, taskId: string): void {
-  const open = db.prepare("SELECT COUNT(*) AS count FROM todos WHERE task_id = ? AND status NOT IN ('done', 'dropped')").get(taskId) as { count: number };
-  if (open.count === 0) {
-    db.prepare("UPDATE tasks SET status = 'done', updated_at = ? WHERE id = ?").run(nowIso(), taskId);
+export function openTodoIds(db: DatabaseSync, taskId: string): string[] {
+  return (
+    db
+      .prepare("SELECT id FROM todos WHERE task_id = ? AND status NOT IN ('done', 'dropped') ORDER BY seq")
+      .all(taskId) as { id: string }[]
+  ).map((row) => row.id);
+}
+
+/**
+ * Close a task explicitly.
+ *
+ * A task used to close itself the moment its last todo was marked done, so the
+ * closing verification was never a step of its own: the plan vanished before
+ * anybody could prove the result. Now the task stays active until this call,
+ * which refuses while a todo is open and demands a proof (free text or a
+ * recorded evidence id).
+ */
+export function closeTask(
+  db: DatabaseSync,
+  taskId: string,
+  proof = "",
+  required?: { steps: string[]; scopes: string[] },
+): TaskRow {
+  const task = getTask(db, taskId);
+  if (!task) throw new Error(`unknown task: ${taskId}`);
+  if (task.status !== "active") throw new Error(`task ${taskId} is already ${task.status}`);
+  const open = openTodoIds(db, taskId);
+  if (open.length > 0) {
+    throw new Error(`task ${taskId} still has ${open.length} open todo(s): ${open.join(", ")}`);
   }
+  // Roadmap steps are no longer decorative: a category's non-optional steps are
+  // the ones the gate enforces, and closing the task without recording them was
+  // how critique / polish / a11y silently disappeared from a "finished" plan.
+  const steps = required?.steps ?? [];
+  const scopes = (required?.scopes ?? []).filter((scope) => scope.length > 0);
+  if (steps.length > 0 && scopes.length > 0) {
+    const placeholders = scopes.map(() => "?").join(", ");
+    const done = new Set(
+      (
+        db
+          .prepare(
+            `SELECT step_id FROM roadmap_progress WHERE status IN ('done', 'dropped') AND session_id IN (${placeholders})`,
+          )
+          .all(...scopes) as { step_id: string }[]
+      ).map((row) => row.step_id),
+    );
+    const missing = steps.filter((step) => !done.has(step));
+    if (missing.length > 0) {
+      throw new Error(
+        `task ${taskId} cannot close: roadmap step(s) not recorded as done: ${missing.join(", ")}. ` +
+          `Searched scopes: ${scopes.join(", ")}. ` +
+          `Run novahiz_step({ done: "<id>" }) for each, or novahiz_step({ session: "default", done: "<id>" }) when the task has no session, or drop the step from the category roadmap.`,
+      );
+    }
+  }
+  const trimmed = String(proof ?? "").trim();
+  if (trimmed.length === 0) {
+    throw new Error(`closing task ${taskId} needs proof: what you verified, or evidence:<id> from novahiz_verify`);
+  }
+  const match = /^evidence:(\S+)$/.exec(trimmed);
+  if (match) {
+    const row = db.prepare("SELECT id, ok, name FROM evidence WHERE id = ?").get(match[1]) as
+      | { id: string; ok: number; name: string }
+      | undefined;
+    if (!row) throw new Error(`closing proof references unknown evidence ${match[1]}; run novahiz_verify first`);
+    if (Number(row.ok) !== 1) {
+      throw new Error(`closing proof references failed evidence ${match[1]} (${row.name}); fix the failure and verify again`);
+    }
+  }
+  db.prepare("UPDATE tasks SET status = 'done', closing_proof = ?, updated_at = ? WHERE id = ?").run(trimmed, nowIso(), taskId);
+  recordPlanChange(db, { taskId, action: "close", before: { status: task.status }, after: { status: "done" }, reason: trimmed });
+  capture(db, "task-closed", taskId);
+  return getTask(db, taskId) as TaskRow;
 }
 
 function reopenTask(db: DatabaseSync, taskId: string): void {
@@ -414,9 +626,17 @@ export function amendTodo(db: DatabaseSync, id: string, patch: TodoAmendment): T
   if (maxIterations !== null && maxIterations !== undefined && (!Number.isInteger(maxIterations) || maxIterations <= 0)) {
     throw new Error(`maxIterations must be a positive integer, got: ${maxIterations}`);
   }
+  const size = patch.size === undefined ? todo.size : normalizeSize(patch.size);
   db.prepare(
-    "UPDATE todos SET label = ?, kind = ?, acceptance = ?, owner = ?, depends_on = ?, max_iterations = ?, updated_at = ? WHERE id = ?"
-  ).run(label, kind, acceptance, owner, dependsOn, maxIterations, nowIso(), id);
+    "UPDATE todos SET label = ?, kind = ?, acceptance = ?, owner = ?, depends_on = ?, max_iterations = ?, size = ?, updated_at = ? WHERE id = ?"
+  ).run(label, kind, acceptance, owner, dependsOn, maxIterations, size, nowIso(), id);
+  recordPlanChange(db, {
+    taskId: todo.task_id,
+    action: "amend",
+    target: id,
+    before: todoSnapshot(todo),
+    after: todoSnapshot(getTodo(db, id) as TodoRow),
+  });
   return getTodo(db, id) as TodoRow;
 }
 
@@ -430,6 +650,12 @@ export function reorderTodos(db: DatabaseSync, taskId: string, orderedIds: strin
   const ts = nowIso();
   orderedIds.forEach((id, index) => update.run(index + 1, ts, id));
   db.prepare("UPDATE tasks SET updated_at = ? WHERE id = ?").run(ts, taskId);
+  recordPlanChange(db, {
+    taskId,
+    action: "reorder",
+    before: todos.map((todo) => todo.id),
+    after: orderedIds,
+  });
   return listTodos(db, taskId);
 }
 
@@ -438,7 +664,13 @@ export function insertTodo(db: DatabaseSync, taskId: string, item: TodoInput, po
   // leave a half-inserted todo visible.
   db.exec("SAVEPOINT insert_sp");
   try {
-    const created = addTodos(db, taskId, [item])[0];
+    const created = addTodos(db, taskId, [item], { silent: true })[0];
+    recordPlanChange(db, {
+      taskId,
+      action: "insert",
+      target: created.id,
+      after: { item, position: position ?? "end" },
+    });
     if (position === undefined || position === "end") {
       db.exec("RELEASE SAVEPOINT insert_sp");
       // addTodos tried to snapshot while insert_sp was open and was deferred:
@@ -476,7 +708,13 @@ export function dropTodo(db: DatabaseSync, id: string, reason = ""): TodoRow {
     nowIso(),
     id
   );
-  maybeCompleteTask(db, todo.task_id);
+  recordPlanChange(db, {
+    taskId: todo.task_id,
+    action: "drop",
+    target: id,
+    before: todoSnapshot(todo),
+    reason: String(reason ?? "").trim() || null,
+  });
   capture(db, "todo-dropped", id);
   return getTodo(db, id) as TodoRow;
 }
@@ -500,6 +738,13 @@ export function dropTask(db: DatabaseSync, id: string, reason = ""): TaskRow {
     db.exec("ROLLBACK TO SAVEPOINT drop_task_sp");
     throw error;
   }
+  recordPlanChange(db, {
+    taskId: id,
+    action: "abandon",
+    before: { status: task.status },
+    after: { status: "abandoned" },
+    reason: trimmed || null,
+  });
   capture(db, "task-abandoned", trimmed ? `${id}: ${trimmed}` : id);
   return requireTask(db, id);
 }
@@ -658,6 +903,27 @@ function assertScalarTodoFields(item: object, origin: "addition" | "amendment"):
   }
 }
 
+/**
+ * NX-45 / NX-46 : les étapes qu'une clôture doit exiger.
+ *
+ * La roadmap de la catégorie fournit sa liste ; la configuration peut y
+ * ajouter `audit` et `converge` pour un projet qui veut la même discipline
+ * partout. Fonction pure, donc testable sans base.
+ */
+export function closeStepsFor(
+  categorySteps: readonly string[],
+  closeConfig?: { requireAudit?: boolean; requireConverge?: boolean },
+): string[] {
+  const steps = [...categorySteps];
+  const extra: string[] = [];
+  if (closeConfig?.requireAudit === true) extra.push("audit");
+  if (closeConfig?.requireConverge === true) extra.push("converge");
+  for (const step of extra) {
+    if (!steps.includes(step)) steps.push(step);
+  }
+  return steps;
+}
+
 export function reviewTask(db: DatabaseSync, options: { taskId: string } & ReviewDiff): ReviewOutcome {
   const task = getTask(db, options.taskId);
   if (!task) throw new Error(`unknown task: ${options.taskId}`);
@@ -706,12 +972,43 @@ export function reviewTask(db: DatabaseSync, options: { taskId: string } & Revie
       amendTodo(db, id, patch);
     }
     for (const item of additions) insertTodo(db, options.taskId, item, "end");
-    if (order) reorderTodos(db, options.taskId, order);
+    /*
+     * NX-14 : un plan diff arrive avec un ordre calculé AVANT l'ajout. La
+     * liste fournie ne contient donc pas les todos tout juste créés, et
+     * `reorderTodos` exigeait chaque todo exactement une fois — la revue
+     * échouait sur un diff parfaitement cohérent. Les nouveaux todos sont
+     * désormais ajoutés à la fin de l'ordre demandé, dans leur ordre
+     * d'insertion. Un ordre complet reste appliqué tel quel.
+     */
+    if (order) {
+      const courants = listTodos(db, options.taskId).map((todo) => todo.id);
+      const inconnus = order.filter((id) => !courants.includes(id));
+      // Un identifiant étranger reste une erreur : seul l'ajout de la revue a
+      // le droit de manquer à l'ordre, parce qu'il n'existait pas encore.
+      if (inconnus.length > 0) {
+        throw new Error(`review order targets todos outside this task: ${inconnus.join(", ")}`);
+      }
+      const demandes = new Set(order);
+      const ordreComplet = [...order, ...courants.filter((id) => !demandes.has(id))];
+      reorderTodos(db, options.taskId, ordreComplet);
+    }
     const revision = task.revision + 1;
     const ts = nowIso();
     db.prepare(
       "UPDATE tasks SET revision = ?, reviewed_at = ?, edits_since_review = 0, todos_since_review = 0, updated_at = ? WHERE id = ?"
     ).run(revision, ts, ts, options.taskId);
+    recordPlanChange(db, {
+      taskId: options.taskId,
+      action: "review",
+      before: { revision: task.revision },
+      after: {
+        revision,
+        additions: additions.length,
+        amendments: amendments.length,
+        removals: removals.length,
+        reordered: Boolean(options.order),
+      },
+    });
     db.exec("COMMIT");
     const result = {
       task: requireTask(db, options.taskId),

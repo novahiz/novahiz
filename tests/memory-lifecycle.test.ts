@@ -7,6 +7,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import {
+  DEFAULT_LIMIT_CHARS,
   MAX_SUMMARY_CHARS,
   archiveSlot,
   getSlot,
@@ -115,7 +116,7 @@ describe("memory.ts - S3 lifecycle (update, archive, dedup, lignee)", () => {
       const root = makeRoot();
       writeEntry({ root, title: "alpha beta gamma", content: "x" });
       const big = Array.from(
-        { length: 10 },
+        { length: 20 },
         (_, index) => `Ligne ${index} ` + "y".repeat(890)
       ).join("\n");
       const result = updateSlot({ id: "slot-001", root, mode: "replace", content: big });
@@ -206,7 +207,7 @@ describe("memory.ts - S3 lifecycle (update, archive, dedup, lignee)", () => {
   describe("lignee previous a la rotation", () => {
     test("rotation: le slot neuf porte previous: parent archive (fichier + index)", () => {
       const root = makeRoot();
-      writeEntry({ root, title: "slot gros sujet", content: "x".repeat(9000) });
+      writeEntry({ root, title: "slot gros sujet", content: "x".repeat(DEFAULT_LIMIT_CHARS + 1000) });
       const next = getSlot("slot-002", root);
       assert.equal(next.meta.previous, "slot-001");
       const indexMeta = readIndex(root).slots.find((slot) => slot.id === "slot-002");
@@ -226,7 +227,7 @@ describe("memory.ts - S3 lifecycle (update, archive, dedup, lignee)", () => {
 
     test("rotation double: chaine slot-003 -> slot-002 -> slot-001", () => {
       const root = makeRoot();
-      writeEntry({ root, title: "slot gros sujet", content: "x".repeat(9000) });
+      writeEntry({ root, title: "slot gros sujet", content: "x".repeat(DEFAULT_LIMIT_CHARS + 1000) });
       writeEntry({ root, title: "slot gros sujet", content: "petit apport" });
       assert.equal(getSlot("slot-002", root).meta.previous, "slot-001");
       assert.equal(getSlot("slot-003", root).meta.previous, "slot-002");
@@ -238,7 +239,7 @@ describe("memory.ts - S3 lifecycle (update, archive, dedup, lignee)", () => {
 
     test("rebuild: la lignee previous survit a la reconstruction de l'index", () => {
       const root = makeRoot();
-      writeEntry({ root, title: "slot gros sujet", content: "x".repeat(9000) });
+      writeEntry({ root, title: "slot gros sujet", content: "x".repeat(DEFAULT_LIMIT_CHARS + 1000) });
       writeEntry({ root, title: "slot gros sujet", content: "petit apport" });
       const rebuilt = rebuildIndex(root);
       assert.equal(rebuilt.slots.find((slot) => slot.id === "slot-002")?.previous, "slot-001");

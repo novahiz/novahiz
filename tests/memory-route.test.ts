@@ -91,12 +91,15 @@ describe("S4 - routage qualite (stopwords, IDF, Resume, confidence)", () => {
     test("rankTargetSlot expose le score; findTargetSlot ne garde que le slot", () => {
       const root = makeRoot();
       const made = createSlot(root, { title: "alpha beta gamma delta" });
-      const rank = rankTargetSlot(made.index, root, { title: "alpha" });
+      const rank = rankTargetSlot(made.index, root, { title: "alpha beta gamma delta" });
       assert.ok(rank);
       assert.equal(rank.slot.id, made.meta.id);
-      assert.equal(rank.score, 0.25);
-      const target = findTargetSlot(made.index, root, { title: "alpha" });
+      assert.equal(rank.score, 1);
+      const target = findTargetSlot(made.index, root, { title: "alpha beta gamma delta" });
       assert.equal(target?.id, made.meta.id);
+      // Un simple voisinage (0.25) reste sous le seuil de fusion (0.5): il
+      // s'expose comme score de recherche, pas comme cible d'ecriture.
+      assert.equal(rankTargetSlot(made.index, root, { title: "alpha" }), null);
     });
 
     test("slotId explicite: score maximal (correspondance dirigeee)", () => {
@@ -131,13 +134,16 @@ describe("S4 - routage qualite (stopwords, IDF, Resume, confidence)", () => {
       assert.equal(repeated.confidence, "high");
     });
 
-    test("score 0.4 (dans [0.25, 0.5)) -> confidence medium", () => {
+    test("score 0.4 (dans [0.25, 0.5)) -> sous le seuil de fusion: slot neuf, confidence low", () => {
       const root = makeRoot();
       writeEntry({ root, title: "alpha beta gamma delta", content: "a" });
-      // 2 tokens partages sur 5 -> 2/5 = 0.4: routage reussi, pas high.
+      // 2 tokens partages sur 5 -> 2/5 = 0.4: coincidence de vocabulaire, pas
+      // sujet commun. Depuis NX-24 revu, la fusion demande 0.5 (la borne
+      // « high » de memory_search) ou un titre identique.
       const partial = writeEntry({ root, title: "alpha beta omega phi psi", content: "b" });
-      assert.equal(partial.created, false);
-      assert.equal(partial.confidence, "medium");
+      assert.equal(partial.created, true);
+      assert.equal(partial.confidence, "low");
+      assert.equal(partial.index.slots.length, 2);
     });
 
     test("score 0.2 < 0.25 -> non route: created true + confidence low", () => {

@@ -202,7 +202,10 @@ describe("memory.ts - S5 securite (root, archive pre-compact, no-swallow, orphel
         content: "## Entete initiale\npremiere note courte\nseconde note courte"
       });
       let guard = 0;
-      while (!res.compacted && guard < 60) {
+      // La limite est de 16 000 caracteres et chaque bloc en pese environ 180:
+      // il faut une centaine d'ecritures pour atteindre la plenitude. La borne
+      // laisse le double, elle sert a sortir d'une boucle folle, pas a mesurer.
+      while (!res.compacted && guard < 400) {
         res = writeEntry({
           root,
           title: "Round trip demo",

@@ -4,17 +4,27 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { asString, dbPathFor, parse, print, readStdin, splitList, type Parsed } from "./context.ts";
 import { loadSpec, NovahizHome } from "../spec.ts";
+import { seedForClassification } from "../seed.ts";
 import { openDb } from "../db.ts";
 import { loadInstalledSkills } from "../catalog.ts";
 import { changeText } from "../content.ts";
 import { classify } from "../classify.ts";
-import { enforceLedgerChecks, evaluateGate } from "../gate.ts";
+import { enforceLedgerChecks, evaluateGate, mergeTargetReasons } from "../gate.ts";
 import { extractTargetPaths } from "../targets.ts";
 import { isReadOnlyCommand } from "../readonly.ts";
 import { isValidSessionId, readSessionClassification } from "../session.ts";
+import { recordProjectSession, isProjectRoot, projectRootForPath } from "../sessions.ts";
 
-export function commandGate(parsed: Parsed): void {
-  const root = NovahizHome();
+/**
+ * Paths whose prose describes work rather than being the work.
+ *
+ * The rule itself lives in `src/seed.ts`: the MCP gate server asks the same
+ * question, and two copies drifted apart once already (the CLI was fixed while
+ * the tool kept the old behaviour).
+ */
+export { isDocumentationPath, seedForClassification } from "../seed.ts";
+
+export function commandGate(parsed: Parsed): void {  const root = NovahizHome();
   let spec;
   try {
     spec = loadSpec(root);
@@ -126,6 +136,19 @@ export function commandGate(parsed: Parsed): void {
     }
     paths = extractTargetPaths(tool, args);
     if (content.length === 0) content = changeText(tool, args);
+
+    // P0.2: NOVAHIZ_GATE_REPAIR permet de faire exécuter les commandes de
+    // réparation du gate (sync, install, doctor, status) même quand le gate
+    // est verrouillé par des skills manquantes. Ce contournement ne s'applique
+    // qu'aux commandes meta novahiz, jamais à l'édition de fichiers utilisateur.
+    const gateRepair = (process.env.NOVAHIZ_GATE_REPAIR || "").toLowerCase();
+    if (["1", "true", "yes", "on"].includes(gateRepair) && (tool === "shell" || tool === "bash")) {
+      const isNovahizMeta = /^novahiz\s+(sync|install|doctor|status|gate)\b/.test(content.trim());
+      if (isNovahizMeta) {
+        print({ allow: true, tool, readonly: true, reason: "NOVAHIZ_GATE_REPAIR: commande de réparation du gate autorisée" });
+        return;
+      }
+    }
   } else {
     process.stderr.write("novahiz: gate requires --file <path> or --args-stdin\n");
     process.exitCode = 1;
@@ -155,16 +178,25 @@ export function commandGate(parsed: Parsed): void {
   // Audit 2026-09-25 (P1-3): empty categories no longer fall through to an
   // unscoped evaluation — the CLI classifies the seed itself (same contract as
   // the MCP gate) and fails closed only when classification itself is broken.
+  //
+  // Measured 2026-10-29: a one-line edit to novahiz/CHANGELOG.md demanded 11
+  // design skills (R8 + R11 + R13 + R14 + R17) because the *content* of the
+  // changelog was used as the classification seed, and that changelog talks
+  // about design skills. Documentation describes work; it is not the task. For
+  // a documentation path the seed is therefore the prompt or nothing, never the
+  // prose, and the path-based rules (R8-docs) still apply.
   if (categories.length === 0) {
-    const seed = prompt || content || paths[0] || "";
-    try {
-      categories = classify(spec, seed).categories.map((entry) => entry.id);
-    } catch (error) {
-      const msg = `classify failed: ${String(error).slice(0, 200)}`;
-      process.stderr.write(`novahiz: ${msg}\n`);
-      print({ allow: false, error: msg, tool, missingSkills: [], reasons: [msg] });
-      process.exitCode = 2;
-      return;
+    const seed = seedForClassification({ prompt, content, paths });
+    if (seed.length > 0) {
+      try {
+        categories = classify(spec, seed).categories.map((entry) => entry.id);
+      } catch (error) {
+        const msg = `classify failed: ${String(error).slice(0, 200)}`;
+        process.stderr.write(`novahiz: ${msg}\n`);
+        print({ allow: false, error: msg, tool, missingSkills: [], reasons: [msg] });
+        process.exitCode = 2;
+        return;
+      }
     }
   }
 
@@ -236,9 +268,47 @@ export function commandGate(parsed: Parsed): void {
     if (db) {
       // Shared with the MCP novahiz_gate tool (src/gate.ts enforceLedgerChecks)
       // so the two entry points enforce trace + ledger + the log identically.
-      const enforced = enforceLedgerChecks(db, { session, tool, paths, categories, results, spec, gateConfig });
+      // NX-42: the shell command itself goes in, because a migration command
+      // carries no path for the claim check to see.
+      const gateProjectRoot =
+        paths.length > 0 ? projectRootForPath(paths[0]) : isProjectRoot(process.cwd()) ? process.cwd() : null;
+      const enforced = enforceLedgerChecks(db, {
+        session,
+        tool,
+        paths,
+        categories,
+        results,
+        spec,
+        gateConfig,
+        command: content,
+        projectRoot: gateProjectRoot
+      });
       reasons.push(...enforced.reasons);
       reviewWarning = enforced.reviewWarning;
+
+      // Where the gate always runs, the project must learn its session exists.
+      // The MCP server recorded it, but the plugin path (the normal one) goes
+      // through this command, never through that server: measured on
+      // 2026-10-29, `project_sessions` was empty for a project with live
+      // sessions, so `resume`, `otherSessions` and `defaultSessionForProject`
+      // all read "no session". Recording is best effort and never decides a
+      // verdict.
+      if (isValidSessionId(session)) {
+        try {
+          // The edited path names the project; the daemon's cwd does not. A
+          // pathless call (a shell command) has no project to attach to, so
+          // nothing is recorded rather than a parent directory invented as one.
+          const projectRoot =
+            paths.length > 0
+              ? projectRootForPath(paths[0])
+              : isProjectRoot(process.cwd())
+                ? process.cwd()
+                : null;
+          if (projectRoot) recordProjectSession(db, projectRoot, session);
+        } catch {
+          // housekeeping only: a failure here must not turn an allow into a deny
+        }
+      }
     }
   } finally {
     db?.close();
@@ -260,6 +330,14 @@ export function commandGate(parsed: Parsed): void {
 
   const blocked = results.some((entry) => !entry.allow);
   const enforced = gateConfig.mode === "block";
+  // NX-04 : les raisons de blocage vivaient par cible, et le message court ne
+  // publiait que les globales. Un refus nommait donc les skills à charger sans
+  // jamais dire quel fichier l'avait déclenché. On les remonte, dédoublonnées,
+  // avec le chemin seulement quand elles ne concernent pas toutes les cibles.
+  const finalReasons = mergeTargetReasons(
+    results.map((entry) => ({ path: entry.path, reasons: entry.reasons })),
+    reasons,
+  );
   // MINEUR#6: allow mirrors the exit contract — warn/audit never block, so a
   // failing evaluation is reported as allow:true + wouldBlock:true (exit 0)
   // instead of a contradictory allow:false + exit 0.
@@ -274,7 +352,7 @@ export function commandGate(parsed: Parsed): void {
     missingSkills,
     unmatchedRequired,
     warnings,
-    reasons,
+    reasons: finalReasons,
     targets: results.map((entry) => ({
       path: entry.path,
       fileClass: entry.fileClass,

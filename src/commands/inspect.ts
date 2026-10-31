@@ -1,5 +1,5 @@
 import { join } from "node:path";
-import { asString, dbPathFor, flagOn, numberFlag, print, readStdin, safeJsonArray, type Parsed } from "./context.ts";
+import { asString, dbPathFor, flagOn, numberFlag, print, readStdin, safeJsonArray, splitList, type Parsed } from "./context.ts";
 import { loadSpec, NovahizHome } from "../spec.ts";
 import { getMeta, openDb, setMeta } from "../db.ts";
 import { loadCatalog, loadInstalledSkills, persistCatalog, scanSkills, writeCatalog, writeSkillIndex } from "../catalog.ts";
@@ -7,10 +7,18 @@ import { rankSkills } from "../relevance.ts";
 import { buildMcpEntries, enabledProviders, installCommands, pendingInstallCommands, updateCommands } from "../providers.ts";
 import { spawnSync } from "node:child_process";
 import { bootstrapFor, commandExists, coreBootstrap, dependencyReport, manualCoreBootstrap, missingPrerequisites, reloadPathFromRegistry, toolchainStatus } from "../deps.ts";
-import { classify } from "../classify.ts";
+import { classify, annotateRoadmap } from "../classify.ts";
 import { isContinuation, isValidSessionId, readSessionClassification, writeSessionClassification } from "../session.ts";
 import { bootstrapBinAllowed, runScript } from "../exec.ts";
-import { activeTask, buildWorkPackets, getTask } from "../ledger.ts";
+import { activeTask, buildWorkPackets, getTask, listTodos, resume as resumeLedger } from "../ledger.ts";
+import { listClaims } from "../claims.ts";
+import { lintSkills } from "../skilllint.ts";
+import { auditInstalledSkills } from "../skillaudit.ts";
+import { listEvidence, runVerification } from "../evidence.ts";
+import { activeSessionsOnProject, defaultSessionForProject, worktreeHint } from "../sessions.ts";
+import { buildSkillpack } from "../skillpack.ts";
+import { devDoctor } from "../devdoctor.ts";
+import { DEFAULT_SCAN_TARGETS, scanPaths } from "../secrets.ts";
 
 export function commandCheck(): void {
   const root = NovahizHome();
@@ -62,7 +70,8 @@ export function commandClassify(parsed: Parsed): void {
   }
   const result = classify(spec, text, {
     minScore: numberFlag(parsed, "min-score", { min: 0 }),
-    maxCategories: numberFlag(parsed, "max-categories", { min: 1, integer: true })
+    maxCategories: numberFlag(parsed, "max-categories", { min: 1, integer: true }),
+    files: splitList(parsed.flags.files)
   });
   const session = asString(parsed.flags.session);
   if (!isValidSessionId(session)) {
@@ -70,7 +79,23 @@ export function commandClassify(parsed: Parsed): void {
     return;
   }
 
-  const db = openDb(dbPathFor(root, spec));
+  // Classification is lexical: it never needs the ledger. Opening it here was
+  // enough to turn a broken database into "classify exit 1", which the plugin
+  // reads as "the gate is unavailable" and blocks every tool — including the
+  // ones needed to repair it. Persisting session state is a side effect, so a
+  // failure there degrades the answer instead of destroying it.
+  let db: ReturnType<typeof openDb> | null = null;
+  try {
+    db = openDb(dbPathFor(root, spec));
+  } catch (error) {
+    process.stderr.write(
+      `novahiz: session state unavailable (${String(error).slice(0, 160)}); classifying without persistence\n`
+    );
+  }
+  if (!db) {
+    print({ prompt: text, ...result, sessionState: "unavailable" });
+    return;
+  }
   try {
     const stored = readSessionClassification(db, session);
     // A trivial follow-up ("continue", "ok") inherits the last non-trivial
@@ -103,6 +128,21 @@ export function commandClassify(parsed: Parsed): void {
 export function commandSkills(parsed: Parsed): void {
   const root = NovahizHome();
   const spec = loadSpec(root);
+  // NX-33: `skills --lint` vérifie le contrat des SKILL.md installées sans
+  // toucher à l'index. Sortie non nulle seulement sur une erreur, pas sur un
+  // avertissement : une description longue reste une skill utilisable.
+  if (flagOn(parsed, "lint")) {
+    const report = lintSkills(spec);
+    print(report);
+    if (report.errors > 0) process.exitCode = 1;
+    return;
+  }
+  // NX-30 : audit mesuré (taille, sections, blocs identiques entre skills).
+  // Aucune réécriture : c'est la matière pour décider d'une compression.
+  if (flagOn(parsed, "audit")) {
+    print(auditInstalledSkills(spec));
+    return;
+  }
   const db = openDb(dbPathFor(root, spec));
   const rows = db.prepare("SELECT id, name, power, stars, tags, categories FROM skills ORDER BY power DESC, id ASC").all() as {
     id: string;
@@ -171,6 +211,10 @@ export function commandSessionLoad(parsed: Parsed): void {
   // H5: ensure session exists for FK compliance
   const ts = new Date().toISOString();
   db.prepare("INSERT OR IGNORE INTO sessions (id, categories, required_skills, updated_at) VALUES (?, '[]', '[]', ?)").run(session, ts);
+  // `updated_at` sert de marqueur d'activité à pruneSessions : sans cette
+  // remise à jour, une session qui charge des skills après sa dernière
+  // classification paraissait inactive et se faisait purger.
+  db.prepare("UPDATE sessions SET updated_at = ? WHERE id = ?").run(ts, session);
   db.prepare("INSERT OR IGNORE INTO skill_invocations (session_id, skill, invoked_at) VALUES (?, ?, ?)").run(
     session,
     skill,
@@ -178,6 +222,139 @@ export function commandSessionLoad(parsed: Parsed): void {
   );
   db.close();
   print({ session, loaded: skill });
+}
+
+export async function commandDev(parsed: Parsed): Promise<void> {
+  const sub = parsed.positionals[1] ?? "doctor";
+  if (sub !== "doctor") {
+    print({ error: `unknown dev subcommand: ${sub} (expected: doctor)` });
+    process.exitCode = 1;
+    return;
+  }
+  const projectRoot = asString(parsed.flags.root) || process.cwd();
+  const ports = splitList(parsed.flags.ports)
+    .map((value) => Number(value))
+    .filter((value) => Number.isFinite(value) && value > 0);
+  const report = await devDoctor({
+    projectRoot,
+    ports: ports.length > 0 ? ports : undefined,
+    probeFonts: !flagOn(parsed, "no-fonts")
+  });
+  print(report);
+}
+
+export function commandSecrets(parsed: Parsed): void {
+  const sub = parsed.positionals[1] ?? "scan";
+  if (sub !== "scan") {
+    print({ error: `unknown secrets subcommand: ${sub} (expected: scan)` });
+    process.exitCode = 1;
+    return;
+  }
+  const projectRoot = asString(parsed.flags.root) || process.cwd();
+  const requested = splitList(parsed.flags.paths);
+  const targets = requested.length > 0 ? requested : DEFAULT_SCAN_TARGETS;
+  const findings = scanPaths(projectRoot, targets);
+  print({ projectRoot, targets, count: findings.length, findings: findings.slice(0, 100) });
+  // A leaked credential is an incident: non-zero so a caller or CI cannot ignore it.
+  if (findings.length > 0) process.exitCode = 1;
+}
+
+export function commandSkillpack(parsed: Parsed): void {
+  const root = NovahizHome();
+  const spec = loadSpec(root);
+  const pack = buildSkillpack(spec, {
+    category: asString(parsed.flags.category) || undefined,
+    skills: splitList(parsed.flags.skills),
+    maxChars: numberFlag(parsed, "max-chars", { min: 500 })
+  });
+  print(pack);
+}
+
+export function commandVerify(parsed: Parsed): void {
+  const root = NovahizHome();
+  const spec = loadSpec(root);
+  const name = parsed.positionals[1] ?? asString(parsed.flags.name);
+  if (!name) {
+    print({ error: "verify requires a command name declared in .novahiz/verify.json" });
+    process.exitCode = 1;
+    return;
+  }
+  const projectRoot = asString(parsed.flags.root) || process.cwd();
+  const db = openDb(dbPathFor(root, spec));
+  try {
+    // Attribution: without a session id, evidence cannot be tied to the skills
+    // that were loaded, and `improve evidence` correctly reports every skill as
+    // unproven. The default resolver answers only when exactly one live session
+    // is on this project — it never guesses between two.
+    const explicit = asString(parsed.flags.session);
+    const resolved = explicit ? { session: explicit, candidates: [explicit] } : defaultSessionForProject(db, { projectRoot });
+    const outcome = runVerification(db, {
+      projectRoot,
+      name,
+      session: resolved.session ?? undefined,
+      timeoutMs: numberFlag(parsed, "timeout", { min: 1 }),
+      expect: asString(parsed.flags.expect) || undefined
+    });
+    // Say why evidence is unattributed instead of leaving the operator to guess
+    // why `improve evidence` stays empty.
+    const attribution = resolved.session
+      ? { session: resolved.session }
+      : resolved.candidates.length > 1
+        ? {
+            session: null,
+            reason: `${resolved.candidates.length} sessions vivantes sur ce projet (${resolved.candidates.join(", ")}): aucune attribution devinee. Passer --session pour la fixer.`,
+          }
+        : { session: null, reason: "aucune session vivante sur ce projet" };
+    print({ ...outcome, attribution });
+    if (!outcome.ok) process.exitCode = outcome.inconclusive ? 3 : 1;
+  } finally {
+    db.close();
+  }
+}
+
+export function commandResume(parsed: Parsed): void {
+  const root = NovahizHome();
+  const spec = loadSpec(root);
+  const session = asString(parsed.flags.session);
+  const projectRoot = asString(parsed.flags.root) || process.cwd();
+  const index = loadInstalledSkills(spec);
+  const db = openDb(dbPathFor(root, spec));
+  try {
+    const validSession = isValidSessionId(session);
+    const loaded = validSession
+      ? (db.prepare("SELECT skill FROM skill_invocations WHERE session_id = ? ORDER BY skill").all(session) as {
+          skill: string;
+        }[]).map((row) => row.skill)
+      : [];
+    const classification = validSession ? readSessionClassification(db, session) : null;
+    const state = validSession ? resumeLedger(db, session) : { task: null, todos: [], current: null };
+    const task = validSession ? activeTask(db, session) : null;
+    const todoCount = task ? listTodos(db, task.id).length : state.todos.length;
+    const claims = listClaims(db).filter((claim) => claim.session_id === session);
+    const evidence = validSession ? listEvidence(db, { limit: 5, session }) : [];
+    const otherSessions = activeSessionsOnProject(db, {
+      projectRoot,
+      excludeSession: validSession ? session : null
+    });
+    print({
+      session: validSession ? session : null,
+      projectRoot,
+      gate: spec.config.gate.mode,
+      index: { available: index.available, skills: index.skills.size },
+      loaded,
+      classification: classification
+        ? { categories: classification.categories, tier: classification.tier, requiredSkills: classification.requiredSkills }
+        : null,
+      task: task ? { id: task.id, title: task.title, status: task.status, todos: todoCount } : null,
+      current: state.current,
+      claims: claims.map((claim) => ({ path: claim.path, expiresAt: claim.expires_at })),
+      evidence: evidence.map((row) => ({ id: row.id, name: row.name, ok: row.ok === 1, hash: row.hash, createdAt: row.created_at })),
+      otherSessions,
+      worktreeHint: worktreeHint(otherSessions, validSession ? session : "this session")
+    });
+  } finally {
+    db.close();
+  }
 }
 
 export function commandSessionState(parsed: Parsed): void {
@@ -240,7 +417,7 @@ export function commandRoadmap(parsed: Parsed): void {
     process.exitCode = 1;
     return;
   }
-  print({ category: category.id, roadmap: category.roadmap ?? null });
+  print({ category: category.id, roadmap: annotateRoadmap(category.roadmap) });
 }
 
 export function commandStep(parsed: Parsed): void {

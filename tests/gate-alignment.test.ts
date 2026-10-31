@@ -1,9 +1,11 @@
 import assert from "node:assert/strict";
-import { dirname, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
+import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { describe, test } from "node:test";
 
 import { classify } from "../src/classify.ts";
+import { LITE_SKIPPED_SKILLS } from "../src/complexity.ts";
 import { evaluateGate } from "../src/gate.ts";
 import { loadSpec } from "../src/spec.ts";
 
@@ -79,7 +81,13 @@ describe("gate/classify: une seule source de verite", () => {
     const result = classify(spec, "ajoute un bouton de connexion sur l'écran d'accueil");
     assert.equal(result.tier, "lite");
     assert.equal(result.primary, "design-ui");
-    assert.deepEqual([...result.enforcedSkills].sort(), ["novahiz-converge", "novahiz-implement"]);
+    // Lite drops the process skills (plan, clarify, task, analyse) but keeps
+    // every domain skill the full tier enforces. Keeping only implement/converge
+    // was the defect: a lite design change silently lost wireframe and tokens.
+    const expected = roadmapEnforced("design-ui").filter((skill) => !LITE_SKIPPED_SKILLS.includes(skill));
+    assert.deepEqual([...result.enforcedSkills].sort(), expected);
+    assert.ok(result.enforcedSkills.includes("novahiz-wireframe"));
+    assert.ok(!result.enforcedSkills.includes("novahiz-plan"));
   });
 
   test("un bug de login reste dans debug, pas dans design-ui", () => {
@@ -131,5 +139,42 @@ describe("gate/classify: une seule source de verite", () => {
     });
     assert.deepEqual([...result.requiredSkills].sort(), roadmapEnforced("flutter"));
     assert.ok(!result.requiredSkills.includes("novahiz-wcag-audit"));
+  });
+});
+
+describe("NX-52: fichier jetable hors projet", () => {
+  test("un fichier sous le dossier temporaire est ignoré", () => {
+    const result = evaluateGate({
+      tool: "write",
+      filePath: join(tmpdir(), "opencode", "sonde.mjs"),
+      content: "console.log(1)",
+      prompt: "évaluer le système et ses évaluations",
+      categories: ["assessment"],
+      tier: "full",
+      loadedSkills: [],
+      installedSkills: null,
+      installedIndexAvailable: true,
+      spec
+    });
+    assert.equal(result.ignored, true);
+    assert.equal(result.allow, true);
+    assert.deepEqual(result.requiredSkills, []);
+  });
+
+  test("un fichier du projet reste évalué", () => {
+    const result = evaluateGate({
+      tool: "write",
+      filePath: "scripts/sonde.mjs",
+      content: "console.log(1)".repeat(60),
+      prompt: "évaluer le système et ses évaluations",
+      categories: ["assessment"],
+      tier: "full",
+      loadedSkills: [],
+      installedSkills: null,
+      installedIndexAvailable: true,
+      spec
+    });
+    assert.equal(result.ignored, false);
+    assert.ok(result.requiredSkills.length > 0);
   });
 });

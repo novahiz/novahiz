@@ -5,6 +5,393 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-10-31
+
+### Verified after a restart
+
+- **Documentation no longer inherits design requirements.** Editing this
+  CHANGELOG asks for `novahiz-docs` (rule R8, matched on the path) and nothing
+  else, even with design vocabulary in the content. Before the seed fix, the
+  same edit demanded eleven design skills because the changelog's own prose was
+  being classified as the task. Boundary, stated on purpose: `PRODUCT.md` and
+  `DESIGN.md` are not in the documentation set — they are the design brief, so
+  design rules may apply there.
+- **The seed rule lives in one place.** The MCP gate server kept its own copy
+  and still classified documentation from its prose after the CLI was fixed
+  (measured: `novahiz_gate` on `CHANGELOG.md` returned thirteen required skills).
+  Both now call `src/seed.ts`, and a static test fails if the MCP copy comes back.
+- **The gate records the project of the edited file, not its own cwd.** The
+  plugin daemon's cwd is the directory opencode started from — the user home —
+  so every project under it collapsed into one key (`c:\users\tawhid`), and two
+  unrelated projects could be reported as conflicting. `projectRootForPath`
+  walks up to the nearest `.git` or `package.json`. Verified by calling the gate
+  from the Novahiz home on a file in `booking-website`: the row recorded
+  `…\documents\booking-website`.
+- **The end-of-session hook listened for an event this harness never emits.**
+  The trigger was `session.idle`; the event log (one line per distinct type,
+  added for exactly this question) lists 41 real types and that name is not
+  among them. The trace never fired because the name did not exist. The trigger
+  is now `session.execution.succeeded`, observed at the end of a run;
+  `session.idle` stays as a secondary trigger for harnesses that do emit it. The
+  CLI throttles per session, so a double trigger costs one process at most every
+  ten minutes. A static test fails if the trigger stops being a real event.
+
+### Fixed
+
+- **`novahiz commit --files <dir>` no longer reports its own commit as an
+  intrusion.** A directory argument legitimately pulls in everything under it,
+  but the verification compared the commit against the literal arguments, so
+  `--files wireframes/controle-de-theme` committed two files and then called
+  them "not requested" (measured 2026-10-29: exit 1 on a commit that was
+  correct). Directory arguments are expanded before the check.
+- **A dismissed proposal stays dismissed.** `improve scan` re-created it on
+  every run, which makes the advisor noise and a noisy advisor gets ignored. A
+  dismissal is now permanent until `improve reopen` says otherwise; a *rejected*
+  proposal (the apply failed) comes back after seven days, because the
+  observation may still be right. Measured on the dismissed `fail` fixture:
+  scan now reports `count: 0` instead of resurrecting it.
+- **A documentation file is no longer classified from its own prose.** Measured
+  on 2026-10-29: a one-line edit to `novahiz/CHANGELOG.md` demanded 11 design
+  skills (`R8` + `R11` + `R13` + `R14` + `R17`), because the changelog talks
+  about design skills and its content was used as the classification seed. For
+  a documentation path (`novahiz-docs/**`, `docs/**`, `README.md`,
+  `CHANGELOG.md`) the seed is now the prompt or nothing, never the prose; the
+  path rule `R8-docs` still applies. A wireframe is deliberately *not* in that
+  list: `wireframes/**` is design material, so its content may speak, and the
+  full design set still blocks there. Both behaviours verified side by side on
+  the real catalog.
+- **The gate now records the project session where it always runs.** Only the
+  MCP gate server wrote `project_sessions`, and the plugin path — the normal one
+  — never goes through that server. Measured on 2026-10-29: the table was empty
+  for a project with live sessions, so `resume` reported `session: null`,
+  `otherSessions: []` and `defaultSessionForProject` could never resolve.
+  Recording now happens in `commandGate`, in the connection the ledger checks
+  already open, and it never decides a verdict (best effort, fail-open).
+  Covered by a spawn test that asserts the row exists after a real gate call.
+
+### Added
+
+- **Verifications carry a session, so telemetry can attribute them.**
+  `novahiz verify` and `novahiz docs verify` resolve the live session on the
+  project instead of writing `session_id: null`. With two sessions on the same
+  project they refuse to choose and say why — `attribution: { session: null,
+  reason: "2 sessions vivantes…" }` — because guessing would attribute a proof
+  to the wrong agent. Measured: an explicit `--session` run moved
+  `improve evidence` from `concluded: 0` to `concluded: 1` for the skills loaded
+  in that session, which is the whole point of the correlation.
+- **`novahiz improve evidence`** — per skill, the sessions where it was loaded
+  and what followed: a green verification, a red one, or nothing. Labelled a
+  correlation, not a measure of the skill's prose, and refuses to conclude under
+  five sessions. Measured on the live ledger: 18 skills, all `unproven` — the
+  verifications recorded so far belong to CLI runs without a session id, so
+  nothing could be attributed. That limitation is the report's own output, not a
+  footnote.
+- **`NOVAHIZ_AUTOIMPROVE=off`** — one environment variable stops `improve scan`,
+  `improve apply` and `repair --apply`, in the CLI and over MCP. Reading the list
+  of proposals stays available: a disabled system can still be audited.
+- **The end-of-session trace lands in the project, or nowhere.** The spawn used
+  `process.cwd()`, which for the plugin is where opencode started — a line was
+  written to `C:\Users\Tawhid\.novahiz\session-end.jsonl` instead of the project.
+  The directory now comes from the event envelope, then from this session's
+  `session.created` (`data.location.directory`, the only event carrying it per
+  the V2 schema), then from the context; with none of them the trace is skipped.
+  The trace also rotates: beyond 500 lines it keeps the newest 400.
+- **`novahiz backup restore --rebuild`** — `dist/` is rebuilt from the restored
+  sources with the local compiler (no shell), because a restore that leaves a
+  newer build next to older sources is a half-restore. `needsRebuild` is still
+  reported when the flag is absent.
+- **`novahiz manifest sync --origin package [--from <dir>]`** — records the bytes
+  of the package that was installed, not the state of the tree they landed in.
+  It refuses when the source is the home itself, since on a source checkout the
+  package and the working tree are the same thing and the manifest would call
+  today's edits "native".
+- **Exit code 3 means "measurement impossible".** A verification command that
+  cannot reach what it measures (a paused database, a dead network path) used to
+  be indistinguishable from a false claim: both came back as `failed`. It now
+  returns `inconclusive: true`, `ok: false`, and exit 3 from `novahiz verify`,
+  and `novahiz docs verify` reports it as `unknown` instead of counting it as a
+  failure. Red keeps meaning "the document is wrong", never "the network
+  blinked". Measured need: `verifier-catalogue` answered "Mesure impossible"
+  during a transient failure and would have painted PRODUCT.md red.
+- **End-of-session trace** (`second-memory suggest --record`, wired to
+  `session.idle` in the plugin). One throttled line per session in
+  `.novahiz/session-end.jsonl`: when the session ended, whether the project is
+  bound, how many docs moved, how many slots were fresh. It is a record, not a
+  write to the vault: deciding what survives stays a human act, and a wrong
+  merge would be silent damage. Throttled to one line per session per 10 min so
+  an often-idle editor does not produce a wall of duplicates.
+- **`novahiz backup`** — versioned snapshots of the Novahiz home, verified by
+  SHA-256. Three kinds: `native` (taken before any self-improvement, never
+  pruned — it is the baseline), `auto-improve` (taken after a verified-good
+  change, newest two kept), `pre-restore` (taken automatically before a restore,
+  so a restore stays reversible). `verify` re-hashes every stored file;
+  `restore` refuses to write when the snapshot fails its own check, and reports
+  `needsRebuild` because `dist/` is rebuilt, never snapshotted.
+- **`novahiz evolution append|list|verify`** — append-only registry of every
+  change to the system, in `evolution/evolution.jsonl`. Each record carries its
+  provenance (`native`, `learned`, `user`), a reason sentence, evidence ids and a
+  rollback target. Records are hash-chained to the previous one: editing,
+  reordering or deleting a line breaks the chain and `verify` says so.
+- **`novahiz manifest sync|diff`** — baseline digests of the 278 system files.
+  `diff` separates untouched, modified (`learned`/`user`), added and missing, so
+  "is this native?" becomes a measurement instead of a memory. The first
+  manifest is labelled `baseline`, not `native`: on a source checkout the home
+  *is* the working tree, so the shipped bytes cannot be recovered from it.
+- **`novahiz doctor` reports the safety net** — three rows: baseline drift,
+  newest snapshot verification (must be green, and a `native` must exist), and
+  registry chain integrity. All non-blocking: a missing backup is a warning, not
+  a broken install.
+- **`novahiz improve scan|list|show|dismiss|apply`** — Phase 1 of
+  self-improvement, and it proposes rather than changes. Three measurable
+  observations: sessions stuck in the fallback category (≥ 3), a required skill
+  loaded in ≥ 3 sessions that produced neither an edit nor a proof afterwards,
+  and the same verification failing ≥ 3 times. Proposals land in `proposals/`,
+  one file each, deduplicated. `apply` accepts exactly one mechanical kind
+  (`unused-skill` → advisory) and runs snapshot → patch → disk re-read → rollback
+  on any doubt → registry entry. The proof is behavioural when the proposal kept
+  its prompts: they are replayed through the real classifier and the real gate
+  before and after, and any drift beyond the demoted skill itself rolls the file
+  back. Without prompts it stays `structural` and says so. A category is never
+  created automatically: it changes the whole classifier, so the proposal carries
+  the required web naming check and stays unapplied. Budget: at most five new
+  proposals per scan and one applied change per 24 h, so the registry stays
+  readable and a regression stays attributable.
+- **MCP tools for the safety net** — `novahiz_backup`, `novahiz_improve` and
+  `novahiz_repair` are registered in `novahiz-tools` alongside the CLI, so an
+  agent can snapshot, read proposals and run whitelisted repairs without
+  shelling out. Restore and apply require `confirm` to equal the snapshot or
+  proposal id: naming it is the act of having read it.
+- **`novahiz repair [--apply]`** — Phase 3, on a closed whitelist: a missing or
+  unreadable skills index (rebuilt by the same code path `novahiz sync` uses), a
+  native baseline snapshot, and a baseline manifest. Read-only integrity of the
+  ledger is reported, never "fixed". Every repair is re-checked afterwards, and
+  a fix that ran but left the symptom says so instead of reporting success.
+- **`novahiz docs verify`** — a documentation claim can carry the command that
+  proves it: `- Le projet compile. <!-- verify: typecheck -->`, with an optional
+  `expect="…"`. Each marker is replayed through `.novahiz/verify.json` and comes
+  back `ok`, `failed` or `unknown`; a failure exits non-zero. This is what
+  `SOURCES.md` ("5 low contrast pairs" that were measurement artefacts) and
+  `PRODUCT.md` (a dark theme the stylesheet had removed) were missing.
+- **`novahiz dev doctor`** — measures the development environment instead of
+  guessing: which ports answer (and with what HTTP status), whether `.next`
+  exists while a server runs (never purge it then), and whether `fonts.gstatic.com`
+  is reachable. A font failure returns the exact `--webpack` fallback for the
+  `next/font` + IPv6/DNS class of outage.
+- **`novahiz secrets scan`** — scans `tmp/`, `logs/`, `.novahiz/evidence/`,
+  `dev-server.log` and `.env.local` for passwords, bearer tokens, JWTs, API keys
+  and connection strings. Output is masked; a finding exits non-zero so CI or a
+  caller cannot ignore it.
+- **`second-memory decisions`** — the open decisions in one table: lines from the
+  bound branch's `decisions/` notes matching "reste ouvert", "à faire", "bloqué",
+  "en attente"… Read-only; no note is rewritten.
+- **`second-memory suggest`** — what would go to the vault at the end of a
+  session: docs modified in the last 24 h, recent memory slots, and whether the
+  project is bound at all. It computes; it never writes. The automatic
+  end-of-session reminder is not wired to the harness yet, and this command does
+  not pretend otherwise.
+- **`second-memory status` reports the project binding** — the branch the project
+  is linked to, the target folder, and an explicit "NON lié" with the command to
+  fix it. It used to read the legacy global memory and report a binding it had
+  never looked at.
+- **Live-session detection per project.** `novahiz_task new` and `novahiz resume`
+  now report `otherSessions` and a `worktreeHint`: a session counts as live when
+  it left a task, a claimed path or recorded evidence in this project within the
+  last 90 minutes. Two agents in one worktree cost a contaminated commit in this
+  project's history; the tool now says so before the collision instead of after.
+- **The gate tells the tools which session is working.** MCP tools never receive
+  the OpenCode session id, so the tasks, proofs and claims they created were
+  stored with `session_id = NULL` and escaped per-session accounting. Every gated
+  call records `(project, session)`; `novahiz_task new`, `novahiz_step`,
+  `novahiz_verify` and `novahiz_claim` fall back to it when the caller passes
+  none. The lookup refuses to guess: two live sessions in the window means no
+  default, only the candidate list.
+- **`novahiz_skillpack` / `novahiz skillpack`** — a category's skills as a compact
+  map: one line of purpose plus headings and bullet rules per skill, capped by a
+  character budget. Enforced skills are described first, omissions are named, and
+  the response lists what is already loaded for the session and what remains. It
+  does not replace `skill()`: the gate still requires the real load. It answers
+  "what is in this pack?" before paying 30–40k tokens to find out.
+- **`novahiz_verify` / `novahiz verify`** — a proof is now something that ran.
+  The tool executes a command declared by the project in `.novahiz/verify.json`
+  (never an arbitrary shell), records the exit code, output tail, duration and a
+  sha256 of command+output, and writes both a ledger row and
+  `.novahiz/evidence/<stamp>-<name>.json`. `novahiz_evidence` lists them,
+  scoped to the current project.
+- **`novahiz_claim`** — a session reserves file paths; the gate refuses a path
+  another live session holds. Claims expire (30 min default) and are scoped by
+  project. This is the guard against two agents writing the same worktree.
+- **`novahiz commit`** — commits only the named paths (`git commit -- <paths>`)
+  and verifies afterwards that HEAD contains nothing else. `git commit` without
+  a pathspec publishes whatever another session already staged; that is how an
+  8-file commit turned into a 12-file one.
+- **`novahiz resume`** — reloads loaded skills, classification, active task,
+  open todos, claims and evidence in one call, for the restart case.
+- **Plan journal (`plan_history`)** — every `add`, `insert`, `amend`, `drop`,
+  `reorder`, `review`, `close` and `abandon` records its before/after snapshot;
+  read it with `novahiz_task action="history"` or `novahiz task history`.
+- **Memory entries can carry their proof** — `verify: <name>` in a slot, replayed
+  by `memory_verify` / `novahiz memory verify` with an `ok` / `failed` /
+  `unknown` verdict recorded as `last_verified` / `last_verdict`.
+- **`novahiz init` writes `.novahiz/verify.json`** in every new project, with the
+  detected `typecheck` / `test` / `lint` / `build` scripts. An existing file is
+  never overwritten.
+
+### Changed
+
+- **The ledger contract is the tool's contract.** `size` (XS–XL) is accepted on
+  `plan` / `todo` / `insert` / `amend`; `edit` and `verify` steps cannot close
+  without a proof, and `evidence:<id>` is checked against the evidence table.
+  A task no longer closes itself when its last todo is done: `close` is explicit
+  and requires a proof (recorded as `closing_proof`). `status` reports
+  `openTodos` and `readyToClose`.
+- **Review cadence 10 edits / 5 todos** (was 3/2) in both `ledger.ts` and
+  `spec.ts`, which had silently diverged.
+- **`novahiz_step` is scoped to the project** instead of a shared `"default"`
+  bucket, and its description now says when to call it.
+- **A task opened with a `category` must record its roadmap steps before
+  `close`.** Every non-optional step carrying `requireSkills` (the same ones the
+  gate enforces) must appear in `roadmap_progress` for the task's project or
+  session. A task opened without a category keeps the previous behaviour. This
+  is what stops `critique`, `polish` and `a11y` from disappearing silently from
+  a "finished" plan — where the catalog marks them enforced; a step flagged
+  `optional` stays advisory, and the annotation below makes that visible.
+- **Every roadmap step now says whether it is enforced or advisory.** `novahiz_roadmap`
+  and `novahiz classify` annotate each step with `enforced` / `advisory` / `why`,
+  using the gate's own rule (non-optional **and** carrying `requireSkills`). The
+  ledger's close rule reads the same set, so what you see is what blocks.
+- **The lite tier keeps domain skills.** It used to keep only `novahiz-implement`
+  and `novahiz-converge`, so a "small" design change silently dropped wireframe,
+  design tokens and the impeccable checks. Lite now skips only the skills that
+  structure the work (plan, clarify, task, analyse) and the full accessibility
+  audit (`novahiz-wcag-audit`); everything else a category enforces survives.
+- **`design-ui` requires `impeccable-critique`, `impeccable-polish` and `a11y`.**
+  They were flagged `optional`, so a task could close without ever running them.
+  The 20+ stylistic impeccable commands stay advisory; the quality gates do not.
+  `flutter` keeps its own policy (unchanged).
+
+### Documentation
+
+- **`ui-slop-remover`**: an explicit brief wins. When the owner asks for a fade,
+  a purple accent or a centred hero on purpose, the pass judges execution
+  (varied timing, intent, real copy) instead of forbidding the pattern.
+- **`novahiz-browser`**: "never Chromium" was misleading — Edge is Chromium-based.
+  The rule now bans launching `chrome.exe`/`chromium`, and a diagnostics section
+  covers a server that never answers: port already in use, `next/font` failing on
+  broken IPv6/DNS with the `--webpack` fallback, and the rule against purging
+  `.next` while a dev server runs.
+- **`design-token-pipeline`**: a CSS-first mode for projects that keep tokens as
+  custom properties in `@theme` / `:root`, with the same three layers and without
+  inventing DTCG files.
+- **`novahiz-wireframe`**: a light path for an existing screen — update the one
+  affected section and build it, without replaying `plan`/`screen`/`sections`/
+  `review`. The scope of the change decides the path, not habit; a new screen
+  still follows all eleven steps.
+- **`wireframe plan` explains itself when it cannot classify.** With no class
+  recognised it now returns `classification.needs` (supply the screen's purpose)
+  and the words each class matches, instead of "default / nothing recognised".
+
+### Fixed
+
+- **The gate fails closed when its skill index is unreadable.** It used to drop
+  every required skill from `effective`, answer `allow:true`, and still claim
+  "all required skills are enforced". Three pre-existing tests were failing on
+  that contradiction.
+- **Session skills survive an active session.** The TTL compared
+  `sessions.updated_at` (written only at classification) against the cutoff, so
+  a session working more than four hours lost its recorded skills and looped on
+  GATE RELOAD. The cutoff now uses the most recent of classification and skill
+  load.
+- **The declared `loaded` list is no longer trusted blindly.** Once a session has
+  recorded skills, the database is authoritative; anything else is returned in
+  `unverifiedLoaded` and does not satisfy the gate.
+- **`SAFE_TABLES` is enforced by a test.** A table added to the schema but
+  missing from the allowlist made `ensureColumn` throw on every `openDb`,
+  taking down the gate, the ledger and memory at once. `npm test` now fails if
+  the two lists diverge, in either direction.
+- **`classify` no longer needs the database.** Persisting session state is a side
+  effect; a broken ledger degraded classification into `exit 1`, which the
+  plugin read as "gate unavailable" and blocked every tool — including the ones
+  needed to repair it.
+- **The gate daemon restarts itself.** Three consecutive infrastructure failures
+  (`DB open failed`, `internal error`) make it exit so the plugin spawns a fresh
+  process, instead of serving a stale module until OpenCode is restarted.
+- **Reading a slot no longer drops fields it does not know.** `readSlot` and
+  `scanSlots` rebuilt the metadata field by field and both forgot
+  `verify` / `last_verified` / `last_verdict`; one builder now serves both.
+- **Memory slots are checked against their format contract** — mandatory keys,
+  a Résumé and a Détails section, a coherent `verify` / `last_verdict` pair.
+  Reported by `novahiz memory status`, on `memory_get` and on write; never
+  silently rewritten.
+- **The session/skills coherence check exists in `doctor`** — it reported "no
+  blocking anomaly" while the registry and the database disagreed.
+- **Usage errors are no longer labelled `internal error`** in the MCP tools, and
+  `done` on an unknown todo returns the valid ids.
+
+### The 31 October NX registry
+
+`improvements.md` carries one line per defect observed during the admin session,
+with the command or the test that proves the fix. The structural ones:
+
+- **NX-48 - a gate daemon request that threw left `process.exitCode = 2`**, so
+  every later request was announced as a refusal with no missing skill and
+  every write was blocked until OpenCode restarted. `src/gate-capture.ts`
+  restores the exit code in a `finally`, and a test proves the next request
+  survives a throwing one.
+- **NX-37 - the Playwright server ran without `--user-data-dir`**: each start
+  created a fresh profile (11 `mcp-msedge-*` folders on the machine where it was
+  measured), and two sessions sharing the tool overwrote each other silently.
+  The profile is explicit now and `doctor` reports the policy.
+- **NX-01 / NX-02 - the gate demanded four design skills for a comment in a
+  `.ts` file**, and blocked `npm run typecheck` as if it were a write. Design
+  rules target interface sources only, and typecheck / lint / check / verify
+  run read-only.
+- **NX-41 / NX-42 / NX-43 - two sessions in one worktree could write the same
+  paths.** `gate.claims.required` (off by default) refuses an unclaimed path
+  while another session is live, schema-writing commands (`supabase db push`,
+  `prisma migrate deploy`) are locked behind a claim on the migrations folder,
+  and a delegated child session inherits its parent's claims.
+- **NX-30 / NX-32 / NX-33 - nothing measured the skill corpus.** `skills
+  --audit` reports size per skill and identical blocks (0 in 96 skills),
+  `skills --lint` validates the frontmatter contract, and `novahiz-humanizer`
+  went from 33 067 to 16 376 characters by moving its catalogue into
+  `references/catalogue.md`.
+- **NX-35 / NX-36 - the wireframe heuristic ranked a payments registry as a
+  form** and `mark approved` dropped the review verdict. The vocabulary is
+  fixed and an approval returns what the review verified.
+- **NX-12 - a 300-character touch-up armed the full pipeline.** An edit under
+  800 characters without an explicit `tier` stays `lite`.
+- **NX-24 / NX-25 / NX-27 - memory routing merged two subjects on a token
+  coincidence** (a messaging session written into the admin shell slot). A
+  merge now requires an explicit id, an identical title or a 0.5 score; an
+  unknown `slotId` creates a slot instead of raising; slots hold 16 000
+  characters.
+
+### Integration notes for this release
+
+- **A project installed under `%TEMP%` was invisible to the gate.**
+  `isTempPath` treated every path below the temporary directory as a scratch
+  file, so a CI checkout and a test fixture were never governed. A `.git` or
+  `package.json` ancestor now keeps the file in scope; measured on the test
+  suite, where three fixture projects had silently bypassed the gate.
+- **A short title was diluted by a long slot text.** Relatedness was computed
+  against the whole slot, so a rewritten summary that carried the subject word
+  for word scored 0.43. The title and the summary are scored on their own, and
+  the best of the three wins.
+- **The historical suites were aligned with the contracts above** (memory merge
+  floor, slot limits, wireframe vocabulary, design path exclusion), each change
+  carrying the NX id that justifies it. `npm test`: 1 082 tests, 1 081 pass,
+  1 skipped, 0 fail. `npm run typecheck`: clean.
+- **A skill still in the index but missing from disk no longer opens the gate.**
+  It left `effective` entirely, so the write was allowed with "all required
+  skills enforced" while the skill could not be loaded: deleting a `SKILL.md`
+  opened the gate. It stays required and is reported in
+  `presentButMissingOnDisk`. Measured on the repository CI, where five design
+  tests were red for exactly this reason.
+- **Three tests measured the machine instead of the repository** (skill count
+  `>= 90`, `impeccable` present on disk). Their bounds now come from the shipped
+  corpus, so a bare checkout is measured for what it ships; the path
+  case-folding test skips where the filesystem is case-sensitive.
+
 ## [0.11.9] - 2026-10-24
 
 ### Fixed

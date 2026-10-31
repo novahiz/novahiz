@@ -28,57 +28,34 @@
 import { resolve } from "node:path";
 import { parse, setStdinProvider } from "./commands/context.ts";
 import { commandGate } from "./commands/gate.ts";
+import { capture, type Captured } from "./gate-capture.ts";
 import { expandHome } from "./spec.ts";
-
-type WriteLike = (chunk: unknown, ...rest: unknown[]) => boolean;
-
-type Captured = { stdout: string; stderr: string; status: number };
-
-/**
- * Run one gate evaluation with stdout/stderr/exitCode intercepted.
- *
- * commandGate reports its verdict through print() and process.stdout.write and
- * signals denial through process.exitCode (it never calls process.exit), which
- * makes it safe to run repeatedly inside one process — see commands/gate.ts:26,
- * :131, :152, :194, :258.
- */
-function capture(fn: () => void): Captured {
-  const out: string[] = [];
-  const err: string[] = [];
-  // Restored verbatim: `process.stdout.write` is an overloaded method, so it
-  // gets its own type instead of WriteLike (whose `unknown` chunk would be
-  // contravariance-incompatible with the real `string | Uint8Array` parameter).
-  const realOut = process.stdout.write;
-  const realErr = process.stderr.write;
-  const previousExit = process.exitCode;
-  process.exitCode = 0;
-
-  const captureWrite =
-    (sink: string[]): WriteLike =>
-    (chunk: unknown): boolean => {
-      sink.push(String(chunk));
-      return true;
-    };
-
-  const stdoutStream = process.stdout as unknown as { write: typeof process.stdout.write };
-  const stderrStream = process.stderr as unknown as { write: typeof process.stderr.write };
-  stdoutStream.write = captureWrite(out) as unknown as typeof process.stdout.write;
-  stderrStream.write = captureWrite(err) as unknown as typeof process.stderr.write;
-  try {
-    fn();
-  } finally {
-    stdoutStream.write = realOut;
-    stderrStream.write = realErr;
-  }
-
-  const status = typeof process.exitCode === "number" ? process.exitCode : 0;
-  process.exitCode = previousExit;
-  return { stdout: out.join(""), stderr: err.join(""), status };
-}
 
 function respond(payload: unknown): void {
   // Written through the restored stream, never through a captured one.
   process.stdout.write(`${JSON.stringify(payload)}\n`);
+}
+
+/**
+ * A verdict carries reasons; an infrastructure failure is not a verdict.
+ * When the gate keeps answering "DB open failed" or "internal error", the
+ * process is wedged on a module it loaded at startup (measured 2026-10-29: a
+ * schema/allowlist mismatch left every project blocked until OpenCode was
+ * restarted by hand). After MAX_INTERNAL_FAILURES such answers the daemon exits,
+ * and the client's ensureGateChild respawns a fresh one that reloads the code.
+ */
+const MAX_INTERNAL_FAILURES = 3;
+let internalFailures = 0;
+
+function isInfrastructureFailure(captured: Captured): boolean {
+  if (captured.status === 0) return false;
+  const text = `${captured.stdout}${captured.stderr}`;
+  return (
+    text.includes("DB open failed") ||
+    text.includes("session DB error") ||
+    text.includes("internal error") ||
+    text.includes("gate daemon")
+  );
 }
 
 function handle(line: string): void {
@@ -115,6 +92,18 @@ function handle(line: string): void {
       setStdinProvider(null);
     }
     respond({ id, ...captured });
+    if (isInfrastructureFailure(captured)) {
+      internalFailures += 1;
+      if (internalFailures >= MAX_INTERNAL_FAILURES) {
+        process.stderr.write(
+          `gate daemon: ${internalFailures} consecutive infrastructure failures — exiting so the next call reloads the code\n`,
+        );
+        // Let the verdict reach the client before the process disappears.
+        setImmediate(() => process.exit(70));
+      }
+    } else {
+      internalFailures = 0;
+    }
   } catch (error) {
     setStdinProvider(null);
     respond({ id, status: 1, stdout: "", stderr: `gate daemon: ${String(error).slice(0, 300)}` });
