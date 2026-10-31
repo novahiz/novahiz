@@ -6,7 +6,7 @@ import { describe, test } from "node:test";
 
 import { classify } from "../src/classify.ts";
 import { LITE_SKIPPED_SKILLS } from "../src/complexity.ts";
-import { evaluateGate } from "../src/gate.ts";
+import { evaluateGate, isTempPath } from "../src/gate.ts";
 import { loadSpec } from "../src/spec.ts";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -143,6 +143,15 @@ describe("gate/classify: une seule source de verite", () => {
 });
 
 describe("NX-52: fichier jetable hors projet", () => {
+  test("un chemin relatif appartient au projet, meme quand le cwd est sous %TEMP%", () => {
+    // Mesure du 2026-10-31 : `novahiz doctor` sonde le gate avec `src/hero.css`
+    // et un cwd sous le dossier temporaire. La sonde etait classee jetable, le
+    // gate repondait allow, et le diagnostic annoncait une anomalie bloquante.
+    assert.equal(isTempPath("src/hero.css"), false);
+    assert.equal(isTempPath("scripts/sonde.mjs"), false);
+    assert.equal(isTempPath(join(tmpdir(), "opencode", "sonde.mjs")), true);
+  });
+
   test("un fichier sous le dossier temporaire est ignoré", () => {
     const result = evaluateGate({
       tool: "write",

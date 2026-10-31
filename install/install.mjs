@@ -21,7 +21,10 @@ import {
   opencodeConfigDir,
   parseArgs,
   playwrightBrowserFlag,
+  playwrightProfileDir,
+  playwrightProfileFlag,
   readJson,
+  reconcilePlaywrightCommand,
   repoRoot,
   saveManifest,
   shellSetting,
@@ -100,6 +103,9 @@ const CORE_ITEMS = [
   "README.md",
   "NOTICE.md",
   "CHANGELOG.md",
+  // Le registre des correctifs mesures, cite par le CHANGELOG : une maison
+  // installee doit pouvoir le lire, pas seulement un checkout.
+  "improvements.md",
   "novahiz.config.example.json"
 ];
 
@@ -794,9 +800,12 @@ async function main() {
         },
         "playwright": {
           "type": "local",
-          // See playwrightBrowserFlag() in lib.mjs for the platform rule.
+          // See playwrightBrowserFlag() in lib.mjs for the platform rule, and
+          // playwrightProfileFlag() for the persistent profile NX-37 requires:
+          // without it every start creates a new browser profile, so a session
+          // logged in one run is logged out the next.
           // timeout 180s : npx telecharge le paquet au premier lancement.
-          "command": ["npx", "-y", "@playwright/mcp@0.0.83", playwrightBrowserFlag()],
+          "command": ["npx", "-y", "@playwright/mcp@0.0.83", playwrightBrowserFlag(), playwrightProfileFlag()],
           "timeout": 180000,
           "environment": mcpEnv,
           "enabled": true
@@ -884,7 +893,20 @@ async function main() {
       note(`  ${configPath} created`);
     } else {
       note(`\n${join(configDir, "opencode.jsonc")} already exists, not overwritten`);
+      // Le fichier existant n'est jamais ecrase : sans ce passage, une entree
+      // Playwright posee par une version anterieure garde l'absence de profil
+      // pour toujours (NX-37). On ne touche qu'au tableau `command` de cette
+      // entree, et seulement quand il manque un drapeau.
+      const reconcile = reconcilePlaywrightCommand(configPath, process.platform, process.env);
+      if (reconcile.state === "corrige") {
+        note(`  playwright: entree alignee sur la politique du navigateur (${reconcile.changes.join(", ")})`);
+      } else if (reconcile.state === "illisible") {
+        note(`  playwright: ${join(configDir, "opencode.jsonc")} contient des commentaires, non modifie — ajoutez ${playwrightBrowserFlag()} et ${playwrightProfileFlag()}`);
+      }
     }
+    // Le profil doit exister avant le premier lancement : le serveur Playwright
+    // ne cree pas de dossier parent manquant.
+    if (!dryRun) mkdirSync(playwrightProfileDir(process.env), { recursive: true });
   }
 
   // T7: le vault officiel second-memory est cree a l'installation, avec ses

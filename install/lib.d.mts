@@ -74,6 +74,13 @@ export declare function readJson(path: string): unknown;
 export declare function readJson<T>(path: string, fallback: T): T;
 export declare function writeJson(path: string, value: unknown): void;
 export declare function playwrightBrowserFlag(platform?: string): string;
+export declare function playwrightProfileDir(env?: Record<string, string | undefined>): string;
+export declare function playwrightProfileFlag(env?: Record<string, string | undefined>): string;
+export declare function reconcilePlaywrightCommand(
+  configPath: string,
+  platform?: string,
+  env?: Record<string, string | undefined>,
+): { state: "absent" | "illisible" | "inchange" | "corrige"; changes?: string[] };
 export declare function defaultConfig(): NovahizConfig;
 export declare function loadManifest(home: string): NovahizManifest;
 export declare function unsafeHostToken(tokens: string[]): string | null;

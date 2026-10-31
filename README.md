@@ -2,7 +2,7 @@
 
 > **Couche d'application sans dépendance pour les agents de code IA** — classe les prompts, attribue des roadmaps d'exécution, bloque les éditions non sûres tant que les bonnes skills ne sont pas chargées, et persiste les décisions d'une session à l'autre — tout cela de façon déterministe, sans appel de modèle.
 
-17 catégories, 94 skills, 13 gate rules, 8 MCP providers — tout déterministe, tout local, tout JSON.
+18 catégories, 96 skills, 13 gate rules, 8 MCP providers — tout déterministe, tout local, tout JSON.
 
 > **Version 0.12.0** - `npm install -g novahiz` pose le CLI, et le premier `novahiz` lancé termine l'installation (core puis extras). `CHANGELOG.md` et `scripts/` sont dans le tarball.
 
@@ -22,7 +22,7 @@
 
 ## Comment se déroule une session
 
-1. **Classifier** — chaque prompt est noté contre 17 catégories (mots-clés déterministes, aucun appel de modèle). Le résultat porte jusqu'à trois catégories, une principale, un niveau de confiance, un **tier** (`trivial` / `lite` / `full`), et les skills que le gate attendra.
+1. **Classifier** — chaque prompt est noté contre 18 catégories (mots-clés déterministes, aucun appel de modèle). Le résultat porte jusqu'à trois catégories, une principale, un niveau de confiance, un **tier** (`trivial` / `lite` / `full`), et les skills que le gate attendra.
 2. **Roadmap** — la catégorie principale sélectionne une roadmap ordonnée, et le plugin injecte sa checklist dans la session : l'agent suit plan → clarify → tasks → analyse → implement → converge au lieu d'improviser un ordre.
 3. **Gate sur chaque écriture** — les appels `edit` / `write` / `patch` / `bash` / `shell` sont vérifiés selon la classe de fichier, les règles actives, les skills de roadmap et le contenu (tokens de placeholder) : **allow** ou **block**, en local, sans appel de modèle dans le chemin de décision.
 4. **Gate reload, pas une impasse** — un blocage nomme exactement les skills manquantes et la règle de retry : charger chacune, rejouer l'appel une seule fois. Une skill absente de l'index installé est signalée, jamais appliquée. `NOVAHIZ_GATE=off` est la seule soupape, et elle est bruyante.
@@ -35,7 +35,7 @@
                  └─ tier, skills ──────│         └─ block : charger les skills nommées, retry une fois
 ```
 
-**17 catégories**, **94 skills**, **13 gate rules**, **8 MCP providers** — tout déterministe, tout local, tout JSON.
+**18 catégories**, **96 skills**, **13 gate rules**, **8 MCP providers** — tout déterministe, tout local, tout JSON.
 
 ---
 
@@ -100,7 +100,7 @@ node ./dist/cli.js doctor
 
 ## Le classifier
 
-Chaque prompt utilisateur passe par le classifier. Il note les mots-clés contre 17 catégories et retient les meilleurs matchs.
+Chaque prompt utilisateur passe par le classifier. Il note les mots-clés contre 18 catégories et retient les meilleurs matchs.
 
 ```mermaid
 flowchart LR
