@@ -4,7 +4,7 @@
 
 18 catégories, 96 skills, 13 gate rules, 8 MCP providers — tout déterministe, tout local, tout JSON.
 
-> **Version 0.12.0** - `npm install -g novahiz` pose le CLI, et le premier `novahiz` lancé termine l'installation (core puis extras). `CHANGELOG.md` et `scripts/` sont dans le tarball.
+> **Version 0.12.1** - `npm install -g novahiz` pose le CLI, et le premier `novahiz` lancé termine l'installation (core puis extras). `CHANGELOG.md` et `scripts/` sont dans le tarball.
 
 ```
 ┌──────────────────────────────────────────────────────────────────────────┐
