@@ -5,6 +5,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-10-31
+
 ### Verified after a restart
 
 - **Documentation no longer inherits design requirements.** Editing this
@@ -324,6 +326,61 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   blocking anomaly" while the registry and the database disagreed.
 - **Usage errors are no longer labelled `internal error`** in the MCP tools, and
   `done` on an unknown todo returns the valid ids.
+
+### The 31 October NX registry
+
+`improvements.md` carries one line per defect observed during the admin session,
+with the command or the test that proves the fix. The structural ones:
+
+- **NX-48 - a gate daemon request that threw left `process.exitCode = 2`**, so
+  every later request was announced as a refusal with no missing skill and
+  every write was blocked until OpenCode restarted. `src/gate-capture.ts`
+  restores the exit code in a `finally`, and a test proves the next request
+  survives a throwing one.
+- **NX-37 - the Playwright server ran without `--user-data-dir`**: each start
+  created a fresh profile (11 `mcp-msedge-*` folders on the machine where it was
+  measured), and two sessions sharing the tool overwrote each other silently.
+  The profile is explicit now and `doctor` reports the policy.
+- **NX-01 / NX-02 - the gate demanded four design skills for a comment in a
+  `.ts` file**, and blocked `npm run typecheck` as if it were a write. Design
+  rules target interface sources only, and typecheck / lint / check / verify
+  run read-only.
+- **NX-41 / NX-42 / NX-43 - two sessions in one worktree could write the same
+  paths.** `gate.claims.required` (off by default) refuses an unclaimed path
+  while another session is live, schema-writing commands (`supabase db push`,
+  `prisma migrate deploy`) are locked behind a claim on the migrations folder,
+  and a delegated child session inherits its parent's claims.
+- **NX-30 / NX-32 / NX-33 - nothing measured the skill corpus.** `skills
+  --audit` reports size per skill and identical blocks (0 in 96 skills),
+  `skills --lint` validates the frontmatter contract, and `novahiz-humanizer`
+  went from 33 067 to 16 376 characters by moving its catalogue into
+  `references/catalogue.md`.
+- **NX-35 / NX-36 - the wireframe heuristic ranked a payments registry as a
+  form** and `mark approved` dropped the review verdict. The vocabulary is
+  fixed and an approval returns what the review verified.
+- **NX-12 - a 300-character touch-up armed the full pipeline.** An edit under
+  800 characters without an explicit `tier` stays `lite`.
+- **NX-24 / NX-25 / NX-27 - memory routing merged two subjects on a token
+  coincidence** (a messaging session written into the admin shell slot). A
+  merge now requires an explicit id, an identical title or a 0.5 score; an
+  unknown `slotId` creates a slot instead of raising; slots hold 16 000
+  characters.
+
+### Integration notes for this release
+
+- **A project installed under `%TEMP%` was invisible to the gate.**
+  `isTempPath` treated every path below the temporary directory as a scratch
+  file, so a CI checkout and a test fixture were never governed. A `.git` or
+  `package.json` ancestor now keeps the file in scope; measured on the test
+  suite, where three fixture projects had silently bypassed the gate.
+- **A short title was diluted by a long slot text.** Relatedness was computed
+  against the whole slot, so a rewritten summary that carried the subject word
+  for word scored 0.43. The title and the summary are scored on their own, and
+  the best of the three wins.
+- **The historical suites were aligned with the contracts above** (memory merge
+  floor, slot limits, wireframe vocabulary, design path exclusion), each change
+  carrying the NX id that justifies it. `npm test`: 1 082 tests, 1 081 pass,
+  1 skipped, 0 fail. `npm run typecheck`: clean.
 
 ## [0.11.9] - 2026-10-24
 
