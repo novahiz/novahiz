@@ -5,6 +5,37 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed
+
+- **The Playwright MCP entry the installer writes now carries the persistent
+  profile (NX-37).** `--browser=msedge` alone left every start with a fresh
+  profile: a session logged in one run was logged out the next, and two agents
+  sharing the tool overwrote each other silently. The generated entry now
+  includes `--user-data-dir=<home>/.opencode/playwright-profile`
+  (`NOVAHIZ_PLAYWRIGHT_PROFILE` moves it), and the directory is created so the
+  first launch cannot fail on a missing parent.
+- **An existing `opencode.jsonc` is reconciled, not just left alone.** The
+  installer never overwrites that file, so an entry written by 0.11.x kept its
+  missing profile forever and the fix only reached fresh installs. When the file
+  exists, the `playwright.command` array is completed in place: a forbidden
+  `--browser=chrome` is replaced rather than doubled, an already-conform entry
+  is left byte-for-byte untouched, and a file that carries comments is reported
+  instead of rewritten. Five tests cover the four states (`absent`,
+  `illisible`, `inchange`, `corrige`).
+- **`novahiz doctor` reported a blocking gate anomaly when run from a directory
+  under `%TEMP%`.** The gate probe edits `src/hero.css`, a relative path: it was
+  resolved against the cwd, classified as a scratch file, ignored, and the probe
+  concluded "the gate did not block". A relative path now always belongs to the
+  project; only an absolute path can prove it points into the temporary
+  directory. Measured on a fresh install, where `novahiz doctor` exited 1 on a
+  healthy system.
+- **`novahiz render` and `docs verify` were missing from `--help`.**
+- **`improvements.md` now ships** in the tarball and in the installed home: the
+  CHANGELOG cites it, and a reader of an installed system should be able to open
+  it.
+- **README counts corrected**: 18 categories (the `cleanup` category was added),
+  96 skills (measured on the full corpus).
+
 ## [0.12.0] - 2026-10-31
 
 ### Verified after a restart

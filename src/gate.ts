@@ -359,9 +359,18 @@ const PROTECTED_INDEX_SUFFIXES = ["/build/installed-skills.json", "/build/catalo
  */
 export function isTempPath(path: string): boolean {
   if (path.trim().length === 0) return false;
+  /*
+   * Un chemin relatif appartient au projet par construction : c'est le cwd qui
+   * lui donne un sens, et le gate n'a pas à deviner d'où vient l'appel. Mesuré
+   * le 2026-10-31 : `novahiz doctor` sonde le gate avec `src/hero.css` et un
+   * cwd sous %TEMP%, la sonde passait pour un fichier jetable, le gate
+   * répondait allow et le diagnostic annonçait une anomalie bloquante. Seul un
+   * chemin absolu peut prouver qu'il vise le dossier temporaire.
+   */
+  if (!isAbsolute(path)) return false;
   const normaliser = (valeur: string): string => valeur.replace(/\\/g, "/").replace(/\/+$/, "");
   const temporaire = normaliser(resolve(tmpdir()));
-  const absolu = normaliser(isAbsolute(path) ? resolve(path) : resolve(process.cwd(), path));
+  const absolu = normaliser(resolve(path));
   if (absolu !== temporaire && !absolu.startsWith(`${temporaire}/`)) return false;
   /*
    * Le dossier temporaire ne suffit pas à conclure : une CI y clone le dépôt,

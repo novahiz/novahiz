@@ -169,6 +169,81 @@ export function playwrightBrowserFlag(platform = process.platform) {
   return platform === "win32" ? "--browser=msedge" : "--browser=webkit";
 }
 
+/**
+ * NX-37 : le profil du navigateur de verification.
+ *
+ * Sans `--user-data-dir`, chaque demarrage du serveur Playwright cree un profil
+ * neuf (onze dossiers `mcp-msedge-*` mesures le 2026-10-31) : une session qui
+ * se connecte dans l'un n'existe plus dans l'autre, et deux sessions qui
+ * partagent l'outil se marchent dessus sans un mot. Le dossier vit sous le home
+ * de l'utilisateur, jamais dans le paquet. `NOVAHIZ_PLAYWRIGHT_PROFILE` permet
+ * de le deplacer, par exemple vers un disque chiffre.
+ */
+export function playwrightProfileDir(env = process.env) {
+  const override = env.NOVAHIZ_PLAYWRIGHT_PROFILE;
+  if (typeof override === "string" && override.length > 0) return resolve(expandHome(override));
+  return join(homedir(), ".opencode", "playwright-profile");
+}
+
+export function playwrightProfileFlag(env = process.env) {
+  return `--user-data-dir=${playwrightProfileDir(env)}`;
+}
+
+/**
+ * Aligne une configuration existante sur la politique du navigateur.
+ *
+ * L'installateur n'ecrase jamais un `opencode.jsonc` deja present : sans ce
+ * passage, une installation anterieure garde son entree Playwright sans profil
+ * pour toujours, et le correctif NX-37 ne profite qu'aux installations neuves.
+ * Le fichier est relu en JSON strict : un fichier qui porte des commentaires
+ * n'est pas reecrit, il est signale. Aucune ecriture quand rien ne manque.
+ */
+export function reconcilePlaywrightCommand(
+  configPath,
+  platform = process.platform,
+  env = process.env,
+) {
+  let raw;
+  try {
+    raw = readFileSync(configPath, "utf8");
+  } catch {
+    return { state: "absent" };
+  }
+  let parsed;
+  try {
+    parsed = JSON.parse(raw.replace(/^\uFEFF/, ""));
+  } catch {
+    return { state: "illisible" };
+  }
+  const command = parsed?.mcp?.playwright?.command;
+  if (!Array.isArray(command) || command.length === 0) return { state: "absent" };
+
+  const wantedBrowser = playwrightBrowserFlag(platform);
+  const wantedProfile = playwrightProfileFlag(env);
+  const next = [...command];
+  const changes = [];
+
+  const browserIndex = next.findIndex((token) => typeof token === "string" && token.startsWith("--browser="));
+  if (browserIndex === -1) {
+    next.push(wantedBrowser);
+    changes.push(`+ ${wantedBrowser}`);
+  } else if (next[browserIndex] !== wantedBrowser) {
+    changes.push(`${next[browserIndex]} -> ${wantedBrowser}`);
+    next[browserIndex] = wantedBrowser;
+  }
+
+  const hasProfile = next.some((token) => typeof token === "string" && token.startsWith("--user-data-dir"));
+  if (!hasProfile) {
+    next.push(wantedProfile);
+    changes.push(`+ ${wantedProfile}`);
+  }
+
+  if (changes.length === 0) return { state: "inchange" };
+  parsed.mcp.playwright.command = next;
+  writeFileSync(configPath, JSON.stringify(parsed, null, 2) + "\n", "utf8");
+  return { state: "corrige", changes };
+}
+
 // Config written on a fresh install. Lives here (not in install.mjs) so tests
 // can assert it without executing the installer.
 export function defaultConfig() {
