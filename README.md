@@ -405,13 +405,25 @@ Voir [docs/CONFIGURATION.md](docs/CONFIGURATION.md) pour toutes les options.
 | Commande | Objectif |
 |----------|----------|
 | `novahiz init` | Installation en une passe |
-| `novahiz doctor` | Diagnostic de santé 17-check (22 avec `--deep`) |
+| `novahiz doctor` | Diagnostic de santé (21 contrôles, 26 avec `--deep`) |
 | `novahiz status` | Classification + état du gate actuels |
 | `novahiz classify <text>` | Classer un prompt |
 | `novahiz gate` | Vérifier si une édition est autorisée |
 | `novahiz task new <title>` | Démarrer une tâche suivie |
 | `novahiz task status` | Avancement de la tâche |
 | `novahiz task done <id>` | Marquer un todo complété |
+| `novahiz resume --session <id>` | Recharger l'état réel après un redémarrage : skills, classification, tâche, claims, preuves |
+| `novahiz verify <nom>` | Exécuter une commande déclarée dans `.novahiz/verify.json` et enregistrer la preuve (code, sortie, empreinte) |
+| `novahiz skillpack --category <id>` | Carte compacte d'une catégorie (une ligne par skill) avant de payer leur chargement |
+| `novahiz dev doctor` | Environnement de dev : ports qui écoutent sans répondre, cache `.next`, accès aux polices |
+| `novahiz secrets scan` | Chercher des identifiants fuités dans `tmp/`, `logs/` et les preuves — sortie masquée |
+| `novahiz render --url <url>` | Faits vérifiables du HTML servi : titres, `alt` manquants, labels, `tabindex`, ids dupliqués |
+| `novahiz backup <sub>` | Snapshots SHA-256 de la maison (`create` / `list` / `verify` / `restore`) |
+| `novahiz evolution <sub>` | Registre append-only des changements, chaîné par hash (`append` / `list` / `verify`) |
+| `novahiz manifest <sub>` | Empreintes de référence des fichiers du système (`sync` / `diff`) |
+| `novahiz improve <sub>` | Propositions mesurées, jamais appliquées seules (`scan` / `list` / `show` / `dismiss` / `apply`) |
+| `novahiz repair [--apply]` | Réparations sur liste blanche (index, sessions périmées, baseline), revérifiées après coup |
+| `novahiz commit <message> --files a,b` | Commiter uniquement ces chemins, et vérifier que rien d'autre n'est entré |
 | `novahiz snap <sub>` | Snapshots versionnés du ledger (`save` / `list` / `diff` / `restore`) |
 | `novahiz graph <sub>` | Graphe de code du workspace (`build` / `find` / `trace` / `api` / `map` / `fresh`) — le nôtre, en processus, sans binaire externe ([docs/GRAPH.md](docs/GRAPH.md)) |
 | `novahiz memory <sub>` | Hygiène de la mémoire projet (`status` / `clean` / `prune`) — dry-run par défaut, `--apply` pour exécuter ; `prune` archive, rien n'est supprimé |
@@ -426,7 +438,7 @@ Voir [docs/CONFIGURATION.md](docs/CONFIGURATION.md) pour toutes les options.
 | `novahiz upgrade` | Pull du dernier + rebuild |
 | `novahiz version` | Afficher la version |
 
-Voir [docs/CLI.md](docs/CLI.md) pour la référence complète.
+Voir `novahiz --help` pour la liste complète, à jour à chaque version. [docs/CLI.md](docs/CLI.md) détaille les commandes historiques (core, tâches, sessions, avancées) et les codes de sortie.
 
 ---
 
