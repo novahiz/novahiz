@@ -22,7 +22,7 @@ Health check — 21 local checks, 26 with `--deep` (five live MCP probes):
 | `npx` | npx available (required by providers) |
 | `index` | `build/installed-skills.json` is readable |
 | `referenced` | All skills referenced in the catalog are installed |
-| `session/skills` | The registry and the database agree on recorded skills |
+| `sessions` | The registry and the database agree on recorded skills |
 | `cli` | External CLIs declared in `SKILL_CLI` are present (none by default) |
 | `git` | Git is present, so provider skill packs can install |
 | `gate` | Gate smoke test passes: a write without a loaded skill is blocked |
@@ -32,13 +32,13 @@ Health check — 21 local checks, 26 with `--deep` (five live MCP probes):
 | `manifest` | Baseline digests exist and their drift is counted |
 | `backups` | The newest snapshot verifies, and a `native` one exists |
 | `evolution` | The change registry's hash chain is intact |
-| `plugin` | Installed plugin copy matches the home |
+| `adapter` | Installed plugin copy matches the home |
 | `memory` | Memory module limits match the expected contract |
-| `mcp-memory` | The eight `memory_*` tools are registered |
+| `memory-tools` | The eight `memory_*` tools are registered |
 | `mcp-gate` | `novahiz-gate` exposes `novahiz_gate` |
 | `agent` | Agent file grants the `question` tool |
-| `config` | `opencode.jsonc` lists the expected MCP servers |
-| `browser` | Playwright policy: Edge and an explicit `--user-data-dir` |
+| `mcp-config` | `opencode.jsonc` lists the expected MCP servers |
+| `playwright-policy` | Playwright policy: Edge and an explicit `--user-data-dir` |
 
 With `--deep`: one probe per MCP server, a memory lifecycle round-trip
 (init → write → get → rebuild), and direct probes of the scheduler, docs and gate
