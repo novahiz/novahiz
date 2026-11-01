@@ -14,23 +14,39 @@ Novahiz init
 
 ### `Novahiz doctor`
 
-Health check — runs 10 diagnostic checks:
+Health check — 21 local checks, 26 with `--deep` (five live MCP probes):
 
 | Check | What it verifies |
 |-------|------------------|
 | `node` | Node.js >= 22.18 |
 | `npx` | npx available (required by providers) |
 | `index` | `build/installed-skills.json` is readable |
-| `referenced` | All skills referenced in catalog are installed |
+| `referenced` | All skills referenced in the catalog are installed |
+| `sessions` | The registry and the database agree on recorded skills |
 | `cli` | External CLIs declared in `SKILL_CLI` are present (none by default) |
-| `gate` | Gate smoke test passes |
+| `git` | Git is present, so provider skill packs can install |
+| `gate` | Gate smoke test passes: a write without a loaded skill is blocked |
+| `gate-bypass` | Reports whether `--force-readonly` is in effect |
 | `db` | Ledger database is readable |
-| `plugin` | Installed plugin matches source |
-| `agent` | Agent file grants `question` tool |
-| `config` | Config file is valid |
+| `schema` | Database schema version matches the build |
+| `manifest` | Baseline digests exist and their drift is counted |
+| `backups` | The newest snapshot verifies, and a `native` one exists |
+| `evolution` | The change registry's hash chain is intact |
+| `adapter` | Installed plugin copy matches the home |
+| `memory` | Memory module limits match the expected contract |
+| `memory-tools` | The eight `memory_*` tools are registered |
+| `mcp-gate` | `novahiz-gate` exposes `novahiz_gate` |
+| `agent` | Agent file grants the `question` tool |
+| `mcp-config` | `opencode.jsonc` lists the expected MCP servers |
+| `playwright-policy` | Playwright policy: Edge and an explicit `--user-data-dir` |
+
+With `--deep`: one probe per MCP server, a memory lifecycle round-trip
+(init → write → get → rebuild), and direct probes of the scheduler, docs and gate
+servers.
 
 ```bash
 Novahiz doctor
+Novahiz doctor --deep
 ```
 
 ### `Novahiz status`
@@ -258,13 +274,179 @@ novahiz memory check-docs --apply  # append the ⚠ re-verify marker to flagged 
 
 `--root <path>` targets another project root or memory dir (an explicit path is the workspace reference, so it is honored as-is); default is cwd. Every subcommand accepts `--json`. `prune` and `check-docs` exit `1` on a corrupt index and point you at `clean --apply`.
 
+## Proof, concurrency and the safety net
+
+These commands share one rule: a claim is worth what was measured. None of them
+trusts a sentence, and none of them edits the system in secret.
+
+### `novahiz verify <name>`
+
+Runs a command declared by the project and records what actually happened: exit
+code, output tail, duration, and a sha256 of command + output. The proof lands in
+the ledger and in `.novahiz/evidence/<stamp>-<name>.json`.
+
+`.novahiz/verify.json` is written by `novahiz init` from the detected scripts:
+
+```json
+{ "commands": { "tests": "npm test", "typecheck": "npx tsc --noEmit" } }
+```
+
+```bash
+novahiz verify typecheck
+novahiz verify tests --expect "0 failing"
+```
+
+| Flag | Effect |
+|------|--------|
+| `--expect "text"` | Fails unless the output contains this text |
+| `--session <id>` | Attribute the proof to that session |
+| `--root <dir>` | Project root (default: cwd) |
+| `--timeout <s>` | Kill the command after N seconds |
+
+Exit `0` proves the claim, `1` contradicts it, `3` means the measurement was
+impossible (paused database, dead network). Without `--session` a session is
+resolved only when exactly one is live on the project; two live sessions mean no
+attribution, and `attribution.reason` says so instead of guessing.
+
+### `novahiz render --url <url>` / `--file <path>`
+
+Reads the HTML actually served and reports facts a script can check: title,
+language, heading outline, landmarks, images without `alt`, links and buttons
+without a name, inputs without a label, duplicate ids, positive `tabindex`,
+inline styles.
+
+```bash
+novahiz render --url http://localhost:3000/fr
+novahiz render --url http://localhost:3000/admin --cookie "session=abc" --header "Accept-Language: fr"
+```
+
+`--cookie "a=1,b=2"` and `--header "Name: value"` (several headers joined by `|`)
+reach an authenticated page. Exit `1` on a blocking finding, `0` otherwise.
+
+### `novahiz dev doctor`
+
+Measures the development environment instead of guessing: which ports answer and
+with what status, whether a server listens without ever replying, whether `.next`
+exists while a server runs, and whether `fonts.gstatic.com` is reachable.
+
+| Flag | Effect |
+|------|--------|
+| `--ports 3000,5173` | Ports to probe (default: a small common set) |
+| `--no-fonts` | Skip the font/CDN probe |
+| `--root <dir>` | Project root (default: cwd) |
+
+### `novahiz secrets scan`
+
+Scans `tmp/`, `logs/`, `.novahiz/evidence/`, `dev-server.log` and `.env.local`
+for passwords, bearer tokens, JWTs, API keys and connection strings. The output
+is masked; a finding exits non-zero so a CI job or a caller cannot ignore it.
+
+`--paths ...` replaces the default target list, `--root <dir>` moves the root.
+
+### `novahiz skillpack --category <id>`
+
+A compact map of a category's skills: one line of purpose plus headings and
+bullet rules per skill, capped by a character budget. It answers "what is in this
+pack?" before paying the 30–40k tokens of loading them. It does not replace
+`skill()`: the gate still requires the real load.
+
+`--skills a,b` names skills explicitly, `--max-chars N` sets the budget (minimum
+500).
+
+### `novahiz resume --session <id>`
+
+Reloads the real state after a restart in one call: recorded skills,
+classification, active task, open todos, claims, recent evidence, and the other
+sessions live on the project.
+
+`--root <dir>` targets another project. Without a valid session the payload is
+honest about it: `session: null` rather than an empty shell.
+
+### `novahiz commit <message> --files a,b`
+
+Commits only the named paths and then verifies that HEAD contains nothing else. A
+plain `git commit` publishes whatever another session already staged; in a shared
+worktree that turned an 8-file commit into a 12-file one. Files can also follow
+the message as positionals. `--message` is accepted for symmetry.
+
+### Claims and live sessions
+
+File claims have no CLI command: they are exposed as the `novahiz_claim` MCP tool
+and enforced by the gate (`gate.claims.required`, false by default). A path held
+by another live session is refused; a delegated child session inherits its
+parent's claims through the `session_links` lineage. Claims expire (30 minutes)
+and are scoped by project.
+
+## The safety net
+
+### `novahiz backup [create|list|verify|restore]`
+
+Versioned snapshots of the Novahiz home, verified by SHA-256 over every stored
+file.
+
+| Subcommand | Flags | What it does |
+|------------|-------|--------------|
+| `create` | `--kind native\|auto-improve\|pre-restore` (default `auto-improve`), `--note "…"` | Writes a snapshot. `native` is never pruned: it is the baseline |
+| `list` | `--kind` | Lists snapshots with their kind and file count |
+| `verify` | `--id <id>` | Re-hashes every stored file and reports the first mismatch |
+| `restore` | `--id <id>`, `--yes`, `--prune`, `--rebuild`, `--dry-run` | Refuses to write when the snapshot fails its own check; reports `needsRebuild` unless `--rebuild` rebuilds `dist/` with the local compiler |
+
+### `novahiz evolution [append|list|verify]`
+
+Append-only registry of every change to the system, in
+`evolution/evolution.jsonl`. Records are hash-chained: editing, reordering or
+deleting a line breaks the chain and `verify` says so.
+
+`append` takes `--kind`, `--target`, `--reason` (the three required), then
+`--provenance native|learned|user`, `--verdict`, `--before`, `--after`,
+`--evidence a,b` and `--note`. `list` filters with `--kind`.
+
+### `novahiz manifest [sync|diff]`
+
+Baseline digests of the system files. `diff` separates untouched, modified
+(`learned` / `user`), added and missing, so "is this file native?" becomes a
+measurement. `sync --origin package --from <dir>` records the bytes of the
+package that was installed; it refuses when the source is the home itself,
+because on a source checkout the package and the working tree are the same thing.
+
+### `novahiz improve [scan|list|show|dismiss|reopen|evidence|apply]`
+
+Self-improvement that proposes rather than changes. `scan` looks for three
+measurable signals: sessions stuck in the fallback category, a required skill
+loaded in three sessions that produced neither an edit nor a proof, and the same
+verification failing three times. Proposals land in `proposals/`, one file each,
+deduplicated.
+
+| Subcommand | Flags | What it does |
+|------------|-------|--------------|
+| `scan` | — | Writes new proposals (at most five per scan) |
+| `list` | `--status proposed\|dismissed\|applied` | Lists proposals |
+| `show` | `--id <id>` | Full proposal with its evidence |
+| `dismiss` | `--id <id>`, `--reason "…"` | Dismissal is permanent until `reopen` |
+| `reopen` | `--id <id>`, `--reason "…"` | Puts a dismissed proposal back |
+| `evidence` | `--skill <id>` | Per skill: sessions where it was loaded and what followed |
+| `apply` | `--id <id>` | One mechanical kind only (`unused-skill`): snapshot, patch, re-read, rollback on any doubt |
+
+`NOVAHIZ_AUTOIMPROVE=off` stops `scan`, `apply` and `repair --apply`, in the CLI
+and over MCP. Listing and reading stay available: a disabled system can still be
+audited.
+
+### `novahiz repair [--apply]`
+
+Runs a closed whitelist of repairs: a missing or unreadable skills index (rebuilt
+by the same code path `novahiz sync` uses), a native baseline snapshot, and a
+baseline manifest. Ledger integrity is reported, never "fixed". Every repair is
+re-checked afterwards, and a fix that ran but left the symptom says so. Without
+`--apply` it reports what it would do.
+
 ## Exit codes
 
 | Code | Meaning |
 |------|---------|
 | `0` | Success |
-| `1` | Command failed (error on stderr) |
+| `1` | Command failed (error on stderr, or a claim contradicted) |
 | `2` | Gate refused an edit |
+| `3` | Measurement impossible — neither success nor failure (see `novahiz verify`) |
 
 ## Flags
 
