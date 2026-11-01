@@ -438,7 +438,7 @@ Voir [docs/CONFIGURATION.md](docs/CONFIGURATION.md) pour toutes les options.
 | `novahiz upgrade` | Pull du dernier + rebuild |
 | `novahiz version` | Afficher la version |
 
-Voir `novahiz --help` pour la liste complète, à jour à chaque version. [docs/CLI.md](docs/CLI.md) détaille les commandes historiques (core, tâches, sessions, avancées) et les codes de sortie.
+Voir [docs/CLI.md](docs/CLI.md) pour la référence complète — commandes, flags, fichiers lus et codes de sortie — et `novahiz --help` pour la liste du jour.
 
 ---
 
