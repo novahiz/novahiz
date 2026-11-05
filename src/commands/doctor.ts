@@ -196,7 +196,11 @@ export function mcpEntryProblems(
       problems.push(`${name}: no command`);
       return { problems, notes };
     }
-    if (!/^https:\/\//.test(url)) problems.push(`${name}: remote url is not https`);
+    // Loopback HTTP never leaves the machine: the shared Playwright server
+    // listens on 127.0.0.1 and nothing off-host can reach it. Only a remote
+    // host over plain http is an exposure worth failing on.
+    const loopback = /^http:\/\/(127\.0\.0\.1|localhost|\[::1\])(?::\d+)?(\/|$)/.test(url);
+    if (!/^https:\/\//.test(url) && !loopback) problems.push(`${name}: remote url is not https`);
     else notes.push(`${name}: remote (${new URL(url).host})`);
     return { problems, notes };
   }
@@ -922,12 +926,23 @@ export async function commandDoctor(parsed: Parsed): Promise<void> {
    * manquait : onze dossiers de profil, donc onze états de connexion.
    */
   const entreePlaywright = mcpEntries.find(({ name }) => name === "playwright")?.entry as
-    | { command?: unknown }
+    | { command?: unknown; url?: unknown }
     | undefined;
   const commandePlaywright = Array.isArray(entreePlaywright?.command)
     ? (entreePlaywright.command as string[])
     : null;
-  const problemesNavigateur = verifierPolitiquePlaywright(commandePlaywright);
+  /*
+   * Topologie distante (2026-11-05) : le serveur Playwright partagé ne tourne
+   * qu'une fois (Edge + un seul profil) et les clients s'y connectent en HTTP
+   * sur la loopback. Une telle entrée ne porte pas de `command`, donc la
+   * politique n'est pas lisible dans la configuration — la chercher là ferait
+   * échouer un montage sain. Les entrées locales restent vérifiées au strict.
+   */
+  const urlPlaywright = typeof entreePlaywright?.url === "string" ? entreePlaywright.url : "";
+  const remoteLoopback =
+    commandePlaywright === null &&
+    /^http:\/\/(127\.0\.0\.1|localhost|\[::1\])(?::\d+)?(\/|$)/.test(urlPlaywright);
+  const problemesNavigateur = remoteLoopback ? [] : verifierPolitiquePlaywright(commandePlaywright);
   const dossierProfils = join(process.env.LOCALAPPDATA ?? homedir(), "ms-playwright-mcp");
   let profilsHistoriques = 0;
   try {
@@ -948,7 +963,9 @@ export async function commandDoctor(parsed: Parsed): Promise<void> {
     detail:
       problemesNavigateur.length > 0
         ? problemesNavigateur.join("; ")
-        : `Edge et profil explicite${noteProfils}`,
+        : remoteLoopback
+          ? `serveur partagé sur ${new URL(urlPlaywright).host} — flags (msedge, profil) portés par le lanceur, pas par opencode.jsonc${noteProfils}`
+          : `Edge et profil explicite${noteProfils}`,
     blocking: false
   });
 
