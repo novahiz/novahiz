@@ -1530,6 +1530,102 @@ async function setup(ctx: Context): Promise<Cleanup> {
     }
   };
 
+  // C-AUTO: index des identifiants deja fournis. Le coffre est chiffre et
+  // n'est JAMAIS déchiffré ici: seule la table de métadonnées du slot mémoire
+  // (src/credentials.ts, tag "credentials") est injectée. Sans ce bloc l'agent
+  // redemande une clé qu'il possède déjà — c'est exactement le coût évité.
+  // Un coffre ecrit depuis un autre terminal, une autre session ou une version
+  // precedente doit reparaître sans que l'utilisateur tape une commande. Meme
+  // regle que le coeur (src/credentials.ts): le slot porte le sceau du coffre,
+  // donc "a jour" = le corps du slot contient le sceau courant. Une comparaison
+  // de dates raterait un slot ecrit par une version anterieure (pas de sceau)
+  // et un slot remplace hors index.
+  const credentialIndexStale = (): boolean => {
+    const memoryDir = join(process.cwd(), "project-memory");
+    let stamp: string;
+    try {
+      const vault = JSON.parse(readFileSync(join(memoryDir, ".credentials.vault.json"), "utf8")) as {
+        updated?: unknown;
+      };
+      if (typeof vault?.updated !== "string" || vault.updated.length === 0) return false;
+      stamp = vault.updated;
+    } catch {
+      return false;
+    }
+    try {
+      const index = JSON.parse(readFileSync(join(memoryDir, "index.json"), "utf8")) as {
+        slots?: unknown;
+      };
+      const slots = Array.isArray(index.slots)
+        ? (index.slots as Array<{ status?: unknown; tags?: unknown; file?: unknown }>)
+        : [];
+      const slot = slots.find(
+        (entry) =>
+          entry &&
+          entry.status !== "archived" &&
+          Array.isArray(entry.tags) &&
+          entry.tags.some((tag) => typeof tag === "string" && tag.toLowerCase() === "credentials")
+      );
+      if (!slot || typeof slot.file !== "string") return true;
+      return !readFileSync(join(memoryDir, slot.file), "utf8").includes(`Coffre: ${stamp}`);
+    } catch {
+      return true;
+    }
+  };
+
+  const buildCredentialRead = async (): Promise<string[]> => {
+    try {
+      if (credentialIndexStale()) {
+        const heal = await run(["credentials", "index"]);
+        await log("info", `credentials index auto-sync: status ${heal.status}`);
+      }
+    } catch (error) {
+      await log("warn", `credentials index auto-sync failed: ${String(error).slice(0, 120)}`);
+    }
+    try {
+      const index = JSON.parse(readFileSync(join(process.cwd(), "project-memory", "index.json"), "utf8")) as {
+        slots?: unknown;
+      };
+      const slots = Array.isArray(index.slots)
+        ? (index.slots as Array<{ file?: unknown; status?: unknown; tags?: unknown }>)
+        : [];
+      const slot = slots.find(
+        (entry) =>
+          entry &&
+          entry.status !== "archived" &&
+          Array.isArray(entry.tags) &&
+          entry.tags.some((tag) => typeof tag === "string" && tag.toLowerCase() === "credentials") &&
+          typeof entry.file === "string"
+      );
+      if (!slot || typeof slot.file !== "string") return [];
+      const raw = readFileSync(join(process.cwd(), "project-memory", slot.file), "utf8");
+      const details = raw.split(/^##\s+D[ée]tails\s*$/im)[1] ?? "";
+      const rows = details
+        .split("\n")
+        .map((line) => line.trim())
+        .filter((line) => line.startsWith("|"))
+        .slice(2, 42);
+      if (rows.length === 0) return [];
+      const block = [
+        "[Novahiz credentials] identifiants déjà fournis (métadonnées seules, valeurs chiffrées) :",
+        ...rows.map(
+          (row) =>
+            `- ${row
+              .replace(/^\|/, "")
+              .replace(/\|$/, "")
+              .split("|")
+              .map((cell) => cell.trim())
+              .join(" · ")}`
+        ),
+        "Avant de demander une clé, un token ou un mot de passe : credentials_lookup. La valeur ne sort qu'avec credentials_reveal (confirm:true)."
+      ];
+      const joined = block.join("\n");
+      return joined.length <= 1400 ? block : block.slice(0, 2).concat("- … (tronqué)").concat(block.slice(-1));
+    } catch {
+      return [];
+    }
+  };
+
   // V-AUTO: consultation automatique du vault second-memory. Aller simple via
   // la CLI (`second-memory search --json`) : le plugin installe ne peut pas
   // importer src/*, donc le ranking reel est celui de la CLI — une seule
@@ -1867,6 +1963,16 @@ async function setup(ctx: Context): Promise<Cleanup> {
         summaryChunkBySession.set(sessionID, [...auto.lines, ...vault.lines]);
         const directives = directivesBySession.get(sessionID) ?? [];
         lines.push(...directives);
+      }
+      // C-AUTO: independant du kill-switch de la memoire automatique (un projet
+      // sans slot memory.auto garde ses identifiants consultables). Le bloc est
+      // vide quand aucun slot "credentials" n'existe: aucun coût supplémentaire.
+      if (process.env.NOVAHIZ_CRED_AUTO !== "off") {
+        const credentials = await buildCredentialRead();
+        if (credentials.length > 0) {
+          await log("info", `credentials index injected: ${credentials.length - 2} row(s)`);
+          lines.push(...credentials);
+        }
       }
       enforcementBySession.set(sessionID, lines.join("\n"));
     } catch (error) {

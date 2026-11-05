@@ -140,6 +140,36 @@ describe("gate/classify: une seule source de verite", () => {
     assert.deepEqual([...result.requiredSkills].sort(), roadmapEnforced("flutter"));
     assert.ok(!result.requiredSkills.includes("novahiz-wcag-audit"));
   });
+
+  test("un audit de performance route vers performance et charge le skill dedie", () => {
+    const result = classify(spec, "mon app Next est lente sur mobile, audit de performance");
+    assert.equal(result.primary, "performance");
+    assert.ok(result.requiredSkills.includes("novahiz-webperf-audit"));
+    assert.ok(!result.requiredSkills.includes("novahiz-security"), "un audit de perf n'est pas un audit de securite");
+  });
+
+  test("R19 impose le skill de performance et la roadmap webperf", () => {
+    const result = evaluateGate({
+      tool: "edit",
+      filePath: "src/app/page.tsx",
+      content: "x".repeat(600),
+      prompt: "mon app est lente, audit de performance",
+      categories: ["performance"],
+      tier: "full",
+      loadedSkills: [],
+      installedSkills: null,
+      installedIndexAvailable: true,
+      spec
+    });
+    assert.ok(result.requiredSkills.includes("novahiz-webperf-audit"));
+    assert.ok(result.matchedRules.includes("R19-web-performance"));
+  });
+
+  test("une demande de design ne declenche pas la performance", () => {
+    const result = classify(spec, "ajoute un bouton de connexion sur l'écran d'accueil");
+    assert.ok(!result.requiredSkills.includes("novahiz-webperf-audit"));
+    assert.ok(!result.categories.some((entry) => entry.id === "performance"));
+  });
 });
 
 describe("NX-52: fichier jetable hors projet", () => {

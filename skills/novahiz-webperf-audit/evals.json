@@ -1,0 +1,58 @@
+{
+  "skill_name": "novahiz-webperf-audit",
+  "version": "1.0.0",
+  "evals": [
+    {
+      "id": 1,
+      "title": "Audit complet d'une application lente",
+      "prompt": "Mon app Next.js est lente au chargement sur mobile. Fais un audit de performance complet.",
+      "expected_output": "Ligne de base ou son absence motivée, tableau des 31 règles avec verdict et preuve, classement par rentabilité, puis arrêt avant modification.",
+      "expectations": [
+        "contains:LCP",
+        "regex:(?i)classement",
+        "contains:31",
+        "regex:(?i)(sans objet|à vérifier|a verifier)",
+        "regex:(?i)(validation|ton accord|je ne modifie rien|attend)",
+        "absent:j'ai corrigé",
+        "min_lines:25"
+      ]
+    },
+    {
+      "id": 2,
+      "title": "Refus d'éditer sans validation",
+      "prompt": "Audite les performances et corrige directement ce qui est le plus rentable.",
+      "expected_output": "Le rapport est produit, puis une question bloquante demande quels rangs corriger : aucune édition avant la réponse.",
+      "expectations": [
+        "regex:(?i)(avant de (modifier|toucher)|en attente de|valide)",
+        "regex:(?i)(question|choix|options)",
+        "absent:j'ai déjà modifié",
+        "absent:fichiers modifiés",
+        "min_words:50"
+      ]
+    },
+    {
+      "id": 3,
+      "title": "Site statique : périmètre honnête",
+      "prompt": "Audite les performances de ce site vitrine statique, il n'y a ni base de données ni serveur applicatif.",
+      "expected_output": "Les règles de base de données et de backend sont déclarées sans objet avec leur raison, et aucune n'est inventée comme absente.",
+      "expectations": [
+        "regex:(?i)sans objet",
+        "regex:(?i)(aucune base|pas de base|ni base)",
+        "absent:requête N+1 absente",
+        "absent:pool de connexions absent",
+        "min_words:40"
+      ]
+    },
+    {
+      "id": 4,
+      "title": "Requête de design : pas d'audit de perf",
+      "prompt": "Ajoute un bouton de connexion en haut de l'écran d'accueil.",
+      "expected_output": "Le skill ne se déclenche pas : ce n'est pas une tâche de performance, aucun tableau des 31 règles n'est produit.",
+      "expectations": [
+        "absent:classement par rentabilité",
+        "absent:core web vitals",
+        "min_words:10"
+      ]
+    }
+  ]
+}

@@ -5,6 +5,7 @@ import { loadSpec, NovahizHome } from "../spec.ts";
 import { loadInstalledSkills } from "../catalog.ts";
 import { findContextFile } from "../impeccable.ts";
 import { ensureMemoryRoot, memoryRoot, writeEntry } from "../memory.ts";
+import { ensureCredentialIndexSlot } from "../credentials.ts";
 import { readProjectName } from "../autodocs.ts";
 import { ensureProjectAutoDocsConfig } from "./autodocs.ts";
 import { projectInit, syncProjectDocsToVault } from "./second-memory.ts";
@@ -199,11 +200,22 @@ function initMemory(cwd: string, dryRun: boolean, seed: boolean, project: Projec
           .join("\n")
       });
     }
+    // Le registre d'identifiants existe des l'initialisation, meme vide: sans
+    // ce slot le bloc injecte n'apparait qu'apres le premier `credentials set`,
+    // ce qui donnait l'impression que la fonctionnalite n'existait pas.
+    let credentialsSlot = "";
+    try {
+      credentialsSlot = ensureCredentialIndexSlot(root).id;
+    } catch {
+      // Un coffre illisible ou une cle absente ne bloque pas l'init.
+    }
     return {
       id: "memory",
       label: "Project memory",
       status: "created",
-      detail: seeded ? "project-memory/ created with baseline slot" : `project-memory/ ready (${index.slots.length} slot(s))`
+      detail: seeded
+        ? `project-memory/ created with baseline slot${credentialsSlot ? ` + credentials index ${credentialsSlot}` : ""}`
+        : `project-memory/ ready (${index.slots.length} slot(s))${credentialsSlot ? `, credentials index ${credentialsSlot}` : ""}`
     };
   } catch (error) {
     return {

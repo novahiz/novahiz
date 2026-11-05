@@ -2,9 +2,9 @@
 
 > **Couche d'application sans dépendance pour les agents de code IA** — classe les prompts, attribue des roadmaps d'exécution, bloque les éditions non sûres tant que les bonnes skills ne sont pas chargées, et persiste les décisions d'une session à l'autre — tout cela de façon déterministe, sans appel de modèle.
 
-18 catégories, 96 skills, 13 gate rules, 8 MCP providers — tout déterministe, tout local, tout JSON.
+19 catégories, 97 skills, 14 gate rules, 8 MCP providers — tout déterministe, tout local, tout JSON.
 
-> **Version 0.12.1** - `npm install -g novahiz` pose le CLI, et le premier `novahiz` lancé termine l'installation (core puis extras). `CHANGELOG.md` et `scripts/` sont dans le tarball.
+> **Version 0.13.0** - `npm install -g novahiz` pose le CLI, et le premier `novahiz` lancé termine l'installation (core puis extras). `CHANGELOG.md` et `scripts/` sont dans le tarball.
 
 ```
 ┌──────────────────────────────────────────────────────────────────────────┐
@@ -22,7 +22,7 @@
 
 ## Comment se déroule une session
 
-1. **Classifier** — chaque prompt est noté contre 18 catégories (mots-clés déterministes, aucun appel de modèle). Le résultat porte jusqu'à trois catégories, une principale, un niveau de confiance, un **tier** (`trivial` / `lite` / `full`), et les skills que le gate attendra.
+1. **Classifier** — chaque prompt est noté contre 19 catégories (mots-clés déterministes, aucun appel de modèle). Le résultat porte jusqu'à trois catégories, une principale, un niveau de confiance, un **tier** (`trivial` / `lite` / `full`), et les skills que le gate attendra.
 2. **Roadmap** — la catégorie principale sélectionne une roadmap ordonnée, et le plugin injecte sa checklist dans la session : l'agent suit plan → clarify → tasks → analyse → implement → converge au lieu d'improviser un ordre.
 3. **Gate sur chaque écriture** — les appels `edit` / `write` / `patch` / `bash` / `shell` sont vérifiés selon la classe de fichier, les règles actives, les skills de roadmap et le contenu (tokens de placeholder) : **allow** ou **block**, en local, sans appel de modèle dans le chemin de décision.
 4. **Gate reload, pas une impasse** — un blocage nomme exactement les skills manquantes et la règle de retry : charger chacune, rejouer l'appel une seule fois. Une skill absente de l'index installé est signalée, jamais appliquée. `NOVAHIZ_GATE=off` est la seule soupape, et elle est bruyante.
@@ -35,7 +35,7 @@
                  └─ tier, skills ──────│         └─ block : charger les skills nommées, retry une fois
 ```
 
-**18 catégories**, **96 skills**, **13 gate rules**, **8 MCP providers** — tout déterministe, tout local, tout JSON.
+**19 catégories**, **97 skills**, **14 gate rules**, **8 MCP providers** — tout déterministe, tout local, tout JSON.
 
 ---
 
@@ -100,7 +100,7 @@ node ./dist/cli.js doctor
 
 ## Le classifier
 
-Chaque prompt utilisateur passe par le classifier. Il note les mots-clés contre 18 catégories et retient les meilleurs matchs.
+Chaque prompt utilisateur passe par le classifier. Il note les mots-clés contre 19 catégories et retient les meilleurs matchs.
 
 ```mermaid
 flowchart LR
@@ -175,6 +175,7 @@ flowchart TD
 | R12-web-extract | Un prompt de recherche | novahiz-web-extract |
 | R13-design-craft | Un prompt design-ui ou un fichier style (css/scss/less/html) | novahiz-humanizer, ui-slop-remover, ui-craft-rules |
 | R14-impeccable | Un prompt design-ui ou un fichier style (css/scss/less/html) | impeccable |
+| R19-web-performance | Un prompt de performance (lenteur, Lighthouse, Core Web Vitals) | novahiz-webperf-audit |
 
 `novahiz-humanizer` et `ui-slop-remover` ne sont exigées que sur les tâches de design frontend (R13) ; `impeccable` se charge de la même façon (R14) pour garder les playbooks shape, critique, audit, harden et polish accessibles, et la roadmap design-ui porte une étape de vérification `impeccable detect` déterministe avant ship. `novahiz init` et `novahiz doctor` affichent les fichiers de contexte `PRODUCT.md` / `DESIGN.md` d'impeccable en lignes advisory.
 
@@ -293,6 +294,22 @@ La mémoire de session est un système à deux couches : un espace de travail bo
 - C'est ici que vont décisions, causes racines et prochaines étapes quand une tâche complexe se termine.
 - `novahiz doctor` vérifie à la fois la racine mémoire et les outils mémoire.
 
+### Identifiants — `novahiz credentials`
+
+Les clés API et les identifiants du client sont répartis sur deux supports, et c'est volontaire : le contenu d'un slot mémoire part dans le prompt à chaque session.
+
+| Couche | Où | Contenu |
+|--------|----|---------|
+| Index | slot mémoire tagué `credentials` | provider, nom des champs, variable d'environnement, compte, date — **jamais de valeur** |
+| Coffre | `project-memory/.credentials.vault.json` | valeurs chiffrées AES-256-GCM, clé maître `~/.novahiz/credential-key` (0600) |
+
+- `novahiz credentials set <provider> <champ>` enregistre une valeur : `--value`, `--stdin`, ou saisie masquée dans le terminal. L'index mémoire est réécrit dans la foulée.
+- L'index se maintient seul : `novahiz init` crée le slot même sans coffre, `list`/`get`/`doctor` le resynchronisent à la lecture, et le hook de prompt compare le corps du slot au sceau du coffre (`Coffre: <horodatage>`) pour ne relancer `credentials index` que si les deux divergent. Aucune commande à taper.
+- `list` et `get` n'affichent qu'un aperçu masqué. La valeur en clair exige `--reveal`, et chaque révélation côté agent est tracée dans `project-memory/.credentials-audit.log`.
+- Le plugin injecte le bloc `[Novahiz credentials]` à chaque prompt, tant qu'un slot tagué existe : l'agent sait ce qui est déjà disponible avant de demander quoi que ce soit. La valeur ne quitte le coffre que par `credentials_reveal` (`confirm: true`).
+- `export` écrit un `.env.local` que l'application lit ; `doctor` contrôle la clé, le déchiffrement, la fraîcheur de l'index et la présence de `project-memory/` dans `.gitignore`. `destroy --force` supprime le coffre.
+- Ce que le chiffrement protège : une fuite par git, par prompt, par grep, par sauvegarde du workspace. Ce qu'il ne protège pas : un attaquant qui exécute déjà du code sous ton compte, puisque la clé est à côté du coffre. Ce compromis est écrit dans `src/credentials.ts`.
+
 ### Double écriture — `MEMORY.md` + vault
 
 La skill `novahiz-memory` écrit l'état de clôture d'une tâche à deux endroits à la fois :
@@ -335,6 +352,7 @@ Novahiz livre 95 skills au total — le cœur du dépôt, plus les packs officie
 | `design-ui` | novahiz-humanizer, ui-slop-remover, ui-craft-rules, apple-ui-audit, ... | UI/UX, hiérarchie visuelle, feel natif |
 | `docs-writing` | ... | Prose, copy marketing, dé-IA du texte |
 | `browser` | novahiz-browser, browser-session, novahiz-web-extract, ... | Automatisation web, captures, extraction |
+| `performance` | novahiz-webperf-audit, ... | 31 règles de vitesse, classement par rentabilité, mesure avant/après |
 | `audit` | novahiz-security, package-risk-audit, llm-threat-review, ... | Sécurité, conformité, vulnérabilités |
 | `expo` | expo-overview, expo-router, expo-module, expo-dev-client, ... | Expo / React Native : routes, modules natifs, builds |
 | `devops` | novahiz-release, novahiz-init, ... | Releases versionnées, onboarding, installation |
@@ -417,6 +435,7 @@ Voir [docs/CONFIGURATION.md](docs/CONFIGURATION.md) pour toutes les options.
 | `novahiz skillpack --category <id>` | Carte compacte d'une catégorie (une ligne par skill) avant de payer leur chargement |
 | `novahiz dev doctor` | Environnement de dev : ports qui écoutent sans répondre, cache `.next`, accès aux polices |
 | `novahiz secrets scan` | Chercher des identifiants fuités dans `tmp/`, `logs/` et les preuves — sortie masquée |
+| `novahiz credentials <sub>` | Coffre chiffré des identifiants (`init` / `set` / `list` / `get` / `remove` / `index` / `export` / `doctor`) — `--reveal` pour afficher une valeur |
 | `novahiz render --url <url>` | Faits vérifiables du HTML servi : titres, `alt` manquants, labels, `tabindex`, ids dupliqués |
 | `novahiz backup <sub>` | Snapshots SHA-256 de la maison (`create` / `list` / `verify` / `restore`) |
 | `novahiz evolution <sub>` | Registre append-only des changements, chaîné par hash (`append` / `list` / `verify`) |

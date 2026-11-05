@@ -482,6 +482,11 @@
       "secrets",
       "securite"
     ],
+    "negativeKeywords": [
+      { "term": "performance|performances", "weight": 2 },
+      { "term": "lighthouse|web vitals|lcp|ttfb", "weight": 2 },
+      { "term": "lenteur|lente|slow", "weight": 2 }
+    ],
     "defaultSkills": [],
     "roadmap": {
       "id": "audit",
@@ -1593,6 +1598,104 @@
           "requireSkills": [
             "novahiz-release"
           ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "performance",
+    "label": "Web Performance",
+    "priority": 56,
+    "keywords": [
+      { "term": "performance|performances", "weight": 2 },
+      { "term": "lenteur|lenteurs|lent|lente|slow", "weight": 2 },
+      { "term": "rame|rames", "weight": 2 },
+      { "term": "temps de chargement|chargement lent|slow load|slow page", "weight": 2 },
+      { "term": "lighthouse", "weight": 3 },
+      { "term": "core web vitals|web vitals", "weight": 3 },
+      { "term": "lcp|inp|cls|ttfb", "weight": 2 },
+      { "term": "latence|latency", "weight": 2 },
+      { "term": "webp|avif", "weight": 1 },
+      { "term": "bundle", "weight": 1 },
+      { "term": "n+1", "weight": 2 },
+      { "term": "lazy load|lazy loading|lazy-load", "weight": 2 },
+      { "term": "cache", "weight": 1 },
+      { "term": "cdn", "weight": 1 },
+      { "term": "timeout|timeouts", "weight": 1 },
+      { "term": "skeleton|skeletons|squelette|squelettes", "weight": 1 },
+      { "term": "virtualisation|virtualization|virtualized", "weight": 1 },
+      { "term": "debounce", "weight": 2 },
+      { "term": "optimisation des performances|optimiser les performances|optimize performance", "weight": 2 }
+    ],
+    "negativeKeywords": [
+      { "term": "maquette|wireframe", "weight": 1 }
+    ],
+    "defaultSkills": [],
+    "roadmap": {
+      "id": "webperf",
+      "steps": [
+        {
+          "id": "baseline",
+          "label": "Measure the baseline",
+          "kind": "skill",
+          "requireSkills": [
+            "novahiz-webperf-audit"
+          ]
+        },
+        {
+          "id": "inventory",
+          "label": "Inventory the stack and the out-of-scope rules",
+          "kind": "skill",
+          "requireSkills": [
+            "novahiz-webperf-audit"
+          ]
+        },
+        {
+          "id": "verdicts",
+          "label": "Rule-by-rule verdicts with evidence",
+          "kind": "skill",
+          "requireSkills": [
+            "novahiz-webperf-audit"
+          ]
+        },
+        {
+          "id": "rank",
+          "label": "Rank by return on effort",
+          "kind": "skill",
+          "requireSkills": [
+            "novahiz-webperf-audit"
+          ]
+        },
+        {
+          "id": "validate",
+          "label": "Get validation before any edit",
+          "kind": "approval",
+          "requireSkills": [
+            "novahiz-webperf-audit"
+          ]
+        },
+        {
+          "id": "fix",
+          "label": "Fix one rule at a time",
+          "kind": "edit",
+          "requireSkills": [
+            "novahiz-webperf-audit",
+            "novahiz-implement"
+          ]
+        },
+        {
+          "id": "verify",
+          "label": "Re-measure and verify",
+          "kind": "verify",
+          "requireSkills": [
+            "novahiz-webperf-audit",
+            "novahiz-converge"
+          ]
+        },
+        {
+          "id": "report",
+          "label": "Report before and after",
+          "kind": "advisory"
         }
       ]
     }

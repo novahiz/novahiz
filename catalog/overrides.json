@@ -181,6 +181,18 @@
         "audit"
       ]
     },
+    "novahiz-webperf-audit": {
+      "power": 4,
+      "stars": null,
+      "tags": [
+        "performance",
+        "web",
+        "audit"
+      ],
+      "categories": [
+        "performance"
+      ]
+    },
     "novahiz-security": {
       "power": 4,
       "stars": null,

@@ -6,8 +6,8 @@ The catalog is the knowledge base of Novahiz. It defines what categories exist, 
 
 ```
 catalog/
-├── categories.json    # 17 categories with keywords, skills, roadmaps
-├── rules.json         # 13 pre-edit rules (file class + content triggers)
+├── categories.json    # 19 categories with keywords, skills, roadmaps
+├── rules.json         # 14 pre-edit rules (file class + content triggers)
 ├── providers.json     # 11 external providers (7 MCP + 4 skill packs)
 └── overrides.json     # Manual skill curation (power, stars, tags)
 ```

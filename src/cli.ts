@@ -22,6 +22,7 @@ import { commandAutodocs } from "./commands/autodocs.ts";
 import { commandUpgrade } from "./commands/upgrade.ts";
 import { commandStitch } from "./commands/stitch.ts";
 import { commandDocs } from "./commands/docs.ts";
+import { commandCredentials } from "./commands/credentials.ts";
 import { commandBackup, commandEvolution, commandManifest } from "./commands/backup.ts";
 import { commandImprove } from "./commands/improve.ts";
 import { commandRepair } from "./commands/repair.ts";
@@ -82,6 +83,7 @@ function usage(): void {
       "skillpack --category <id>  Compact map of a category's skills (purpose + rules), before loading them",
       "dev doctor              Diagnose the dev environment: ports in use, .next cache, font/CDN reachability",
       "secrets scan            Scan logs, tmp and recorded evidence for leaked credentials (masked output)",
+      "credentials [init|set|list|get|remove|index|export|doctor]  Encrypted credential vault: values encrypted locally, metadata indexed in project memory (--reveal to print a value)",
       "backup [create|list|verify|restore]  Snapshots of the system home, verified by SHA-256 (native / auto-improve / pre-restore)",
       "evolution [list|append|verify]  Append-only registry of every change, with provenance and a hash chain",
       "manifest [sync|diff]    Baseline digests of the system files, and their drift from disk",
@@ -227,6 +229,8 @@ async function main(argv: string[]): Promise<void> {
       return commandDev(parsed);
     case "secrets":
       return commandSecrets(parsed);
+    case "credentials":
+      return commandCredentials(parsed);
     case "backup":
       return commandBackup(parsed);
     case "evolution":

@@ -2,7 +2,7 @@
 import { createInterface } from "node:readline";
 import { pathToFileURL } from "node:url";
 import { dirname, resolve, sep } from "node:path";
-import { existsSync, mkdirSync, readFileSync, readdirSync, realpathSync, unlinkSync, writeFileSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, readFileSync, readdirSync, realpathSync, unlinkSync, writeFileSync } from "node:fs";
 import { classify, annotateRoadmap } from "../../src/classify.ts";
 import { loadSpec } from "../../src/spec.ts";
 import { loadCatalog, loadInstalledSkills } from "../../src/catalog.ts";
@@ -15,6 +15,7 @@ import { dependencyReport } from "../../src/deps.ts";
 import { attachScreen, createScreen, createSection, createSections, initWireframes, listScreens, markStatus, planSections, rebuildIndex as rebuildWireframeIndex, reviewScreen } from "../../src/wireframe.ts";
 import { activeTask, addTodos, amendTodo, blockTodo, buildWorkPackets, closeStepsFor, closeTask, completeTodo, createTask, dropTask, dropTodo, getTask, getTodo, insertTodo, ledgerSummary, listTodos, openTodoIds, parseReviewDiff, planHistory, recordTodoDone, reorderTodos, resume, reviewDue, reviewTask, revisionSignals, startTodo } from "../../src/ledger.ts";
 import { DEFAULT_LIMIT_CHARS, DEFAULT_LIMIT_LINES, archiveSlot, ensureMemoryRoot, getSlot, listSlots, parseSlotInput, rebuildFts, rebuildIndex, recordSlotVerification, resolveMemoryDir, searchSlots, touchSlotRead, updateSlot, writeEntry } from "../../src/memory.ts";
+import { listCredentials, revealCredential, setCredential, syncCredentialIndex, syncCredentialIndexIfStale } from "../../src/credentials.ts";
 import { listEvidence, projectKey, runVerification } from "../../src/evidence.ts";
 import { activeSessionsOnProject, defaultSessionForProject, worktreeHint } from "../../src/sessions.ts";
 import { buildSkillpack } from "../../src/skillpack.ts";
@@ -533,6 +534,70 @@ const TOOLS = [
       properties: {
         root: { type: "string", description: "Project root or memory dir (default cwd): resolved to <root>/project-memory; a legacy layout (index.json + slots/) is accepted as-is; outside the workspace -> degrades to the workspace memory (degraded: true on the response)." }
       }
+    }
+  },
+  {
+    name: "credentials_list",
+    description:
+      "List the credentials registered for this project: provider, field names, environment variable names, account and a masked preview. Never returns a value. Call this before asking the user for an API key, a token or a password.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        root: { type: "string", description: "Project root or memory dir (default cwd): resolved to <root>/project-memory." }
+      }
+    }
+  },
+  {
+    name: "credentials_lookup",
+    description:
+      "Answer 'do we already have credentials for this provider?' with metadata only: fields, env names, account, last update. Never returns a value — use credentials_reveal when plaintext is genuinely required.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        provider: { type: "string", description: "Provider to look up, e.g. supabase. Omit to list every provider." },
+        root: { type: "string", description: "Project root or memory dir (default cwd)." }
+      }
+    }
+  },
+  {
+    name: "credentials_reveal",
+    description:
+      "Return the plaintext value of a stored credential. Requires confirm:true. Every call is appended to project-memory/.credentials-audit.log. Use it only when the value is actually needed; never paste the result into a file that is not gitignored.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        provider: { type: "string", description: "Provider name, e.g. supabase." },
+        field: { type: "string", description: "Field to reveal. Omit to reveal every field of the provider." },
+        confirm: { type: "boolean", description: "Must be true: acknowledges that plaintext leaves the encrypted vault." },
+        root: { type: "string", description: "Project root or memory dir (default cwd)." }
+      },
+      required: ["provider", "confirm"]
+    }
+  },
+  {
+    name: "credentials_save",
+    description:
+      "Store credentials the user just provided: values go into the encrypted local vault, and project memory records the metadata only (provider, env names, account) so a later session finds them without asking again.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        provider: { type: "string", description: "Provider name, e.g. supabase, resend, openrouter." },
+        fields: {
+          type: "object",
+          description: "Map of field name to secret value, e.g. { SUPABASE_ANON_KEY: 'eyJ...' }.",
+          additionalProperties: { type: "string" }
+        },
+        env: {
+          type: "object",
+          description: "Optional map of field name to environment variable name, e.g. { SUPABASE_ANON_KEY: 'SUPABASE_ANON_KEY' }.",
+          additionalProperties: { type: "string" }
+        },
+        account: { type: "string", description: "Account or email the credential belongs to." },
+        label: { type: "string", description: "Human label for the provider." },
+        note: { type: "string", description: "Free note (never put a secret here)." },
+        root: { type: "string", description: "Project root or memory dir (default cwd)." }
+      },
+      required: ["provider", "fields"]
     }
   },
   {
@@ -1453,6 +1518,108 @@ function callTool(name, args) {
       fts: fts
         ? { synced: true, slots: fts.slots }
         : { synced: false, reason: "index SQLite indisponible (repli fichiers)" }
+    });
+  }
+  if (name === "credentials_list") {
+    const root = safeMemoryRoot(args?.root);
+    // Auto-heal avant lecture: un coffre ecrit ailleurs ne doit pas laisser
+    // l'index decrire un etat perime.
+    syncCredentialIndexIfStale(root);
+    const providers = listCredentials(root);
+    return toolResult({
+      root,
+      count: providers.length,
+      valuesIncluded: false,
+      providers,
+      hint:
+        providers.length > 0
+          ? "Values are encrypted and were not returned. Call credentials_reveal with confirm:true only when plaintext is required."
+          : "No credential registered for this project yet."
+    });
+  }
+  if (name === "credentials_lookup") {
+    const root = safeMemoryRoot(args?.root);
+    syncCredentialIndexIfStale(root);
+    const provider = String(args?.provider ?? "").trim().toLowerCase();
+    const all = listCredentials(root);
+    const matched = provider.length > 0 ? all.filter((entry) => entry.provider === provider) : all;
+    return toolResult({
+      root,
+      provider: provider.length > 0 ? provider : null,
+      found: matched.length > 0,
+      count: matched.length,
+      valuesIncluded: false,
+      providers: matched,
+      hint:
+        matched.length > 0
+          ? "Credential exists. Reveal it only if the value is genuinely needed."
+          : "Nothing stored for this provider: ask the user, then persist it with credentials_save so the next session does not ask again."
+    });
+  }
+  if (name === "credentials_reveal") {
+    if (args?.confirm !== true) {
+      throw new Error(
+        "Invalid params: confirm must be true — credentials_reveal returns plaintext secrets and records the call in .credentials-audit.log"
+      );
+    }
+    const root = safeMemoryRoot(args?.root);
+    const provider = String(args?.provider ?? "").trim();
+    if (provider.length === 0) throw new Error("Invalid params: provider must be a non-empty string");
+    const field = typeof args?.field === "string" && args.field.length > 0 ? args.field : undefined;
+    const revealed = revealCredential({ memoryDir: root, provider, field });
+    try {
+      const line = `${new Date().toISOString()} reveal provider=${provider} fields=${revealed.fields
+        .map((entry) => entry.name)
+        .join(",")}\n`;
+      appendFileSync(resolve(root, ".credentials-audit.log"), line, "utf8");
+    } catch {
+      // L'audit ne doit jamais empecher une revelation explicitement demandee.
+    }
+    return toolResult({
+      root,
+      provider: revealed.provider,
+      revealed: true,
+      valuesIncluded: true,
+      fields: revealed.fields
+    });
+  }
+  if (name === "credentials_save") {
+    const root = safeMemoryRoot(args?.root);
+    const provider = String(args?.provider ?? "").trim();
+    if (provider.length === 0) throw new Error("Invalid params: provider must be a non-empty string");
+    const fields = args?.fields;
+    if (!fields || typeof fields !== "object" || Array.isArray(fields) || Object.keys(fields).length === 0) {
+      throw new Error("Invalid params: fields must be a non-empty object mapping field name to secret value");
+    }
+    const envMap = args?.env && typeof args.env === "object" && !Array.isArray(args.env) ? args.env : {};
+    const account = typeof args?.account === "string" && args.account.length > 0 ? args.account : undefined;
+    const label = typeof args?.label === "string" && args.label.length > 0 ? args.label : undefined;
+    const note = typeof args?.note === "string" && args.note.length > 0 ? args.note : undefined;
+    const saved = [];
+    for (const [field, value] of Object.entries(fields)) {
+      if (typeof value !== "string") throw new Error(`Invalid params: field ${field} must be a string`);
+      const summary = setCredential({
+        memoryDir: root,
+        provider,
+        field,
+        value,
+        env: typeof envMap[field] === "string" ? envMap[field] : undefined,
+        account,
+        label,
+        note,
+        noIndex: true
+      });
+      const match = summary.fields.find((entry) => entry.name === field);
+      saved.push({ name: field, env: match?.env, masked: match?.masked });
+    }
+    const index = syncCredentialIndex(root);
+    return toolResult({
+      root,
+      provider: provider.toLowerCase(),
+      saved,
+      valuesIncluded: false,
+      indexSlot: index.slot.id,
+      indexChanged: index.changed
     });
   }
   if (name === "snap_log") {

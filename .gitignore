@@ -30,8 +30,14 @@ node_modules/
 /mcp/novahiz-docs/data/usage.jsonl*
 # build output of `npm run prepare` (tsc -p tsconfig.build.json) — regenerated.
 /dist/
-# agent session memory — machine data, regenerated as the session runs.
+# agent session memory - machine data, regenerated as the session runs.
 /project-memory/
+# credential vault - encrypted secrets, machine-local. /project-memory/ above
+# already covers the canonical layout; these explicit entries survive a moved
+# memory dir or a fork that changes the layout.
+**/.credentials.vault.json
+**/.credentials-audit.log
+**/.credentials.lock
 # local pre-migration copy of the opencode plugin - not part of the source.
 *.pre-v2
 # novahiz tool-output spool - truncated call outputs, regenerated every session.

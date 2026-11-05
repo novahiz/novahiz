@@ -26,6 +26,18 @@ Do **not** consult it for trivial edits, unrelated questions, or when the prompt
 7. Structure maintenance is CLI work: `novahiz second-memory [init|doctor|fix|sync|project-init|status]` (dry-run by default, `--apply` to write). `sync` only archives notes the old memory mirror left in the vault — it never mirrors memory into the vault.
 8. Folders are never created speculatively: a folder appears on the first write, or when `second-memory project-init` (the same logic behind the `Obsidian project folder` step of `novahiz init`) creates a project's `docs/journal/decisions` folders on request — never `memory/<project>/`.
 
+## Credentials — never ask twice, never leak
+
+The project keeps the client's credentials in an **encrypted local vault**: values in `project-memory/.credentials.vault.json` (AES-256-GCM, master key `~/.novahiz/credential-key`), metadata in a `credentials` memory slot that the prompt hook injects. The slot carries provider, field names, env variable names and account — **never a value**.
+
+1. **Before asking** for any API key, token, connection string or password, call `credentials_lookup` (or read the `[Novahiz credentials]` block). If the provider is listed, you already have it — do not ask again.
+2. **Reveal only when needed**: `credentials_reveal` with `confirm: true`. Every reveal is appended to `project-memory/.credentials-audit.log`. Never reveal a credential just to show it.
+3. **Persist what the user gives you**: when a credential arrives in the conversation, store it immediately with `credentials_save` so the next session finds it. Values go to the vault, metadata to the slot.
+4. **Never write a secret anywhere else**: not in a slot, not in `MEMORY.md`, not in AGENTS.md, not in the vault Obsidian, not in a committed file. `novahiz credentials` is the only destination.
+5. **Applications read env vars, not the vault**: `novahiz credentials export` writes a gitignored `.env.local`. Run `novahiz credentials doctor` after any change: it checks the key, the vault, the index slot and the gitignore.
+6. A leaked value is an incident, not a nuisance: `novahiz secrets scan` first, then rotate the key at the provider.
+
+
 ## Playwright Browser — Persistent Profile
 
 Playwright uses a **persistent profile** that preserves data across sessions (cookies, localStorage, sessionStorage, history, logged-in sessions).

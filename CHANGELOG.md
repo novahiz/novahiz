@@ -5,6 +5,58 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.13.0] - 2026-11-03
+
+### Added
+
+- **Encrypted credential vault, and a memory slot that keeps the agent from
+  asking twice.** The client's API keys, tokens and passwords live in
+  `project-memory/.credentials.vault.json` (AES-256-GCM, scrypt-derived key,
+  master key at `~/.novahiz/credential-key`, mode 0600). Project memory only
+  carries the metadata — provider, field names, environment variable names,
+  account, date — in a slot tagged `credentials`, and the prompt hook injects
+  that table. The agent therefore knows a credential exists without ever seeing
+  its value, and the value leaves the vault only through `credentials_reveal`
+  with `confirm: true`, which appends a line to
+  `project-memory/.credentials-audit.log`.
+  Why two layers instead of one slot: the content of a session slot is injected
+  into the model context on every prompt and indexed in `novahiz.sqlite`, so a
+  secret stored there would be copied into the prompt, into `logs/` and into the
+  derived index. `renderIndexDetails` reads only metadata keys, and
+  `syncCredentialIndex` refuses to write any string that contains a stored value.
+  - CLI: `novahiz credentials init | set | list | get | remove | index | export
+    | doctor | destroy`. `get` prints a masked preview unless `--reveal` is
+    passed; `set` takes `--value`, `--stdin`, or prompts with a muted terminal.
+  - MCP: `credentials_list`, `credentials_lookup` (never returns a value),
+    `credentials_reveal`, `credentials_save`.
+  - **The index maintains itself, no command required.** `novahiz init` creates
+    the slot even when no vault exists yet; `credentials list`, `get` and
+    `doctor` resynchronise it on read; and the prompt hook compares the slot
+    body with the vault's write stamp, running `credentials index` only when
+    they diverge. The stamp line (`Coffre: <timestamp>`) is what makes the
+    check content-addressed: a timestamp comparison would never notice a slot
+    written by an earlier build, which is exactly the state a user hit after a
+    restart (measured: index rewritten automatically on the first `doctor`).
+  - `credentials doctor` checks the master key, decryption, index freshness and
+    the `project-memory/` entry in `.gitignore`.
+  - Threat model, stated in the module: this stops accidental disclosure (git,
+    prompt, grep, a shared workspace backup). It does not stop an attacker who
+    already runs code as the user, because the key sits next to the vault.
+  - 16 tests cover the round-trip, the wrong-key refusal (vault bytes unchanged),
+    the absence of any value in the slot and in the injected block, the
+    idempotent index, env export, and the MCP surface.
+
+- **Web performance audit skill (`novahiz-webperf-audit`).** A new category
+  `performance` with an 8-step roadmap (baseline, inventory, verdicts, ranking,
+  validation, fix, verify, report) and a new gate rule R19. The skill produces
+  a sourced verdict for each of 31 web-performance rules, ranks them by
+  return on effort, and stops before any edit until the user validates. A
+  deterministic scanner (`skills/novahiz-webperf-audit/scripts/scan-perf.mjs`)
+  covers 15 mechanical rules; the remaining 16 are judged by reading code or
+  measuring. Includes 4 evals and 6 tests (3 scanner, 3 gate routing). The
+  `audit` category gained negative keywords so an "audit de performance"
+  prompt no longer drags in `novahiz-security`.
+
 ## [0.12.1] - 2026-10-31
 
 ### Fixed

@@ -311,5 +311,18 @@
     "require": [
       "novahiz-skill-craft"
     ]
+  },
+  {
+    "id": "R19-web-performance",
+    "description": "Load novahiz-webperf-audit on any web-performance prompt: the 31-rule verdicts, the return-on-effort ranking and the validation stop before any edit are prerequisites.",
+    "when": {
+      "match": "any",
+      "promptCategories": [
+        "performance"
+      ]
+    },
+    "require": [
+      "novahiz-webperf-audit"
+    ]
   }
 ]

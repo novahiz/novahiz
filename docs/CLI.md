@@ -343,6 +343,36 @@ is masked; a finding exits non-zero so a CI job or a caller cannot ignore it.
 
 `--paths ...` replaces the default target list, `--root <dir>` moves the root.
 
+### `novahiz credentials <sub>`
+
+Encrypted credential vault. Values live in
+`project-memory/.credentials.vault.json` (AES-256-GCM, key derived with scrypt
+from `~/.novahiz/credential-key`); project memory only receives the metadata
+(provider, field names, environment variable names, account, date) in a slot
+tagged `credentials`.
+
+| Subcommand | Effect |
+|---|---|
+| `init [--force]` | Create the master key. `--force` rotates it, which makes existing vaults unreadable |
+| `set <provider> <field>` | Store a value: `--value <v>`, `--stdin`, or a muted prompt. Flags: `--env`, `--label`, `--field-label`, `--account`, `--note` |
+| `list` | Providers and fields with a masked preview |
+| `get <provider> [--field f]` | Masked metadata; add `--reveal` to print plaintext |
+| `remove <provider> [--field f]` | Delete one field, or the whole provider |
+| `index` | Rebuild the metadata slot from the vault |
+| `export [--out path] [--providers a,b] [--force]` | Write a `.env.local` the application can read |
+| `doctor` | Check key, decryption, index freshness and the `project-memory/` entry in `.gitignore` |
+| `destroy --force` | Delete the vault file |
+
+`--root <dir>` (or `--project <dir>`) targets another project. The vault never
+enters a slot: `syncCredentialIndex` refuses to write text containing a stored
+value, and the value leaves the vault only through `credentials_reveal` with
+`confirm: true`, which appends the call to
+`project-memory/.credentials-audit.log`.
+
+The index needs no manual command. `novahiz init` creates the slot, reads
+(`list`, `get`, `doctor`) resynchronise it, and the prompt hook compares the slot
+body with the vault's write stamp before deciding to run `credentials index`.
+
 ### `novahiz skillpack --category <id>`
 
 A compact map of a category's skills: one line of purpose plus headings and
