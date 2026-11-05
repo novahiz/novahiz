@@ -112,3 +112,18 @@ describe("contrat du paquet : un seul point d'entree", () => {
     }
   });
 });
+
+describe("contrat du paquet : baseline natif sur installation neuve", () => {
+  test("l'installateur enregistre manifest, backup natif et evolution sur une install neuve", () => {
+    const src = readFileSync(join(root, "install", "install.mjs"), "utf8");
+    assert.match(src, /manifest", "sync"/);
+    assert.match(src, /backup", "create", "--kind", "native"/);
+    assert.match(src, /evolution", "append"/);
+    assert.match(src, /freshInstall/);
+  });
+
+  test("le baseline est reserve aux installations neuves", () => {
+    const src = readFileSync(join(root, "install", "install.mjs"), "utf8");
+    assert.match(src, /runCore && !dryRun && freshInstall/);
+  });
+});

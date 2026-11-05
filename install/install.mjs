@@ -308,6 +308,7 @@ async function main() {
   // fin du script ; ce drapeau couvre le cas qu'une exception ne signale pas :
   // un sous-processus qui sort sur un code non nul (catalogue, dependances).
   let stepFailure = null;
+  let freshInstall = false;
 
   const sameRoot = resolve(root) === resolve(home);
   ui.step("Core files");
@@ -484,7 +485,7 @@ async function main() {
     // mise a jour (manifeste deja present) ne les rejoue pas : l'utilisateur a
     // deja un environnement configure, un `npm install` ne doit pas declencher
     // de telechargement a sa place. `novahiz-install --extras` reste explicite.
-    const freshInstall = previous.version === undefined;
+    freshInstall = previous.version === undefined;
     saveManifest(home, {
       version: pkgVersion,
       installedAt: new Date().toISOString(),
@@ -519,6 +520,48 @@ async function main() {
       if (result.status !== 0 && result.stderr) ui.raw(result.stderr);
       if (result.status !== 0) stepFailure = stepFailure ?? "catalog sync";
     }
+  }
+
+  // Baseline natif (audit 2026-11-05) : sur une installation neuve, le doctor
+  // signalait "Native manifest absent", "Backups none yet" et "Evolution
+  // registry absent" alors que la maison venait d'etre posee. On enregistre
+  // ici le manifeste de reference et un snapshot natif pour que `novahiz
+  // doctor` soit vert des le premier lancement. Reserve aux installations
+  // neuves : une mise a jour ne doit pas redefinir le baseline sur des
+  // fichiers modifies par l'utilisateur.
+  if (runCore && !dryRun && freshInstall) {
+    const manifestCmd = cliSpawnArgs(home, "manifest", "sync");
+    if (manifestCmd) {
+      note("Recording native manifest (baseline)");
+      const m = spawnSync(manifestCmd[0], manifestCmd.slice(1), {
+        encoding: "utf8",
+        env: { ...process.env, NOVAHIZ_HOME: home }
+      });
+      if (m.stdout) ui.raw(m.stdout);
+      if (m.status !== 0 && m.stderr) ui.raw(m.stderr);
+    }
+    const backupCmd = cliSpawnArgs(home, "backup", "create", "--kind", "native");
+    if (backupCmd) {
+      note("Creating native backup (baseline snapshot)");
+      const b = spawnSync(backupCmd[0], backupCmd.slice(1), {
+        encoding: "utf8",
+        env: { ...process.env, NOVAHIZ_HOME: home }
+      });
+      if (b.stdout) ui.raw(b.stdout);
+      if (b.status !== 0 && b.stderr) ui.raw(b.stderr);
+    }
+    const evolutionCmd = cliSpawnArgs(home, "evolution", "append", "--kind", "install", "--target", "novahiz", "--reason", "initial npm install", "--provenance", "native", "--verdict", "applied");
+    if (evolutionCmd) {
+      note("Recording install in evolution registry");
+      const e = spawnSync(evolutionCmd[0], evolutionCmd.slice(1), {
+        encoding: "utf8",
+        env: { ...process.env, NOVAHIZ_HOME: home }
+      });
+      if (e.stdout) ui.raw(e.stdout);
+      if (e.status !== 0 && e.stderr) ui.raw(e.stderr);
+    }
+  } else if (runCore && !dryRun) {
+    note("Baseline already recorded (update): native manifest/backup left untouched.");
   }
 
   if (!runExtras) {
